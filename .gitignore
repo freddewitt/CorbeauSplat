@@ -1,0 +1,32 @@
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Application - Engines (Downloaded/Compiled locally)
+engines/
+
+# Application - User Config & Logs
+config.json
+*.log
+
+# IDE
+.idea/
+.vscode/
+
+# Project Specific (Cleanup)
+target/

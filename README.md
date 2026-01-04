@@ -1,0 +1,70 @@
+# CorbeauSplat
+
+**CorbeauSplat** is an all-in-one Gaussian Splatting automation tool designed specifically for **macOS Silicon** (M1/M2/M3). It streamlines the entire workflow from raw video/images to a fully trained and viewable 3D scene (Gaussian Splat).
+
+## 🚀 What it does
+
+This application provides a unified Graphical User Interface (GUI) to orchestrate the following steps:
+1.  **Data Preparation**: Extracts frames from videos using hardware-accelerated FFmpeg.
+2.  **Sparse Reconstruction**: Automates **COLMAP** feature extraction, matching, and mapping to create a sparse point cloud and camera poses.
+3.  **Undistortion**: Automatically undistorts images for optimal training quality.
+4.  **Training**: Integrates **Brush** to train Gaussian Splats directly on your Mac.
+5.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
+
+It is designed to be "click-and-run", handling dependency checks and process management for you.
+
+## ✍️ A Note from the Author
+
+> This program was realized through **"vibecoding"** with the help of **Gemini 3 Pro**.
+>
+> It was originally created to facilitate the technical workflow for a documentary film titled **"Le Corbeau"**. I am not a professional developer; I simply needed to automate a complex process by gathering the tools I use daily: COLMAP, the Brush app, and SuperSplat. 
+>
+> I share this code in all humility. I didn't originally plan to release it, but I thought that perhaps someone, somewhere on this earth, might find it useful.
+>
+> As this software was built via "vibecoding" (AI-assisted coding), it is provided "as is" with no guarantees.
+
+## 🛠 Prerequisites & Installation
+
+### Requirements
+- **macOS** (Silicon M1/M2/M3 recommended)
+- **Homebrew** (for installing system dependencies like COLMAP and FFmpeg)
+- **Git**
+
+### Installation
+1.  Clone this repository:
+    ```bash
+    git clone https://github.com/your-username/CorbeauSplat.git
+    cd CorbeauSplat
+    ```
+
+2.  Run the launcher:
+    ```bash
+    ./run.command
+    ```
+    *The script will automatically detect missing dependencies (Python packages, Brush, SuperSplat) and attempt to install them for you.*
+
+## 📖 How to Use
+
+1.  **Configuration Tab**: 
+    - Select your input (Video or Folder of images).
+    - Choose an output folder.
+    - Click **"Create COLMAP Dataset"**.
+2.  **Params Tab**: (Optional) Tweak advanced COLMAP settings if needed. The defaults are optimized for Apple Silicon.
+3.  **Brush Tab**: 
+    - Once COLMAP finishes, you can start training directly.
+    - Click **"Start Brush Training"**.
+4.  **SuperSplat Tab**: 
+    - Load your trained `.ply` file.
+    - Click **"Start Servers"** to launch the viewer locally.
+
+## 👏 Acknowledgments & Credits
+
+This project stands on the shoulders of giants. A huge thank you to the creators of the core technologies used here:
+
+*   **COLMAP**: Structure-from-Motion and Multi-View Stereo. [GitHub](https://github.com/colmap/colmap)
+*   **Brush**: An efficient Gaussian Splatting trainer for macOS. [GitHub](https://github.com/ArthurBrussee/brush)
+*   **SuperSplat**: An amazing web-based Splat editor by PlayCanvas. [GitHub](https://github.com/playcanvas/supersplat)
+
+## 📄 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details. This is the most permissive open-source license, allowing you to use, modify, and distribute this software freely.
