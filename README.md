@@ -57,6 +57,30 @@ It is designed to be "click-and-run", handling dependency checks and process man
     - Load your trained `.ply` file.
     - Click **"Start Servers"** to launch the viewer locally.
 
+### Command Line Interface (CLI)
+
+You can also use the tool directly from the terminal for automated workflows.
+
+**Training (Brush):**
+```bash
+python3 main.py --train --input path/to/colmap_dir --output path/to/output_dir --iterations 30000
+```
+
+**Viewing (SuperSplat):**
+```bash
+python3 main.py --view --input path/to/model.ply
+```
+
+**Prediction (ML-Sharp):**
+```bash
+python3 main.py --predict --input path/to/image.jpg --output path/to/output_dir
+```
+
+**COLMAP Dataset Creation:**
+```bash
+python3 main.py --input path/to/video.mp4 --output path/to/output_dir --type video
+```
+
 ## 👏 Acknowledgments & Credits
 
 This project stands on the shoulders of giants. A huge thank you to the creators of the core technologies used here:
