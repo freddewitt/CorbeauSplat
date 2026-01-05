@@ -12,6 +12,7 @@ This application provides a unified Graphical User Interface (GUI) to orchestrat
 3.  **Undistortion**: Automatically undistorts images for optimal training quality.
 4.  **Training**: Integrates **Brush** to train Gaussian Splats directly on your Mac.
 5.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
+6.  **Single Image to 3D**: (Bonus) Uses **Apple ML Sharp** to generate a 3D model from a single 2D image.
 
 It is designed to be "click-and-run", handling dependency checks and process management for you.
 
@@ -134,6 +135,7 @@ This project stands on the shoulders of giants. A huge thank you to the creators
 *   **COLMAP**: Structure-from-Motion and Multi-View Stereo. [GitHub](https://github.com/colmap/colmap)
 *   **Brush**: An efficient Gaussian Splatting trainer for macOS. [GitHub](https://github.com/ArthurBrussee/brush)
 *   **SuperSplat**: An amazing web-based Splat editor by PlayCanvas. [GitHub](https://github.com/playcanvas/supersplat)
+*   **Apple ML Sharp**: Machine Learning tools for Swift. [GitHub](https://github.com/apple/ml-sharp)
 
 ## 📄 License
 

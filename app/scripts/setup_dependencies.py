@@ -56,6 +56,16 @@ def check_node():
 def check_cmake_ninja():
     return shutil.which("cmake") is not None and shutil.which("ninja") is not None
 
+def check_xcode_tools():
+    """Checks if Xcode Command Line Tools are installed (macOS only)"""
+    if sys.platform != "darwin": return True
+    try:
+        # xcode-select -p prints the path if installed, or exits with error
+        subprocess.check_call(["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except:
+        return False
+
 # --- INSTALLERS ---
 
 def install_brush(engines_dir, version_file, target_version=None):
@@ -155,6 +165,33 @@ def install_supersplat(engines_dir, version_file, target_version=None):
 
 def install_glomap(engines_dir, version_file, target_version=None):
     print("--- Installation de Glomap ---")
+    
+    # Check Xcode Tools first on macOS
+    if sys.platform == "darwin" and not check_xcode_tools():
+        print("ERREUR: Xcode Command Line Tools manquants.")
+        print("Ils sont nÃ©cessaires pour compiler Glomap.")
+        print("The operation may take some time, time to grab a coffee.")
+        if sys.stdin.isatty():
+             res = input("Voulez-vous lancer l'installation (xcode-select --install) ? (y/N) : ").strip().lower()
+             if res == 'y':
+                 try:
+                     print("Lancement de l'installeur systeme...")
+                     subprocess.check_call(["xcode-select", "--install"])
+                     print("\nUne boite de dialogue a du s'ouvrir.")
+                     input("Veuillez suivre les instructions a l'ecran, puis appuyez sur Entree ici une fois l'installation TERMINEE...")
+                     
+                     if not check_xcode_tools():
+                         print("Erreur: Toujours pas detecte. Essayez de redemarrer le terminal.")
+                         return False
+                 except Exception as e:
+                     print(f"Erreur lancement xcode-select: {e}")
+                     return False
+             else:
+                 return False
+        else:
+             print("Veuillez lancer 'xcode-select --install' manuellement.")
+             return False
+
     if not check_cmake_ninja():
         print("ERREUR: 'cmake'/'ninja' requis. (brew install cmake ninja)")
         return False
