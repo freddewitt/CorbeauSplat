@@ -1,9 +1,10 @@
+import sys
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QScrollArea, QGroupBox, QFormLayout, 
-    QComboBox, QCheckBox, QSpinBox, QDoubleSpinBox
+    QComboBox, QCheckBox, QSpinBox, QDoubleSpinBox, QMessageBox
 )
 from app.core.params import ColmapParams
-from app.core.system import is_apple_silicon, get_optimal_threads
+from app.core.system import is_apple_silicon, get_optimal_threads, resolve_binary
 from app.core.i18n import tr
 
 class ParamsTab(QWidget):
@@ -110,6 +111,10 @@ class ParamsTab(QWidget):
         self.min_model_spin.setValue(10)
         self.min_model_spin.setMinimumWidth(100)
         mapper_layout.addRow(tr("lbl_min_model"), self.min_model_spin)
+
+        self.use_glomap_check = QCheckBox()
+        self.use_glomap_check.setText(tr("check_use_glomap", "Utiliser Glomap (Experimental)"))
+        mapper_layout.addRow(tr("lbl_glomap", "GLOMAP :"), self.use_glomap_check)
         
         self.multiple_models_check = QCheckBox()
         mapper_layout.addRow(tr("check_multi_model"), self.multiple_models_check)
@@ -159,6 +164,7 @@ class ParamsTab(QWidget):
             ba_refine_extra_params=self.refine_extra_check.isChecked(),
             min_num_matches=self.min_matches_spin.value(),
             matcher_type=self.matcher_type_combo.currentText(),
+            use_glomap=self.use_glomap_check.isChecked(),
             undistort_images=False, # Géré par ConfigTab pour l'instant, ou on peut le passer ici si on veut
         )
 
@@ -181,4 +187,5 @@ class ParamsTab(QWidget):
         self.refine_extra_check.setChecked(params.ba_refine_extra_params)
         self.min_matches_spin.setValue(params.min_num_matches)
         self.matcher_type_combo.setCurrentText(params.matcher_type)
+        self.use_glomap_check.setChecked(params.use_glomap)
         # undistort est dans config tab

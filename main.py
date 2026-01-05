@@ -15,7 +15,7 @@ from app.gui.main_window import ColmapGUI
 
 def get_parser():
     """Configure et retourne le parseur d'arguments"""
-    parser = argparse.ArgumentParser(description="CorbeauSplat v0.15 - CLI & GUI Toolkit")
+    parser = argparse.ArgumentParser(description="CorbeauSplat v0.16 - CLI & GUI Toolkit")
     
     # Mode GUI
     parser.add_argument('--gui', action='store_true', help="Lancer l'interface graphique (Défaut si aucun argument)")

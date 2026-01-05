@@ -25,10 +25,11 @@ class ColmapEngine:
         # Resolve binaries
         self.ffmpeg_bin = resolve_binary('ffmpeg') or 'ffmpeg'
         self.colmap_bin = resolve_binary('colmap') or 'colmap'
+        self.glomap_bin = resolve_binary('glomap') or 'glomap'
         
         if self.is_silicon:
             self.log(f"Apple Silicon detecte - {self.num_threads} threads optimises")
-        self.log(f"Binaires: {self.colmap_bin}, {self.ffmpeg_bin}")
+        self.log(f"Binaires: {self.colmap_bin}, {self.ffmpeg_bin}, {self.glomap_bin}")
 
     def log(self, message):
         self.logger(message)
@@ -236,19 +237,36 @@ class ColmapEngine:
         return self.run_command(cmd, description)
 
     def mapper(self, database_path, images_dir, sparse_dir):
-        cmd = [
-            self.colmap_bin, 'mapper',
-            '--database_path', database_path,
-            '--image_path', images_dir,
-            '--output_path', sparse_dir,
-            '--Mapper.min_model_size', str(self.params.min_model_size),
-            '--Mapper.multiple_models', '1' if self.params.multiple_models else '0',
-            '--Mapper.ba_refine_focal_length', '1' if self.params.ba_refine_focal_length else '0',
-            '--Mapper.ba_refine_principal_point', '1' if self.params.ba_refine_principal_point else '0',
-            '--Mapper.ba_refine_extra_params', '1' if self.params.ba_refine_extra_params else '0',
-            '--Mapper.min_num_matches', str(self.params.min_num_matches),
-        ]
-        return self.run_command(cmd, "Reconstruction 3D")
+        if self.params.use_glomap:
+            # GLOMAP Integration
+            self.log("Utilisation de GLOMAP pour la reconstruction...")
+            
+            cmd = [
+                self.glomap_bin, 'mapper',
+                '--database_path', database_path,
+                '--image_path', images_dir,
+                '--output_path', sparse_dir
+            ]
+            
+            # Note: GLOMAP output structure might need verification, typically creates/uses sparse/0
+            # If glomap fails due to missing binary it will be caught by run_command exception handler
+            return self.run_command(cmd, "Reconstruction 3D (GLOMAP)")
+            
+        else:
+            # Standard COLMAP Mapper
+            cmd = [
+                self.colmap_bin, 'mapper',
+                '--database_path', database_path,
+                '--image_path', images_dir,
+                '--output_path', sparse_dir,
+                '--Mapper.min_model_size', str(self.params.min_model_size),
+                '--Mapper.multiple_models', '1' if self.params.multiple_models else '0',
+                '--Mapper.ba_refine_focal_length', '1' if self.params.ba_refine_focal_length else '0',
+                '--Mapper.ba_refine_principal_point', '1' if self.params.ba_refine_principal_point else '0',
+                '--Mapper.ba_refine_extra_params', '1' if self.params.ba_refine_extra_params else '0',
+                '--Mapper.min_num_matches', str(self.params.min_num_matches),
+            ]
+            return self.run_command(cmd, "Reconstruction 3D (COLMAP)")
 
     def image_undistorter(self, images_dir, sparse_dir, output_dir):
         input_path = os.path.join(sparse_dir, "0")

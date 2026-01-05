@@ -11,7 +11,7 @@ TRANSLATIONS = {
         
         # Header
         # RULE: Increment by 0.01 on every modification
-        "app_title": "CorbeauSplat v0.15",
+        "app_title": "CorbeauSplat",
         
         # Config Tab - Inputs
         "group_input": "Donnees d'entree",
@@ -62,6 +62,8 @@ TRANSLATIONS = {
         "check_principal": "Refine principal :",
         "check_extra": "Refine extra :",
         "lbl_min_match": "Min matches :",
+        "check_use_glomap": "Utiliser Glomap (Experimental)",
+        "lbl_glomap": "GLOMAP :",
         
         # Brush Tab
         "tab_brush": "Brush",
@@ -129,7 +131,7 @@ TRANSLATIONS = {
         "tab_logs": "Logs",
         
         # Header
-        "app_title": "CorbeauSplat v0.15",
+        "app_title": "CorbeauSplat",
         
         # Config Tab - Inputs
         "group_input": "Input Data",
@@ -180,6 +182,8 @@ TRANSLATIONS = {
         "check_principal": "Refine Principal:",
         "check_extra": "Refine Extra:",
         "lbl_min_match": "Min Matches:",
+        "check_use_glomap": "Use Glomap (Experimental)",
+        "lbl_glomap": "GLOMAP:",
         
         # Brush Tab
         "tab_brush": "Brush",

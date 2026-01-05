@@ -22,6 +22,7 @@ class ColmapParams:
     min_num_matches: int = 15
     matcher_type: str = 'exhaustive' # exhaustive, sequential, vocab_tree
     undistort_images: bool = False
+    use_glomap: bool = False
     
     def to_dict(self):
         return asdict(self)

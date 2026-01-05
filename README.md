@@ -8,7 +8,7 @@
 
 This application provides a unified Graphical User Interface (GUI) to orchestrate the following steps:
 1.  **Data Preparation**: Extracts frames from videos using hardware-accelerated FFmpeg.
-2.  **Sparse Reconstruction**: Automates **COLMAP** feature extraction, matching, and mapping to create a sparse point cloud and camera poses.
+2.  **Sparse Reconstruction**: Automates **COLMAP** feature extraction, matching, and mapping. Supports **Glomap** as a modern alternative mapper.
 3.  **Undistortion**: Automatically undistorts images for optimal training quality.
 4.  **Training**: Integrates **Brush** to train Gaussian Splats directly on your Mac.
 5.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
@@ -112,6 +112,7 @@ python3 main.py --predict --input photo.jpg --output /path/to/output_dir
 | `--fps <int>` | Frames per second for video extraction (Default: 5). |
 | `--camera_model <str>` | COLMAP camera model (SIMPLE_RADIAL, PINHOLE, etc.). |
 | `--undistort` | Add this flag to run image undistortion after reconstruction. |
+| `--use_glomap` | Use [Glomap](https://github.com/colmap/glomap) instead of standard COLMAP mapper. |
 
 **Brush Options**
 | Flag | Description |

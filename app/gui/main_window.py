@@ -3,7 +3,7 @@ import sys
 import json
 import shutil
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, QFileDialog, QApplication
+    QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, QFileDialog, QApplication, QLabel
 )
 from app.core.params import ColmapParams
 from app.core.i18n import tr
@@ -15,6 +15,7 @@ from app.gui.tabs.brush_tab import BrushTab
 from app.gui.tabs.sharp_tab import SharpTab
 from app.gui.tabs.superplat_tab import SuperSplatTab
 from app.gui.workers import ColmapWorker, BrushWorker, SharpWorker
+from app import VERSION
 
 class ColmapGUI(QMainWindow):
     def __init__(self):
@@ -54,7 +55,14 @@ class ColmapGUI(QMainWindow):
         self.tabs.addTab(self.superplat_tab, tr("tab_supersplat"))
         
         self.logs_tab = LogsTab()
+        self.logs_tab = LogsTab()
         self.tabs.addTab(self.logs_tab, tr("tab_logs"))
+        
+        # Discreet Version Label (Status Bar)
+        version_label = QLabel(f"v{VERSION}")
+        version_label.setStyleSheet("color: #666666; font-size: 10px; padding: 2px;")
+        self.statusBar().addPermanentWidget(version_label)
+        self.statusBar().setStyleSheet("background-color: transparent;")
         
         # Connect signals
         self.config_tab.processRequested.connect(self.process)
