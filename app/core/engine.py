@@ -9,12 +9,13 @@ from .system import is_apple_silicon, get_optimal_threads, resolve_binary
 class ColmapEngine:
     """Moteur d'exécution COLMAP indépendant de l'interface graphique"""
     
-    def __init__(self, params, input_path, output_path, input_type, fps, logger_callback=None, progress_callback=None, check_cancel_callback=None):
+    def __init__(self, params, input_path, output_path, input_type, fps, project_name="Untitled", logger_callback=None, progress_callback=None, check_cancel_callback=None):
         self.params = params
         self.input_path = input_path
         self.output_path = output_path
         self.input_type = input_type
         self.fps = fps
+        self.project_name = project_name
         self.is_silicon = is_apple_silicon()
         self.num_threads = get_optimal_threads()
         self._current_process = None
@@ -40,21 +41,41 @@ class ColmapEngine:
     def run(self):
         """Exécute le pipeline complet"""
         try:
-            output_dir = self.output_path
-            os.makedirs(output_dir, exist_ok=True)
+            # Creation de la structure Projet
+            # [Output] / [ProjectName] / [images, checkpoints, sparse, dense]
+            project_dir = os.path.join(self.output_path, self.project_name)
+            images_dir = os.path.join(project_dir, "images")
+            checkpoints_dir = os.path.join(project_dir, "checkpoints")
             
-            # Extraction vidéo si nécessaire
+            os.makedirs(project_dir, exist_ok=True)
+            os.makedirs(images_dir, exist_ok=True)
+            os.makedirs(checkpoints_dir, exist_ok=True)
+            
+            self.log(f"Preparation du projet dans : {project_dir}")
+            
+            # Preparation des Images (Extraction ou Copie)
             if self.input_type == "video":
                 if self.is_cancelled(): return False, "Arrete par l'utilisateur"
                     
-                images_dir = self.extract_frames_from_video(self.input_path, output_dir)
-                if not images_dir: return False, "Echec extraction video"
+                # Extraction dans le dossier images du projet
+                if not self.extract_frames_from_video(self.input_path, images_dir):
+                     return False, "Echec extraction video"
             else:
-                images_dir = self.input_path
+                # Copie des images dans le dossier images du projet
+                self.log("Copie des images sources vers le dossier de travail...")
+                import shutil
+                try:
+                    src_files = [f for f in os.listdir(self.input_path) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+                    for f in src_files:
+                        if self.is_cancelled(): return False, "Arrete par l'utilisateur"
+                        shutil.copy2(os.path.join(self.input_path, f), os.path.join(images_dir, f))
+                    self.log(f"{len(src_files)} images copiees.")
+                except Exception as e:
+                    return False, f"Erreur copie images: {e}"
                 
             # Structure de dossiers
-            database_path = os.path.join(output_dir, "database.db")
-            sparse_dir = os.path.join(output_dir, "sparse")
+            database_path = os.path.join(project_dir, "database.db")
+            sparse_dir = os.path.join(project_dir, "sparse")
             os.makedirs(sparse_dir, exist_ok=True)
             
             self.progress(25)
@@ -90,7 +111,7 @@ class ColmapEngine:
             if self.params.undistort_images:
                 if self.is_cancelled(): return False, "Arrete par l'utilisateur"
                     
-                dense_dir = os.path.join(output_dir, "dense")
+                dense_dir = os.path.join(project_dir, "dense")
                 os.makedirs(dense_dir, exist_ok=True)
                 
                 if not self.image_undistorter(images_dir, sparse_dir, dense_dir):
@@ -101,9 +122,9 @@ class ColmapEngine:
             
             # Configuration Brush
             if not self.is_cancelled():
-                self.create_brush_config(output_dir, images_dir, sparse_dir)
+                self.create_brush_config(project_dir, images_dir, sparse_dir)
                 self.progress(100)
-                return True, f"Dataset cree: {output_dir}"
+                return True, f"Dataset cree: {project_dir}"
             else:
                 return False, "Arrete par l'utilisateur"
             
@@ -111,10 +132,10 @@ class ColmapEngine:
             if self.is_cancelled(): return False, "Arrete par l'utilisateur"
             return False, str(e)
 
-    def extract_frames_from_video(self, video_path, output_dir):
+    def extract_frames_from_video(self, video_path, images_dir):
         """Extraction vidéo optimisée"""
         self.log(f"\n{'='*60}\nExtraction frames\n{'='*60}")
-        images_dir = os.path.join(output_dir, "images")
+        # images_dir est deja le dossier final
         os.makedirs(images_dir, exist_ok=True)
         
         cmd = [self.ffmpeg_bin]
@@ -148,17 +169,17 @@ class ColmapEngine:
             if self._current_process.returncode == 0:
                 num_frames = len([f for f in os.listdir(images_dir) if f.endswith('.jpg')])
                 self.log(f"{num_frames} frames extraites")
-                return images_dir
+                return True
             else:
                 self.log(f"Erreur lors de l'extraction")
                 return None
                 
         except FileNotFoundError:
             self.log("ffmpeg non trouve. Installez avec: brew install ffmpeg")
-            return None
+            return False
         except Exception as e:
             self.log(f"Erreur: {str(e)}")
-            return None
+            return False
         finally:
             self._current_process = None
 

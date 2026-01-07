@@ -58,6 +58,14 @@ class ConfigTab(QWidget):
         input_group = QGroupBox(tr("group_input"))
         input_layout = QVBoxLayout()
         
+        # Nom du Projet
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel(tr("label_project_name") if tr("label_project_name") != "label_project_name" else "Nom du projet :"))
+        self.input_project_name = QLineEdit()
+        self.input_project_name.setPlaceholderText("MonProjet")
+        name_layout.addWidget(self.input_project_name)
+        input_layout.addLayout(name_layout)
+
         # Type d'entrée
         type_layout = QHBoxLayout()
         type_layout.addWidget(QLabel(tr("label_type")))
@@ -228,6 +236,12 @@ class ConfigTab(QWidget):
     # Getters/Setters pour la configuration
     def get_input_path(self): return self.input_path.text()
     def set_input_path(self, path): self.input_path.setText(path)
+
+    def get_project_name(self): 
+        text = self.input_project_name.text().strip()
+        return text if text else "UntitledProject"
+        
+    def set_project_name(self, name): self.input_project_name.setText(name)
     
     def get_output_path(self): return self.output_path.text()
     def set_output_path(self, path): self.output_path.setText(path)
@@ -259,3 +273,36 @@ class ConfigTab(QWidget):
         else:
             self.btn_process.setText(tr("btn_process"))
             self.btn_process.setStyleSheet("font-size: 16px; font-weight: bold; background-color: #2a82da; color: white;")
+
+    def get_state(self):
+        """Retourne l'état complet pour la persistance"""
+        return {
+            "project_name": self.get_project_name(),
+            "input_type": self.get_input_type(),
+            "input_path": self.get_input_path(),
+            "output_path": self.get_output_path(),
+            "fps": self.get_fps(),
+            "undistort": self.get_undistort(),
+            "auto_brush": self.get_auto_brush(),
+            "lang": self.combo_lang.currentData()
+        }
+
+    def set_state(self, state):
+        """Restaure l'état depuis le dictionnaire"""
+        if not state: return
+        
+        if "project_name" in state: self.set_project_name(state["project_name"])
+        if "input_type" in state: self.set_input_type(state["input_type"])
+        if "input_path" in state: self.set_input_path(state["input_path"])
+        if "output_path" in state: self.set_output_path(state["output_path"])
+        if "fps" in state: self.set_fps(state["fps"])
+        if "undistort" in state: self.set_undistort(state["undistort"])
+        if "auto_brush" in state: self.set_auto_brush(state["auto_brush"])
+        
+        # Lang is special, might require restart if changed, so we just set combo if it matches
+        # or we let the main app handle valid lang loading.
+        if "lang" in state:
+            idx = self.combo_lang.findData(state["lang"])
+            if idx >= 0: self.combo_lang.setCurrentIndex(idx)
+            
+        self.update_ui_state()

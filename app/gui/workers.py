@@ -8,10 +8,10 @@ from app.gui.base_worker import BaseWorker
 class ColmapWorker(BaseWorker):
     """Thread worker pour exécuter COLMAP via le moteur"""
     
-    def __init__(self, params, input_path, output_path, input_type, fps):
+    def __init__(self, params, input_path, output_path, input_type, fps, project_name="Untitled"):
         super().__init__()
         self.engine = ColmapEngine(
-            params, input_path, output_path, input_type, fps,
+            params, input_path, output_path, input_type, fps, project_name,
             logger_callback=self.log_signal.emit,
             progress_callback=self.progress_signal.emit,
             check_cancel_callback=self.isInterruptionRequested
@@ -65,13 +65,98 @@ class BrushWorker(BaseWorker):
             if resolved_input != self.input_path:
                 self.log_signal.emit(f"Chemin ajusté: {self.input_path} -> {resolved_input}")
             
+            # Gestion de la résolution manuelle
+            custom_args = self.params.get("custom_args") or ""
+            max_res = self.params.get("max_resolution", 0)
+            
+            if max_res > 0:
+                custom_args += f" --max-resolution {max_res}"
+                self.log_signal.emit(f"Opération: Résolution forcée à {max_res}px")
+            
+            # Gestion Refine Auto (Prioritaire sur Init PLY manuel)
+            refine_mode = self.params.get("refine_mode")
+            # self.log_signal.emit(f"Refine Mode: {refine_mode}") # Verbose
+            
+            if refine_mode:
+                self.log_signal.emit("Configuration Refine Auto...")
+                checkpoints_dir = os.path.join(resolved_input, "checkpoints")
+                
+                # 1. Trouver le dernier PLY
+                latest_ply = None
+                last_mtime = 0
+                if os.path.exists(checkpoints_dir):
+                    for root, dirs, files in os.walk(checkpoints_dir):
+                        for f in files:
+                            if f.endswith('.ply'):
+                                p = os.path.join(root, f)
+                                mt = os.path.getmtime(p)
+                                if mt > last_mtime:
+                                    last_mtime = mt
+                                    latest_ply = p
+                
+                if latest_ply:
+                    self.log_signal.emit(f"Checkpoint trouvé: {os.path.basename(latest_ply)}")
+                    
+                    # 2. Créer dossier Refine
+                    refine_dir = os.path.join(resolved_input, "Refine")
+                    if os.path.exists(refine_dir):
+                        shutil.rmtree(refine_dir) # On repart propre ? Ou on garde ? Mieux vaut clean pour être sûr de l'init
+                    os.makedirs(refine_dir, exist_ok=True)
+                    
+                    # 3. Copier init.ply
+                    dest_init = os.path.join(refine_dir, "init.ply")
+                    shutil.copy2(latest_ply, dest_init)
+                    self.log_signal.emit(f"Copié vers {dest_init}")
+                    
+                    # 4. Symlinks sparse & images
+                    # Sur Windows ça peut poser souci, mais user = Mac
+                    try:
+                        os.symlink(os.path.join(resolved_input, "sparse"), os.path.join(refine_dir, "sparse"))
+                        try:
+                            os.symlink(os.path.join(resolved_input, "images"), os.path.join(refine_dir, "images"))
+                        except OSError:
+                            # Fallback si images est un lien ou autre
+                            self.log_signal.emit("Symlink images échoué, tentative copie (plus lent)...")
+                            shutil.copytree(os.path.join(resolved_input, "images"), os.path.join(refine_dir, "images"))
+
+                        self.log_signal.emit("Symlinks créés pour sparse/ et images/")
+                        
+                        # 5. Rediriger l'entraînement
+                        resolved_input = refine_dir
+                        self.output_path = os.path.join(refine_dir, "checkpoints")
+                        os.makedirs(self.output_path, exist_ok=True)
+                        self.log_signal.emit(f"Dossier travail redirigé vers : {refine_dir}")
+                        
+                    except Exception as e:
+                        self.log_signal.emit(f"Erreur création environnement Refine: {e}")
+                else:
+                    self.log_signal.emit("Attention: Aucun checkpoint précédent trouvé pour le Refine. Mode annulé.")
+
+            # Fin gestion Init / Refine
+
+            # Args Densification
+            # Brush utilise iterations comme "total-steps" deja dans le moteur, mais on peut forcer les autres
+            # Attention, si on passe iterations au moteur, il met --total-steps.
+            # On va passer les autres en custom args.
+            
+            densify_args = []
+            if "start_iter" in self.params: densify_args.append(f"--start-iter {self.params['start_iter']}")
+            if "refine_every" in self.params: densify_args.append(f"--refine-every {self.params['refine_every']}")
+            if "growth_grad_threshold" in self.params: densify_args.append(f"--growth-grad-threshold {self.params['growth_grad_threshold']}")
+            if "growth_select_fraction" in self.params: densify_args.append(f"--growth-select-fraction {self.params['growth_select_fraction']}")
+            if "growth_stop_iter" in self.params: densify_args.append(f"--growth-stop-iter {self.params['growth_stop_iter']}")
+            if "max_splats" in self.params: densify_args.append(f"--max-splats {self.params['max_splats']}")
+            
+            if densify_args:
+                custom_args += " " + " ".join(densify_args)
+
             process = self.engine.train(
                 resolved_input, 
                 self.output_path, 
-                iterations=self.params.get("iterations"),
+                iterations=self.params.get("total_steps"), # Utilisation explicite de total_steps
                 sh_degree=self.params.get("sh_degree"),
                 device=self.params.get("device"),
-                custom_args=self.params.get("custom_args"),
+                custom_args=custom_args.strip(),
                 with_viewer=self.params.get("with_viewer")
             )
             

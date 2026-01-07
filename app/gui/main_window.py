@@ -25,6 +25,7 @@ class ColmapGUI(QMainWindow):
         self.sharp_worker = None
         self.init_ui()
         set_dark_theme(QApplication.instance())
+        self.load_session_state()
         
     def init_ui(self):
         """Initialise l'interface"""
@@ -48,13 +49,12 @@ class ColmapGUI(QMainWindow):
         self.brush_tab = BrushTab()
         self.tabs.addTab(self.brush_tab, tr("tab_brush"))
         
-        self.sharp_tab = SharpTab()
-        self.tabs.addTab(self.sharp_tab, "Apple Sharp")
-
         self.superplat_tab = SuperSplatTab()
         self.tabs.addTab(self.superplat_tab, tr("tab_supersplat"))
         
-        self.logs_tab = LogsTab()
+        self.sharp_tab = SharpTab()
+        self.tabs.addTab(self.sharp_tab, "Apple Sharp")
+
         self.logs_tab = LogsTab()
         self.tabs.addTab(self.logs_tab, tr("tab_logs"))
         
@@ -105,13 +105,15 @@ class ColmapGUI(QMainWindow):
         self.logs_tab.append_log(tr("msg_processing"))
         
         input_type = self.config_tab.get_input_type()
+        project_name = self.config_tab.get_project_name()
         
         self.worker = ColmapWorker(
             self.get_current_params(),
             input_path,
             output_path,
             input_type,
-            self.config_tab.get_fps()
+            self.config_tab.get_fps(),
+            project_name
         )
         
         self.worker.log_signal.connect(self.logs_tab.append_log)
@@ -272,28 +274,34 @@ class ColmapGUI(QMainWindow):
         if brush_params.get("independent"):
             # Mode Indépendant
             input_path = brush_params.get("input_path")
-            output_root = brush_params.get("output_path")
             
             if not input_path or not os.path.exists(input_path):
                  QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier Dataset valide.")
                  return
-            if not output_root:
-                 QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier d'export.")
-                 return
                  
             # Brush output logic in manual mode:
-            # We use output_root directly as model_path
-            output_path = output_root
+            # Force output to input/checkpoints
+            output_path = os.path.join(input_path, "checkpoints")
+            os.makedirs(output_path, exist_ok=True)
             
         else:
             # Mode Automatique (via Colmap output)
-            colmap_out = self.config_tab.get_output_path()
-            if not colmap_out or not os.path.exists(colmap_out):
-                QMessageBox.critical(self, tr("msg_error"), "Le dossier du dataset n'existe pas ou n'est pas defini.")
+            colmap_out_root = self.config_tab.get_output_path()
+            project_name = self.config_tab.get_project_name()
+            
+            if not colmap_out_root or not os.path.exists(colmap_out_root):
+                 QMessageBox.critical(self, tr("msg_error"), "Le dossier de sortie racine n'existe pas.")
+                 return
+                 
+            # Le dataset est dans root/project_name
+            dataset_path = os.path.join(colmap_out_root, project_name)
+            
+            if not os.path.exists(dataset_path):
+                QMessageBox.critical(self, tr("msg_error"), f"Le dossier du projet n'existe pas:\n{dataset_path}\nAvez-vous lancé la création du dataset ?")
                 return
                 
-            input_path = colmap_out
-            output_path = os.path.join(colmap_out, "brush_out")
+            input_path = dataset_path
+            output_path = os.path.join(dataset_path, "checkpoints")
             os.makedirs(output_path, exist_ok=True)
         
         self.brush_tab.set_processing_state(True)
@@ -374,8 +382,66 @@ class ColmapGUI(QMainWindow):
 
     def restart_application(self):
         """Redémarre l'application"""
+        self.save_session_state()
         QApplication.quit()
         # Redémarrer le processus actuel
         python = sys.executable
         os.execl(python, python, *sys.argv)
+
+    # --- Session Persistence ---
+
+    def get_session_file(self):
+        # Utilise config.json à la racine de l'application ou dans le dossier user
+        # On va utiliser config.json localement car c'était celui utilisé par l'app.
+        # Mais attention .gitignore l'ignore, donc c'est parfait pour du local state.
+        return os.path.join(os.getcwd(), "config.json")
+
+    def save_session_state(self):
+        """Sauvegarde l'état de l'application"""
+        state = {
+            "language": self.config_tab.combo_lang.currentData(),
+            "config": self.config_tab.get_state(),
+            "colmap_params": self.params_tab.get_params().to_dict(),
+            "brush_params": self.brush_tab.get_params(),
+            "sharp_params": self.sharp_tab.get_params(),
+            # "supersplat": ... (si besoin)
+        }
+        
+        try:
+            with open(self.get_session_file(), 'w') as f:
+                json.dump(state, f, indent=2)
+            # print("Session sauvegardée.")
+        except Exception as e:
+            print(f"Erreur sauvegarde session: {e}")
+
+    def load_session_state(self):
+        """Charge l'état précédent"""
+        session_file = self.get_session_file()
+        if not os.path.exists(session_file):
+            return
+            
+        try:
+            with open(session_file, 'r') as f:
+                state = json.load(f)
+                
+            if "config" in state:
+                self.config_tab.set_state(state["config"])
+                
+            if "colmap_params" in state:
+                self.params_tab.set_params(ColmapParams.from_dict(state["colmap_params"]))
+                
+            if "brush_params" in state:
+                self.brush_tab.set_params(state["brush_params"])
+                
+            if "sharp_params" in state:
+                self.sharp_tab.set_params(state["sharp_params"])
+                
+             # print("Session chargée.")
+        except Exception as e:
+            print(f"Erreur chargement session: {e}")
+
+    def closeEvent(self, event):
+        """Appelé à la fermeture de la fenêtre"""
+        self.save_session_state()
+        event.accept()
 

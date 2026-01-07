@@ -151,6 +151,8 @@ def install_supersplat(engines_dir, version_file, target_version=None):
         if not os.path.exists(target_dir):
             subprocess.check_call(["git", "clone", SUPERPLAT_REPO, target_dir])
         else:
+             # Reset local changes (package-lock.json often causes conflicts)
+            subprocess.check_call(["git", "-C", target_dir, "reset", "--hard", "HEAD"])
             subprocess.check_call(["git", "-C", target_dir, "pull"])
             
         subprocess.check_call(["npm", "install"], cwd=target_dir)

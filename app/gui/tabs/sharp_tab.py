@@ -120,6 +120,15 @@ class SharpTab(QWidget):
             "device": self.device_combo.currentText(),
             "verbose": self.verbose_check.isChecked()
         }
+
+    def set_params(self, params):
+        if not params: return
+        
+        if "input_path" in params: self.input_path.setText(params["input_path"])
+        if "output_path" in params: self.output_path.setText(params["output_path"])
+        if "checkpoint" in params: self.ckpt_path.setText(params["checkpoint"])
+        if "device" in params: self.device_combo.setCurrentText(params["device"])
+        if "verbose" in params: self.verbose_check.setChecked(params["verbose"])
         
     def browse_input_dir(self):
         path = QFileDialog.getExistingDirectory(self, "Dossier Images")
