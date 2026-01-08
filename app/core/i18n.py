@@ -106,6 +106,7 @@ TRANSLATIONS = {
         "brush_lbl_fraction": "Growth Fraction :",
         "brush_lbl_stop": "Growth Stop Iter :",
         "brush_lbl_max_splats": "Max Splats :",
+        "brush_lbl_ckpt_interval": "Sauvegarder Checkpoint tous les :",
 
         # SuperSplat Tab
         "tab_supersplat": "SuperSplat",
@@ -252,6 +253,7 @@ TRANSLATIONS = {
         "brush_lbl_fraction": "Growth Fraction:",
         "brush_lbl_stop": "Growth Stop Iter:",
         "brush_lbl_max_splats": "Max Splats:",
+        "brush_lbl_ckpt_interval": "Save Checkpoint Every:",
         
         # SuperSplat Tab
         "tab_supersplat": "SuperSplat",
