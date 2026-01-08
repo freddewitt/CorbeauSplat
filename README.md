@@ -35,9 +35,6 @@ It is designed to be "click-and-run", handling dependency checks, process manage
 - **Xcode Command Line Tools** (Required for compiling custom engines like Glomap or Brush)
 - **Homebrew** (for installing system dependencies like COLMAP and FFmpeg)
 - **Git**
-- **Rust** (Required for installing Brush)
-- **Node.js** (Required for installing SuperSplat)
-- **Ninja & CMake** (Required for compiling Glomap)
 
 ### Installation
 1.  Clone this repository:
@@ -50,7 +47,7 @@ It is designed to be "click-and-run", handling dependency checks, process manage
     ```bash
     ./run.command
     ```
-    *The script will automatically detect missing dependencies (Python packages, Brush, SuperSplat) and attempt to install them for you.*
+    *The script will automatically detect missing dependencies (Python packages, Brush, SuperSplat, Rust, Node.js, etc.) and attempt to install them for you.*
 
 ## 📖 How to Use
 
