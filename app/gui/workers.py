@@ -150,6 +150,11 @@ class BrushWorker(BaseWorker):
             if "growth_stop_iter" in self.params: densify_args.append(f"--growth-stop-iter {self.params['growth_stop_iter']}")
             if "max_splats" in self.params: densify_args.append(f"--max-splats {self.params['max_splats']}")
             
+            # Checkpoint Interval (Mapped to --eval-every as per Brush CLI)
+            ckpt_interval = self.params.get("checkpoint_interval", 7000)
+            if ckpt_interval > 0:
+                densify_args.append(f"--eval-every {ckpt_interval}")
+            
             if densify_args:
                 custom_args += " " + " ".join(densify_args)
 
