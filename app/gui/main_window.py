@@ -203,16 +203,19 @@ class ColmapGUI(QMainWindow):
             
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                # Empty the directory by moving content to trash
+                # Empty the directory by moving content to trash (except images)
                 for filename in os.listdir(target_path):
+                    if filename == "images":
+                        continue
+                        
                     file_path = os.path.join(target_path, filename)
                     try:
                         send2trash.send2trash(file_path)
                     except Exception as e:
                         print(f"Failed to trash {file_path}. Reason: {e}")
 
-                self.logs_tab.append_log(f"Contenu du dataset mis a la corbeille: {target_path}")
-                QMessageBox.information(self, tr("msg_success"), "Contenu du dataset mis a la corbeille avec succes")
+                self.logs_tab.append_log(f"Contenu du dataset (sauf images) mis a la corbeille: {target_path}")
+                QMessageBox.information(self, tr("msg_success"), "Contenu du dataset (sauf images) mis a la corbeille avec succes")
             except Exception as e:
                 QMessageBox.critical(self, tr("msg_error"), f"Impossible de supprimer le dataset:\n{str(e)}")
                 
