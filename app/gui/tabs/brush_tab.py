@@ -199,11 +199,16 @@ class BrushTab(QWidget):
         row3.addWidget(self.spin_fraction)
         grid_layout.addLayout(row3)
         
-        # Row 4: Max Splats
+        # Row 4: Max Splats & Checkpoint Interval
         row4 = QHBoxLayout()
         self.spin_max_splats = self.create_spin(10000000, 100000, 100000000, 100000, tr("brush_lbl_max_splats"))
+        self.spin_checkpoint_interval = self.create_spin(7000, 0, 50000, 1000, tr("brush_lbl_ckpt_interval"))
+        
         row4.addWidget(QLabel(tr("brush_lbl_max_splats")))
         row4.addWidget(self.spin_max_splats)
+        row4.addSpacing(10)
+        row4.addWidget(QLabel(tr("brush_lbl_ckpt_interval")))
+        row4.addWidget(self.spin_checkpoint_interval)
         grid_layout.addLayout(row4)
         
         details_layout.addLayout(grid_layout)
@@ -324,6 +329,7 @@ class BrushTab(QWidget):
             "growth_select_fraction": self.spin_fraction.value(),
             "growth_stop_iter": self.spin_growth_stop.value(),
             "max_splats": self.spin_max_splats.value(),
+            "checkpoint_interval": self.spin_checkpoint_interval.value(),
             "refine_mode": (self.combo_mode.currentData() == "refine"),
             
             "sh_degree": self.sh_spin.value(),
@@ -349,6 +355,7 @@ class BrushTab(QWidget):
         if "growth_select_fraction" in params: self.spin_fraction.setValue(params["growth_select_fraction"])
         if "growth_stop_iter" in params: self.spin_growth_stop.setValue(params["growth_stop_iter"])
         if "max_splats" in params: self.spin_max_splats.setValue(params["max_splats"])
+        if "checkpoint_interval" in params: self.spin_checkpoint_interval.setValue(params["checkpoint_interval"])
         if "refine_mode" in params:
              idx = self.combo_mode.findData("refine" if params["refine_mode"] else "new")
              if idx >= 0: self.combo_mode.setCurrentIndex(idx)

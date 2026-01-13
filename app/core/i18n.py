@@ -15,6 +15,7 @@ TRANSLATIONS = {
         
         # Config Tab - Inputs
         "group_input": "Donnees d'entree",
+        "label_project_name": "Nom du projet :",
         "label_type": "Type :",
         "radio_images": "Images",
         "radio_video": "Video",
@@ -159,6 +160,7 @@ TRANSLATIONS = {
         
         # Config Tab - Inputs
         "group_input": "Input Data",
+        "label_project_name": "Project Name:",
         "label_type": "Type:",
         "radio_images": "Images",
         "radio_video": "Video",

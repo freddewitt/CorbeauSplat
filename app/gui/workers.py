@@ -1,5 +1,6 @@
 import os
 import shutil
+import re
 from PyQt6.QtCore import pyqtSignal
 from app.core.engine import ColmapEngine
 from app.core.brush_engine import BrushEngine
@@ -132,6 +133,18 @@ class BrushWorker(BaseWorker):
                         
                     except Exception as e:
                         self.log_signal.emit(f"Erreur création environnement Refine: {e}")
+                        
+                    # Auto-detect start_iter from filename or default to 30000
+                    if self.params.get("start_iter", 0) == 0:
+                        detected_iter = 30000
+                        # Try to parse iteration_12345.ply
+                        match = re.search(r"iteration_(\d+)", os.path.basename(latest_ply))
+                        if match:
+                            detected_iter = int(match.group(1))
+                        
+                        self.params["start_iter"] = detected_iter
+                        self.log_signal.emit(f"Refine: Start Iteration réglé sur {detected_iter}")
+
                 else:
                     self.log_signal.emit("Attention: Aucun checkpoint précédent trouvé pour le Refine. Mode annulé.")
 

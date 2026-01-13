@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.22] - 2026-01-13
+
+### Fixed
+-   **Python 3.14 Support**: Updated `numpy`, `pyarrow`, and `rerun-sdk` to versions compatible with Python 3.14 on macOS.
+-   **Localization**: Fixed missing "Project Name" translation in English.
+
 ## [v0.21] - 2026-01-10
 
 ### Fixed
