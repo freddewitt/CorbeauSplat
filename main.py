@@ -190,6 +190,7 @@ def main():
     # Vérification dépendances (sauf si juste --help implicite)
     # On le fait au début
     missing_deps = check_dependencies()
+    
     if missing_deps:
         msg = f"Attention: Dépendances manquantes: {', '.join(missing_deps)}\nCertaines fonctions peuvent échouer."
         print(msg)

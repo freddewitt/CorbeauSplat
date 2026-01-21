@@ -15,6 +15,7 @@ This application provides a unified Graphical User Interface (GUI) to orchestrat
     -   **Auto-Refine**: Resume training seamlessly from your last checkpoint.
 5.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
 6.  **Single Image to 3D**: (Bonus) Uses **Apple ML Sharp** to generate a 3D model from a single 2D image.
+7.  **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format). *Requires optional activation.*
 
 It is designed to be "click-and-run", handling dependency checks, process management, and **session persistence** for you.
 

@@ -4,11 +4,13 @@ import json
 import shutil
 import send2trash
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, QFileDialog, QApplication, QLabel
+    QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, QFileDialog, QApplication, QLabel, QProgressDialog
 )
+from PyQt6.QtCore import QTimer, Qt
 from app.core.params import ColmapParams
 from app.core.engine import ColmapEngine
 from app.core.i18n import tr
+from app.core.system import is_nerfstudio_installed, install_nerfstudio
 from app.gui.styles import set_dark_theme
 from app.gui.tabs.config_tab import ConfigTab
 from app.gui.tabs.params_tab import ParamsTab
@@ -16,7 +18,8 @@ from app.gui.tabs.logs_tab import LogsTab
 from app.gui.tabs.brush_tab import BrushTab
 from app.gui.tabs.sharp_tab import SharpTab
 from app.gui.tabs.superplat_tab import SuperSplatTab
-from app.gui.workers import ColmapWorker, BrushWorker, SharpWorker
+from app.gui.tabs.four_dgs_tab import FourDGSTab
+from app.gui.workers import ColmapWorker, BrushWorker, SharpWorker, FourDGSWorker
 from app import VERSION
 
 class ColmapGUI(QMainWindow):
@@ -29,6 +32,9 @@ class ColmapGUI(QMainWindow):
         set_dark_theme(QApplication.instance())
         self.load_session_state()
         
+        # Delayed startup checks (Remove logic)
+        pass
+
     def init_ui(self):
         """Initialise l'interface"""
         self.setWindowTitle(tr("app_title"))
@@ -54,6 +60,9 @@ class ColmapGUI(QMainWindow):
         self.superplat_tab = SuperSplatTab()
         self.tabs.addTab(self.superplat_tab, tr("tab_supersplat"))
         
+        self.four_dgs_tab = FourDGSTab()
+        self.tabs.addTab(self.four_dgs_tab, "4DGS")
+        
         self.sharp_tab = SharpTab()
         self.tabs.addTab(self.sharp_tab, "Apple Sharp")
 
@@ -78,6 +87,9 @@ class ColmapGUI(QMainWindow):
         
         self.brush_tab.trainRequested.connect(self.train_brush)
         self.brush_tab.stopRequested.connect(self.stop_brush)
+        
+        self.four_dgs_tab.processRequested.connect(self.start_four_dgs)
+        self.four_dgs_tab.stopRequested.connect(self.stop_four_dgs)
         
         self.sharp_tab.predictRequested.connect(self.run_sharp)
         self.sharp_tab.stopRequested.connect(self.stop_sharp)
@@ -358,6 +370,44 @@ class ColmapGUI(QMainWindow):
             if "Arrete" not in message:
                 QMessageBox.warning(self, tr("msg_error"), f"Erreur Brush:\n{message}")
 
+    def start_four_dgs(self):
+        """Lance le traitement 4DGS"""
+        params = self.four_dgs_tab.get_params()
+        input_path = params["input_path"]
+        output_path = params["output_path"]
+        fps = params["fps"]
+        
+        self.four_dgs_tab.set_processing_state(True)
+        self.logs_tab.clear_log()
+        self.logs_tab.append_log("--- Démarrage Pipeline 4DGS ---")
+        self.logs_tab.append_log(f"Source: {input_path}")
+        self.logs_tab.append_log(f"Sortie: {output_path}")
+        self.logs_tab.append_log(f"FPS: {fps}")
+        
+        self.four_dgs_worker = FourDGSWorker(input_path, output_path, fps)
+        self.four_dgs_worker.log_signal.connect(self.logs_tab.append_log)
+        self.four_dgs_worker.finished_signal.connect(self.on_four_dgs_finished)
+        self.four_dgs_worker.start()
+        
+        self.tabs.setCurrentWidget(self.logs_tab)
+
+    def stop_four_dgs(self):
+        """Arrête le traitement 4DGS"""
+        if hasattr(self, 'four_dgs_worker') and self.four_dgs_worker and self.four_dgs_worker.isRunning():
+            self.four_dgs_worker.stop()
+            self.logs_tab.append_log("Arrêt 4DGS demandé...")
+
+    def on_four_dgs_finished(self, success, message):
+        """Fin du traitement 4DGS"""
+        self.four_dgs_tab.set_processing_state(False)
+        self.logs_tab.append_log(f"Fin 4DGS: {message}")
+        
+        if success:
+            QMessageBox.information(self, tr("msg_success"), f"4DGS terminé!\n{message}")
+        else:
+            if "Stopped" not in message and "Arrete" not in message:
+                QMessageBox.warning(self, tr("msg_error"), f"Erreur 4DGS:\n{message}")
+
     def run_sharp(self):
         """Lance Sharp"""
         params = self.sharp_tab.get_params()
@@ -423,7 +473,7 @@ class ColmapGUI(QMainWindow):
             "colmap_params": self.params_tab.get_params().to_dict(),
             "brush_params": self.brush_tab.get_params(),
             "sharp_params": self.sharp_tab.get_params(),
-            # "supersplat": ... (si besoin)
+            "four_dgs_params": self.four_dgs_tab.get_params(),
         }
         
         try:
@@ -454,6 +504,9 @@ class ColmapGUI(QMainWindow):
                 
             if "sharp_params" in state:
                 self.sharp_tab.set_params(state["sharp_params"])
+                
+            if "four_dgs_params" in state:
+                self.four_dgs_tab.set_params(state["four_dgs_params"])
                 
              # print("Session chargée.")
         except Exception as e:

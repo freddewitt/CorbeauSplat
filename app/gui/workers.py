@@ -5,6 +5,7 @@ from PyQt6.QtCore import pyqtSignal
 from app.core.engine import ColmapEngine
 from app.core.brush_engine import BrushEngine
 from app.gui.base_worker import BaseWorker
+from app.core.four_dgs_engine import FourDGSEngine
 
 class ColmapWorker(BaseWorker):
     """Thread worker pour exécuter COLMAP via le moteur"""
@@ -304,5 +305,26 @@ class SharpWorker(BaseWorker):
             else:
                 self.finished_signal.emit(False, f"Erreur Sharp (Code {return_code})")
                 
+        except Exception as e:
+            self.finished_signal.emit(False, str(e))
+
+class FourDGSWorker(BaseWorker):
+    """Worker pour le pipeline 4DGS"""
+    
+    def __init__(self, input_dir, output_dir, fps):
+        super().__init__()
+        self.engine = FourDGSEngine(
+            input_dir, output_dir, fps,
+            logger_callback=self.log_signal.emit
+        )
+        
+    def stop(self):
+        self.engine.stop()
+        super().stop()
+        
+    def run(self):
+        try:
+            success, msg = self.engine.process()
+            self.finished_signal.emit(success, msg)
         except Exception as e:
             self.finished_signal.emit(False, str(e))

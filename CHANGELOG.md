@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3] - 2026-01-21
+
+### Added
+- **New 4DGS Module**: Preparation of 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
+    - Automatic synced frame extraction (camXX).
+    - Automated COLMAP pipeline (Features, Matches, Reconstruction).
+    - Integration of `ns-process-data`.
+- **Optional Activation**: The 4DGS module is disabled by default. A checkbox allows activation and automatically installs **Nerfstudio** (~4GB) in the virtual environment.
+- **Smart Check**: 4DGS dependency verification occurs upon activation rather than at startup (improving launch speed).
+
+### Optimized
+- **Apple Silicon**: Optimization of the 4DGS engine.
+    - FFmpeg hardware acceleration (`videotoolbox`).
+    - Multithread management (`OMP`, `VECLIB`) aligned with performance cores.
+    - GPU SIFT disabled (often unstable on macOS).
+
+### Fixed
+- Fixed a bug with a missing import (`os`) in the system manager.
+
 ## [v0.22] - 2026-01-13
 
 ### Added

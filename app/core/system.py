@@ -1,6 +1,8 @@
 import platform
 import os
 import shutil
+import subprocess
+import sys
 
 def resolve_project_root():
     """Finds project root relative to this script (app/core/system.py)"""
@@ -56,5 +58,47 @@ def check_dependencies():
     # Check colmap
     if resolve_binary('colmap') is None:
         missing.append('colmap')
+
+    # Check ns-process-data (soft check, maybe not strictly required for app launch but for 4DGS)
+    # We won't block main.py execution but we can list it.
+    if resolve_binary('ns-process-data') is None:
+        missing.append('ns-process-data')
         
     return missing
+
+def is_nerfstudio_installed():
+    """Vérifie si ns-process-data est disponible"""
+    return resolve_binary('ns-process-data') is not None
+
+def install_nerfstudio(upgrade=False, callback=None):
+    """
+    Installe ou met à jour nerfstudio via pip.
+    callback(str): fonction pour recevoir les logs stdout
+    """
+    # On utilise pip du python courant
+    pip_cmd = [sys.executable, "-m", "pip", "install"]
+    if upgrade:
+        pip_cmd.append("--upgrade")
+    pip_cmd.append("nerfstudio")
+    
+    try:
+        process = subprocess.Popen(
+            pip_cmd, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.STDOUT,
+            text=True, 
+            bufsize=1
+        )
+        
+        for line in process.stdout:
+            if callback:
+                callback(line.strip())
+            else:
+                print(line.strip())
+                
+        process.wait()
+        return process.returncode == 0
+    except Exception as e:
+        if callback:
+            callback(f"Erreur execution pip: {e}")
+        return False
