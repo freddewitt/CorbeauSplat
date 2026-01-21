@@ -96,7 +96,7 @@ class FourDGSEngine:
                 '-i', video_path,
                 '-vf', f'fps={self.fps}',
                 os.path.join(cam_dir, 'frame_%05d.jpg')
-            ]
+            ])
             
             if not self.run_command(cmd, f"Extracting {os.path.basename(video_path)} to {cam_name}"):
                 return False, f"FFmpeg failed for {cam_name}"

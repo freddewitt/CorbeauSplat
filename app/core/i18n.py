@@ -148,6 +148,21 @@ TRANSLATIONS = {
         "success_open_brush": "Vous pouvez maintenant l'ouvrir dans Brush!",
         "lang_restart": "Changement de langue : Le redemarrage de l'application est necessaire.",
         "lang_change": "Langue",
+
+        # 4DGS Tab
+        "tab_four_dgs": "4DGS",
+        "four_dgs_header": "Préparation de données 4D Gaussian Splatting (4DGS) - Expérimental",
+        "four_dgs_desc": "Ce module extrait des frames de vidéos synchronisées (multi-caméras), exécute COLMAP et prépare les données pour Nerfstudio (ns-process-data).\nChaque fichier vidéo du dossier source sera traité comme une caméra.",
+        "four_dgs_warning_cuda": "⚠️ Note : Une machine compatible CUDA est requise pour l'étape finale d'entraînement.",
+        "four_dgs_activate": "Activer le module 4DGS (Nécessite Nerfstudio ~4Go)",
+        "four_dgs_group_src": "Source Vidéos",
+        "four_dgs_files_ph": "Dossier contenant les fichiers vidéos (ex: /Users/moi/gopro_videos)",
+        "four_dgs_group_dst": "Destination Dataset",
+        "four_dgs_group_params": "Paramètres",
+        "four_dgs_lbl_fps": "Extraction FPS :",
+        "four_dgs_btn_start": "Lancer le Traitement 4DGS",
+        "four_dgs_btn_stop": "Arrêter",
+        "msg_install_nerf": "Pour activer cette fonction, l'outil 'nerfstudio' (ns-process-data) doit être installé.\n\nCela nécessite environ 3 à 5 Go d'espace disque.\nVoulez-vous lancer l'installation maintenant ?",
     },
     "en": {
         # Tabs
@@ -296,6 +311,21 @@ TRANSLATIONS = {
         "success_open_brush": "You can now open it in Brush!",
         "lang_restart": "Language change: Application restart is required.",
         "lang_change": "Language",
+
+        # 4DGS Tab
+        "tab_four_dgs": "4DGS",
+        "four_dgs_header": "4D Gaussian Splatting Data Preparation (4DGS) - Experimental",
+        "four_dgs_desc": "This module extracts frames from synchronized videos (multi-camera), runs COLMAP, and prepares data for Nerfstudio (ns-process-data).\nEach video file in the source folder will be treated as a camera.",
+        "four_dgs_warning_cuda": "⚠️ Note: A CUDA-compatible machine is required for the final training step.",
+        "four_dgs_activate": "Activate 4DGS Module (Requires Nerfstudio ~4GB)",
+        "four_dgs_group_src": "Source Videos",
+        "four_dgs_files_ph": "Folder containing video files (e.g. /Users/me/gopro_videos)",
+        "four_dgs_group_dst": "Dataset Destination",
+        "four_dgs_group_params": "Parameters",
+        "four_dgs_lbl_fps": "Extraction FPS:",
+        "four_dgs_btn_start": "Start 4DGS Processing",
+        "four_dgs_btn_stop": "Stop",
+        "msg_install_nerf": "To activate this function, the tool 'nerfstudio' (ns-process-data) must be installed.\n\nThis requires approximately 3 to 5 GB of disk space.\nDo you want to start the installation now?",
     }
 }
 
