@@ -68,6 +68,9 @@ It is designed to be "click-and-run", handling dependency checks, process manage
     -   Check **"Activate"** to install the required dependencies (Nerfstudio).
     -   Select a folder containing your synced camera videos.
     -   Click **"Start Process"** to generate a dataset ready for 4DGS training.
+6.  **Apple Sharp Tab (Bonus)**:
+    -   Select a single source image.
+    -   Click **"Predict 3D Model"** to generate a mesh using machine learning.
 
 ### ⌨️ Command Line Interface (CLI)
 
@@ -83,6 +86,7 @@ This project stands on the shoulders of giants. A huge thank you to the creators
 *   **Brush**: An efficient Gaussian Splatting trainer for macOS. [GitHub](https://github.com/ArthurBrussee/brush)
 *   **SuperSplat**: An amazing web-based Splat editor by PlayCanvas. [GitHub](https://github.com/playcanvas/supersplat)
 *   **Apple ML Sharp**: Machine Learning tools for Swift. [GitHub](https://github.com/apple/ml-sharp)
+*   **Nerfstudio**: The modular NeRF and Splatting framework (used for 4DGS data prep). [GitHub](https://github.com/nerfstudio-project/nerfstudio)
 
 ## 📄 License
 
