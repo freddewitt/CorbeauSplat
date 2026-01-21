@@ -64,6 +64,10 @@ It is designed to be "click-and-run", handling dependency checks, process manage
 4.  **SuperSplat Tab**: 
     -   Load your trained `.ply` file.
     -   Click **"Start Servers"** to launch the viewer locally.
+5.  **4DGS Tab (Experimental)**:
+    -   Check **"Activate"** to install the required dependencies (Nerfstudio).
+    -   Select a folder containing your synced camera videos.
+    -   Click **"Start Process"** to generate a dataset ready for 4DGS training.
 
 ### ⌨️ Command Line Interface (CLI)
 
