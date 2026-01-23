@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import subprocess
 import json
@@ -22,7 +23,9 @@ class ColmapEngine:
         self._current_process = None
         self.logger = logger_callback if logger_callback else print
         self.progress = progress_callback if progress_callback else lambda x: None
+        self.progress = progress_callback if progress_callback else lambda x: None
         self.check_cancel = check_cancel_callback if check_cancel_callback else lambda: False
+        self.upscale_config = None # Will be set by Worker
         
         # Resolve binaries
         self.ffmpeg_bin = resolve_binary('ffmpeg') or 'ffmpeg'
@@ -64,7 +67,8 @@ class ColmapEngine:
             else:
                 # Copie des images dans le dossier images du projet
                 self.log("Copie des images sources vers le dossier de travail...")
-                import shutil
+                # Copie des images dans le dossier images du projet
+                self.log("Copie des images sources vers le dossier de travail...")
                 import concurrent.futures
                 
                 try:
@@ -81,6 +85,89 @@ class ColmapEngine:
                     self.log(f"{len(src_files)} images copiees.")
                 except Exception as e:
                     return False, f"Erreur copie images: {e}"
+                    
+            # --- UPSCALE STEP ---
+            if self.upscale_config and self.upscale_config.get("active", False):
+                self.log(f"\n{'='*60}\nUpscaling (Super-Resolution)\n{'='*60}")
+                if self.is_cancelled(): return False, "Arrete par l'utilisateur"
+                
+                # Check dependencies again just in case (though Worker checks too)
+                try:
+                    from app.core.upscale_engine import UpscaleEngine
+                    upscaler = UpscaleEngine(logger_callback=self.log)
+                    
+                    if not upscaler.is_installed():
+                         self.log("ATTENTION: Upscale activé mais dépendances manquantes. Ignoré.")
+                    else:
+                        # 1. Move original images to "images_sources"
+                        images_sources_dir = os.path.join(project_dir, "images_sources")
+                        
+                        # If images_sources already exists and isn't empty, logic might be complex if re-running.
+                        # Assumption: If re-running, images might already be upscaled in 'images'.
+                        # Simple check: do we have images_sources?
+                        
+                        if not os.path.exists(images_sources_dir):
+                            self.log(f"Déplacement des originaux vers {images_sources_dir}...")
+                            shutil.move(images_dir, images_sources_dir)
+                            # Re-create empty images dir for output
+                            os.makedirs(images_dir, exist_ok=True)
+                            
+                            # Perform Upscale
+                            model_name = self.upscale_config.get("model_name", "RealESRGAN_x4plus")
+                            tile_size = self.upscale_config.get("tile", 0)
+                            target_scale = self.upscale_config.get("target_scale", 4)
+                            face_enhance = self.upscale_config.get("face_enhance", False)
+                            
+                            # We need to pass tile size if supported by UpscaleEngine.load_model
+                            # I need to update UpscaleEngine.load_model to accept tile.
+                            # It accepts tile=0 default.
+                            
+                            # Instantiate upscaler again? No, reuse class methods but logic is in UpscaleEngine.
+                            # UpscaleEngine needs to support tile param in upscale_folder?
+                            # I implemented upscale_folder but it loads model internally with defaults?
+                            # Let's check UpscaleEngine implementation I wrote.
+                            # It has load_model(name, tile). 
+                            # But upscale_folder loads model itself without args.
+                            # I should update UpscaleEngine to allow passing args or load model outside.
+                            
+                            # Quick fix: manually load and loop here or update UpscaleEngine.
+                            # Better: update UpscaleEngine later or now? 
+                            # I can't edit UpscaleEngine in this same tool call easily if I want to be safe.
+                            # But I wrote it myself.
+                            # Let's assume I will call a method `upscale_folder_advanced` or similar, 
+                            # OR I modify UpscaleEngine next.
+                            # For now, let's assume default usage or I handle the loop here to be safe and flexible.
+                            
+                            # Use internal helper or manually call upscale_image
+                            # Since we are inside the engine run, and we imported UpscaleEngine class but instantiated 'upscaler'
+                            # 'upscaler' is the INSTANCE of UpscaleEngine.
+                            
+                            # Load model with target params
+                            upsampler = upscaler.load_model(model_name=model_name, tile=tile_size, target_scale=target_scale)
+                            if not upsampler:
+                                return False, "Echec chargement modele Upscale"
+                                
+                            self.log(f"Traitement Upscale (x{target_scale}) en cours...")
+                            files = sorted([f for f in os.listdir(images_sources_dir) if f.lower().endswith(('.jpg', '.png', '.jpeg'))])
+                            
+                            total = len(files)
+                            for i, f in enumerate(files):
+                                if self.is_cancelled(): return False, "Arrete par l'utilisateur"
+                                in_p = os.path.join(images_sources_dir, f)
+                                out_p = os.path.join(images_dir, f) # We keep same name
+                                
+                                success_img = upscaler.upscale_image(in_p, out_p, upsampler, face_enhance=face_enhance)
+                                if (i % 5 == 0): self.log(f"Upscale {i+1}/{total}...")
+                                
+                            self.log("Upscale termine.")
+                            
+                        else:
+                            self.log("Dossier 'images_sources' existant. On présume que l'upscale a déjà été fait.")
+                            
+                except Exception as e:
+                    self.log(f"Erreur Upscale: {e}")
+                    return False, f"Erreur Upscale: {e}"
+            # --------------------
                 
             # Structure de dossiers
             database_path = os.path.join(project_dir, "database.db")

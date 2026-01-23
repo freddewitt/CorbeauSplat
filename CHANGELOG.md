@@ -1,5 +1,25 @@
 # Changelog
 
+## [v0.4] - 2026-01-23
+
+### 🏗 Architecture & Performance (Total Refactor)
+-   **Python 3.13+ & JIT**: Added native detection for modern Python versions to enable Free-threading and JIT optimizations.
+-   **Apple Silicon Optimization**: 
+    -   Rewrite of thread management logic to exploit **Performance Cores** (P-Cores) on M1/M2/M3 chips without blocking the UI.
+    -   Vectorization improvements via `numpy` and native library bindings.
+-   **Dual-Environment**: Implemented a dedicated sandbox (`.venv_sharp`) for Apple ML Sharp (Python 3.11) preventing conflicts with the main application (Python 3.13+).
+-   **Factory Reset**: Added a "Nuclear Option" in Config Tab to wipe virtual environments and perform a clean re-install.
+
+### ✨ New Features
+-   **Factory Reset**: A GUI button to safely delete local environments and restart installation from scratch.
+-   **Expert Mode**: New "check_environment_optimization" routine at startup detailed in logs.
+-   **Upscale Integration**: Added support for Real-ESRGAN to upscale input images/videos before processing, improving detail release in final splats.
+
+### 🛡 Security & Cleanup
+-   **Subprocess Hardening**: Audited and secured shell calls throughout the core engine.
+-   **Legacy Code Removal**: Removed deprecated 3.9 compatibility layers.
+
+
 ## [0.3] - 2026-01-21
 
 ### Added

@@ -18,7 +18,9 @@ class ConfigTab(QWidget):
     openBrushRequested = pyqtSignal()
     deleteDatasetRequested = pyqtSignal()
     quitRequested = pyqtSignal()
+    quitRequested = pyqtSignal()
     relaunchRequested = pyqtSignal()
+    resetRequested = pyqtSignal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -136,6 +138,9 @@ class ConfigTab(QWidget):
         self.chk_auto_brush = QCheckBox(tr("check_auto_brush"))
         options_layout.addWidget(self.chk_auto_brush)
         
+        self.chk_upscale = QCheckBox(tr("upscale_check_colmap"))
+        options_layout.addWidget(self.chk_upscale)
+        
         output_layout.addLayout(options_layout)
         
         output_group.setLayout(output_layout)
@@ -193,6 +198,14 @@ class ConfigTab(QWidget):
         self.btn_relaunch.setFlat(True)
         self.btn_relaunch.clicked.connect(self.relaunchRequested.emit)
         restart_layout.addWidget(self.btn_relaunch)
+        
+        restart_layout.addSpacing(10)
+        
+        self.btn_reset = QPushButton(tr("btn_reset"))
+        self.btn_reset.setStyleSheet("QPushButton { border: none; color: #884444; font-size: 10px; font-weight: bold; } QPushButton:hover { color: #ff0000; }")
+        self.btn_reset.setFlat(True)
+        self.btn_reset.clicked.connect(self.on_reset_clicked)
+        restart_layout.addWidget(self.btn_reset)
         
         layout.addLayout(restart_layout)
         
@@ -272,6 +285,9 @@ class ConfigTab(QWidget):
     
     def get_auto_brush(self): return self.chk_auto_brush.isChecked()
     def set_auto_brush(self, val): self.chk_auto_brush.setChecked(val)
+
+    def get_upscale(self): return self.chk_upscale.isChecked()
+    def set_upscale(self, val): self.chk_upscale.setChecked(val)
     
     def set_processing_state(self, is_processing):
         """Met à jour l'état des boutons pendant le traitement"""
@@ -297,6 +313,9 @@ class ConfigTab(QWidget):
             "fps": self.get_fps(),
             "undistort": self.get_undistort(),
             "auto_brush": self.get_auto_brush(),
+            "undistort": self.get_undistort(),
+            "auto_brush": self.get_auto_brush(),
+            "upscale_active": self.get_upscale(),
             "lang": self.combo_lang.currentData()
         }
 
@@ -311,6 +330,7 @@ class ConfigTab(QWidget):
         if "fps" in state: self.set_fps(state["fps"])
         if "undistort" in state: self.set_undistort(state["undistort"])
         if "auto_brush" in state: self.set_auto_brush(state["auto_brush"])
+        if "upscale_active" in state: self.set_upscale(state["upscale_active"])
         
         # Lang is special, might require restart if changed, so we just set combo if it matches
         # or we let the main app handle valid lang loading.
@@ -319,3 +339,25 @@ class ConfigTab(QWidget):
             if idx >= 0: self.combo_lang.setCurrentIndex(idx)
             
         self.update_ui_state()
+
+    def get_upscale_config(self, tab_params):
+        """Combines local checkbox with tab params"""
+        return {
+            "active": self.get_upscale(),
+            "model_name": tab_params.get("model_name", "RealESRGAN_x4plus"),
+            "tile": tab_params.get("tile", 0),
+            "target_scale": tab_params.get("scale_factor", 4),
+            "face_enhance": tab_params.get("face_enhance", False)
+        }
+        
+    def on_reset_clicked(self):
+        reply = QMessageBox.question(
+            self, 
+            tr("btn_reset"), 
+            tr("confirm_reset"),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.resetRequested.emit()

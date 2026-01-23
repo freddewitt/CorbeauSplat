@@ -30,3 +30,5 @@ config.json
 
 # Project Specific (Cleanup)
 target/
+.venv_sharp/
+*.pth

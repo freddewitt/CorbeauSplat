@@ -10,8 +10,9 @@ from app.core.four_dgs_engine import FourDGSEngine
 class ColmapWorker(BaseWorker):
     """Thread worker pour exécuter COLMAP via le moteur"""
     
-    def __init__(self, params, input_path, output_path, input_type, fps, project_name="Untitled"):
+    def __init__(self, params, input_path, output_path, input_type, fps, project_name="Untitled", upscale_params=None):
         super().__init__()
+        self.upscale_params = upscale_params
         self.engine = ColmapEngine(
             params, input_path, output_path, input_type, fps, project_name,
             logger_callback=self.log_signal.emit,
@@ -24,6 +25,41 @@ class ColmapWorker(BaseWorker):
         super().stop()
         
     def run(self):
+        # Check Upscale first
+        if self.upscale_params and self.upscale_params.get("active", False):
+            from app.core.upscale_engine import UpscaleEngine
+            upscaler = UpscaleEngine(logger_callback=self.log_signal.emit)
+            
+            if not upscaler.is_installed():
+                self.log_signal.emit("ERREUR: Module Upscale activé mais dépendances non trouvées.")
+                self.finished_signal.emit(False, "Dépendances Upscale manquantes")
+                return
+
+            self.log_signal.emit("--- Démarrage Upscale (Real-ESRGAN) ---")
+            
+            # Logic depends on input type
+            # We want to upscale BEFORE Colmap starts, so we need to prepare the images folder
+            # But ColmapEngine handles extraction. 
+            # Strategy: Let ColmapEngine run extraction first if video.
+            # Then Upscale relies on the images folder created by ColmapEngine?
+            # Or we modify ColmapEngine to accept an 'upscaler' object?
+            # Creating a clean separation:
+            # But wait, ColmapEngine does extraction in run().
+            # Best way: Intercept extraction in ColmapEngine OR pass upscaler to ColmapEngine.
+            # Passing callback to ColmapEngine run method seems cleaner? 
+            # Actually, `run()` calls `extract_frames`. 
+            # I will modify ColmapEngine to handle Pre-processing callbacks or simply add upscale logic in ColmapEngine.
+            # However, I am editing Worker here.
+            # Let's pass the Upscale Params to ColmapEngine constructor and let it handle it internally.
+            pass
+
+        # Since I decided to put logic inside ColmapEngine for better flow control (e.g. video extraction -> upscale -> colmap)
+        # I will just pass the params to the engine via a new method or init.
+        # But `params` argument in init is ColmapParams. 
+        # I'll update ColmapEngine.__init__ to accept upscale_config.
+        
+        self.engine.upscale_config = self.upscale_params # Inject manually for now
+        
         success, message = self.engine.run()
         self.finished_signal.emit(success, message)
 
@@ -281,6 +317,36 @@ class SharpWorker(BaseWorker):
         
     def run(self):
         try:
+            # Handle Upscale for Sharp
+            if self.params.get("upscale", False):
+                 from app.core.upscale_engine import UpscaleEngine
+                 upscaler = UpscaleEngine(logger_callback=self.log_signal.emit)
+                 if upscaler.is_installed():
+                     self.log_signal.emit("--- Upscale Image ---")
+                     # We need to upscale input_path to a temp file
+                     # Sharp takes input_path which can be file or folder.
+                     import tempfile
+                     
+                     if os.path.isfile(self.input_path):
+                         # Single file
+                         filename = os.path.basename(self.input_path)
+                         temp_dir = os.path.join(self.output_path, "temp_upscale")
+                         os.makedirs(temp_dir, exist_ok=True)
+                         upscaled_path = os.path.join(temp_dir, filename)
+                         
+                         self.log_signal.emit(f"Upscaling {filename}...")
+                         model = upscaler.load_model() # Load once
+                         if model and upscaler.upscale_image(self.input_path, upscaled_path, model):
+                             self.input_path = upscaled_path # Redirect input
+                             self.log_signal.emit("Upscale terminé. Lancement Sharp...")
+                         else:
+                             self.log_signal.emit("Echec Upscale. Utilisation image originale.")
+                     else:
+                         # Folder
+                         self.log_signal.emit("Upscale de dossier pour Sharp non supporté dans cette version simple (TODO).")
+                 else:
+                     self.log_signal.emit("Erreur: Upscale demandé mais non installé.")
+
             process = self.engine.predict(
                 self.input_path,
                 self.output_path,

@@ -22,7 +22,9 @@ class SharpTab(QWidget):
         layout = QVBoxLayout(self)
         
         # Status Check
-        self.is_installed = which("sharp") is not None
+        from app.core.sharp_engine import SharpEngine
+        self.engine = SharpEngine()
+        self.is_installed = self.engine.is_installed()
         status_layout = QHBoxLayout()
         if self.is_installed:
             status_lbl = QLabel("Moteur Apple ML Sharp détecté")
@@ -35,10 +37,13 @@ class SharpTab(QWidget):
         
         # Paths Group
         path_group = QGroupBox("Chemins")
-        path_layout = QFormLayout()
+        path_layout = QVBoxLayout()
         
         # Input Path (File or Folder)
-        input_layout = QHBoxLayout()
+        input_lbl = QLabel(tr("Input (Img/Dossier) :"))
+        path_layout.addWidget(input_lbl)
+        
+        input_controls = QHBoxLayout()
         self.input_path = DropLineEdit()
         self.input_path.setPlaceholderText("Dossier d'images ou fichier image unique")
         self.btn_browse_input_dir = QPushButton("Dossier")
@@ -46,21 +51,24 @@ class SharpTab(QWidget):
         self.btn_browse_input_file = QPushButton("Fichier")
         self.btn_browse_input_file.clicked.connect(self.browse_input_file)
         
-        input_layout.addWidget(self.input_path)
-        input_layout.addWidget(self.btn_browse_input_dir)
-        input_layout.addWidget(self.btn_browse_input_file)
-        path_layout.addRow("Input (Img/Dossier) :", input_layout)
+        input_controls.addWidget(self.input_path)
+        input_controls.addWidget(self.btn_browse_input_dir)
+        input_controls.addWidget(self.btn_browse_input_file)
+        path_layout.addLayout(input_controls)
         
         # Output Path
-        output_layout = QHBoxLayout()
+        output_lbl = QLabel(tr("Sortie (Output) :"))
+        path_layout.addWidget(output_lbl)
+        
+        output_controls = QHBoxLayout()
         self.output_path = DropLineEdit()
         self.output_path.setPlaceholderText("Dossier de sortie pour les splats")
         self.btn_browse_output = QPushButton("...")
         self.btn_browse_output.setMaximumWidth(40)
         self.btn_browse_output.clicked.connect(self.browse_output)
-        output_layout.addWidget(self.output_path)
-        output_layout.addWidget(self.btn_browse_output)
-        path_layout.addRow("Sortie (Output) :", output_layout)
+        output_controls.addWidget(self.output_path)
+        output_controls.addWidget(self.btn_browse_output)
+        path_layout.addLayout(output_controls)
         
         path_group.setLayout(path_layout)
         layout.addWidget(path_group)
@@ -89,6 +97,9 @@ class SharpTab(QWidget):
         # Verbose
         self.verbose_check = QCheckBox("Mode Verbose (Logs détaillés)")
         opt_layout.addRow("", self.verbose_check)
+
+        self.upscale_check = QCheckBox(tr("upscale_check_sharp"))
+        opt_layout.addRow("", self.upscale_check)
         
         opt_group.setLayout(opt_layout)
         layout.addWidget(opt_group)
@@ -119,7 +130,9 @@ class SharpTab(QWidget):
             "output_path": self.output_path.text(),
             "checkpoint": self.ckpt_path.text(),
             "device": self.device_combo.currentText(),
-            "verbose": self.verbose_check.isChecked()
+            "device": self.device_combo.currentText(),
+            "verbose": self.verbose_check.isChecked(),
+            "upscale": self.upscale_check.isChecked()
         }
 
     def set_params(self, params):
@@ -130,6 +143,7 @@ class SharpTab(QWidget):
         if "checkpoint" in params: self.ckpt_path.setText(params["checkpoint"])
         if "device" in params: self.device_combo.setCurrentText(params["device"])
         if "verbose" in params: self.verbose_check.setChecked(params["verbose"])
+        if "upscale" in params: self.upscale_check.setChecked(params["upscale"])
         
     def browse_input_dir(self):
         path = QFileDialog.getExistingDirectory(self, "Dossier Images")

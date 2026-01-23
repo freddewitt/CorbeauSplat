@@ -1,5 +1,10 @@
 PyQt6
 requests
+urllib3<2
 rerun-sdk
-numpy
+numpy<2
 send2trash
+# Upscale Dependencies (Dynamic but listed for reference/locking if needed)
+basicsr
+facexlib
+gfpgan

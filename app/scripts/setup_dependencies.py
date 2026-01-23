@@ -9,6 +9,8 @@ BRUSH_REPO = "https://github.com/ArthurBrussee/brush.git"
 SHARP_REPO = "https://github.com/apple/ml-sharp.git"
 GLOMAP_REPO = "https://github.com/colmap/glomap.git"
 SUPERPLAT_REPO = "https://github.com/playcanvas/supersplat.git"
+SUPERPLAT_REPO = "https://github.com/playcanvas/supersplat.git"
+REALESRGAN_PIP = "realesrgan" # Main package
 
 def resolve_project_root():
     """Finds project root relative to this script"""
@@ -146,9 +148,44 @@ def relax_requirements(src, dst):
                 line = line.replace('==', '>=')
             f_out.write(line)
 
+def create_sharp_venv(root_dir):
+    """Creates a dedicated Python 3.11 venv for Sharp"""
+    venv_path = os.path.join(root_dir, ".venv_sharp")
+    if os.path.exists(venv_path):
+        return os.path.join(venv_path, "bin", "python3")
+        
+    print("Creation de l'environnement dedie pour Sharp (Python 3.11)...")
+    try:
+        # Try finding python 3.11
+        py311 = shutil.which("python3.11")
+        if not py311:
+            print("Python 3.11 non trouve. Essai avec python3.10...")
+            py311 = shutil.which("python3.10")
+            
+        if not py311:
+            print("ERREUR: Python 3.10 ou 3.11 requis pour Sharp. Installez avec 'brew install python@3.11'")
+            return None
+            
+        subprocess.check_call([py311, "-m", "venv", venv_path])
+        
+        # Upgrade pip
+        py_exe = os.path.join(venv_path, "bin", "python3")
+        subprocess.check_call([py_exe, "-m", "pip", "install", "--upgrade", "pip"], stdout=subprocess.DEVNULL)
+        return py_exe
+    except Exception as e:
+        print(f"Erreur creation venv Sharp: {e}")
+        return None
+
 def install_sharp(engines_dir, version_file, target_version=None):
     print("--- Installation de Sharp (Apple ML) ---")
     target_dir = os.path.join(engines_dir, "ml-sharp")
+    
+    # Get dedicated python
+    root_dir = os.path.dirname(engines_dir)
+    sharp_python = create_sharp_venv(root_dir)
+    if not sharp_python:
+        return False
+        
     try:
         if target_version is None: target_version = get_remote_version(SHARP_REPO)
         
@@ -157,18 +194,22 @@ def install_sharp(engines_dir, version_file, target_version=None):
         else:
             subprocess.check_call(["git", "-C", target_dir, "pull"])
             
-        # Dependances
+        # Install directly using reqs (strict or loose, but strict should work on fresh 3.11)
+        print("Installation des dependances Sharp dans .venv_sharp...")
         req_file = os.path.join(target_dir, "requirements.txt")
         if os.path.exists(req_file):
-            loose = os.path.join(target_dir, "requirements_loose.txt")
-            relax_requirements(req_file, loose)
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements_loose.txt"], cwd=target_dir)
-            
-        if os.path.exists(os.path.join(target_dir, "setup.py")):
-             subprocess.check_call([sys.executable, "-m", "pip", "install", "-e", "."], cwd=target_dir)
+             # We might still want to relax strict torch versions if they conflict with system specific wheels
+             # But let's try standard first. If fails, user can debug.
+             # Actually, let's use loose just in case to be safe on macOS variations
+             loose = os.path.join(target_dir, "requirements_loose.txt")
+             relax_requirements(req_file, loose)
+             subprocess.check_call([sharp_python, "-m", "pip", "install", "-r", "requirements_loose.txt"], cwd=target_dir)
+             
+        if os.path.exists(os.path.join(target_dir, "setup.py")) or os.path.exists(os.path.join(target_dir, "pyproject.toml")):
+             subprocess.check_call([sharp_python, "-m", "pip", "install", "-e", "."], cwd=target_dir)
              
         save_local_version(version_file, target_version)
-        print("Sharp installe avec succes.")
+        print("Sharp installe avec succes (sandbox).")
         return True
     except Exception as e:
         print(f"Erreur Sharp: {e}")
@@ -369,6 +410,22 @@ def manage_engine(name, check_path, repo_url, install_func, engines_dir, env_ski
         print(f"{name.capitalize()} est a jour.")
         if custom_check: custom_check()
 
+def install_upscale_deps(engines_dir, version_file, target_version=None):
+    print("--- Installation des dépendances Upscale (Real-ESRGAN/Torch) ---")
+    pkgs = ["torch", "torchvision", "realesrgan"]
+    
+    # We use pip directly with upgrade
+    try:
+        cmd = [sys.executable, "-m", "pip", "install", "--upgrade"] + pkgs
+        print(f"Mise à jour des dépendances : {', '.join(pkgs)}...")
+        
+        subprocess.check_call(cmd, stdout=subprocess.DEVNULL if not os.environ.get("VERBOSE") else None)
+        print("Upscale dependencies (Real-ESRGAN) : OK")
+        return True
+    except Exception as e:
+        print(f"Erreur Upscale Deps: {e}")
+        return False
+
 def main():
     root = resolve_project_root()
     engines_dir = os.path.join(root, "engines")
@@ -382,15 +439,16 @@ def main():
     # Brush
     manage_engine("brush", os.path.join(engines_dir, "brush"), BRUSH_REPO, install_brush, engines_dir)
     
-    # Sharp (Custom check for loose deps)
-    def check_sharp_deps():
-        # Just ensure dependencies are there
-        sharp_dir = os.path.join(engines_dir, "ml-sharp")
-        try:
-             subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements_loose.txt", "--quiet"], cwd=sharp_dir, stderr=subprocess.DEVNULL)
-        except: pass
-        
-    manage_engine("sharp", os.path.join(engines_dir, "ml-sharp"), SHARP_REPO, install_sharp, engines_dir, custom_check=check_sharp_deps)
+    # Sharp (Custom check for venv existence)
+    def check_sharp_venv():
+        # Ensure .venv_sharp exists, if not, we must trigger install logic
+        root_dir = os.path.dirname(engines_dir)
+        venv_path = os.path.join(root_dir, ".venv_sharp")
+        if not os.path.exists(venv_path):
+             print("Environnement Sharp manquant, lancement de configuration...")
+             install_sharp(engines_dir, os.path.join(engines_dir, "ml-sharp.version"))
+
+    manage_engine("sharp", os.path.join(engines_dir, "ml-sharp"), SHARP_REPO, install_sharp, engines_dir, custom_check=check_sharp_venv)
     
     # SuperSplat (Custom check for npm)
     def check_splat_deps():
@@ -400,6 +458,9 @@ def main():
         except: pass
         
     manage_engine("supersplat", os.path.join(engines_dir, "supersplat"), SUPERPLAT_REPO, install_supersplat, engines_dir, custom_check=check_splat_deps)
+
+    # Upscale Dependencies (Always check/install)
+    install_upscale_deps(engines_dir, None)
 
 if __name__ == "__main__":
     main()

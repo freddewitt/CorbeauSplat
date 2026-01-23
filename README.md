@@ -15,7 +15,8 @@ This application provides a unified Graphical User Interface (GUI) to orchestrat
     -   **Auto-Refine**: Resume training seamlessly from your last checkpoint.
 5.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
 6.  **Single Image to 3D**: (Bonus) Uses **Apple ML Sharp** to generate a 3D model from a single 2D image.
-7.  **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format). *Requires optional activation.*
+7.  **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
+8.  **Factory Reset**: Integrated tools to fix dependency issues by rebuilding the environment from scratch.
 
 It is designed to be "click-and-run", handling dependency checks, process management, and **session persistence** for you.
 
@@ -32,7 +33,8 @@ It is designed to be "click-and-run", handling dependency checks, process manage
 ## 🛠 Prerequisites & Installation
 
 ### Requirements
-- **macOS** (Silicon recommended)
+- **macOS** (Silicon recommended - M1/M2/M3)
+- **Python 3.13+** (Recommended for JIT/Performance) or Python 3.11 (Supported)
 - **Xcode Command Line Tools** (Required for compiling custom engines like Glomap or Brush)
 - **Homebrew** (for installing system dependencies like COLMAP and FFmpeg)
 - **Git**
@@ -57,7 +59,11 @@ It is designed to be "click-and-run", handling dependency checks, process manage
     -   Define a **Project Name** (your files will be saved in `[Output Folder]/[Project Name]`).
     -   Click **"Create COLMAP Dataset"**.
 2.  **Params Tab**: (Optional) Tweak advanced COLMAP settings or enable **Glomap**.
-3.  **Brush Tab**: 
+3.  **Upscale Tab**: (Optional)
+    -   Check **"Activate Upscale Module"** to install dependencies.
+    -   Select a model (e.g., RealESRGAN_x4plus) and a scale factor (x2, x4).
+    -   These settings will be applied during the "Create COLMAP Dataset" phase.
+4.  **Brush Tab**: 
     -   **Auto-Refine**: Choose "Refine" mode to resume training from the latest checkpoint.
     -   **Presets**: Use specific densification strategies (e.g., "Aggressive Densification").
     -   Click **"Start Brush Training"**.
@@ -87,6 +93,7 @@ This project stands on the shoulders of giants. A huge thank you to the creators
 *   **SuperSplat**: An amazing web-based Splat editor by PlayCanvas. [GitHub](https://github.com/playcanvas/supersplat)
 *   **Apple ML Sharp**: Machine Learning tools for Swift. [GitHub](https://github.com/apple/ml-sharp)
 *   **Nerfstudio**: The modular NeRF and Splatting framework (used for 4DGS data prep). [GitHub](https://github.com/nerfstudio-project/nerfstudio)
+*   **Real-ESRGAN**: AI algorithms for image restoration and enhancement. [GitHub](https://github.com/xinntao/Real-ESRGAN)
 
 ## 📄 License
 

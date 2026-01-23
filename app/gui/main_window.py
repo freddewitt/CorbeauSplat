@@ -19,6 +19,7 @@ from app.gui.tabs.brush_tab import BrushTab
 from app.gui.tabs.sharp_tab import SharpTab
 from app.gui.tabs.superplat_tab import SuperSplatTab
 from app.gui.tabs.four_dgs_tab import FourDGSTab
+from app.gui.tabs.upscale_tab import UpscaleTab
 from app.gui.workers import ColmapWorker, BrushWorker, SharpWorker, FourDGSWorker
 from app import VERSION
 
@@ -54,17 +55,20 @@ class ColmapGUI(QMainWindow):
         self.params_tab = ParamsTab()
         self.tabs.addTab(self.params_tab, tr("tab_params"))
         
+        self.upscale_tab = UpscaleTab()
+        self.tabs.addTab(self.upscale_tab, tr("tab_upscale"))
+        
         self.brush_tab = BrushTab()
         self.tabs.addTab(self.brush_tab, tr("tab_brush"))
         
         self.superplat_tab = SuperSplatTab()
         self.tabs.addTab(self.superplat_tab, tr("tab_supersplat"))
         
-        self.four_dgs_tab = FourDGSTab()
-        self.tabs.addTab(self.four_dgs_tab, "4DGS")
-        
         self.sharp_tab = SharpTab()
         self.tabs.addTab(self.sharp_tab, "Apple Sharp")
+        
+        self.four_dgs_tab = FourDGSTab()
+        self.tabs.addTab(self.four_dgs_tab, "4DGS")
 
         self.logs_tab = LogsTab()
         self.tabs.addTab(self.logs_tab, tr("tab_logs"))
@@ -84,6 +88,7 @@ class ColmapGUI(QMainWindow):
         self.config_tab.deleteDatasetRequested.connect(self.delete_dataset)
         self.config_tab.quitRequested.connect(self.close)
         self.config_tab.relaunchRequested.connect(self.restart_application)
+        self.config_tab.resetRequested.connect(self.reset_factory)
         
         self.brush_tab.trainRequested.connect(self.train_brush)
         self.brush_tab.stopRequested.connect(self.stop_brush)
@@ -127,7 +132,10 @@ class ColmapGUI(QMainWindow):
             output_path,
             input_type,
             self.config_tab.get_fps(),
-            project_name
+            project_name,
+            upscale_params=self.config_tab.get_upscale_config(
+                self.upscale_tab.get_params()
+            )
         )
         
         self.worker.log_signal.connect(self.logs_tab.append_log)
@@ -456,6 +464,37 @@ class ColmapGUI(QMainWindow):
         # Redémarrer le processus actuel
         python = sys.executable
         os.execl(python, python, *sys.argv)
+        
+    def reset_factory(self):
+        """Supprime les venvs et relance l'installation/application"""
+        import subprocess
+        
+        QApplication.quit()
+        
+        # Obtenir le chemin de run.command (supposé à la racine)
+        # sys.executable = .venv/bin/python
+        # root = ../..
+        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
+        # Si on n'est pas dans un venv standard, fallback sur cwd
+        if not os.path.exists(os.path.join(root_dir, "run.command")):
+            root_dir = os.getcwd()
+            
+        run_cmd = os.path.join(root_dir, "run.command")
+        venv_path = os.path.join(root_dir, ".venv")
+        venv_sharp_path = os.path.join(root_dir, ".venv_sharp")
+        
+        print(f"Reset Factory initie sur: {root_dir}")
+        print(f"Commande relance: {run_cmd}")
+        
+        # On lance une commande shell détachée qui va:
+        # 1. Attendre que nous quittions (sleep 2)
+        # 2. Supprimer les dossiers venv
+        # 3. Relancer run.command
+        
+        cmd = f"sleep 2 && rm -rf \"{venv_path}\" \"{venv_sharp_path}\" && \"{run_cmd}\" &"
+        
+        subprocess.Popen(cmd, shell=True, cwd=root_dir)
+        sys.exit(0)
 
     # --- Session Persistence ---
 
@@ -473,7 +512,9 @@ class ColmapGUI(QMainWindow):
             "colmap_params": self.params_tab.get_params().to_dict(),
             "brush_params": self.brush_tab.get_params(),
             "sharp_params": self.sharp_tab.get_params(),
+            "sharp_params": self.sharp_tab.get_params(),
             "four_dgs_params": self.four_dgs_tab.get_params(),
+            "upscale_params": self.upscale_tab.get_params(),
         }
         
         try:
@@ -507,6 +548,9 @@ class ColmapGUI(QMainWindow):
                 
             if "four_dgs_params" in state:
                 self.four_dgs_tab.set_params(state["four_dgs_params"])
+                
+            if "upscale_params" in state:
+                self.upscale_tab.set_params(state["upscale_params"])
                 
              # print("Session chargée.")
         except Exception as e:
