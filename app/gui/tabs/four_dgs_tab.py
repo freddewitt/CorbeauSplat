@@ -1,253 +1,204 @@
+
 import os
+import sys
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
-    QGroupBox, QFileDialog, QSpinBox, QMessageBox, QFormLayout, QCheckBox,
-    QProgressDialog, QApplication
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QGroupBox,
+    QFormLayout, QCheckBox, QSpinBox, QMessageBox, QFileDialog, QTextEdit, QProgressBar, QApplication, QProgressDialog
 )
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import pyqtSignal, Qt, QThread
 from app.core.i18n import tr
-from app.core.system import is_nerfstudio_installed, install_nerfstudio
-from app.core.i18n import tr
+from app.gui.widgets.drop_line_edit import DropLineEdit
+from app.gui.workers import FourDGSWorker
+from app.core.system import resolve_binary
 
 class FourDGSTab(QWidget):
     """
     Tab for 4DGS Dataset Preparation.
-    Allows selecting a folder of videos (cameras) and processing them into a 4DGS dataset.
     """
-    
-    processRequested = pyqtSignal()
-    stopRequested = pyqtSignal()
-
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.processing = False
+        self.worker = None
         self.init_ui()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        
+
         # Header
         info = QLabel(tr("four_dgs_header"))
-        info.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 10px;")
+        info.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 5px;")
         layout.addWidget(info)
         
         desc = QLabel(tr("four_dgs_desc"))
         desc.setWordWrap(True)
-        desc.setStyleSheet("color: #aaa; margin-bottom: 5px;")
+        desc.setStyleSheet("color: #aaa; margin-bottom: 10px;")
         layout.addWidget(desc)
 
-        warning_cuda = QLabel(tr("four_dgs_warning_cuda"))
-        warning_cuda.setStyleSheet("color: #e67e22; font-style: italic; margin-bottom: 20px;")
-        layout.addWidget(warning_cuda)
-
-        # Activation Checkbox
+        # Activation Group
         self.chk_activate = QCheckBox(tr("four_dgs_activate"))
         self.chk_activate.setStyleSheet("font-weight: bold; padding: 5px;")
         self.chk_activate.clicked.connect(self.on_toggle_activation)
         layout.addWidget(self.chk_activate)
 
-        # Main Content Widget (to disable/enable en masse)
-        self.content_widget = QWidget()
-        self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # 1. Source
-        src_group = QGroupBox(tr("four_dgs_group_src"))
-        src_layout = QHBoxLayout()
-        
-        self.input_path = QLineEdit()
-        self.input_path.setPlaceholderText(tr("four_dgs_files_ph"))
-        src_layout.addWidget(self.input_path)
-        
-        btn_src = QPushButton(tr("btn_browse"))
-        btn_src.clicked.connect(self.browse_input)
-        src_layout.addWidget(btn_src)
-        
-        src_group.setLayout(src_layout)
-        self.content_layout.addWidget(src_group)
+        # Main Controls Group (Disabled by default)
+        self.controls_group = QGroupBox("Configuration")
+        form_layout = QFormLayout()
 
-        # 2. Destination
-        dst_group = QGroupBox(tr("four_dgs_group_dst"))
-        dst_layout = QHBoxLayout()
-        
-        self.output_path = QLineEdit()
-        self.output_path.setText(os.path.expanduser("~/4dgs_data"))
-        dst_layout.addWidget(self.output_path)
-        
-        btn_dst = QPushButton(tr("btn_browse"))
-        btn_dst.clicked.connect(self.browse_output)
-        dst_layout.addWidget(btn_dst)
-        
-        dst_group.setLayout(dst_layout)
-        self.content_layout.addWidget(dst_group)
-        
-        # 3. Paramètres
-        param_group = QGroupBox(tr("four_dgs_group_params"))
-        param_layout = QFormLayout()
-        
+        # Source
+        self.input_edit = DropLineEdit()
+        self.input_edit.setPlaceholderText(tr("four_dgs_files_ph"))
+        input_layout = QHBoxLayout()
+        input_layout.addWidget(self.input_edit)
+        btn_browse_in = QPushButton(tr("btn_browse"))
+        btn_browse_in.clicked.connect(self.browse_input)
+        input_layout.addWidget(btn_browse_in)
+        form_layout.addRow(tr("four_dgs_group_src"), input_layout)
+
+        # Destination
+        self.output_edit = DropLineEdit()
+        self.output_edit.setPlaceholderText("~/CORBEAU_OUTPUT/4dgs_project")
+        output_layout = QHBoxLayout()
+        output_layout.addWidget(self.output_edit)
+        btn_browse_out = QPushButton(tr("btn_browse"))
+        btn_browse_out.clicked.connect(self.browse_output)
+        output_layout.addWidget(btn_browse_out)
+        form_layout.addRow(tr("four_dgs_group_dst"), output_layout)
+
+        # FPS
         self.fps_spin = QSpinBox()
         self.fps_spin.setRange(1, 60)
         self.fps_spin.setValue(5)
-        self.fps_spin.setSuffix(" fps")
-        param_layout.addRow(tr("four_dgs_lbl_fps"), self.fps_spin)
-        
-        param_group.setLayout(param_layout)
-        self.content_layout.addWidget(param_group)
+        form_layout.addRow(tr("four_dgs_lbl_fps"), self.fps_spin)
+
+        self.controls_group.setLayout(form_layout)
+        layout.addWidget(self.controls_group)
 
         # Actions
-        action_layout = QHBoxLayout()
+        btn_layout = QHBoxLayout()
+        self.btn_run = QPushButton("Lancer Préparation 4DGS") # TODO: i18n key logic
+        self.btn_run.setFixedHeight(40)
+        self.btn_run.setStyleSheet("background-color: #2ecc71; color: white; font-weight: bold;")
+        self.btn_run.clicked.connect(self.run_process)
+        btn_layout.addWidget(self.btn_run)
         
-        self.btn_process = QPushButton(tr("four_dgs_btn_start"))
-        self.btn_process.setMinimumHeight(45)
-        self.btn_process.setStyleSheet("background-color: #2A82DA; color: white; font-weight: bold;")
-        self.btn_process.clicked.connect(self.toggle_process)
-        action_layout.addWidget(self.btn_process)
+        self.btn_stop = QPushButton(tr("four_dgs_btn_stop"))
+        self.btn_stop.setFixedHeight(40)
+        self.btn_stop.setStyleSheet("background-color: #e74c3c; color: white; font-weight: bold;")
+        self.btn_stop.clicked.connect(self.stop_process)
+        self.btn_stop.setEnabled(False)
+        btn_layout.addWidget(self.btn_stop)
         
-        self.content_layout.addLayout(action_layout)
-        
-        # Add content widget to main layout
-        layout.addWidget(self.content_widget)
-        layout.addStretch()
-        
+        layout.addLayout(btn_layout)
+
+        # Logs
+        self.log_view = QTextEdit()
+        self.log_view.setReadOnly(True)
+        self.log_view.setStyleSheet("background-color: #222; color: #eee; font-family: monospace; font-size: 11px;")
+        layout.addWidget(self.log_view)
+
         # Initial State
-        self.content_widget.setEnabled(False)
-
-    def browse_input(self):
-        d = QFileDialog.getExistingDirectory(self, "Sélectionner dossier vidéos du projet", self.input_path.text())
-        if d:
-            self.input_path.setText(d)
-            
-    def browse_output(self):
-        d = QFileDialog.getExistingDirectory(self, "Sélectionner dossier de sortie", self.output_path.text())
-        if d:
-            self.output_path.setText(d)
-
-    def toggle_process(self):
-        if self.processing:
-            self.stopRequested.emit()
-        else:
-            if not self.input_path.text() or not os.path.exists(self.input_path.text()):
-                QMessageBox.warning(self, "Erreur", "Veuillez sélectionner un dossier source valide.")
-                return
-            if not self.output_path.text():
-                QMessageBox.warning(self, "Erreur", "Veuillez sélectionner un dossier de sortie.")
-                return
-                
-            self.processRequested.emit()
-
-    def set_processing_state(self, running):
-        self.processing = running
-        if running:
-            self.btn_process.setText(tr("four_dgs_btn_stop"))
-            self.btn_process.setStyleSheet("background-color: #DA2A2A; color: white; font-weight: bold;")
-            self.input_path.setEnabled(False)
-            self.output_path.setEnabled(False)
-            self.fps_spin.setEnabled(False)
-            self.chk_activate.setEnabled(False)
-        else:
-            self.btn_process.setText(tr("four_dgs_btn_start"))
-            self.btn_process.setStyleSheet("background-color: #2A82DA; color: white; font-weight: bold;")
-            self.input_path.setEnabled(True)
-            self.output_path.setEnabled(True)
-            self.fps_spin.setEnabled(True)
-            self.chk_activate.setEnabled(True)
+        self.controls_group.setEnabled(False)
+        self.btn_run.setEnabled(False)
+        
+        # Check if already active/installed (Check persistence or file existence)
+        # We check simply if 'ns-process-data' is in path, implying activation
+        import shutil
+        if shutil.which("ns-process-data"):
+            self.chk_activate.setChecked(True)
+            self.controls_group.setEnabled(True)
+            self.btn_run.setEnabled(True)
 
     def on_toggle_activation(self):
-        """Logic when activation box is clicked"""
         if self.chk_activate.isChecked():
-            # User wants to activate
-            if not is_nerfstudio_installed():
+            # Check dependency
+            import shutil
+            if not shutil.which("ns-process-data"):
                 reply = QMessageBox.question(
                     self, 
-                    tr("msg_warning"),
+                    "Installation Requise", 
                     tr("msg_install_nerf"),
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 
                 if reply == QMessageBox.StandardButton.Yes:
-                    self.install_and_restart()
+                    self.install_dependencies()
                 else:
                     self.chk_activate.setChecked(False)
             else:
-                self.content_widget.setEnabled(True)
+                 self.controls_group.setEnabled(True)
+                 self.btn_run.setEnabled(True)
         else:
-            # User deactivated
-            self.content_widget.setEnabled(False)
+            self.controls_group.setEnabled(False)
+            self.btn_run.setEnabled(False)
 
-    def install_and_restart(self):
-        """Install UI logic"""
-        progress = QProgressDialog("Installation de Nerfstudio en cours...", "Annuler", 0, 0, self)
+    def install_dependencies(self):
+        # Install nerfstudio pip package
+        progress = QProgressDialog("Installation de Nerfstudio...", "Annuler", 0, 0, self)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.setMinimumDuration(0)
         progress.show()
+        QApplication.processEvents()
         
-        # Simple logging callback (could signal to main window logs but for now print)
-        def log_callback(line):
-            print(f"[Install] {line}")
-            QApplication.processEvents()
+        try:
+            # We use subprocess to call pip
+            # Make sure we use the current python executable
+            cmd = [sys.executable, "-m", "pip", "install", "nerfstudio"]
+            subprocess.check_call(cmd)
             
-        success = install_nerfstudio(callback=log_callback)
-        progress.close()
-        
-        if success:
-            QMessageBox.information(
-                self, 
-                "Succès", 
-                "Nerfstudio installé avec succès !\n\nL'application va maintenant redémarrer pour prendre en compte les changements."
-            )
-            # Restart Application logic
-            # Assuming parent is MainWindow which has restart_application logic, 
-            # OR we emit a signal, OR we use the logic from MainWindow here.
-            # MainWindow handles restarts in close logic usually or explicit method.
-            # Let's try to access parent's restart if available, or just quit.
-            
-            # Since FourDGSTab is added to tabs, parent() is the QTabWidget, parent().parent() might be MainWindow?
-            # Or simpler: emit signal 'restartRequested'
-            self.processRequested.emit() # Hijacking? No.
-            # Add new signal? 
-            # Let's rely on user manually restarting if we can't trigger it easily, 
-            # BUT user asked "Checks box -> Asks to restart".
-            # I can trigger a restart using sys logic I saw in MainWindow.
-            
-            # Or better, add restart signal to Tab and MainWindow catches it.
-            # But I don't want to edit MainWindow again just for signal connection if I can avoid it.
-            # Actually MainWindow already connects `relaunchRequested` from ConfigTab. I can add one here too?
-            # Creating a new signal on the fly requires editing MainWindow to connect it.
-            
-            # Let's restart process directly here or via a clean signal.
-            # I will reuse python sys.executable trick here for self-contained logic if needed, 
-            # but connecting to MainWindow is cleaner. Given I am editing this file...
-            # I'll let the user restart manually for safety? 
-            # "Une fois coché, ça demande de redemarrer" -> implies it *requests* it.
-            # "et ça install le programme" -> We just did that.
-            
-            import sys
-            python = sys.executable
-            os.execl(python, python, *sys.argv)
-            
-        else:
-            QMessageBox.critical(self, "Erreur", "L'installation a échoué.")
+            QMessageBox.information(self, tr("msg_success"), "Installation terminée. Veuillez redémarrer l'application.")
+            self.controls_group.setEnabled(True)
+            self.btn_run.setEnabled(True)
+        except Exception as e:
+            QMessageBox.critical(self, tr("msg_error"), f"Erreur installation: {e}")
             self.chk_activate.setChecked(False)
+        finally:
+            progress.close()
 
-    def get_params(self):
-        return {
-            "enabled": self.chk_activate.isChecked(),
-            "input_path": self.input_path.text(),
-            "output_path": self.output_path.text(),
-            "fps": self.fps_spin.value()
-        }
+    def browse_input(self):
+        d = QFileDialog.getExistingDirectory(self, "Choisir dossier Vidéos")
+        if d: self.input_edit.setText(d)
+
+    def browse_output(self):
+        d = QFileDialog.getExistingDirectory(self, "Choisir destination")
+        if d: self.output_edit.setText(d)
+
+    def run_process(self):
+        src = self.input_edit.text().strip()
+        dst = self.output_edit.text().strip()
         
-    def set_params(self, params):
-        if "enabled" in params:
-            is_enabled = params["enabled"]
-            # Only check if installed. If saved as enabled but not installed, uncheck.
-            if is_enabled and is_nerfstudio_installed():
-                self.chk_activate.setChecked(True)
-                self.content_widget.setEnabled(True)
-            else:
-                self.chk_activate.setChecked(False)
-                self.content_widget.setEnabled(False)
-                
-        if "input_path" in params: self.input_path.setText(params["input_path"])
-        if "output_path" in params: self.output_path.setText(params["output_path"])
-        if "fps" in params: self.fps_spin.setValue(params["fps"])
+        if not src or not dst:
+            QMessageBox.warning(self, tr("msg_warning"), "Veuillez sélectionner les dossiers source et destination.")
+            return
+
+        if not os.path.exists(src):
+             QMessageBox.warning(self, tr("msg_warning"), "Le dossier source n'existe pas.")
+             return
+             
+        self.btn_run.setEnabled(False)
+        self.btn_stop.setEnabled(True)
+        self.log_view.clear()
+        
+        self.worker = FourDGSWorker(src, dst, self.fps_spin.value())
+        self.worker.log_message.connect(self.append_log)
+        self.worker.finished_signal.connect(self.on_process_finished)
+        self.worker.start()
+
+    def stop_process(self):
+        if self.worker:
+            self.worker.stop()
+            self.btn_stop.setEnabled(False)
+            self.append_log(">>> Arrêt demandé...")
+
+    def on_process_finished(self, success, message):
+        self.btn_run.setEnabled(True)
+        self.btn_stop.setEnabled(False)
+        if success:
+            QMessageBox.information(self, tr("msg_success"), message)
+        else:
+             if "Arrêté" not in message:
+                QMessageBox.critical(self, tr("msg_error"), message)
+        self.worker = None
+
+    def append_log(self, text):
+        self.log_view.append(text)
+        # Auto scroll
+        sb = self.log_view.verticalScrollBar()
+        sb.setValue(sb.maximum())

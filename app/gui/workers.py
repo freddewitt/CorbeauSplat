@@ -5,7 +5,7 @@ from PyQt6.QtCore import pyqtSignal
 from app.core.engine import ColmapEngine
 from app.core.brush_engine import BrushEngine
 from app.gui.base_worker import BaseWorker
-from app.core.four_dgs_engine import FourDGSEngine
+
 
 class ColmapWorker(BaseWorker):
     """Thread worker pour exécuter COLMAP via le moteur"""
@@ -374,23 +374,48 @@ class SharpWorker(BaseWorker):
         except Exception as e:
             self.finished_signal.emit(False, str(e))
 
+
+
+# ---------------------------------------------------------------------
+# 4DGS WORKER
+# ---------------------------------------------------------------------
+from app.core.four_dgs_engine import FourDGSEngine
+
 class FourDGSWorker(BaseWorker):
-    """Worker pour le pipeline 4DGS"""
-    
-    def __init__(self, input_dir, output_dir, fps):
+    def __init__(self, videos_dir, output_dir, fps=5):
         super().__init__()
-        self.engine = FourDGSEngine(
-            input_dir, output_dir, fps,
-            logger_callback=self.log_signal.emit
-        )
-        
-    def stop(self):
-        self.engine.stop()
-        super().stop()
-        
+        self.videos_dir = videos_dir
+        self.output_dir = output_dir
+        self.fps = fps
+        self.engine = None
+
     def run(self):
+        self.start_timer()
+        self.log_message.emit("--- Démarrage 4DGS ---")
+        self.log_message.emit(f"Source: {self.videos_dir}")
+        self.log_message.emit(f"Destination: {self.output_dir}")
+        
+        self.engine = FourDGSEngine(logger_callback=self.log_signal.emit)
+        
         try:
-            success, msg = self.engine.process()
-            self.finished_signal.emit(success, msg)
+            success = self.engine.process_dataset(self.videos_dir, self.output_dir, self.fps)
+            
+            if self._is_running:
+                if success:
+                    self.log_message.emit("--- Succès 4DGS ---")
+                    self.finished_signal.emit(True, "Dataset 4DGS créé avec succès.")
+                else:
+                    self.log_message.emit("--- Echec 4DGS ---")
+                    self.finished_signal.emit(False, "Une erreur est survenue pendant le traitement.")
+            else:
+                self.log_message.emit("--- Arrêté par l'utilisateur ---")
+                self.finished_signal.emit(False, "Traitement arrêté.")
+                
         except Exception as e:
+            self.log_message.emit(f"Erreur critique: {e}")
             self.finished_signal.emit(False, str(e))
+
+    def stop(self):
+        self._is_running = False
+        if self.engine:
+            self.engine.stop()

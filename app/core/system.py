@@ -19,43 +19,14 @@ def get_optimal_threads():
     """Retourne le nombre optimal de threads pour Apple Silicon"""
     if is_apple_silicon():
         # Apple Silicon: Utilize Performance cores efficiently
-        # Initial heurestic: 75% of total cores usually avoids blocking UI/efficiency cores
+        # Initial heurestic: 80% of total cores usually avoids blocking UI/efficiency cores
+        # We ensure at least 2 cores are left free if possible
         cpu_count = os.cpu_count() or 8
-        return max(1, int(cpu_count * 0.75))
+        if cpu_count > 4:
+             return max(1, int(cpu_count * 0.80))
+        else:
+             return max(1, cpu_count - 1)
     return os.cpu_count() or 4
-
-def check_environment_optimization():
-    """
-    Checks for Python 3.13+ JIT and Apple Silicon optimizations.
-    Returns: (is_optimized, message)
-    """
-    msgs = []
-    is_opt = True
-    
-    # 1. Python Version & JIT
-    v = sys.version_info
-    if v.major == 3 and v.minor < 13:
-        msgs.append("Python < 3.13: JIT disabled. Update recommended for max performance.")
-        # We don't mark is_opt=False as critical failure but as warning
-    elif v.major == 3 and v.minor >= 13:
-        # Check for JIT if available (3.13 experimental)
-        # Note: sys._is_gigacage_enabled() is internal/exp, 
-        # official JIT status checking might vary.
-        msgs.append("Python 3.13+ detected.")
-        try:
-             # Hypothetical check if JIT is exposed or via compilation flags
-             # Actual 3.13 JIT check often involves checking if it was built with --enable-experimental-jit
-             # For now we assume if 3.13+ it's "Modern"
-             pass
-        except: pass
-
-    # 2. Apple Silicon
-    if is_apple_silicon():
-        msgs.append("Apple Silicon (ARM64) detected: Neural Engine optimizations enabled.")
-    else:
-        msgs.append("Running on x86_64 architecture.")
-
-    return is_opt, "\n".join(msgs)
 
 def resolve_binary(name):
     """
@@ -95,46 +66,4 @@ def check_dependencies():
     if resolve_binary('colmap') is None:
         missing.append('colmap')
 
-    # Check ns-process-data (soft check, maybe not strictly required for app launch but for 4DGS)
-    # We won't block main.py execution but we can list it.
-    if resolve_binary('ns-process-data') is None:
-        missing.append('ns-process-data')
-        
     return missing
-
-def is_nerfstudio_installed():
-    """Vérifie si ns-process-data est disponible"""
-    return resolve_binary('ns-process-data') is not None
-
-def install_nerfstudio(upgrade=False, callback=None):
-    """
-    Installe ou met à jour nerfstudio via pip.
-    callback(str): fonction pour recevoir les logs stdout
-    """
-    # On utilise pip du python courant
-    pip_cmd = [sys.executable, "-m", "pip", "install"]
-    if upgrade:
-        pip_cmd.append("--upgrade")
-    pip_cmd.append("nerfstudio")
-    
-    try:
-        process = subprocess.Popen(
-            pip_cmd, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.STDOUT,
-            text=True, 
-            bufsize=1
-        )
-        
-        for line in process.stdout:
-            if callback:
-                callback(line.strip())
-            else:
-                print(line.strip())
-                
-        process.wait()
-        return process.returncode == 0
-    except Exception as e:
-        if callback:
-            callback(f"Erreur execution pip: {e}")
-        return False

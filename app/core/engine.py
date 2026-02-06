@@ -6,6 +6,7 @@ import json
 import platform
 from .params import ColmapParams
 from .system import is_apple_silicon, get_optimal_threads, resolve_binary
+import concurrent.futures
 import send2trash
 
 class ColmapEngine:
@@ -25,7 +26,6 @@ class ColmapEngine:
         self.progress = progress_callback if progress_callback else lambda x: None
         self.progress = progress_callback if progress_callback else lambda x: None
         self.check_cancel = check_cancel_callback if check_cancel_callback else lambda: False
-        self.upscale_config = None # Will be set by Worker
         
         # Resolve binaries
         self.ffmpeg_bin = resolve_binary('ffmpeg') or 'ffmpeg'
@@ -57,117 +57,20 @@ class ColmapEngine:
             
             self.log(f"Preparation du projet dans : {project_dir}")
             
-            # Preparation des Images (Extraction ou Copie)
-            if self.input_type == "video":
-                if self.is_cancelled(): return False, "Arrete par l'utilisateur"
-                    
-                # Extraction dans le dossier images du projet
-                if not self.extract_frames_from_video(self.input_path, images_dir):
-                     return False, "Echec extraction video"
-            else:
-                # Copie des images dans le dossier images du projet
-                self.log("Copie des images sources vers le dossier de travail...")
-                # Copie des images dans le dossier images du projet
-                self.log("Copie des images sources vers le dossier de travail...")
-                import concurrent.futures
-                
-                try:
-                    src_files = [f for f in os.listdir(self.input_path) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-                    
-                    def copy_image(filename):
-                        if self.is_cancelled(): return
-                        shutil.copy2(os.path.join(self.input_path, filename), os.path.join(images_dir, filename))
-                        
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        # Map returns an iterator, we need to iterate to raise exceptions if any
-                        list(executor.map(copy_image, src_files))
-                        
-                    self.log(f"{len(src_files)} images copiees.")
-                except Exception as e:
-                    return False, f"Erreur copie images: {e}"
-                    
+            # Validation Input
+            if not os.path.exists(self.input_path) and self.input_type != "video": # Video supports pipe |
+                 if not "|" in self.input_path:
+                     return False, f"Entree introuvable: {self.input_path}"
+
+            # 1. Preparation des Images (Extraction ou Copie)
+            if not self._prepare_images(images_dir):
+                return False, "Echec preparation images"
+            
             # --- UPSCALE STEP ---
-            if self.upscale_config and self.upscale_config.get("active", False):
-                self.log(f"\n{'='*60}\nUpscaling (Super-Resolution)\n{'='*60}")
-                if self.is_cancelled(): return False, "Arrete par l'utilisateur"
-                
-                # Check dependencies again just in case (though Worker checks too)
-                try:
-                    from app.core.upscale_engine import UpscaleEngine
-                    upscaler = UpscaleEngine(logger_callback=self.log)
-                    
-                    if not upscaler.is_installed():
-                         self.log("ATTENTION: Upscale activé mais dépendances manquantes. Ignoré.")
-                    else:
-                        # 1. Move original images to "images_sources"
-                        images_sources_dir = os.path.join(project_dir, "images_sources")
-                        
-                        # If images_sources already exists and isn't empty, logic might be complex if re-running.
-                        # Assumption: If re-running, images might already be upscaled in 'images'.
-                        # Simple check: do we have images_sources?
-                        
-                        if not os.path.exists(images_sources_dir):
-                            self.log(f"Déplacement des originaux vers {images_sources_dir}...")
-                            shutil.move(images_dir, images_sources_dir)
-                            # Re-create empty images dir for output
-                            os.makedirs(images_dir, exist_ok=True)
-                            
-                            # Perform Upscale
-                            model_name = self.upscale_config.get("model_name", "RealESRGAN_x4plus")
-                            tile_size = self.upscale_config.get("tile", 0)
-                            target_scale = self.upscale_config.get("target_scale", 4)
-                            face_enhance = self.upscale_config.get("face_enhance", False)
-                            
-                            # We need to pass tile size if supported by UpscaleEngine.load_model
-                            # I need to update UpscaleEngine.load_model to accept tile.
-                            # It accepts tile=0 default.
-                            
-                            # Instantiate upscaler again? No, reuse class methods but logic is in UpscaleEngine.
-                            # UpscaleEngine needs to support tile param in upscale_folder?
-                            # I implemented upscale_folder but it loads model internally with defaults?
-                            # Let's check UpscaleEngine implementation I wrote.
-                            # It has load_model(name, tile). 
-                            # But upscale_folder loads model itself without args.
-                            # I should update UpscaleEngine to allow passing args or load model outside.
-                            
-                            # Quick fix: manually load and loop here or update UpscaleEngine.
-                            # Better: update UpscaleEngine later or now? 
-                            # I can't edit UpscaleEngine in this same tool call easily if I want to be safe.
-                            # But I wrote it myself.
-                            # Let's assume I will call a method `upscale_folder_advanced` or similar, 
-                            # OR I modify UpscaleEngine next.
-                            # For now, let's assume default usage or I handle the loop here to be safe and flexible.
-                            
-                            # Use internal helper or manually call upscale_image
-                            # Since we are inside the engine run, and we imported UpscaleEngine class but instantiated 'upscaler'
-                            # 'upscaler' is the INSTANCE of UpscaleEngine.
-                            
-                            # Load model with target params
-                            upsampler = upscaler.load_model(model_name=model_name, tile=tile_size, target_scale=target_scale)
-                            if not upsampler:
-                                return False, "Echec chargement modele Upscale"
-                                
-                            self.log(f"Traitement Upscale (x{target_scale}) en cours...")
-                            files = sorted([f for f in os.listdir(images_sources_dir) if f.lower().endswith(('.jpg', '.png', '.jpeg'))])
-                            
-                            total = len(files)
-                            for i, f in enumerate(files):
-                                if self.is_cancelled(): return False, "Arrete par l'utilisateur"
-                                in_p = os.path.join(images_sources_dir, f)
-                                out_p = os.path.join(images_dir, f) # We keep same name
-                                
-                                success_img = upscaler.upscale_image(in_p, out_p, upsampler, face_enhance=face_enhance)
-                                if (i % 5 == 0): self.log(f"Upscale {i+1}/{total}...")
-                                
-                            self.log("Upscale termine.")
-                            
-                        else:
-                            self.log("Dossier 'images_sources' existant. On présume que l'upscale a déjà été fait.")
-                            
-                except Exception as e:
-                    self.log(f"Erreur Upscale: {e}")
-                    return False, f"Erreur Upscale: {e}"
-            # --------------------
+            upscale_conf = getattr(self, 'upscale_config', None)
+            if upscale_conf and upscale_conf.get("active", False):
+                if not self._run_upscale(project_dir, images_dir):
+                    return False, "Echec Upscale"
                 
             # Structure de dossiers
             database_path = os.path.join(project_dir, "database.db")
@@ -228,11 +131,119 @@ class ColmapEngine:
             if self.is_cancelled(): return False, "Arrete par l'utilisateur"
             return False, str(e)
 
-    def extract_frames_from_video(self, video_path, images_dir):
+    def _prepare_images(self, images_dir):
+        """Gère l'extraction vidéo ou la copie d'images"""
+        if self.input_type == "video":
+            if self.is_cancelled(): return False
+                
+            # Support multi-fichiers séparés par "|"
+            video_paths = self.input_path.split("|")
+            total_videos = len(video_paths)
+            
+            for i, video_path in enumerate(video_paths):
+                if self.is_cancelled(): return False
+                
+                video_path = video_path.strip()
+                if not os.path.exists(video_path):
+                    self.log(f"Attention: Video introuvable: {video_path}")
+                    continue
+                    
+                # Prefix based on filename
+                base_name = os.path.splitext(os.path.basename(video_path))[0]
+                prefix = "".join([c for c in base_name if c.isalnum() or c in ('_', '-')])
+                
+                self.log(f"Extraction video ({i+1}/{total_videos}): {base_name}")
+                
+                if not self.extract_frames_from_video(video_path, images_dir, prefix=prefix):
+                     self.log(f"Echec extraction video: {base_name}")
+                     return False
+            return True
+        else:
+            # Copie des images
+            self.log("Copie des images sources vers le dossier de travail...")
+            
+            try:
+                src_files = [f for f in os.listdir(self.input_path) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+                
+                def copy_image(filename):
+                    if self.is_cancelled(): return
+                    shutil.copy2(os.path.join(self.input_path, filename), os.path.join(images_dir, filename))
+                    
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    list(executor.map(copy_image, src_files))
+                    
+                self.log(f"{len(src_files)} images copiees.")
+                return True
+            except Exception as e:
+                self.log(f"Erreur copie images: {e}")
+                return False
+
+    def _run_upscale(self, project_dir, images_dir):
+        """Gère l'upscaling"""
+        self.log(f"\n{'='*60}\nUpscaling (Super-Resolution)\n{'='*60}")
+        if self.is_cancelled(): return False
+        
+        try:
+            from app.core.upscale_engine import UpscaleEngine
+            upscaler = UpscaleEngine(logger_callback=self.log)
+            
+            if not upscaler.is_installed():
+                 self.log("ATTENTION: Upscale activé mais dépendances manquantes. Ignoré.")
+                 return True # Non-fatal
+            
+            # 1. Move original images to "images_sources"
+            images_sources_dir = os.path.join(project_dir, "images_sources")
+            
+            if not os.path.exists(images_sources_dir):
+                self.log(f"Déplacement des originaux vers {images_sources_dir}...")
+                shutil.move(images_dir, images_sources_dir)
+                os.makedirs(images_dir, exist_ok=True)
+                
+                # Perform Upscale
+                model_name = self.upscale_config.get("model_name", "RealESRGAN_x4plus")
+                tile_size = self.upscale_config.get("tile", 0)
+                target_scale = self.upscale_config.get("target_scale", 4)
+                face_enhance = self.upscale_config.get("face_enhance", False)
+                fp16 = self.upscale_config.get("fp16", False)
+                
+                upsampler = upscaler.load_model(model_name=model_name, tile=tile_size, target_scale=target_scale, half=fp16)
+                if not upsampler:
+                    self.log("Echec chargement modele Upscale")
+                    return False
+                    
+                self.log(f"Traitement Upscale (x{target_scale}) en cours...")
+                files = sorted([f for f in os.listdir(images_sources_dir) if f.lower().endswith(('.jpg', '.png', '.jpeg'))])
+                
+                total = len(files)
+                for i, f in enumerate(files):
+                    if self.is_cancelled(): return False
+                    in_p = os.path.join(images_sources_dir, f)
+                    out_p = os.path.join(images_dir, f)
+                    
+                    upscaler.upscale_image(in_p, out_p, upsampler, face_enhance=face_enhance)
+                    if (i % 5 == 0): self.log(f"Upscale {i+1}/{total}...")
+                    
+                self.log("Upscale termine.")
+            else:
+                self.log("Dossier 'images_sources' existant. On présume que l'upscale a déjà été fait.")
+                
+            return True
+            
+        except Exception as e:
+            self.log(f"Erreur Upscale: {e}")
+            return False
+
+    def extract_frames_from_video(self, video_path, images_dir, prefix=None):
         """Extraction vidéo optimisée"""
-        self.log(f"\n{'='*60}\nExtraction frames\n{'='*60}")
+        self.log(f"\n{'='*60}\nExtraction frames: {os.path.basename(video_path)}\n{'='*60}")
         # images_dir est deja le dossier final
         os.makedirs(images_dir, exist_ok=True)
+        
+        # Output pattern
+        if prefix:
+             output_pattern = os.path.join(images_dir, f'{prefix}_%04d.jpg')
+        else:
+             output_pattern = os.path.join(images_dir, 'frame_%04d.jpg')
         
         cmd = [self.ffmpeg_bin]
         if self.is_silicon:
@@ -242,7 +253,7 @@ class ColmapEngine:
             '-i', video_path,
             '-vf', f'fps={self.fps}',
             '-qscale:v', '2',
-            os.path.join(images_dir, 'frame_%04d.jpg')
+            output_pattern
         ])
         
         try:

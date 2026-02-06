@@ -81,15 +81,13 @@ class UpscaleEngine:
 
     # install/uninstall methods deprecated, handled by setup_dependencies.py
 
-    def load_model(self, model_name='RealESRGAN_x4plus', tile=0, target_scale=4):
+    def load_model(self, model_name='RealESRGAN_x4plus', tile=0, target_scale=4, half=False):
         """
         Loads the RealESRGANer model. 
         Returns the model object or None.
         """
         if not self.is_installed():
             self.log("Dependencies not installed.")
-            return None
-
             return None
 
         try:
@@ -119,14 +117,11 @@ class UpscaleEngine:
             # Let's rely on standard usage:
             upsampler = RealESRGANer(
                 scale=netscale,
-                # If we need auto-download, we might need a helper.
-                # 'realesrgan' package typically fetches weights if using their CLI, 
-                # but as library we often need to provide path or URL.
                 model=model,
                 tile=tile,
                 tile_pad=10,
                 pre_pad=0,
-                half=False, # mps/cpu might not like half
+                half=half, # Dynamic FP16
                 device=self.device,
                 model_path=os.path.join(self.get_models_path(), f"{model_name}.pth")
             )
@@ -137,17 +132,34 @@ class UpscaleEngine:
         except Exception as e:
             self.log(f"Failed to load model: {e}")
             return None
-            
-            self.log(f"Failed to load model: {e}")
-            return None
+
+    def verify_checksum(self, file_path, expected_hash):
+        """Verifies the SHA256 checksum of a file"""
+        import hashlib
+        sha256_hash = hashlib.sha256()
+        try:
+            with open(file_path, "rb") as f:
+                # Read chunks to avoid memory issues
+                for byte_block in iter(lambda: f.read(4096), b""):
+                    sha256_hash.update(byte_block)
+            return sha256_hash.hexdigest() == expected_hash
+        except Exception as e:
+            self.log(f"Checksum verification failed: {e}")
+            return False
 
     def download_model(self, model_name):
-        """Downloads the specific model weights"""
+        """Downloads the specific model weights with checksum verification"""
         # Urls from realesrgan repo
         urls = {
             "RealESRGAN_x4plus": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
             "RealESRNet_x4plus": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.1/RealESRNet_x4plus.pth",
             "RealESRGAN_x4plus_anime_6B": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
+        }
+        
+        # SHA256 Checksums
+        checksums = {
+            "RealESRGAN_x4plus": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1",
+            # Add others if needed
         }
         
         url = urls.get(model_name)
@@ -156,31 +168,31 @@ class UpscaleEngine:
             return False
             
         save_path = os.path.join(self.get_models_path(), f"{model_name}.pth")
+        expected_hash = checksums.get(model_name)
         
         if os.path.exists(save_path):
-            # Check size (sanity check, arbitrary min size 1MB)
+            # Check size first
             if os.path.getsize(save_path) > 1024 * 1024: 
-                self.log(f"Model {model_name} already exists and valid.")
-                return True
+                # Verify checksum if known
+                if expected_hash:
+                    self.log(f"Verifying existing model {model_name}...")
+                    if self.verify_checksum(save_path, expected_hash):
+                        self.log(f"Model {model_name} valid (Checksum OK).")
+                        return True
+                    else:
+                        self.log(f"Model {model_name} corrupted (Checksum Mismatch). Deleting.")
+                        os.remove(save_path)
+                else:
+                    self.log(f"Model {model_name} exists (No checksum to verify).")
+                    return True
             else:
-                self.log(f"Model {model_name} exists but seems empty/corrupt. Redownloading.")
+                self.log(f"Model {model_name} exists but seems empty. Redownloading.")
                 os.remove(save_path)
             
         self.log(f"Downloading {model_name}...")
         try:
-            # Basic download using requests or curl
-            # We can use subprocess curl for simplicity and progress bar in log?
-            # Or urllib
             import urllib.request
             
-            def progress(count, block_size, total_size):
-                if total_size > 0:
-                    percent = int(count * block_size * 100 / total_size)
-                    if percent % 10 == 0:
-                         # Hacky progress log, maybe too verbose
-                         pass
-
-            # Wait, signature is (url, filename, reporthook)
             urllib.request.urlretrieve(url, save_path)
             
             self.log(f"Download complete: {save_path}")
@@ -189,6 +201,15 @@ class UpscaleEngine:
             if not os.path.exists(save_path) or os.path.getsize(save_path) < 1024 * 1024:
                  self.log("Download failed (file too small or missing).")
                  return False
+            
+            # Verify checksum post download
+            if expected_hash:
+                self.log("Verifying download checksum...")
+                if not self.verify_checksum(save_path, expected_hash):
+                    self.log("SECURITY WARNING: Downloaded file checksum mismatch! potential compromise or corruption.")
+                    os.remove(save_path)
+                    return False
+                self.log("Checksum OK.")
                  
             return True
         except Exception as e:

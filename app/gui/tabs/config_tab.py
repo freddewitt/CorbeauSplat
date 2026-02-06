@@ -234,13 +234,16 @@ class ConfigTab(QWidget):
         """Parcourir l'entrée"""
         if self.radio_images.isChecked():
             path = QFileDialog.getExistingDirectory(self, tr("group_input")) # Reuse string or add new? reusing group title is ok-ish
+            if path:
+                self.input_path.setText(path)
         else:
-            path, _ = QFileDialog.getOpenFileName(
+            paths, _ = QFileDialog.getOpenFileNames(
                 self, tr("group_input"),
                 "", "Videos (*.mp4 *.mov *.avi *.mkv *.MP4 *.MOV);;Tous (*.*)"
             )
-        if path:
-            self.input_path.setText(path)
+            if paths:
+                joined_paths = "|".join(paths)
+                self.input_path.setText(joined_paths)
             
     def browse_output(self):
         """Parcourir la sortie"""

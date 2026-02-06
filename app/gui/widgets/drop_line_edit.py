@@ -29,10 +29,17 @@ class DropLineEdit(QLineEdit):
         if event.mimeData().hasUrls():
             urls = event.mimeData().urls()
             if urls:
-                path = urls[0].toLocalFile()
-                if path:
-                    self.setText(path)
-                    self.fileDropped.emit(path)
+                paths = []
+                for url in urls:
+                    path = url.toLocalFile()
+                    if path:
+                        paths.append(path)
+                
+                if paths:
+                    # Join multiple paths with a pipe separator
+                    joined_paths = "|".join(paths)
+                    self.setText(joined_paths)
+                    self.fileDropped.emit(joined_paths)
                     event.acceptProposedAction()
         else:
             super().dropEvent(event)

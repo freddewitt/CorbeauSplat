@@ -4,18 +4,57 @@ import sys
 import shutil
 import subprocess
 import time
+import json
 
 BRUSH_REPO = "https://github.com/ArthurBrussee/brush.git"
 SHARP_REPO = "https://github.com/apple/ml-sharp.git"
 GLOMAP_REPO = "https://github.com/colmap/glomap.git"
 SUPERPLAT_REPO = "https://github.com/playcanvas/supersplat.git"
-SUPERPLAT_REPO = "https://github.com/playcanvas/supersplat.git"
 REALESRGAN_PIP = "realesrgan" # Main package
+
+def load_config():
+    """Loads config.json from project root/cwd"""
+    p = "config.json"
+    if os.path.exists(p):
+        try:
+            with open(p, 'r') as f:
+                return json.load(f)
+        except: pass
+    return {}
+
+
 
 def resolve_project_root():
     """Finds project root relative to this script"""
     current = os.path.dirname(os.path.abspath(__file__))
     return os.path.dirname(os.path.dirname(current))
+
+def uninstall_sharp():
+    print("--- Désinstallation de Sharp ---")
+    root = resolve_project_root()
+    venv_path = os.path.join(root, ".venv_sharp")
+    engines_dir = os.path.join(root, "engines")
+    sharp_dir = os.path.join(engines_dir, "ml-sharp")
+    
+    if os.path.exists(venv_path):
+        print(f"Suppression {venv_path}...")
+        shutil.rmtree(venv_path)
+        
+    if os.path.exists(sharp_dir):
+        print(f"Suppression {sharp_dir}...")
+        shutil.rmtree(sharp_dir)
+        
+    print("Sharp désinstallé.")
+    return True
+
+def uninstall_upscale():
+    print("--- Désinstallation de Upscale (Real-ESRGAN) ---")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "uninstall", "-y", "realesrgan", "torch", "torchvision"])
+    except Exception as e:
+        print(f"Erreur uninstall pip: {e}")
+    print("Upscale désinstallé.")
+    return True
 
 def get_remote_version(repo_url):
     """Gets the latest commit hash from the remote git repository"""
@@ -349,8 +388,11 @@ def install_system_dependencies():
         
     if sys.platform == "darwin":
         try:
+             # Check for libomp and freeimage
              if subprocess.run(["brew", "list", "libomp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
                  missing.append("libomp")
+             if subprocess.run(["brew", "list", "freeimage"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+                 missing.append("freeimage")
         except: pass
 
     if not missing:
@@ -367,6 +409,7 @@ def install_system_dependencies():
         if "colmap" in missing: subprocess.check_call(["brew", "install", "colmap"])
         if "ffmpeg" in missing: subprocess.check_call(["brew", "install", "ffmpeg"])
         if "libomp" in missing: subprocess.check_call(["brew", "install", "libomp"])
+        if "freeimage" in missing: subprocess.check_call(["brew", "install", "freeimage"])
         return True
     except:
         print("Echec installation systeme.")
@@ -448,8 +491,18 @@ def main():
              print("Environnement Sharp manquant, lancement de configuration...")
              install_sharp(engines_dir, os.path.join(engines_dir, "ml-sharp.version"))
 
-    manage_engine("sharp", os.path.join(engines_dir, "ml-sharp"), SHARP_REPO, install_sharp, engines_dir, custom_check=check_sharp_venv)
+    # Check config for Sharp
+    config = load_config()
     
+    # Support both flat keys and nested params structure
+    sharp_enabled = config.get("sharp_params", {}).get("enabled", False)
+    if not sharp_enabled: sharp_enabled = config.get("sharp_enabled", False)
+    
+    if sharp_enabled:
+        manage_engine("sharp", os.path.join(engines_dir, "ml-sharp"), SHARP_REPO, install_sharp, engines_dir, custom_check=check_sharp_venv)
+    else:
+        print("Sharp désactivé dans la config (skippé).")
+
     # SuperSplat (Custom check for npm)
     def check_splat_deps():
         # Always run npm install to be safe
@@ -459,8 +512,14 @@ def main():
         
     manage_engine("supersplat", os.path.join(engines_dir, "supersplat"), SUPERPLAT_REPO, install_supersplat, engines_dir, custom_check=check_splat_deps)
 
-    # Upscale Dependencies (Always check/install)
-    install_upscale_deps(engines_dir, None)
+    # Upscale Dependencies
+    upscale_enabled = config.get("upscale_params", {}).get("enabled", False)
+    if not upscale_enabled: upscale_enabled = config.get("upscale_enabled", False)
+
+    if upscale_enabled:
+        install_upscale_deps(engines_dir, None)
+    else:
+        print("Upscale désactivé dans la config (skippé).")
 
 if __name__ == "__main__":
     main()

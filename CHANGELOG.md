@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.5] - 2026-02-06
+
+### ✨ New Features (Major)
+-   **Multi-Camera Support**: You can now use **multiple video sources** simultaneously to assemble your dataset.
+-   **4DGS Restoration**: The experimental 4D Gaussian Splatting module is back! (Dedicated COLMAP pipeline compatible with Nerfstudio).
+-   **Optional Activation**: Heavy modules (**Apple ML Sharp** and **Real-ESRGAN Upscale**) are now activated on demand via checkboxes in their respective tabs.
+    -   **Disk Space Saving**: Uninstallation possible.
+    -   **Faster Startup**: Conditional dependency checks.
+
+### 🛠 Improvements
+-   **UX**: Tabs reorganized for better workflow logic.
+-   **Setup**: Dependency script now respects user configuration (`config.json`) to avoid unnecessary checks/installations.
+
 ## [v0.4] - 2026-01-23
 
 ### 🏗 Architecture & Performance (Total Refactor)

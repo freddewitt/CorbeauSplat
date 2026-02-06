@@ -71,6 +71,16 @@ PYTHON_CMD="$VENV_DIR/bin/python3"
 # Vérification basique
 if [ ! -f "$PYTHON_CMD" ]; then
     echo "ERREUR: Python non trouvé dans le venv ($PYTHON_CMD)"
+    
+    if [ -d "$VENV_DIR" ]; then
+        echo "⚠️  L'environnement virtuel semble corrompu (lien symbolique casse ?)."
+        echo "♻️  Suppression et recreation de l'environnement..."
+        rm -rf "$VENV_DIR"
+        echo "🔄 Relancement du script..."
+        exec "$0" "$@"
+        exit 0
+    fi
+    
     exit 1
 fi
 

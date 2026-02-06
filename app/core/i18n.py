@@ -169,7 +169,7 @@ TRANSLATIONS = {
         "msg_install_nerf": "Pour activer cette fonction, l'outil 'nerfstudio' (ns-process-data) doit être installé.\n\nCela nécessite environ 3 à 5 Go d'espace disque.\nVoulez-vous lancer l'installation maintenant ?",
         
         # Upscale Tab
-        "tab_upscale": "Upscale Config",
+        "tab_upscale": "Upscale",
         "upscale_title": "Configuration Upscale",
         "upscale_desc": "Activer l'agrandissement d'image par IA (Real-ESRGAN).",
         "upscale_activate": "Activer le module Upscale (Installe les dépendances)",
@@ -377,7 +377,7 @@ TRANSLATIONS = {
         "msg_install_nerf": "To activate this function, the tool 'nerfstudio' (ns-process-data) must be installed.\n\nThis requires approximately 3 to 5 GB of disk space.\nDo you want to start the installation now?",
         
         # Upscale Tab
-        "tab_upscale": "Upscale Config",
+        "tab_upscale": "Upscale",
         "upscale_title": "Upscale Configuration",
         "upscale_desc": "Enable AI Image Upscaling (Real-ESRGAN).",
         "upscale_activate": "Activate Upscale Module (Installs dependencies)",

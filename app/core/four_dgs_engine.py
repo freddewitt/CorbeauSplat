@@ -1,194 +1,227 @@
 import os
 import subprocess
-import glob
+import concurrent.futures
 import shutil
-from .system import is_apple_silicon, resolve_binary, get_optimal_threads
+from app.core.system import resolve_binary, is_apple_silicon, get_optimal_threads
 
 class FourDGSEngine:
     """
-    Engine for 4DGS dataset preparation.
-    Pipeline:
-    1. Extract frames from multiple videos (cameras) using FFmpeg.
-    2. (Optional user step: Manual Sync Check - ignored for automation flow usually, or we just proceed)
-    3. Run COLMAP (Feature Extractor, Matcher, Mapper).
-    4. Run ns-process-data.
+    Moteur pour la préparation de datasets 4DGS (Video -> COLMAP -> Nerfstudio).
     """
-
-    def __init__(self, input_dir, output_dir, fps=5, logger_callback=None):
-        self.input_dir = input_dir
-        self.output_dir = output_dir
-        self.fps = fps
+    def __init__(self, logger_callback=None):
         self.logger = logger_callback if logger_callback else print
-        self._current_process = None
-        self.is_silicon = is_apple_silicon()
-        self.num_threads = get_optimal_threads() if self.is_silicon else os.cpu_count()
+        self.stop_requested = False
         
-        self.ffmpeg_bin = resolve_binary('ffmpeg') or 'ffmpeg'
-        self.colmap_bin = resolve_binary('colmap') or 'colmap'
-        # ns-process-data is a python script usually, we assume it's in path
-        self.ns_process_bin = 'ns-process-data' 
-
-    def log(self, msg):
-        self.logger(msg)
+        # Resolve binaries
+        self.ffmpeg = resolve_binary("ffmpeg") or "ffmpeg"
+        self.colmap = resolve_binary("colmap") or "colmap" 
+        
+    def log(self, message):
+        if self.logger:
+            self.logger(message)
 
     def stop(self):
-        if self._current_process and self._current_process.poll() is None:
-            self.log("Stopping process...")
-            self._current_process.terminate()
+        self.stop_requested = True
 
-    def run_command(self, cmd, description):
-        self.log(f"--- {description} ---")
-        self.log(f"CMD: {' '.join(cmd)}")
+    def check_nerfstudio(self):
+        """Vérifie si ns-process-data est disponible"""
+        # ns-process-data est souvent un script python/entrypoint
+        return shutil.which("ns-process-data") is not None
+
+    def extract_frames(self, video_path, output_dir, fps=5):
+        """Extrait les frames d'une vidéo avec ffmpeg"""
+        if self.stop_requested: return False
+        
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Construction de la commande
+        cmd = [
+            self.ffmpeg,
+            "-i", video_path,
+            "-vf", f"fps={fps}",
+            "-q:v", "2", # Haute qualité jpeg
+            os.path.join(output_dir, "%05d.jpg")
+        ]
         
         try:
-            env = os.environ.copy()
-            if self.is_silicon:
-                env['OMP_NUM_THREADS'] = str(self.num_threads)
-                env['VECLIB_MAXIMUM_THREADS'] = str(self.num_threads)
-                env['OPENBLAS_NUM_THREADS'] = str(self.num_threads)
-
-            self._current_process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1, env=env
-            )
-            for line in self._current_process.stdout:
-                self.log(line.strip())
+            # Videotoolbox sur mac si possible ? 
+            # ffmpeg gestion auto souvent ok, mais on peut tenter acceleration
+            # Pour l'extraction jpg, le CPU est souvent limitant vs decode.
+            # On reste simple pour la compatibilité.
             
-            self._current_process.wait()
-            return self._current_process.returncode == 0
-        except Exception as e:
-            self.log(f"Error running {description}: {e}")
+            subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        except subprocess.CalledProcessError as e:
+            self.log(f"Erreur extraction {video_path}: {e}")
             return False
-        finally:
-            self._current_process = None
 
-    def process(self):
-        if not os.path.exists(self.input_dir):
-            self.log("Input directory does not exist.")
-            return False, "Input directory missing"
+    def run_colmap(self, dataset_root):
+        """Lance le pipeline COLMAP : Feature Extractor -> Matcher -> Mapper"""
+        if self.stop_requested: return False
+        
+        db_path = os.path.join(dataset_root, "database.db")
+        images_path = os.path.join(dataset_root, "images")
+        sparse_path = os.path.join(dataset_root, "sparse")
+        os.makedirs(sparse_path, exist_ok=True)
 
-        video_files = sorted(glob.glob(os.path.join(self.input_dir, "*.mp4")))
-        if not video_files: # Try .MOV or others if needed, but tutorial said MP4
-            video_files = sorted(glob.glob(os.path.join(self.input_dir, "*.MOV")))
-        
-        if not video_files:
-            self.log("No video files found (*.mp4, *.MOV)")
-            return False, "No videos found"
-
-        os.makedirs(self.output_dir, exist_ok=True)
-        images_root = os.path.join(self.output_dir, "images")
-        
-        # 1. FFmpeg Extraction
-        self.log(f"Found {len(video_files)} videos. Starting extraction...")
-        
-        for i, video_path in enumerate(video_files):
-            cam_name = f"cam{i+1:02d}" # cam01, cam02...
-            cam_dir = os.path.join(images_root, cam_name)
-            os.makedirs(cam_dir, exist_ok=True)
-            
-            cmd = [
-                self.ffmpeg_bin
-            ]
-            if self.is_silicon:
-                cmd.extend(['-hwaccel', 'videotoolbox'])
-            
-            cmd.extend([
-                '-i', video_path,
-                '-vf', f'fps={self.fps}',
-                os.path.join(cam_dir, 'frame_%05d.jpg')
-            ])
-            
-            if not self.run_command(cmd, f"Extracting {os.path.basename(video_path)} to {cam_name}"):
-                return False, f"FFmpeg failed for {cam_name}"
-
-        # 2. COLMAP
-        self.log("\nStarting COLMAP Pipeline...")
-        db_path = os.path.join(self.output_dir, "db.db")
-        sparse_dir = os.path.join(self.output_dir, "sparse")
-        os.makedirs(sparse_dir, exist_ok=True)
-        
-        # Feature Extractor
+        # 1. Feature Extraction
+        self.log("--- COLMAP: Feature Extraction ---")
         cmd_extract = [
-            self.colmap_bin, 'feature_extractor',
-            '--database_path', db_path,
-            '--image_path', images_root,
-            '--ImageReader.camera_model', 'OPENCV_FISHEYE',
-            '--ImageReader.single_camera', '1',
-            # '--SiftExtraction.use_gpu', '0' # Removed, let colmap decide or user config? Tutorial said usage 0 for M-series but standard colmap usually handles it or Auto. 
-            # If user explicitely asked for use_gpu 0, I should probably add it.
-            # Tutorial: "--SiftExtraction.use_gpu 0  # CPU sur M-series"
+            self.colmap, "feature_extractor",
+            "--database_path", db_path,
+            "--image_path", images_path,
+            "--ImageReader.camera_model", "OPENCV",
+            "--ImageReader.single_camera", "1" 
+            # On assume souvent que toutes les cams sont identiques si gopro rig ? 
+            # Non, en 4DGS multi-cam, chaque dossier est une cam. 
+            # COLMAP structure habituelle : images/cam1/*.jpg
+            # Si on met tout dans 'images', colmap va tout traiter.
+        ]
+        
+        # Adaptation pour Apple Silicon
+        if is_apple_silicon():
+            cmd_extract.append("--SiftExtraction.use_gpu=0")
+        
+        if self._run_cmd(cmd_extract) != 0: return False
+        
+        # 2. Sequential Matching (Souvent mieux pour vidéo ?) 
+        # Ou Exhaustive si peu de cams ?
+        # Pour 4DGS, on a souvent des caméras fixes qui filment une scène qui bouge.
+        # Exhaustive est plus sûr si < 50-100 images. Mais ici on a des milliers de frames ?
+        # Non, on traite les CAMERAS.
+        # En 4DGS "Nerfstudio format", on a besoin des poses des caméras.
+        # On extrait souvent la première frame de chaque vidéo pour caler la géométrie, ou on utilise tout ?
+        # Pour faire simple : Exhaustive Matcher est robuste.
+        
+        self.log("--- COLMAP: Feature Matching ---")
+        cmd_match = [
+            self.colmap, "exhaustive_matcher",
+            "--database_path", db_path,
         ]
         if is_apple_silicon():
-             cmd_extract.extend(['--SiftExtraction.use_gpu', '0'])
+             cmd_match.append("--SiftMatching.use_gpu=0")
 
-        if not self.run_command(cmd_extract, "COLMAP Feature Extractor"):
-            return False, "COLMAP Feature Extractor failed"
-
-        # Matcher
-        cmd_match = [
-            self.colmap_bin, 'exhaustive_matcher',
-            '--database_path', db_path,
-        ]
-        if not self.run_command(cmd_match, "COLMAP Exhaustive Matcher"):
-            return False, "COLMAP Matcher failed"
-
-        # Mapper
-        output_sparse_0 = os.path.join(sparse_dir, "0")
-        os.makedirs(output_sparse_0, exist_ok=True)
+        if self._run_cmd(cmd_match) != 0: return False
         
+        # 3. Mapper
+        self.log("--- COLMAP: Mapper (Sparse Reconstruction) ---")
         cmd_mapper = [
-            self.colmap_bin, 'mapper',
-            '--database_path', db_path,
-            '--image_path', images_root,
-            '--output_path', output_sparse_0
-        ]
-        if not self.run_command(cmd_mapper, "COLMAP Mapper"):
-             return False, "COLMAP Mapper failed"
-
-        # 3. ns-process-data
-        self.log("\nStarting ns-process-data...")
-        # Tutorial:
-        # ns-process-data images \
-        #   --data ~/gopro_data \
-        #   --output-dir ~/gopro_data_ns \
-        #   --colmap-dir ~/gopro_data/sparse/0
-        
-        # Note: The tutorial puts output in a DIFFERENT folder (gopro_data_ns).
-        # We should probably ask or decide where to put it. 
-        # I will put it in a subfolder `ns_output` or similar inside output_dir? 
-        # Or just use output_dir as data and create ns_output next to it?
-        # Let's keep it simple: Create `processed` inside output_dir?
-        # Actually, tutorial has: --data ~/gopro_data (which contains images/ sparse/)
-        # and --output-dir ~/gopro_data_ns
-        
-        ns_output_dir = self.output_dir + "_ns"
-        
-        cmd_ns = [
-            self.ns_process_bin, 'images',
-            '--data', self.output_dir,
-            '--output-dir', ns_output_dir,
-            '--colmap-dir', output_sparse_0,
-            '--skip-colmap' # IMPORTANT: We already ran colmap. ns-process-data usually runs colmap if not told otherwise, OR if we use the 'images' subcommand it expects to RUN colmap? 
-            # Wait, 'ns-process-data images' converts images to nerfstudio format. 
-            # Usually it runs colmap internally. 
-            # BUT the tutorial explicitly ran colmap before.
-            # The tutorial command: 
-            # ns-process-data images --data ... --colmap-dir ...
-            # If we provide --colmap-dir, it might skip running it?
-            # Let's check ns-process-data help if we could... but I can't run it here.
-            # The tutorial implies using the pre-computed colmap.
-            # Most ns-process-data implementations verify if colmap dir exists.
+            self.colmap, "mapper",
+            "--database_path", db_path,
+            "--image_path", images_path,
+            "--output_path", sparse_path
         ]
         
-        # NOTE: ns-process-data often assumes it needs to run colmap if we use 'images' or 'video'.
-        # However, checking documentation (or common knowledge), you can provide existing colmap.
-        # Arguments like --skip-colmap exist in some versions.
-        # Given the tutorial command:
-        # ns-process-data images --data ~/gopro_data --output-dir ~/gopro_data_ns --colmap-dir ~/gopro_data/sparse/0
-        # It passes the colmap dir. Let's assume this works as intended by the user's tutorial.
-        
-        if not self.run_command(cmd_ns, "ns-process-data"):
-            return False, "ns-process-data failed. Is 'ns-process-data' in your PATH?"
+        # Threads
+        threads = str(get_optimal_threads())
+        cmd_mapper.append(f"--Mapper.num_threads={threads}")
 
-        self.log(f"\nProcessing Complete!\nResult in: {ns_output_dir}")
-        return True, "Success"
+        if self._run_cmd(cmd_mapper) != 0: return False
+        
+        return True
+
+    def process_dataset(self, videos_dir, output_dir, fps=5):
+        """
+        Orchestre tout le processus :
+        1. Scan videos
+        2. Extract frames -> output/images/cam_xx
+        3. Colmap (si demandé, ou ns-process-data le fait ?)
+        
+        NOTE: ns-process-data video fait tout (ffmpeg + colmap).
+        Mais ici on a du MULTI-VIDEO (Multi-view).
+        ns-process-data supporte-t-il le multi-video input ?
+        
+        Approche CorbeauSplat : On prépare les données 'images' et on laisse Colmap faire les poses,
+        puis on formate.
+        
+        Pour simplifier : On va extraire les images nous-mêmes pour avoir le contrôle,
+        puis lancer COLMAP.
+        """
+        
+        self.log(f"Scan du dossier : {videos_dir}")
+        supported_ext = (".mp4", ".mov", ".avi", ".mkv")
+        videos = [f for f in os.listdir(videos_dir) if f.lower().endswith(supported_ext)]
+        videos.sort()
+        
+        if not videos:
+            self.log("Aucune vidéo trouvée.")
+            return False
+            
+        self.log(f"Trouvé {len(videos)} vidéos. Début extraction...")
+        
+        images_root = os.path.join(output_dir, "images")
+        os.makedirs(images_root, exist_ok=True)
+        
+        # 1. Extraction
+        for idx, vid in enumerate(videos):
+            if self.stop_requested: return False
+            cam_name = f"cam_{idx:02d}" # cam_00, cam_01...
+            cam_dir = os.path.join(images_root, cam_name)
+            vid_path = os.path.join(videos_dir, vid)
+            
+            self.log(f"Extraction {vid} -> {cam_name} ({fps} fps)...")
+            if not self.extract_frames(vid_path, cam_dir, fps):
+                return False
+                
+        self.log("Extraction terminée.")
+        
+        # 2. COLMAP
+        # Pour du 4DGS multi-view, on veut les poses des caméras.
+        # On peut lancer COLMAP sur TOUTES les images (très lourd) ou juste sur un subset (ex: frame 0 de chaque cam) pour fixer les poses ?
+        # Pour l'instant, faisons simple : COLMAP sur tout le dossier images (recursive ?)
+        # Colmap ne gère pas recursive par défaut sans config spécifique.
+        # Alternative : ns-process-data gère ça très bien.
+        
+        # Si nerfstudio est là, utilisons ns-process-data images
+        if self.check_nerfstudio():
+            self.log("ns-process-data détecté. Lancement du processing Nerfstudio...")
+            
+            # ns-process-data images --data output_dir/images --output-dir output_dir
+            cmd_ns = [
+                "ns-process-data", "images",
+                "--data", images_root,
+                "--output-dir", output_dir,
+                "--verbose"
+            ]
+            
+            # Options pour aider colmap
+            # Ajouter --skip-colmap si on voulait le faire nous meme, mais ns le fait bien.
+            # On va laisser ns faire colmap.
+            
+            if self._run_cmd(cmd_ns) != 0:
+                self.log("Echec ns-process-data.")
+                return False
+            
+            return True
+        else:
+            self.log("Nerfstudio non trouvé. Lancement mode dégradé (COLMAP manuel uniquement).")
+            # Fallback : on run colmap nous même, mais on n'aura pas le transforms.json
+            return self.run_colmap(output_dir)
+
+    def _run_cmd(self, cmd):
+        if self.stop_requested: return -1
+        self.log(f"Exec: {' '.join(cmd)}")
+        try:
+            process = subprocess.Popen(
+                cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.STDOUT, 
+                text=True,
+                env=os.environ
+            )
+            
+            while True:
+                if self.stop_requested:
+                    process.terminate()
+                    return -1
+                
+                line = process.stdout.readline()
+                if not line and process.poll() is not None:
+                    break
+                if line:
+                    self.log(line.strip())
+                    
+            return process.poll()
+        except Exception as e:
+            self.log(f"Exception: {e}")
+            return -1
