@@ -43,6 +43,9 @@ class ConfigTab(QWidget):
         self.combo_lang = QComboBox()
         self.combo_lang.addItem("Français", "fr")
         self.combo_lang.addItem("English", "en")
+        self.combo_lang.addItem("Deutsch", "de")
+        self.combo_lang.addItem("Italiano", "it")
+        self.combo_lang.addItem("Español", "es")
         self.combo_lang.setMinimumWidth(100)
         
         # Select current language

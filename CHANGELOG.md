@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72] - 2026-02-07
+
+### Added
+- **Multi-language Support**: Extensive localization for **German (DE)**, **Italian (IT)**, and **Spanish (ES)**.
+- **Enhanced Translation Engine**: ~1140 total translation keys across all 5 supported languages (FR, EN, DE, IT, ES).
+- **UI Localization**: Integrated new language options in the Config tab for real-time switching.
+
 ## [v0.71] - 2026-02-07
 
 ### ✨ Stability & UX Improvements

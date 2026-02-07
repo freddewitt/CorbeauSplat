@@ -17,8 +17,10 @@ This application provides a unified Graphical User Interface (GUI) to orchestrat
 6.  **Single Image to 3D**: (Bonus) Uses **Apple ML Sharp** to generate a 3D model from a single 2D image.
 7.  **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
 8.  **360 Extractor (Experimental)**: Converts equirectangular 360° videos into optimal planar image sets (Cube Map, Ring, etc.) for photogrammetry, with AI operator masking.
-9.  **Professional Localization (EN/FR)**: Full 100% localization parity. Startup scripts and audit logs are fully translated to English.
-10. **Factory Reset**: Integrated tools to fix dependency issues by rebuilding the environment from scratch.
+-   **Multi-Platform & Engine Support**: Native support for Apple Silicon (M1/M2/M3) and standard CUDA/CPU configurations.
+-   **Professional Localization**: Detailed support for 5 languages (**English**, **Français**, **Deutsch**, **Italiano**, **Español**) with real-time UI switching.
+-   **Detailed Startup Audit**: Explicit engine status checks (Sharp, Brush, Glomap, etc.) with visual indicators.
+-   **Factory Reset**: Integrated tools to fix dependency issues by rebuilding the environment from scratch.
 
 It is designed to be "click-and-run", handling dependency checks, process management, and **session persistence** for you.
 
