@@ -3,12 +3,11 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
-def resolve_project_root():
+def resolve_project_root() -> Path:
     """Finds project root relative to this script (app/core/system.py)"""
-    # app/core/system.py -> app/core -> app -> root
-    current = os.path.dirname(os.path.abspath(__file__))
-    return os.path.dirname(os.path.dirname(current))
+    return Path(__file__).resolve().parent.parent.parent
 
 def is_apple_silicon():
     """Détecte si on est sur Apple Silicon"""
@@ -34,25 +33,41 @@ def resolve_binary(name):
     Retourne le chemin absolu ou le nom si trouvé dans le PATH, sinon None.
     """
     # 1. Chercher dans le dossier engines à la racine du projet
-    # On remonte de app/core/ à la racine
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(current_dir)) # app -> project
-    engines_dir = os.path.join(project_root, "engines")
+    engines_dir = resolve_project_root() / "engines"
     
-    local_path = os.path.join(engines_dir, name)
+    local_path = engines_dir / name
     
     # Cas binaire direct
-    if os.path.exists(local_path) and os.access(local_path, os.X_OK):
-        return local_path
+    if local_path.exists() and os.access(local_path, os.X_OK):
+        return str(local_path)
         
     # Cas macOS .app bundle pour COLMAP
     if name == "colmap":
-        colmap_app = os.path.join(engines_dir, "COLMAP.app", "Contents", "MacOS", "colmap")
-        if os.path.exists(colmap_app) and os.access(colmap_app, os.X_OK):
-            return colmap_app
+        colmap_app = engines_dir / "COLMAP.app" / "Contents" / "MacOS" / "colmap"
+        if colmap_app.exists() and os.access(colmap_app, os.X_OK):
+            return str(colmap_app)
             
     # 2. Chercher dans le PATH système
     return shutil.which(name)
+
+def get_device():
+    """Centralized device selection: mps, cuda, or cpu"""
+    if is_apple_silicon():
+        return "mps"
+    import shutil
+    if shutil.which("nvidia-smi") is not None:
+        return "cuda"
+    return "cpu"
+
+def get_memory_info():
+    """Returns memory info for UMA/caching strategies"""
+    import psutil
+    mem = psutil.virtual_memory()
+    return {
+        "total": mem.total,
+        "available": mem.available,
+        "percent": mem.percent
+    }
 
 def check_dependencies():
     """Vérifie si les dépendances nécessaires sont installées"""

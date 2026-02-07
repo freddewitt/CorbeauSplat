@@ -16,7 +16,9 @@ This application provides a unified Graphical User Interface (GUI) to orchestrat
 5.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
 6.  **Single Image to 3D**: (Bonus) Uses **Apple ML Sharp** to generate a 3D model from a single 2D image.
 7.  **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
-8.  **Factory Reset**: Integrated tools to fix dependency issues by rebuilding the environment from scratch.
+8.  **360 Extractor (Experimental)**: Converts equirectangular 360° videos into optimal planar image sets (Cube Map, Ring, etc.) for photogrammetry, with AI operator masking.
+9.  **Professional Localization (EN/FR)**: Full 100% localization parity. Startup scripts and audit logs are fully translated to English.
+10. **Factory Reset**: Integrated tools to fix dependency issues by rebuilding the environment from scratch.
 
 It is designed to be "click-and-run", handling dependency checks, process management, and **session persistence** for you.
 
@@ -67,14 +69,18 @@ It is designed to be "click-and-run", handling dependency checks, process manage
     -   **Auto-Refine**: Choose "Refine" mode to resume training from the latest checkpoint.
     -   **Presets**: Use specific densification strategies (e.g., "Aggressive Densification").
     -   Click **"Start Brush Training"**.
-4.  **SuperSplat Tab**: 
+5.  **SuperSplat Tab**: 
     -   Load your trained `.ply` file.
     -   Click **"Start Servers"** to launch the viewer locally.
-5.  **4DGS Tab (Experimental)**:
+6.  **4DGS Tab (Experimental)**:
     -   Check **"Activate"** to install the required dependencies (Nerfstudio).
     -   Select a folder containing your synced camera videos.
     -   Click **"Start Process"** to generate a dataset ready for 4DGS training.
-6.  **Apple Sharp Tab (Bonus)**:
+7.  **360 Extractor Tab (Experimental)**:
+    -   **Activate**: Install the dedicated environment (PySide6, YOLOv8).
+    -   **Convert**: Extract images from 360° videos with advanced layouts (Ring, Cube Map, Fibonacci).
+    -   **AI Masking**: Automatically mask the operator.
+8.  **Apple Sharp Tab (Bonus)**:
     -   Select a single source image.
     -   Click **"Predict 3D Model"** to generate a mesh using machine learning.
 
@@ -91,6 +97,7 @@ This project stands on the shoulders of giants. A huge thank you to the creators
 *   **COLMAP**: Structure-from-Motion and Multi-View Stereo. [GitHub](https://github.com/colmap/colmap)
 *   **Brush**: An efficient Gaussian Splatting trainer for macOS. [GitHub](https://github.com/ArthurBrussee/brush)
 *   **SuperSplat**: An amazing web-based Splat editor by PlayCanvas. [GitHub](https://github.com/playcanvas/supersplat)
+*   **360Extractor**: Advanced 360° video extraction tool. [GitHub](https://github.com/nicolasdiolez/360Extractor)
 *   **Apple ML Sharp**: Machine Learning tools for Swift. [GitHub](https://github.com/apple/ml-sharp)
 *   **Nerfstudio**: The modular NeRF and Splatting framework (used for 4DGS data prep). [GitHub](https://github.com/nerfstudio-project/nerfstudio)
 *   **Real-ESRGAN**: AI algorithms for image restoration and enhancement. [GitHub](https://github.com/xinntao/Real-ESRGAN)

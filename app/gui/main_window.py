@@ -3,14 +3,17 @@ import sys
 import json
 import shutil
 import send2trash
+from pathlib import Path
+from app.core.system import resolve_project_root, resolve_binary
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, QFileDialog, QApplication, QLabel, QProgressDialog
 )
+from PyQt6.QtGui import QColor
 from PyQt6.QtCore import QTimer, Qt
 from app.core.params import ColmapParams
 from app.core.engine import ColmapEngine
-from app.core.i18n import tr
-from app.core.i18n import tr
+from app.core.i18n import tr, add_language_observer
+
 from app.gui.styles import set_dark_theme
 from app.gui.tabs.config_tab import ConfigTab
 from app.gui.tabs.params_tab import ParamsTab
@@ -20,6 +23,7 @@ from app.gui.tabs.sharp_tab import SharpTab
 from app.gui.tabs.superplat_tab import SuperSplatTab
 from app.gui.tabs.upscale_tab import UpscaleTab
 from app.gui.tabs.four_dgs_tab import FourDGSTab
+from app.gui.tabs.extractor_360_tab import Extractor360Tab
 from app.gui.workers import ColmapWorker, BrushWorker, SharpWorker
 from app import VERSION
 
@@ -31,10 +35,10 @@ class ColmapGUI(QMainWindow):
         self.sharp_worker = None
         self.init_ui()
         set_dark_theme(QApplication.instance())
+        add_language_observer(self.retranslate_ui)
         self.load_session_state()
         
-        # Delayed startup checks (Remove logic)
-        pass
+
 
     def init_ui(self):
         """Initialise l'interface"""
@@ -67,12 +71,15 @@ class ColmapGUI(QMainWindow):
         self.tabs.addTab(self.upscale_tab, tr("tab_upscale"))
         
         self.sharp_tab = SharpTab()
-        self.tabs.addTab(self.sharp_tab, "Apple Sharp")
+        self.tabs.addTab(self.sharp_tab, tr("tab_sharp"))
         
 
 
         self.four_dgs_tab = FourDGSTab()
         self.tabs.addTab(self.four_dgs_tab, tr("tab_four_dgs"))
+
+        self.extractor_360_tab = Extractor360Tab()
+        self.tabs.addTab(self.extractor_360_tab, tr("tab_360"))
 
         self.logs_tab = LogsTab()
         self.tabs.addTab(self.logs_tab, tr("tab_logs"))
@@ -102,6 +109,57 @@ class ColmapGUI(QMainWindow):
         self.sharp_tab.predictRequested.connect(self.run_sharp)
         self.sharp_tab.stopRequested.connect(self.stop_sharp)
         
+        # Apply visual hierarchy to utility tabs
+        self.apply_tab_styling()
+
+    def retranslate_ui(self):
+        """Update window title and tab names when language changes"""
+        self.setWindowTitle(tr("app_title"))
+        
+        # Tabs are identified by index, but we can match them with our members
+        tab_names = {
+            self.config_tab: tr("tab_config"),
+            self.params_tab: tr("tab_params"),
+            self.brush_tab: tr("tab_brush"),
+            self.superplat_tab: tr("tab_supersplat"),
+            self.upscale_tab: tr("tab_upscale"),
+            self.sharp_tab: tr("tab_sharp"),
+            self.four_dgs_tab: tr("tab_four_dgs"),
+            self.extractor_360_tab: tr("tab_360"),
+            self.logs_tab: tr("tab_logs")
+        }
+        
+        for i in range(self.tabs.count()):
+            widget = self.tabs.widget(i)
+            if widget in tab_names:
+                self.tabs.setTabText(i, tab_names[widget])
+        
+        # Re-apply styling (colors etc) as setTabText might reset them in some Qt versions
+        self.apply_tab_styling()
+
+    def apply_tab_styling(self):
+        """Applies a slightly lighter/muted gray color to secondary/utility tabs"""
+        secondary_tabs = [
+            self.config_tab,
+            self.upscale_tab,
+            self.sharp_tab,
+            self.four_dgs_tab,
+            self.extractor_360_tab,
+            self.logs_tab
+        ]
+        
+        tab_bar = self.tabs.tabBar()
+        # Light gray text for secondary/option tabs
+        secondary_color = QColor("#aaaaaa") 
+        
+        for i in range(self.tabs.count()):
+            widget = self.tabs.widget(i)
+            if widget in secondary_tabs:
+                tab_bar.setTabTextColor(i, secondary_color)
+            else:
+                # Keep main tabs (Params, Brush, SuperSplat) in bright white
+                tab_bar.setTabTextColor(i, Qt.GlobalColor.white)
+        
     def get_current_params(self):
         """Récupère les paramètres actuels de l'onglet params et ajoute ceux de config"""
         params = self.params_tab.get_params()
@@ -110,6 +168,13 @@ class ColmapGUI(QMainWindow):
         # mais il est géré dans ConfigTab pour l'action. 
         # ColmapParams l'attend, donc on le set.
         params.undistort_images = self.config_tab.get_undistort()
+        return params
+
+    def get_extractor_360_config(self):
+        """Combines params from Extractor Tab with Enabled state from Config Tab"""
+        params = self.extractor_360_tab.get_params()
+        # Override enabled state by the checkbox in Config Tab
+        params["enabled"] = self.config_tab.check_source_360.isChecked()
         return params
         
     def process(self):
@@ -138,7 +203,8 @@ class ColmapGUI(QMainWindow):
             project_name,
             upscale_params=self.config_tab.get_upscale_config(
                 self.upscale_tab.get_params()
-            )
+            ),
+            extractor_360_params=self.get_extractor_360_config()
         )
         
         self.worker.log_signal.connect(self.logs_tab.append_log)
@@ -182,40 +248,38 @@ class ColmapGUI(QMainWindow):
             
     def delete_dataset(self):
         """Supprime le contenu d'un dataset existant"""
-        output_dir = self.config_tab.get_output_path()
+        output_dir_str = self.config_tab.get_output_path()
         project_name = self.config_tab.get_project_name()
         
-        if not output_dir:
+        if not output_dir_str:
             QMessageBox.warning(self, tr("msg_warning"), tr("err_no_paths"))
             return
         
+        output_dir = Path(output_dir_str)
         # 1. Target: output_dir/project_name
-        target_path = os.path.join(output_dir, project_name)
+        target_path = output_dir / project_name
         
         # 2. Fallback: output_dir (if user pointed directly to it)
         # We check if it looks like a dataset
-        is_direct_target = False
-        if not os.path.exists(target_path):
-            if (os.path.exists(os.path.join(output_dir, "database.db")) or 
-                os.path.exists(os.path.join(output_dir, "sparse"))):
+        if not target_path.exists():
+            if (output_dir / "database.db").exists() or (output_dir / "sparse").exists():
                 target_path = output_dir
-                is_direct_target = True
         
-        if not os.path.exists(target_path):
+        if not target_path.exists():
             QMessageBox.information(self, "Info", tr("err_path_not_exists"))
             return
 
         # Double check safety: ensure we are deleting a dataset
         has_dataset = (
-            os.path.exists(os.path.join(target_path, "database.db")) or
-            os.path.exists(os.path.join(target_path, "sparse")) or
-            os.path.exists(os.path.join(target_path, "images"))
+            (target_path / "database.db").exists() or
+            (target_path / "sparse").exists() or
+            (target_path / "images").exists()
         )
         
         if not has_dataset:
             reply = QMessageBox.question(
                 self, tr("msg_warning"),
-                tr("confirm_delete_nodata", target_path),
+                tr("confirm_delete_nodata", str(target_path)),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
         else:
@@ -286,22 +350,23 @@ class ColmapGUI(QMainWindow):
                 
     def open_in_brush(self):
         """Ouvre le dataset dans Brush"""
-        output_dir = self.config_tab.get_output_path()
-        if not output_dir:
+        output_dir_str = self.config_tab.get_output_path()
+        if not output_dir_str:
             QMessageBox.warning(self, tr("msg_warning"), "Aucun dossier de sortie selectionne")
             return
         
-        if not os.path.exists(output_dir):
+        output_dir = Path(output_dir_str)
+        if not output_dir.exists():
             QMessageBox.warning(self, tr("msg_warning"), tr("err_path_not_exists"))
             return
             
-        sparse_path = os.path.join(output_dir, "sparse", "0")
+        sparse_path = output_dir / "sparse" / "0"
         
-        if os.path.exists(sparse_path):
+        if sparse_path.exists():
             msg = f"{tr('success_created', '')}\n\nOuvrez Brush et chargez:\n{output_dir}\n\n"
             msg += "Structure:\n"
             msg += f"- sparse/0/ (reconstruction COLMAP)\n"
-            if os.path.exists(os.path.join(output_dir, "images")):
+            if (output_dir / "images").exists():
                 msg += f"- images/ (images sources)\n"
             msg += f"- brush_config.json (configuration)"
         else:
@@ -315,40 +380,50 @@ class ColmapGUI(QMainWindow):
         
         if brush_params.get("independent"):
             # Mode Indépendant
-            input_path = brush_params.get("input_path")
+            input_path_str = brush_params.get("input_path")
             
-            if not input_path or not os.path.exists(input_path):
+            if not input_path_str:
+                 QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier Dataset valide.")
+                 return
+                 
+            input_path = Path(input_path_str)
+            if not input_path.exists():
                  QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier Dataset valide.")
                  return
                  
             # Brush output logic in manual mode:
             # Force output to input/checkpoints
-            output_path = os.path.join(input_path, "checkpoints")
-            os.makedirs(output_path, exist_ok=True)
+            output_path = input_path / "checkpoints"
+            output_path.mkdir(parents=True, exist_ok=True)
             
         else:
             # Mode Automatique (via Colmap output)
-            colmap_out_root = self.config_tab.get_output_path()
+            colmap_out_root_str = self.config_tab.get_output_path()
             project_name = self.config_tab.get_project_name()
             
-            if not colmap_out_root or not os.path.exists(colmap_out_root):
+            if not colmap_out_root_str:
+                 QMessageBox.critical(self, tr("msg_error"), "Le dossier de sortie racine n'existe pas.")
+                 return
+            
+            colmap_out_root = Path(colmap_out_root_str)
+            if not colmap_out_root.exists():
                  QMessageBox.critical(self, tr("msg_error"), "Le dossier de sortie racine n'existe pas.")
                  return
                  
             # Le dataset est dans root/project_name
-            dataset_path = os.path.join(colmap_out_root, project_name)
+            dataset_path = colmap_out_root / project_name
             
-            if not os.path.exists(dataset_path):
+            if not dataset_path.exists():
                 QMessageBox.critical(self, tr("msg_error"), f"Le dossier du projet n'existe pas:\n{dataset_path}\nAvez-vous lancé la création du dataset ?")
                 return
                 
             input_path = dataset_path
-            output_path = os.path.join(dataset_path, "checkpoints")
-            os.makedirs(output_path, exist_ok=True)
+            output_path = dataset_path / "checkpoints"
+            output_path.mkdir(parents=True, exist_ok=True)
         
         self.brush_tab.set_processing_state(True)
-        self.logs_tab.append_log(tr("msg_brush_start", input_path))
-        self.logs_tab.append_log(tr("msg_brush_out", output_path))
+        self.logs_tab.append_log(tr("msg_brush_start", str(input_path)))
+        self.logs_tab.append_log(tr("msg_brush_out", str(output_path)))
         
         self.brush_worker = BrushWorker(
             input_path,
@@ -386,22 +461,30 @@ class ColmapGUI(QMainWindow):
     def run_sharp(self):
         """Lance Sharp"""
         params = self.sharp_tab.get_params()
-        input_path = params.get("input_path")
-        output_path = params.get("output_path")
+        input_path_str = params.get("input_path")
+        output_path_str = params.get("output_path")
         
-        if not input_path or not os.path.exists(input_path):
+        if not input_path_str:
              QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier d'images valide.")
              return
-        if not output_path:
-             QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier de sortie.")
+             
+        input_path = Path(input_path_str)
+        if not input_path.exists():
+             QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier d'images valide.")
              return
              
+        if not output_path_str:
+             QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier de sortie.")
+             return
+        
+        output_path = Path(output_path_str)
+        
         self.sharp_tab.set_processing_state(True)
         self.logs_tab.append_log(f"--- Lancement Apple ML Sharp ---")
         self.logs_tab.append_log(f"Input: {input_path}")
         self.logs_tab.append_log(f"Output: {output_path}")
         
-        self.sharp_worker = SharpWorker(input_path, output_path, params)
+        self.sharp_worker = SharpWorker(str(input_path), str(output_path), params)
         self.sharp_worker.log_signal.connect(self.logs_tab.append_log)
         self.sharp_worker.finished_signal.connect(self.on_sharp_finished)
         self.sharp_worker.start()
@@ -425,12 +508,40 @@ class ColmapGUI(QMainWindow):
             QMessageBox.warning(self, tr("msg_error"), f"Erreur Sharp:\n{message}")
 
     def restart_application(self):
-        """Redémarre l'application"""
-        self.save_session_state()
-        QApplication.quit()
-        # Redémarrer le processus actuel
+        """Redémarre l'application de manière plus robuste via execv"""
+        try:
+            self.save_session_state()
+        except Exception as e:
+            print(f"Error saving session before restart: {e}")
+            
+        # Determine root dir
+        root_dir = resolve_project_root()
+        
+        # Prepare command
         python = sys.executable
-        os.execl(python, python, *sys.argv)
+        main_py = root_dir / "main.py"
+        
+        args = [python, str(main_py)] + sys.argv[1:]
+        
+        print(f"Relaunching via execv: {args}")
+        
+        # Sur Unix (macOS/Linux), execv remplace le processus actuel.
+        # C'est beaucoup plus propre pour des relaunchs successifs.
+        if sys.platform != "win32":
+            try:
+                os.execv(python, args)
+            except Exception as e:
+                print(f"execv failed: {e}. Falling back to Popen.")
+                
+        # Fallback pour Windows ou si execv échoue
+        import subprocess
+        kwargs = {}
+        if sys.platform != "win32":
+            kwargs["start_new_session"] = True
+            
+        subprocess.Popen(args, cwd=str(root_dir), **kwargs)
+        QApplication.quit()
+        sys.exit(0)
         
     def reset_factory(self):
         """Supprime les venvs et relance l'installation/application"""
@@ -439,16 +550,11 @@ class ColmapGUI(QMainWindow):
         QApplication.quit()
         
         # Obtenir le chemin de run.command (supposé à la racine)
-        # sys.executable = .venv/bin/python
-        # root = ../..
-        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(sys.executable)))
-        # Si on n'est pas dans un venv standard, fallback sur cwd
-        if not os.path.exists(os.path.join(root_dir, "run.command")):
-            root_dir = os.getcwd()
+        root_dir = resolve_project_root()
             
-        run_cmd = os.path.join(root_dir, "run.command")
-        venv_path = os.path.join(root_dir, ".venv")
-        venv_sharp_path = os.path.join(root_dir, ".venv_sharp")
+        run_cmd = root_dir / "run.command"
+        venv_path = root_dir / ".venv"
+        venv_sharp_path = root_dir / ".venv_sharp"
         
         print(f"Reset Factory initie sur: {root_dir}")
         print(f"Commande relance: {run_cmd}")
@@ -460,65 +566,83 @@ class ColmapGUI(QMainWindow):
         
         cmd = f"sleep 2 && rm -rf \"{venv_path}\" \"{venv_sharp_path}\" && \"{run_cmd}\" &"
         
-        subprocess.Popen(cmd, shell=True, cwd=root_dir)
+        subprocess.Popen(cmd, shell=True, cwd=str(root_dir))
         sys.exit(0)
 
     # --- Session Persistence ---
 
-    def get_session_file(self):
-        # Utilise config.json à la racine de l'application ou dans le dossier user
-        # On va utiliser config.json localement car c'était celui utilisé par l'app.
-        # Mais attention .gitignore l'ignore, donc c'est parfait pour du local state.
-        return os.path.join(os.getcwd(), "config.json")
+    def get_session_file(self) -> Path:
+        """Retourne le chemin vers le fichier de session (config.json)"""
+        return resolve_project_root() / "config.json"
 
     def save_session_state(self):
-        """Sauvegarde l'état de l'application"""
+        """Sauvegarde l'état de l'application de manière dynamique"""
         state = {
             "language": self.config_tab.combo_lang.currentData(),
-            "config": self.config_tab.get_state(),
-            "colmap_params": self.params_tab.get_params().to_dict(),
-            "brush_params": self.brush_tab.get_params(),
-            "sharp_params": self.sharp_tab.get_params(),
-            "sharp_params": self.sharp_tab.get_params(),
-
-            "upscale_params": self.upscale_tab.get_params(),
         }
         
+        # Collecter l'état de chaque onglet capable de le fournir
+        tab_mapping = {
+            "config": self.config_tab,
+            "colmap_params": self.params_tab,
+            "brush_params": self.brush_tab,
+            "sharp_params": self.sharp_tab,
+            "upscale_params": self.upscale_tab,
+            "extractor_360_params": self.extractor_360_tab,
+        }
+        
+        for key, tab in tab_mapping.items():
+            try:
+                if hasattr(tab, 'get_state'):
+                    state[key] = tab.get_state()
+                elif hasattr(tab, 'get_params'):
+                    state[key] = tab.get_params()
+                    # Si c'est un objet ColmapParams, on le convertit
+                    if hasattr(state[key], 'to_dict'):
+                        state[key] = state[key].to_dict()
+            except Exception as e:
+                print(f"Erreur lors de la collecte de l'état pour '{key}': {e}")
+
         try:
             with open(self.get_session_file(), 'w') as f:
                 json.dump(state, f, indent=2)
-            # print("Session sauvegardée.")
         except Exception as e:
             print(f"Erreur sauvegarde session: {e}")
 
     def load_session_state(self):
-        """Charge l'état précédent"""
+        """Charge l'état précédent de manière dynamique"""
         session_file = self.get_session_file()
-        if not os.path.exists(session_file):
+        if not session_file.exists():
             return
             
         try:
             with open(session_file, 'r') as f:
                 state = json.load(f)
                 
-            if "config" in state:
-                self.config_tab.set_state(state["config"])
-                
-            if "colmap_params" in state:
-                self.params_tab.set_params(ColmapParams.from_dict(state["colmap_params"]))
-                
-            if "brush_params" in state:
-                self.brush_tab.set_params(state["brush_params"])
-                
-            if "sharp_params" in state:
-                self.sharp_tab.set_params(state["sharp_params"])
-                
+            tab_mapping = {
+                "config": self.config_tab,
+                "colmap_params": self.params_tab,
+                "brush_params": self.brush_tab,
+                "sharp_params": self.sharp_tab,
+                "upscale_params": self.upscale_tab,
+                "extractor_360_params": self.extractor_360_tab,
+                "four_dgs_params": self.four_dgs_tab,
+            }
+            
+            for key, tab in tab_mapping.items():
+                if key in state:
+                    try:
+                        if hasattr(tab, 'set_state'):
+                            tab.set_state(state[key])
+                        elif hasattr(tab, 'set_params'):
+                            # Cas spécial ColmapParams
+                            if key == "colmap_params":
+                                tab.set_params(ColmapParams.from_dict(state[key]))
+                            else:
+                                tab.set_params(state[key])
+                    except Exception as e:
+                        print(f"Erreur lors du chargement de l'état pour '{key}': {e}")
 
-                
-            if "upscale_params" in state:
-                self.upscale_tab.set_params(state["upscale_params"])
-                
-             # print("Session chargée.")
         except Exception as e:
             print(f"Erreur chargement session: {e}")
 

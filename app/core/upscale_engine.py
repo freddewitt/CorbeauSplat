@@ -1,25 +1,21 @@
-
 import os
 import shutil
 import sys
 import subprocess
-import glob
-from .system import is_apple_silicon, get_optimal_threads
+from pathlib import Path
+from .base_engine import BaseEngine
+from .system import is_apple_silicon, get_optimal_threads, get_memory_info
 
-class UpscaleEngine:
+class UpscaleEngine(BaseEngine):
     """
     Engine for Real-ESRGAN upscaling.
     Handles dynamic installation of dependencies and execution of upscaling.
     """
 
     def __init__(self, logger_callback=None):
-        self.logger = logger_callback if logger_callback else print
-        self.device = "mps" if is_apple_silicon() else "cpu"
-        # On Mac, sometimes 'cpu' is safer for some ops, but 'mps' is preferred for speed if supported.
-        # RealESRGAN supports mps.
+        super().__init__("Upscale", logger_callback)
 
-    def log(self, msg):
-        self.logger(msg)
+    # log method inherited from BaseEngine
 
     def _apply_patches(self):
         """
@@ -56,18 +52,17 @@ class UpscaleEngine:
         except ImportError:
             return None
 
-    def get_models_path(self):
+    def get_models_path(self) -> Path:
         """Returns the directory where weights are stored"""
         # We store weights in app/weights for persistence
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        weights_dir = os.path.join(root, "weights")
-        os.makedirs(weights_dir, exist_ok=True)
+        root = Path(__file__).resolve().parent.parent
+        weights_dir = root / "weights"
+        weights_dir.mkdir(parents=True, exist_ok=True)
         return weights_dir
 
     def check_model_availability(self, model_name):
         """Checks if model weights are present locally"""
         weights_dir = self.get_models_path()
-        # Mapping model names to filenames usually used by RealESRGAN
         file_map = {
             "RealESRGAN_x4plus": "RealESRGAN_x4plus.pth",
             "RealESRNet_x4plus": "RealESRNet_x4plus.pth", 
@@ -76,8 +71,8 @@ class UpscaleEngine:
         filename = file_map.get(model_name)
         if not filename: return False
         
-        path = os.path.join(weights_dir, filename)
-        return os.path.exists(path)
+        path = weights_dir / filename
+        return path.exists()
 
     # install/uninstall methods deprecated, handled by setup_dependencies.py
 
@@ -107,8 +102,8 @@ class UpscaleEngine:
             # Add more models if needed
             
             # Auto-download if missing
-            file_path = os.path.join(self.get_models_path(), f"{model_name}.pth")
-            if not os.path.exists(file_path):
+            file_path = self.get_models_path() / f"{model_name}.pth"
+            if not file_path.exists():
                 self.log(f"Model {model_name} missing. Attempting auto-download...")
                 if not self.download_model(model_name):
                     self.log(f"Failed to auto-download {model_name}.")
@@ -123,7 +118,7 @@ class UpscaleEngine:
                 pre_pad=0,
                 half=half, # Dynamic FP16
                 device=self.device,
-                model_path=os.path.join(self.get_models_path(), f"{model_name}.pth")
+                model_path=str(file_path)
             )
             # Inject target scale into upsampler object for later retrieval if needed
             upsampler.target_scale = target_scale
@@ -167,47 +162,46 @@ class UpscaleEngine:
             self.log(f"No URL found for {model_name}")
             return False
             
-        save_path = os.path.join(self.get_models_path(), f"{model_name}.pth")
+        save_path = self.get_models_path() / f"{model_name}.pth"
         expected_hash = checksums.get(model_name)
         
-        if os.path.exists(save_path):
+        if save_path.exists():
             # Check size first
-            if os.path.getsize(save_path) > 1024 * 1024: 
+            if save_path.stat().st_size > 1024 * 1024: 
                 # Verify checksum if known
                 if expected_hash:
                     self.log(f"Verifying existing model {model_name}...")
-                    if self.verify_checksum(save_path, expected_hash):
+                    if self.verify_checksum(str(save_path), expected_hash):
                         self.log(f"Model {model_name} valid (Checksum OK).")
                         return True
                     else:
                         self.log(f"Model {model_name} corrupted (Checksum Mismatch). Deleting.")
-                        os.remove(save_path)
+                        save_path.unlink()
                 else:
                     self.log(f"Model {model_name} exists (No checksum to verify).")
                     return True
             else:
                 self.log(f"Model {model_name} exists but seems empty. Redownloading.")
-                os.remove(save_path)
+                save_path.unlink()
             
         self.log(f"Downloading {model_name}...")
         try:
             import urllib.request
-            
-            urllib.request.urlretrieve(url, save_path)
+            urllib.request.urlretrieve(url, str(save_path))
             
             self.log(f"Download complete: {save_path}")
             
             # Verify size post download
-            if not os.path.exists(save_path) or os.path.getsize(save_path) < 1024 * 1024:
+            if not save_path.exists() or save_path.stat().st_size < 1024 * 1024:
                  self.log("Download failed (file too small or missing).")
                  return False
             
             # Verify checksum post download
             if expected_hash:
                 self.log("Verifying download checksum...")
-                if not self.verify_checksum(save_path, expected_hash):
-                    self.log("SECURITY WARNING: Downloaded file checksum mismatch! potential compromise or corruption.")
-                    os.remove(save_path)
+                if not self.verify_checksum(str(save_path), expected_hash):
+                    self.log("SECURITY WARNING: Downloaded file checksum mismatch!")
+                    save_path.unlink()
                     return False
                 self.log("Checksum OK.")
                  
@@ -256,13 +250,12 @@ class UpscaleEngine:
         """
         Upscales all images in input_dir to output_dir.
         """
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        in_p = Path(input_dir)
+        out_p = Path(output_dir)
+        out_p.mkdir(parents=True, exist_ok=True)
             
         # Get images
-        files = sorted(glob.glob(os.path.join(input_dir, f"*.{extension}")))
-        if not files:
-             files = sorted(glob.glob(os.path.join(input_dir, f"*.png"))) # fallback
+        files = sorted([f for f in in_p.iterdir() if f.is_file() and f.suffix.lower() in (f'.{extension}', '.png')])
              
         self.log(f"Found {len(files)} images to upscale.")
         
@@ -273,11 +266,8 @@ class UpscaleEngine:
             
         success_count = 0
         for idx, img_path in enumerate(files):
-            basename = os.path.basename(img_path)
-            out_path = os.path.join(output_dir, basename)
-            
-            self.log(f"Upscaling [{idx+1}/{len(files)}]: {basename} (x{target_scale})")
-            if self.upscale_image(img_path, out_path, upsampler, face_enhance=face_enhance):
+            self.log(f"Upscaling [{idx+1}/{len(files)}]: {img_path.name} (x{target_scale})")
+            if self.upscale_image(str(img_path), str(out_p / img_path.name), upsampler, face_enhance=face_enhance):
                 success_count += 1
                 
         self.log(f"Upscaling complete. {success_count}/{len(files)} processed.")

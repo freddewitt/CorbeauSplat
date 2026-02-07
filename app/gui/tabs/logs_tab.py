@@ -2,7 +2,8 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTextEdit, QFileDialog, QMessageBox
 )
 from PyQt6.QtGui import QFont
-from app.core.i18n import tr
+from app.core.i18n import tr, add_language_observer
+from app.gui.widgets.dialog_utils import get_save_file_name
 
 class LogsTab(QWidget):
     """Onglet des logs"""
@@ -10,6 +11,7 @@ class LogsTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.init_ui()
+        add_language_observer(self.retranslate_ui)
         
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -20,13 +22,13 @@ class LogsTab(QWidget):
         layout.addWidget(self.log_text)
         
         btn_layout = QHBoxLayout()
-        btn_clear = QPushButton(tr("btn_clear_log"))
-        btn_clear.clicked.connect(self.log_text.clear)
-        btn_layout.addWidget(btn_clear)
+        self.btn_clear = QPushButton(tr("btn_clear_log"))
+        self.btn_clear.clicked.connect(self.log_text.clear)
+        btn_layout.addWidget(self.btn_clear)
         
-        btn_save_log = QPushButton(tr("btn_save_log"))
-        btn_save_log.clicked.connect(self.save_logs)
-        btn_layout.addWidget(btn_save_log)
+        self.btn_save_log = QPushButton(tr("btn_save_log"))
+        self.btn_save_log.clicked.connect(self.save_logs)
+        btn_layout.addWidget(self.btn_save_log)
         btn_layout.addStretch()
         
         layout.addLayout(btn_layout)
@@ -43,7 +45,7 @@ class LogsTab(QWidget):
         
     def save_logs(self):
         """Sauvegarde les logs"""
-        filename, _ = QFileDialog.getSaveFileName(
+        filename, _ = get_save_file_name(
             self, tr("btn_save_log"),
             "", "Fichier texte (*.txt);;Tous (*.*)"
         )
@@ -55,3 +57,8 @@ class LogsTab(QWidget):
                 QMessageBox.information(self, tr("msg_success"), "Logs sauvegardes!")
             except Exception as e:
                 QMessageBox.critical(self, tr("msg_error"), f"Impossible de sauvegarder:\n{str(e)}")
+
+    def retranslate_ui(self):
+        """Update texts when language changes"""
+        self.btn_clear.setText(tr("btn_clear_log"))
+        self.btn_save_log.setText(tr("btn_save_log"))

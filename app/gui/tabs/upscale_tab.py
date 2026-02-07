@@ -6,9 +6,10 @@ from PyQt6.QtWidgets import (
     QFormLayout, QCheckBox, QComboBox, QSpinBox, QMessageBox, QProgressDialog, QApplication
 )
 from PyQt6.QtCore import pyqtSignal, Qt, QThread
-from app.core.i18n import tr
+from pathlib import Path
+from app.core.i18n import tr, add_language_observer
 from app.core.upscale_engine import UpscaleEngine
-from app.scripts.setup_dependencies import install_upscale_deps, uninstall_upscale
+from app.scripts.setup_dependencies import install_upscale, uninstall_upscale, resolve_project_root
 
 class UpscaleTab(QWidget):
     """
@@ -19,19 +20,20 @@ class UpscaleTab(QWidget):
         super().__init__(parent)
         self.engine = UpscaleEngine()
         self.init_ui()
+        add_language_observer(self.retranslate_ui)
 
     def init_ui(self):
         layout = QVBoxLayout(self)
         
         # Header
-        info = QLabel(tr("upscale_title"))
-        info.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 10px;")
-        layout.addWidget(info)
+        self.lbl_title = QLabel(tr("upscale_title"))
+        self.lbl_title.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 10px;")
+        layout.addWidget(self.lbl_title)
         
-        desc = QLabel(tr("upscale_desc"))
-        desc.setWordWrap(True)
-        desc.setStyleSheet("color: #aaa; margin-bottom: 5px;")
-        layout.addWidget(desc)
+        self.lbl_desc = QLabel(tr("upscale_desc"))
+        self.lbl_desc.setWordWrap(True)
+        self.lbl_desc.setStyleSheet("color: #aaa; margin-bottom: 5px;")
+        layout.addWidget(self.lbl_desc)
 
         # Activation / Installation
         self.chk_activate = QCheckBox(tr("upscale_activate"))
@@ -50,7 +52,8 @@ class UpscaleTab(QWidget):
             "RealESRNet_x4plus",
             "RealESRGAN_x4plus_anime_6B"
         ])
-        form_layout.addRow(tr("upscale_lbl_model"), self.model_combo)
+        self.lbl_model = QLabel(tr("upscale_lbl_model"))
+        form_layout.addRow(self.lbl_model, self.model_combo)
         
         # Model Description
         self.model_desc = QLabel("")
@@ -62,7 +65,8 @@ class UpscaleTab(QWidget):
         
         # Status Label
         self.status_label = QLabel("")
-        form_layout.addRow(tr("upscale_lbl_status"), self.status_label)
+        self.lbl_status = QLabel(tr("upscale_lbl_status"))
+        form_layout.addRow(self.lbl_status, self.status_label)
         
         # Download Button (Visible only if missing)
         self.btn_download = QPushButton(tr("upscale_btn_download"))
@@ -73,7 +77,8 @@ class UpscaleTab(QWidget):
         self.scale_combo.addItems([tr("upscale_scale_x4"), tr("upscale_scale_x2"), tr("upscale_scale_x1")])
         self.scale_combo.setCurrentIndex(2) # Default to x1 (Enhance only)
         self.scale_combo.setToolTip(tr("upscale_tip_scale"))
-        form_layout.addRow(tr("upscale_lbl_scale"), self.scale_combo)
+        self.lbl_scale = QLabel(tr("upscale_lbl_scale"))
+        form_layout.addRow(self.lbl_scale, self.scale_combo)
 
         # Performance Profile
         self.profile_combo = QComboBox()
@@ -84,8 +89,9 @@ class UpscaleTab(QWidget):
             "Ultimate (Ultra VRAM)",
             "Personnalise"
         ])
-        self.profile_combo.setToolTip("Configure automatiquement Tiling et Precision selon votre machine.")
-        form_layout.addRow("Profil Performance", self.profile_combo)
+        self.profile_combo.setToolTip(tr("upscale_tip_profile"))
+        self.lbl_profile = QLabel(tr("upscale_lbl_profile"))
+        form_layout.addRow(self.lbl_profile, self.profile_combo)
         
         self.profile_combo.currentIndexChanged.connect(self.on_profile_changed)
         
@@ -97,7 +103,8 @@ class UpscaleTab(QWidget):
         self.tile_spin.setSuffix(" px")
         self.tile_spin.setToolTip(tr("upscale_tip_tile"))
         self.tile_spin.valueChanged.connect(self.on_manual_change)
-        form_layout.addRow(tr("upscale_lbl_tile"), self.tile_spin)
+        self.lbl_tile = QLabel(tr("upscale_lbl_tile"))
+        form_layout.addRow(self.lbl_tile, self.tile_spin)
         
         # Face Enhance Option
         self.face_enhance = QCheckBox(tr("upscale_check_face"))
@@ -105,11 +112,12 @@ class UpscaleTab(QWidget):
         form_layout.addRow("", self.face_enhance)
 
         # FP16 Option
-        self.fp16_check = QCheckBox("Demi-précision (FP16)")
-        self.fp16_check.setToolTip("Réduit la mémoire de moitié. Recommandé pour M1/M2/M3.")
+        self.fp16_check = QCheckBox(tr("upscale_lbl_fp16"))
+        self.fp16_check.setToolTip(tr("upscale_tip_fp16"))
         self.fp16_check.setChecked(True) # Default true for mac
         self.fp16_check.toggled.connect(self.on_manual_change)
-        form_layout.addRow("", self.fp16_check)
+        self.lbl_fp16 = QLabel(tr("upscale_lbl_fp16"))
+        form_layout.addRow(self.lbl_fp16, self.fp16_check)
         
         self.settings_group.setLayout(form_layout)
         layout.addWidget(self.settings_group)
@@ -280,15 +288,9 @@ class UpscaleTab(QWidget):
              # We can just pass a dummy path if it resolves internally?
              # install_upscale_deps(engines_dir, version_file)
              
-             # I need to pass valid engines_dir.
-             from app.core.system import resolve_binary
-             # Or use the one from setup_dependencies if I could import resolve_project_root.
-             # But I imported functions.
-             # Let's resolve root here.
-             root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-             engines_dir = os.path.join(root, "engines")
+             engines_dir = resolve_project_root() / "engines"
              
-             success = install_upscale_deps(engines_dir, None)
+             success = install_upscale()
              
              if success:
                  QMessageBox.information(self, tr("msg_success"), "Installation terminée.")
@@ -346,3 +348,36 @@ class UpscaleTab(QWidget):
         if "tile" in params: self.tile_spin.setValue(params["tile"])
         if "fp16" in params: self.fp16_check.setChecked(params["fp16"])
         if "model_name" in params: self.model_combo.setCurrentText(params["model_name"])
+
+    def get_state(self):
+        return self.get_params()
+        
+    def set_state(self, state):
+        self.set_params(state)
+
+    def retranslate_ui(self):
+        """Update texts when language changes"""
+        self.lbl_title.setText(tr("upscale_title"))
+        self.lbl_desc.setText(tr("upscale_desc"))
+        self.chk_activate.setText(tr("upscale_activate"))
+        self.settings_group.setTitle(tr("upscale_group_settings"))
+        self.lbl_model.setText(tr("upscale_lbl_model"))
+        self.lbl_status.setText(tr("upscale_lbl_status"))
+        self.btn_download.setText(tr("upscale_btn_download"))
+        self.lbl_scale.setText(tr("upscale_lbl_scale"))
+        self.scale_combo.setToolTip(tr("upscale_tip_scale"))
+        self.scale_combo.setItemText(0, tr("upscale_scale_x4"))
+        self.scale_combo.setItemText(1, tr("upscale_scale_x2"))
+        self.scale_combo.setItemText(2, tr("upscale_scale_x1"))
+        
+        self.lbl_profile.setText(tr("upscale_lbl_profile", "Profil Performance"))
+        # Update profile combo items if localized
+        
+        self.lbl_tile.setText(tr("upscale_lbl_tile"))
+        self.tile_spin.setToolTip(tr("upscale_tip_tile"))
+        self.face_enhance.setText(tr("upscale_check_face"))
+        self.face_enhance.setToolTip(tr("upscale_tip_face"))
+        self.lbl_fp16.setText(tr("upscale_lbl_fp16", "Demi-précision (FP16)"))
+        
+        self.check_model_status()
+        self.update_model_desc()

@@ -1,5 +1,50 @@
 # Changelog
 
+## [v0.71] - 2026-02-07
+
+### ✨ Stability & UX Improvements
+- **360 Extraction Workflow**: Implemented recursive image search and automatic AI mask filtering (*.mask.png), resolving the "0 images found" issue.
+- **English Startup Experience**: fully translated `run.command` and `setup_dependencies.py` for a consistent first-launch experience.
+- **Detailed Component Audit**: Each engine (Sharp, Brush, Glomap, etc.) now reports its individual status (Ready/Missing/Update) during startup with visual markers.
+- **UI Visual Hierarchy**: Secondary/Utility tabs now use muted gray coloring to help users focus on the core photogrammetry workflow.
+- **Sharp Path Handling**: Hardened absolute path resolution to allow using system folders like the Desktop for output without permission errors.
+
+### 🛠 Bug Fixes
+- Fixed missing `shutil` import in the core engine.
+- Fixed `TypeError` in command logging for several engines.
+- Repaired broken environments for Sharp and 360Extractor after refactor.
+
+## [v0.7] - 2026-02-07
+
+### ✨ New Features (Major)
+-   **Live Localization (FR/EN)**:
+    -   100% localization coverage achieved for all 10 core UI tabs.
+    -   Implemented a robust **Observer Pattern** for real-time language switching.
+    -   UI elements now update instantly (labels, tooltips, placeholders, window titles) without requiring an application restart.
+-   **Consolidated UI Architecture**: 
+    -   Standardized the `retranslate_ui` pattern across the entire application interface.
+    -   Centralized all user-facing strings in `i18n.py` for easier future translations.
+
+### 🏗 Architecture & Cleanup
+-   **Unified Engine Core**: Consistently using `BaseEngine` across all modules (`Colmap`, `Brush`, `Sharp`, `360`, `4DGS`, `Upscale`, `SuperSplat`).
+-   **Worker Refactoring**: Simplified UI workers by offloading command logic to the core engine layer.
+-   **Code Hardening**: Improved error handling and path validation in the base engine classes.
+
+### 🛠 Improvements & Fixes
+-   **Sync**: Fixed missing or duplicated translation keys in `i18n.py`.
+-   **UX**: Improved placeholder clarity and consistency across all tabs.
+-   **Versioning**: Standardized project versioning centrally in `app/__init__.py`.
+
+## [v0.6] - 2026-02-06
+
+### ✨ New Features (Major)
+-   **360 Extractor Integration (Experimental)**: 
+    -   Dedicated module to convert **360° videos** (Equirectangular) into planar images for photogrammetry.
+    -   **Smart Extraction**: Supports **YOLO-based masking** to remove the operator/cameraman.
+    -   **Adaptive Intervals**: Motion detection to skip static frames.
+    -   **Flexible Layouts**: Ring, Cube Map, Fibonacci distribution.
+    -   **Seamless Workflow**: Use as a standalone tool or check "360 Source" in Config to pre-process before COLMAP.
+
 ## [v0.5] - 2026-02-06
 
 ### ✨ New Features (Major)

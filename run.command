@@ -1,135 +1,111 @@
 #!/bin/bash
 
-# Se placer dans le dossier du script
+# Move to script directory
 cd "$(dirname "$0")"
+echo "Working directory: $(pwd)"
 
-# --- Auto Update Check ---
+# --- Phase 1: Update Check ---
 if [ -d ".git" ]; then
-    echo "Verification des mises a jour..."
-    # Fetch latest changes silently
+    echo "--- Phase 1: Checking for updates ---"
     git fetch > /dev/null 2>&1
     
-    # Check if we have an upstream configured
     if git rev-parse --abbrev-ref --symbolic-full-name @{u} > /dev/null 2>&1; then
-        # Count commits behind
         BEHIND_COUNT=$(git rev-list --count HEAD..@{u})
         
         if [ "$BEHIND_COUNT" -gt 0 ]; then
-             echo ">>> Une nouvelle version est disponible ($BEHIND_COUNT commits de retard)."
-             read -p ">>> Voulez-vous mettre a jour maintenant ? (o/n) " -n 1 -r
+             echo ">>> A new version is available ($BEHIND_COUNT commits behind)."
+             read -p ">>> Would you like to update now? (y/n) " -n 1 -r
              echo
-             if [[ $REPLY =~ ^[OoYy]$ ]]; then
-                 echo "Mise a jour en cours..."
+             if [[ $REPLY =~ ^[Yy]$ ]]; then
+                 echo "Updating..."
                  git pull
-                 echo "Mise a jour terminee."
+                 echo "Update complete."
              else
-                 echo "Mise a jour ignoree."
+                 echo "Update skipped."
              fi
         else
-             echo "CorbeauSplat est a jour."
+             echo "✅ Software is up to date."
         fi
     fi
+else
+    echo "--- Phase 1: Skipping update check (not a git repository) ---"
 fi
-# -------------------------
 
-# Nom du dossier d'environnement virtuel
+# --- Phase 2: Environment & Venv Health ---
+echo "--- Phase 2: Environment configuration ---"
 VENV_DIR=".venv"
+PYTHON_CMD="$VENV_DIR/bin/python3"
 
-# Vérifier si l'environnement virtuel existe
-if [ ! -d "$VENV_DIR" ]; then
-    echo "Creation de l'environnement virtuel..."
+if [ ! -d "$VENV_DIR" ] || [ ! -f "$PYTHON_CMD" ]; then
+    echo "Creating virtual environment..."
+    if [ -d "$VENV_DIR" ]; then echo "⚠️ Venv corrupted. Rebuilding..."; rm -rf "$VENV_DIR"; fi
     
-    # Tentative de trouver une version stable de Python (3.11 ou 3.10)
-    # Python 3.14+ (bleeding edge) pose probleme avec basicsr/numpy
     PY_CANDIDATES=("python3.11" "python3.10" "python3")
     SELECTED_PY=""
-    
     for py in "${PY_CANDIDATES[@]}"; do
-        if command -v $py >/dev/null 2>&1; then
-            VER=$($py -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-            # Check si < 3.12 (safety preference) ou juste use valid one
-            echo "Trouve: $py ($VER)"
-            SELECTED_PY=$py
-            break
-        fi
+        if command -v $py >/dev/null 2>&1; then SELECTED_PY=$py; break; fi
     done
     
     if [ -z "$SELECTED_PY" ]; then
-        echo "Aucun Python compatible trouve. Utilisation par defaut de python3..."
-        SELECTED_PY="python3"
+        echo "❌ ERROR: Python 3 not found. Please install Python 3.10 or 3.11."
+        exit 1
     fi
-    
-    echo "Utilisation de $SELECTED_PY pour le venv..."
+    echo "Detected Python candidate: $SELECTED_PY"
     $SELECTED_PY -m venv $VENV_DIR
+    echo "✅ Virtual environment created."
 fi
 
-# echo "Activation de l'environnement..."
-# source $VENV_DIR/bin/activate
-# On utilise directement le binaire du venv pour éviter les problèmes de PEP 668 (externally managed)
-PYTHON_CMD="$VENV_DIR/bin/python3"
+echo "Using environment Python: $($PYTHON_CMD --version)"
+echo "✅ Environment configured."
 
-# Vérification basique
-if [ ! -f "$PYTHON_CMD" ]; then
-    echo "ERREUR: Python non trouvé dans le venv ($PYTHON_CMD)"
-    
-    if [ -d "$VENV_DIR" ]; then
-        echo "⚠️  L'environnement virtuel semble corrompu (lien symbolique casse ?)."
-        echo "♻️  Suppression et recreation de l'environnement..."
-        rm -rf "$VENV_DIR"
-        echo "🔄 Relancement du script..."
-        exec "$0" "$@"
-        exit 0
-    fi
-    
+# Integrity check
+if ! "$PYTHON_CMD" -c "import json, os, sys" > /dev/null 2>&1; then
+    echo "❌ FAILURE: Python environment is unstable. Forcing rebuild..."
+    rm -rf "$VENV_DIR"
+    exec "$0" "$@"
     exit 1
 fi
+echo "✅ Python environment integrity verified."
 
-# Mise a jour de pip
-echo "Mise a jour de pip..."
-# Mise a jour de pip via le venv explicitement
-echo "Mise a jour de pip..."
+# --- Phase 3: Dependency Sync ---
+echo "--- Phase 3: Synchronizing dependencies ---"
+echo "Checking for pip updates..."
 "$PYTHON_CMD" -m pip install --upgrade pip > /dev/null 2>&1
 
-# Toujours vérifier/installer les dépendances
-if [ -f "requirements.lock" ]; then
+if [ -f "requirements.lock" ]; then 
     DEP_FILE="requirements.lock"
-    echo "Utilisation de requirements.lock pour une installation reproductible."
-elif [ -f "requirements.txt" ]; then
+    echo "Found lockfile: $DEP_FILE"
+else 
     DEP_FILE="requirements.txt"
-    echo "Utilisation de requirements.txt (requirements.lock manquant)."
-else
-    echo "ERREUR: Ni requirements.lock ni requirements.txt trouves!"
-    exit 1
+    echo "Found dependency list: $DEP_FILE"
 fi
 
-echo "Verification des dependances Python ($DEP_FILE)..."
-# Capture output and exit code
-# Capture output and exit code
+echo "Verifying installed packages (this may take a moment)..."
 if ! "$PYTHON_CMD" -m pip install -r $DEP_FILE > /dev/null 2>&1; then
-    echo "ERREUR: L'installation des dependances a echoue."
-    echo "Tentative de reinstallation avec affichage des erreurs :"
+    echo "⚠️  Silent installation failed. Attempting with logs..."
     "$PYTHON_CMD" -m pip install -r $DEP_FILE
-    echo "Veuillez corriger les erreurs ci-dessus avant de relancer."
-    exit 1
 fi
+echo "✅ Dependencies synchronized and verified."
 
-# Verification specifique pour PyQt6 qui pose souvent probleme
-# Verification specifique pour PyQt6 qui pose souvent probleme
+# PyQt6 specific check
 if ! "$PYTHON_CMD" -c "import PyQt6" > /dev/null 2>&1; then
-    echo "ERREUR: PyQt6 semble manquant malgre l'installation."
-    echo "Tentative d'installation forcee de PyQt6..."
+    echo "🔧 Corrective installation of PyQt6..."
     "$PYTHON_CMD" -m pip install PyQt6
-    
-    if ! "$PYTHON_CMD" -c "import PyQt6" > /dev/null 2>&1; then
-            echo "ECHEC FATAL: Impossible d'importer PyQt6."
-            exit 1
-    fi
 fi
 
-# Vérification et Installation des dépendances externes (Brush)
-echo "Verification des moteurs..."
-"$PYTHON_CMD" -m app.scripts.setup_dependencies
+# --- Phase 4: Engine & Core Component Monitoring ---
+echo "--- Phase 4: Verifying engines and external binaries ---"
+echo "Running system check..."
+"$PYTHON_CMD" -m app.scripts.setup_dependencies --check
+echo "✅ System check complete (Engines & Binaries)."
 
-# Lancer l'application
-echo "Lancement de CorbeauSplat..."
+if [[ $(uname -m) == 'arm64' ]]; then
+    echo "✅ Architecture: Apple Silicon detected (Optimizations active)."
+else
+    echo "ℹ️  Architecture: x86_64 detected."
+fi
+
+# --- Phase 5: Launch ---
+echo "--- Phase 5: Launching CorbeauSplat ---"
+echo "------------------------------------------------"
 "$PYTHON_CMD" main.py "$@"

@@ -1,12 +1,13 @@
-import os
+from pathlib import Path
 import webbrowser
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
     QGroupBox, QCheckBox, QFileDialog, QMessageBox, QSpinBox, QFormLayout
 )
 from PyQt6.QtCore import pyqtSignal, QTimer
-from app.core.i18n import tr
+from app.core.i18n import tr, add_language_observer
 from app.core.superplat_engine import SuperSplatEngine
+from app.gui.widgets.dialog_utils import get_open_file_name
 
 class SuperSplatTab(QWidget):
     """Onglet pour SuperSplat"""
@@ -18,34 +19,37 @@ class SuperSplatTab(QWidget):
         self.engine = SuperSplatEngine()
         self.is_running = False
         self.init_ui()
+        add_language_observer(self.retranslate_ui)
         
     def init_ui(self):
         layout = QVBoxLayout(self)
         
         # Header / Info
-        info_label = QLabel(tr("superplat_info", "SuperSplat (PlayCanvas)"))
-        info_label.setWordWrap(True)
-        layout.addWidget(info_label)
+        self.lbl_info = QLabel(tr("superplat_info", "SuperSplat (PlayCanvas)"))
+        self.lbl_info.setWordWrap(True)
+        layout.addWidget(self.lbl_info)
         
         # Configuration Serveur
-        server_group = QGroupBox(tr("group_server_config", "Configuration Serveur"))
+        self.server_group = QGroupBox(tr("group_server_config", "Configuration Serveur"))
         server_layout = QFormLayout()
         
         self.splat_port = QSpinBox()
         self.splat_port.setRange(1024, 65535)
         self.splat_port.setValue(3000)
-        server_layout.addRow(tr("lbl_splat_port", "Port SuperSplat :"), self.splat_port)
+        self.lbl_splat_port = QLabel(tr("lbl_splat_port", "Port SuperSplat :"))
+        server_layout.addRow(self.lbl_splat_port, self.splat_port)
         
         self.data_port = QSpinBox()
         self.data_port.setRange(1024, 65535)
         self.data_port.setValue(8000)
-        server_layout.addRow(tr("lbl_data_port", "Port Données :"), self.data_port)
+        self.lbl_data_port = QLabel(tr("lbl_data_port", "Port Données :"))
+        server_layout.addRow(self.lbl_data_port, self.data_port)
         
-        server_group.setLayout(server_layout)
-        layout.addWidget(server_group)
+        self.server_group.setLayout(server_layout)
+        layout.addWidget(self.server_group)
         
         # Données
-        data_group = QGroupBox(tr("group_data", "Données à Visualiser"))
+        self.data_group = QGroupBox(tr("group_data", "Données à Visualiser"))
         data_layout = QVBoxLayout()
         
         path_layout = QHBoxLayout()
@@ -58,11 +62,11 @@ class SuperSplatTab(QWidget):
         path_layout.addWidget(self.btn_browse)
         
         data_layout.addLayout(path_layout)
-        data_group.setLayout(data_layout)
-        layout.addWidget(data_group)
+        self.data_group.setLayout(data_layout)
+        layout.addWidget(self.data_group)
         
         # Options URL
-        options_group = QGroupBox(tr("group_url_options", "Options de Vue"))
+        self.options_group = QGroupBox(tr("group_url_options", "Options de Vue"))
         options_layout = QFormLayout()
         
         self.chk_no_ui = QCheckBox(tr("check_no_ui", "Masquer l'interface (No UI)"))
@@ -70,14 +74,16 @@ class SuperSplatTab(QWidget):
         
         self.cam_pos = QLineEdit()
         self.cam_pos.setPlaceholderText("X,Y,Z (ex: 0,1,-5)")
-        options_layout.addRow(tr("lbl_cam_pos", "Position Caméra :"), self.cam_pos)
+        self.lbl_cam_pos = QLabel(tr("lbl_cam_pos", "Position Caméra :"))
+        options_layout.addRow(self.lbl_cam_pos, self.cam_pos)
         
         self.cam_rot = QLineEdit()
         self.cam_rot.setPlaceholderText("X,Y,Z (Degrés)")
-        options_layout.addRow(tr("lbl_cam_rot", "Rotation Caméra :"), self.cam_rot)
+        self.lbl_cam_rot = QLabel(tr("lbl_cam_rot", "Rotation Caméra :"))
+        options_layout.addRow(self.lbl_cam_rot, self.cam_rot)
         
-        options_group.setLayout(options_layout)
-        layout.addWidget(options_group)
+        self.options_group.setLayout(options_layout)
+        layout.addWidget(self.options_group)
         
         # Actions
         action_layout = QHBoxLayout()
@@ -101,8 +107,7 @@ class SuperSplatTab(QWidget):
 
     def browse_input(self):
         """Parcourir fichier ou dossier"""
-        # On preferre fichier PLY ici
-        path, _ = QFileDialog.getOpenFileName(self, tr("select_ply", "Selectionner fichier PLY"), "", "Gaussian Splat (*.ply);;Tous (*.*)")
+        path, _ = get_open_file_name(self, tr("select_ply", "Selectionner fichier PLY"), "", "Gaussian Splat (*.ply);;Tous (*.*)")
         if path:
             self.input_path.setText(path)
 
@@ -120,14 +125,16 @@ class SuperSplatTab(QWidget):
             return
             
         # 2. Start Data Server (if path provided)
-        path = self.input_path.text()
-        if path and os.path.exists(path):
-            directory = path if os.path.isdir(path) else os.path.dirname(path)
-            success_data, msg_data = self.engine.start_data_server(directory, self.data_port.value())
-            if not success_data:
-                QMessageBox.warning(self, tr("msg_warning"), f"Erreur Serveur Données: {msg_data}")
-            else:
-                print(msg_data)
+        path_str = self.input_path.text()
+        if path_str:
+            path = Path(path_str)
+            if path.exists():
+                directory = path if path.is_dir() else path.parent
+                success_data, msg_data = self.engine.start_data_server(str(directory), self.data_port.value())
+                if not success_data:
+                    QMessageBox.warning(self, tr("msg_warning"), f"Erreur Serveur Données: {msg_data}")
+                else:
+                    print(msg_data)
         
         self.is_running = True
         self.btn_start.setText(tr("btn_stop_server", "Arrêter Serveurs"))
@@ -160,12 +167,14 @@ class SuperSplatTab(QWidget):
         params = []
         
         # Load Param
-        path = self.input_path.text()
-        if path and os.path.exists(path):
-            filename = os.path.basename(path)
-            # URL to data server
-            data_url = f"http://localhost:{self.data_port.value()}/{filename}"
-            params.append(f"load={data_url}")
+        path_str = self.input_path.text()
+        if path_str:
+            path = Path(path_str)
+            if path.exists():
+                filename = path.name
+                # URL to data server
+                data_url = f"http://localhost:{self.data_port.value()}/{filename}"
+                params.append(f"load={data_url}")
             
         # No UI
         if self.chk_no_ui.isChecked():
@@ -185,3 +194,20 @@ class SuperSplatTab(QWidget):
     def closeEvent(self, event):
         self.stop_server()
         super().closeEvent(event)
+
+    def retranslate_ui(self):
+        """Update texts when language changes"""
+        self.lbl_info.setText(tr("superplat_info"))
+        self.server_group.setTitle(tr("group_server_config"))
+        self.lbl_splat_port.setText(tr("lbl_splat_port"))
+        self.lbl_data_port.setText(tr("lbl_data_port"))
+        self.data_group.setTitle(tr("group_data"))
+        self.input_path.setPlaceholderText(tr("placeholder_ply"))
+        self.btn_browse.setText(tr("btn_browse"))
+        self.options_group.setTitle(tr("group_url_options"))
+        self.chk_no_ui.setText(tr("check_no_ui"))
+        self.lbl_cam_pos.setText(tr("lbl_cam_pos"))
+        self.lbl_cam_rot.setText(tr("lbl_cam_rot"))
+        self.btn_start.setText(tr("btn_stop_server" if self.is_running else "btn_start_server"))
+        self.btn_open.setText(tr("btn_open_browser"))
+        self.status_label.setText(tr("status_running" if self.is_running else "status_stopped"))

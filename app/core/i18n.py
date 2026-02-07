@@ -113,6 +113,12 @@ TRANSLATIONS = {
         "brush_lbl_stop": "Growth Stop Iter :",
         "brush_lbl_max_splats": "Max Splats :",
         "brush_lbl_ckpt_interval": "Sauvegarder Checkpoint tous les :",
+        "brush_check_details": "Afficher les détails avancés",
+        "brush_sh_degree": "SH Degree :",
+        "brush_device": "Device :",
+        "brush_tip_device": "Device (auto, mps, cpu...)",
+        "brush_tip_mode": "Nouvel entrainement: Crée un nouveau modèle.\nRaffiner: Reprend depuis le dernier checkpoint trouvé.",
+        "brush_tip_res": "Définir une limite de résolution (côté le plus long). Laisser à 0 pour le défaut.",
 
         # SuperSplat Tab
         "tab_supersplat": "SuperSplat",
@@ -136,6 +142,7 @@ TRANSLATIONS = {
         # Logs Tab
         "btn_clear_log": "Effacer logs",
         "btn_save_log": "Sauvegarder logs",
+        "group_options": "Options",
         
         # Messages / Dialogs
         "msg_ready": "Pret",
@@ -149,6 +156,7 @@ TRANSLATIONS = {
         "confirm_delete_nodata": "Le dossier ne semble pas contenir de dataset COLMAP.\nVoulez-vous quand meme le supprimer ?\n\n{}",
         "err_no_paths": "Veuillez selectionner les dossiers d'entree et de sortie",
         "err_path_not_exists": "Le dossier n'existe pas encore",
+        "USER_CANCELLED": "Interrompu par l'utilisateur",
         "success_created": "Dataset cree : {}",
         "success_open_brush": "Vous pouvez maintenant l'ouvrir dans Brush!",
         "lang_restart": "Changement de langue : Le redemarrage de l'application est necessaire.",
@@ -166,6 +174,26 @@ TRANSLATIONS = {
         "four_dgs_group_params": "Paramètres",
         "four_dgs_lbl_fps": "Extraction FPS :",
         "four_dgs_btn_stop": "Arrêter",
+        "four_dgs_btn_colmap": "Relancer Reconstruction COLMAP (Seulement)",
+        "four_dgs_msg_colmap_start": "Lancement de COLMAP sur : {}",
+        "four_dgs_group_cfg": "Configuration",
+        "four_dgs_btn_run": "Lancer Préparation 4DGS",
+        "superplat_info": "SuperSplat (PlayCanvas)",
+        "group_server_config": "Configuration Serveur",
+        "lbl_splat_port": "Port SuperSplat :",
+        "lbl_data_port": "Port Données :",
+        "group_data": "Données à Visualiser",
+        "placeholder_ply": "Chemin vers un fichier .ply ou dossier",
+        "group_url_options": "Options de Vue",
+        "check_no_ui": "Masquer l'interface (No UI)",
+        "lbl_cam_pos": "Position Caméra :",
+        "lbl_cam_rot": "Rotation Caméra :",
+        "btn_start_server": "Démarrer Serveurs",
+        "btn_stop_server": "Arrêter Serveurs",
+        "btn_open_browser": "Ouvrir Navigateur",
+        "status_stopped": "Statut : Arrêté",
+        "status_running": "Statut : En cours d'exécution",
+        "select_ply": "Selectionner fichier PLY",
         "msg_install_nerf": "Pour activer cette fonction, l'outil 'nerfstudio' (ns-process-data) doit être installé.\n\nCela nécessite environ 3 à 5 Go d'espace disque.\nVoulez-vous lancer l'installation maintenant ?",
         
         # Upscale Tab
@@ -185,6 +213,10 @@ TRANSLATIONS = {
         "upscale_tip_scale": "Définit la taille finale par rapport à l'original.\nx1 permet de débruiter/améliorer sans changer la taille.",
         "upscale_lbl_tile": "Protection RAM (Tile) :",
         "upscale_tip_tile": "0 = Auto (Rapide, gourmand)\n512/256 = Mode 'Tiling' (Lent, économe en RAM)\nUtilisez 512 ou moins si l'app plante sur de grosses images.",
+        "upscale_lbl_profile": "Profil Performance",
+        "upscale_tip_profile": "Configure automatiquement Tiling et Precision selon votre machine.",
+        "upscale_lbl_fp16": "Demi-précision (FP16)",
+        "upscale_tip_fp16": "Réduit la mémoire de moitié. Recommandé pour M1/M2/M3.",
         "upscale_check_face": "Amélioration Visages (GFPGAN)",
         "upscale_tip_face": "Détecte et restaure les visages spécifiquement.\nNécessite le modèle GFPGAN.",
         "upscale_install_title": "Installation",
@@ -208,8 +240,150 @@ TRANSLATIONS = {
         "upscale_msg_success_download": "Modèle téléchargé !",
         "upscale_msg_err_download": "Echec du téléchargement.\nVérifiez votre connexion.",
         "btn_cancel": "Annuler",
+        
+        # 360 Extractor Tab
+        "tab_360": "360 Extractor",
+        "tab_sharp": "Apple ML Sharp",
+        "360_header": "Extraction Vidéo 360° (Expérimental)",
+        "360_desc": "Convertit des vidéos/images 360° equirectangulaires en images planaires pour la photogrammétrie (COLMAP).",
+        "360_activate": "Activer le module 360Extractor",
+        "360_install_msg": "Voulez-vous installer le module 360Extractor ?\n(Nécessite PySide6, YOLO... dans un environnement dédié)",
+        "360_uninstall_msg": "Voulez-vous désinstaller le module 360Extractor et son environnement ?",
+        "360_group_params": "Paramètres d'Extraction",
+        "360_lbl_interval": "Intervalle (sec) :",
+        "360_lbl_resolution": "Résolution (px) :",
+        "360_lbl_layout": "Disposition Caméras :",
+        "360_layout_ring": "Anneau (Ring)",
+        "360_layout_cube": "Cube Map",
+        "360_layout_fib": "Fibonacci",
+        "360_lbl_cameras": "Nb Caméras :",
+        "360_lbl_quality": "Qualité JPEG :",
+        "360_lbl_format": "Format :",
+        "360_tip_interval": "Temps en secondes entre chaque extraction.\n(ex: 1.0 = 1 image toutes les secondes)",
+        "360_tip_res": "Résolution des images extraites (ex: 2048x2048).\nPlus la résolution est haute, plus le traitement sera long.",
+        "360_tip_layout": "Disposition géométrique des caméras virtuelles :\n- Ring (Cercle) : Idéal pour les plans horizontaux\n- Cube : Couverture complète\n- Fibonacci : Distribution sphérique uniforme",
+        "360_tip_cameras": "Nombre de caméras virtuelles générées pour chaque position.\nAugmenter ce nombre améliore la couverture mais ralentit le processus.",
+        "360_tip_quality": "Qualité de compression de l'image (1-100).\n95 est recommandé pour un bon équilibre qualité/poids.",
+        "360_tip_format": "Format de fichier des images extraites.\nJPG est plus léger, PNG est sans perte.",
+        "360_tip_ai_mask": "Utilise une IA (YOLO) pour masquer automatiquement les objets dynamiques\n(personnes, voitures, animaux) qui pourraient perturber la reconstruction 3D.",
+        "360_tip_ai_skip": "Analyse la qualité de l'image et saute automatiquement\nles frames floues ou avec trop de mouvement.",
+        "360_tip_adaptive": "Ajuste intelligemment l'intervalle d'extraction selon la vitesse de déplacement.\nPrend plus de photos quand la caméra tourne vite.",
+        "360_tip_threshold": "Seuil de sensibilité pour la détection de mouvement (AI Skip/Adaptive).\nUne valeur plus basse rend la détection plus sensible.",
+        "360_msg_install_ok": "Installation terminée avec succès.",
+        "360_msg_uninstall_ok": "Désinstallation terminée avec succès.",
+        "360_group_ai": "IA & Avancé",
+        "360_check_ai_mask": "Masquer Opérateur (YOLO - Remove Operator)",
+        "360_check_ai_skip": "Sauter images avec Opérateur (Skip Frame)",
+        "360_check_adaptive": "Intervalle Adaptatif (Mouvement)",
+        "360_lbl_threshold": "Seuil Mouvement :",
+        "360_btn_extract_only": "Lancer Extraction (Standalone)",
+        "360_msg_success": "Extraction terminée !",
+        "360_status_installing": "Installation en cours...",
+        "360_status_ready": "Prêt",
+        "360_status_missing": "Non installé",
+        "360_lbl_output": "Dossier Sortie :",
+        
+        # Sharp Tab
+        "sharp_activate": "Activer Apple ML Sharp",
+        "sharp_group_paths": "Chemins",
+        "sharp_lbl_input": "Entrée (Img/Dossier) :",
+        "sharp_placeholder_input": "Dossier d'images ou fichier image unique",
+        "sharp_btn_folder": "Dossier",
+        "sharp_btn_file": "Fichier",
+        "sharp_lbl_output": "Sortie (Output) :",
+        "sharp_placeholder_output": "Dossier de sortie pour les splats",
+        "sharp_placeholder_ckpt": "Optionnel (Auto-download si vide)",
+        "sharp_lbl_ckpt": "Checkpoint (.pt) :",
+        "sharp_lbl_device": "Device :",
+        "sharp_check_verbose": "Mode Verbose (Logs détaillés)",
+        "sharp_btn_run": "Lancer Predict",
+        "sharp_status_ready": "Moteur installé et prêt.",
+        "sharp_status_missing": "Module non installé.",
+        "sharp_install_title": "Installation Sharp",
+        "sharp_install_msg": "Le module Apple ML Sharp nécessite un environnement Python dédié (~200MB).\nContinuer ?",
+        "sharp_uninstall_title": "Désactivation Sharp",
+        "sharp_uninstall_msg": "Voulez-vous supprimer les fichiers du module Sharp pour libérer de l'espace ?",
+        "sharp_status_installing": "Installation de Sharp (venv)...",
+        "sharp_msg_install_ok": "Sharp installé avec succès !",
+        "sharp_msg_install_err": "Échec de l'installation de Sharp.",
+        "sharp_status_uninstalling": "Suppression de Sharp...",
+        "sharp_msg_uninstall_ok": "Sharp désinstallé.",
+        "sharp_dlg_input_dir": "Dossier Images",
+        "sharp_dlg_input_file": "Image Input",
+        "sharp_dlg_output": "Dossier Sortie",
+        "sharp_dlg_ckpt": "Checkpoint Sharp",
+        "err_360_single_video": "Le mode 360 Extraction ne supporte qu'une vidéo à la fois.",
+        
+        # Config Tab - 360
+        "check_source_360": "Source 360° (Pré-traitement) (Expérimental)",
+        "tip_source_360": "Si coché, la vidéo d'entrée sera d'abord traitée par 360Extractor pour générer les images.",
+        "360_processing": "Traitement 360° en cours...",
+        
+        # Sharp Tab
+        "sharp_activate": "Activer Apple ML Sharp",
+        "sharp_group_paths": "Chemins",
+        "sharp_lbl_input": "Entrée (Img/Dossier) :",
+        "sharp_placeholder_input": "Dossier d'images ou fichier image unique",
+        "sharp_btn_folder": "Dossier",
+        "sharp_btn_file": "Fichier",
+        "sharp_lbl_output": "Sortie (Output) :",
+        "sharp_placeholder_output": "Dossier de sortie pour les splats",
+        "sharp_placeholder_ckpt": "Optionnel (Auto-download si vide)",
+        "sharp_lbl_ckpt": "Checkpoint (.pt) :",
+        "sharp_lbl_device": "Device :",
+        "sharp_check_verbose": "Mode Verbose (Logs détaillés)",
+        "sharp_btn_run": "Lancer Predict",
+        "sharp_status_ready": "Moteur installé et prêt.",
+        "sharp_status_missing": "Module non installé.",
+        "sharp_install_title": "Installation Sharp",
+        "sharp_install_msg": "Le module Apple ML Sharp nécessite un environnement Python dédié (~200MB).\nContinuer ?",
+        "sharp_uninstall_title": "Désactivation Sharp",
+        "sharp_uninstall_msg": "Voulez-vous supprimer les fichiers du module Sharp pour libérer de l'espace ?",
+        "sharp_status_installing": "Installation de Sharp (venv)...",
+        "sharp_msg_install_ok": "Sharp installé avec succès !",
+        "sharp_msg_install_err": "Échec de l'installation de Sharp.",
+        "sharp_status_uninstalling": "Suppression de Sharp...",
+        "sharp_msg_uninstall_ok": "Sharp désinstallé.",
+        "sharp_dlg_input_dir": "Dossier Images",
+        "sharp_dlg_input_file": "Image Input",
+        "sharp_dlg_output": "Dossier Sortie",
+        "sharp_dlg_ckpt": "Checkpoint Sharp",
+
+        # CLI Strings
+        "cli_desc": "CorbeauSplat v0.16 - CLI & GUI Toolkit",
+        "cli_gui_help": "Lancer l'interface graphique (Défaut si aucun argument)",
+        "cli_train_help": "Mode BRUSH: Entraîner un splat",
+        "cli_predict_help": "Mode SHARP: Prédire un splat (Image -> 3D)",
+        "cli_view_help": "Mode SUPERSPLAT: Visualiser un fichier PLY",
+        "cli_input_help": "Fichier/Dossier d'entrée",
+        "cli_output_help": "Fichier/Dossier de sortie",
+        "cli_type_help": "Type d'entrée",
+        "cli_fps_help": "FPS extraction vidéo",
+        "cli_cam_help": "Modèle caméra",
+        "cli_undistort_help": "Active l'undistortion",
+        "cli_iter_help": "Nombre d'itérations",
+        "cli_sh_degree_help": "Degré des harmoniques sphériques",
+        "cli_checkpoint_help": "Chemin vers un checkpoint (.pt)",
+        "cli_port_help": "Port du serveur web",
+        "cli_data_port_help": "Port du serveur de données",
+        "cli_err_colmap_args": "Erreur: --input et --output sont requis pour COLMAP.",
+        "cli_err_brush_args": "Erreur: --input (dossier colmap) et --output (dossier destination) sont requis pour BRUSH.",
+        "cli_err_sharp_args": "Erreur: --input (image) et --output (dossier) sont requis pour SHARP.",
+        "cli_err_view_args": "Erreur: --input (fichier .ply ou dossier) est requis pour SUPERSPLAT.",
+        "cli_start_colmap": "--- Démarrage COLMAP ---",
+        "cli_start_brush": "--- Démarrage BRUSH Training ---",
+        "cli_start_sharp": "--- Démarrage SHARP Prediction ---",
+        "cli_start_view": "--- Démarrage SUPERSPLAT ---",
+        "cli_input": "Entrée : {}",
+        "cli_output": "Sortie : {}",
+        "cli_progression": "Progression : {}%",
+        "cli_success": "\nSUCCÈS : {}",
+        "cli_error": "\nERREUR : {}",
+        "cli_stopping": "\nArrêt demandé...",
+        "cli_server_stop": "\nArrêt des serveurs...",
     },
     "en": {
+        # ... (previous translation ending)
         # Tabs
         "tab_config": "Training",
         "tab_params": "COLMAP Parameters",
@@ -321,6 +495,12 @@ TRANSLATIONS = {
         "brush_lbl_stop": "Growth Stop Iter:",
         "brush_lbl_max_splats": "Max Splats:",
         "brush_lbl_ckpt_interval": "Save Checkpoint Every:",
+        "brush_check_details": "Show Advanced Details",
+        "brush_sh_degree": "SH Degree:",
+        "brush_device": "Device:",
+        "brush_tip_device": "Device (auto, mps, cpu...)",
+        "brush_tip_mode": "New training: Creates a new model.\nRefine: Continues from the latest checkpoint found.",
+        "brush_tip_res": "Define a resolution limit (longest side). Leave at 0 for default.",
         
         # SuperSplat Tab
         "tab_supersplat": "SuperSplat",
@@ -344,6 +524,7 @@ TRANSLATIONS = {
         # Logs Tab
         "btn_clear_log": "Clear Logs",
         "btn_save_log": "Save Logs",
+        "group_options": "Options",
         
         # Messages / Dialogs
         "msg_ready": "Ready",
@@ -357,6 +538,7 @@ TRANSLATIONS = {
         "confirm_delete_nodata": "The folder does not seem to contain a COLMAP dataset.\nDo you want to delete it anyway?\n\n{}",
         "err_no_paths": "Please select input and output folders",
         "err_path_not_exists": "Folder does not exist yet",
+        "USER_CANCELLED": "Cancelled by user",
         "success_created": "Dataset created: {}",
         "success_open_brush": "You can now open it in Brush!",
         "lang_restart": "Language change: Application restart is required.",
@@ -374,6 +556,26 @@ TRANSLATIONS = {
         "four_dgs_group_params": "Parameters",
         "four_dgs_lbl_fps": "Extraction FPS:",
         "four_dgs_btn_stop": "Stop",
+        "four_dgs_btn_colmap": "Relaunch COLMAP Reconstruction (Only)",
+        "four_dgs_msg_colmap_start": "Running COLMAP on: {}",
+        "four_dgs_group_cfg": "Configuration",
+        "four_dgs_btn_run": "Run 4DGS Preparation",
+        "superplat_info": "SuperSplat (PlayCanvas)",
+        "group_server_config": "Server Configuration",
+        "lbl_splat_port": "SuperSplat Port:",
+        "lbl_data_port": "Data Port:",
+        "group_data": "Data to Visualize",
+        "placeholder_ply": "Path to a .ply file or folder",
+        "group_url_options": "View Options",
+        "check_no_ui": "Hide UI (No UI)",
+        "lbl_cam_pos": "Camera Position:",
+        "lbl_cam_rot": "Camera Rotation:",
+        "btn_start_server": "Start Servers",
+        "btn_stop_server": "Stop Servers",
+        "btn_open_browser": "Open Browser",
+        "status_stopped": "Status: Stopped",
+        "status_running": "Status: Running",
+        "select_ply": "Select PLY file",
         "msg_install_nerf": "To activate this function, the tool 'nerfstudio' (ns-process-data) must be installed.\n\nThis requires approximately 3 to 5 GB of disk space.\nDo you want to start the installation now?",
         
         # Upscale Tab
@@ -393,6 +595,10 @@ TRANSLATIONS = {
         "upscale_tip_scale": "Defines final size relative to original.\nx1 denoises/enhances without changing size.",
         "upscale_lbl_tile": "RAM Protection (Tile):",
         "upscale_tip_tile": "0 = Auto (Fast, heavy)\n512/256 = 'Tiling' Mode (Slow, RAM efficient)\nUse 512 or less if app crashes on large images.",
+        "upscale_lbl_profile": "Performance Profile",
+        "upscale_tip_profile": "Automatically configures Tiling and Precision based on your hardware.",
+        "upscale_lbl_fp16": "Half-Precision (FP16)",
+        "upscale_tip_fp16": "Reduces memory by half. Recommended for M1/M2/M3.",
         "upscale_check_face": "Face Enhancement (GFPGAN)",
         "upscale_tip_face": "Detects and restores faces specifically.\nRequires GFPGAN model.",
         "upscale_install_title": "Installation",
@@ -416,8 +622,122 @@ TRANSLATIONS = {
         "upscale_msg_success_download": "Model downloaded!",
         "upscale_msg_err_download": "Download failed.\nCheck your connection.",
         "btn_cancel": "Cancel",
+        
+        # 360 Extractor Tab
+        "tab_360": "360 Extractor",
+        "tab_sharp": "Apple ML Sharp",
+        "360_header": "360° Video Extraction (Experimental)",
+        "360_desc": "Converts 360° equirectangular videos/images into planar images for photogrammetry (COLMAP).",
+        "360_activate": "Activate 360Extractor Module",
+        "360_install_msg": "Do you want to install the 360Extractor module?\n(Requires PySide6, YOLO... in a dedicated environment)",
+        "360_uninstall_msg": "Do you want to uninstall the 360Extractor module and its environment?",
+        "360_group_params": "Extraction Parameters",
+        "360_lbl_interval": "Interval (sec):",
+        "360_lbl_resolution": "Resolution (px):",
+        "360_lbl_layout": "Camera Layout:",
+        "360_layout_ring": "Ring",
+        "360_layout_cube": "Cube Map",
+        "360_layout_fib": "Fibonacci",
+        "360_lbl_cameras": "Cam Count:",
+        "360_lbl_quality": "JPEG Quality:",
+        "360_lbl_format": "Format:",
+        "360_tip_interval": "Time in seconds between each extraction.\n(e.g., 1.0 = 1 image every second)",
+        "360_tip_res": "Resolution of extracted images (e.g., 2048x2048).\nHigher resolution increases processing time.",
+        "360_tip_layout": "Geometric layout of virtual cameras:\n- Ring: Ideal for horizontal panoramas\n- Cube: Full 360 coverage\n- Fibonacci: Uniform spherical distribution",
+        "360_tip_cameras": "Number of virtual cameras generated for each position.\nIncreasing this improves coverage but slows down the process.",
+        "360_tip_quality": "Image compression quality (1-100).\n95 is recommended for a good balance.",
+        "360_tip_format": "File format for extracted images.\nJPG is lighter, PNG is lossless.",
+        "360_tip_ai_mask": "Uses AI (YOLO) to automatically mask dynamic objects\n(people, cars, animals) that could disrupt 3D reconstruction.",
+        "360_tip_ai_skip": "Analyzes image quality and automatically skips\nblurry frames or those with too much motion.",
+        "360_tip_adaptive": "Intelligently adjusts extraction interval based on movement speed.\nTakes more photos when the camera turns fast.",
+        "360_tip_threshold": "Sensitivity threshold for motion detection (AI Skip/Adaptive).\nA lower value makes detection more sensitive.",
+        "360_msg_install_ok": "Installation completed successfully.",
+        "360_msg_uninstall_ok": "Uninstallation completed successfully.",
+        "360_group_ai": "AI & Advanced",
+        "360_check_ai_mask": "Mask Operator (YOLO - Remove Operator)",
+        "360_check_ai_skip": "Skip Frame with Operator",
+        "360_check_adaptive": "Adaptive Interval (Motion)",
+        "360_lbl_threshold": "Motion Threshold:",
+        "360_btn_extract_only": "Run Extraction (Standalone)",
+        "360_msg_success": "Extraction finished!",
+        "360_status_installing": "Installing...",
+        "360_status_ready": "Ready",
+        "360_status_missing": "Not installed",
+        "360_lbl_input": "Source Video:",
+        "360_lbl_output": "Output Folder:",
+        "err_360_single_video": "360 Extraction mode supports only one video at a time.",
+
+        # Config Tab - 360
+        "check_source_360": "360° Source (Pre-processing) (Experimental)",
+        "tip_source_360": "If checked, input video will be processed by 360Extractor first to generate images.",
+        "360_processing": "Processing 360° video...",
+
+        # Sharp Tab
+        "sharp_activate": "Enable Apple ML Sharp",
+        "sharp_group_paths": "Paths",
+        "sharp_lbl_input": "Input (Img/Folder):",
+        "sharp_placeholder_input": "Image folder or single image file",
+        "sharp_btn_folder": "Folder",
+        "sharp_btn_file": "File",
+        "sharp_lbl_output": "Output:",
+        "sharp_placeholder_output": "Output folder for splats",
+        "sharp_placeholder_ckpt": "Optional (Auto-download if empty)",
+        "sharp_lbl_ckpt": "Checkpoint (.pt):",
+        "sharp_lbl_device": "Device:",
+        "sharp_check_verbose": "Verbose Mode (Detailed logs)",
+        "sharp_btn_run": "Run Predict",
+        "sharp_status_ready": "Engine installed and ready.",
+        "sharp_status_missing": "Module not installed.",
+        "sharp_install_title": "Sharp Installation",
+        "sharp_install_msg": "Apple ML Sharp module requires a dedicated Python environment (~200MB).\nContinue?",
+        "sharp_uninstall_title": "Sharp Deactivation",
+        "sharp_uninstall_msg": "Do you want to delete Sharp module files to free up space?",
+        "sharp_status_installing": "Installing Sharp (venv)...",
+        "sharp_msg_install_ok": "Sharp installed successfully!",
+        "sharp_msg_install_err": "Failed to install Sharp.",
+        "sharp_status_uninstalling": "Removing Sharp...",
+        "sharp_msg_uninstall_ok": "Sharp uninstalled.",
+        "sharp_dlg_input_dir": "Images Folder",
+        "sharp_dlg_input_file": "Image Input",
+        "sharp_dlg_output": "Output Folder",
+        "sharp_dlg_ckpt": "Sharp Checkpoint",
+
+        # CLI Strings
+        "cli_desc": "CorbeauSplat v0.16 - CLI & GUI Toolkit",
+        "cli_gui_help": "Launch GUI (Default if no arguments)",
+        "cli_train_help": "BRUSH Mode: Train a splat",
+        "cli_predict_help": "SHARP Mode: Predict a splat (Image -> 3D)",
+        "cli_view_help": "SUPERSPLAT Mode: Visualize a PLY file",
+        "cli_input_help": "Input file/folder",
+        "cli_output_help": "Output file/folder",
+        "cli_type_help": "Input type",
+        "cli_fps_help": "Video extraction FPS",
+        "cli_cam_help": "Camera model",
+        "cli_undistort_help": "Enable undistortion",
+        "cli_iter_help": "Number of iterations",
+        "cli_sh_degree_help": "Spherical harmonics degree",
+        "cli_checkpoint_help": "Path to a checkpoint (.pt)",
+        "cli_port_help": "Web server port",
+        "cli_data_port_help": "Data server port",
+        "cli_err_colmap_args": "Error: --input and --output are required for COLMAP.",
+        "cli_err_brush_args": "Error: --input (colmap folder) and --output (destination folder) are required for BRUSH.",
+        "cli_err_sharp_args": "Error: --input (image) and --output (folder) are required for SHARP.",
+        "cli_err_view_args": "Error: --input (.ply file or folder) is required for SUPERSPLAT.",
+        "cli_start_colmap": "--- Starting COLMAP ---",
+        "cli_start_brush": "--- Starting BRUSH Training ---",
+        "cli_start_sharp": "--- Starting SHARP Prediction ---",
+        "cli_start_view": "--- Starting SUPERSPLAT ---",
+        "cli_input": "Input: {}",
+        "cli_output": "Output: {}",
+        "cli_progression": "Progress: {}%",
+        "cli_success": "\nSUCCESS: {}",
+        "cli_error": "\nERROR: {}",
+        "cli_stopping": "\nStopping requested...",
+        "cli_server_stop": "\nStopping servers...",
     }
 }
+from pathlib import Path
+from app.core.system import resolve_project_root
 
 class LanguageManager:
     _instance = None
@@ -426,31 +746,36 @@ class LanguageManager:
         if cls._instance is None:
             cls._instance = super(LanguageManager, cls).__new__(cls)
             cls._instance.current_lang = "fr" # Default
+            cls._instance._observers = []
             cls._instance.load_config()
         return cls._instance
     
+    def add_observer(self, callback):
+        """Add a callback to be notified when language changes"""
+        if callback not in self._observers:
+            self._observers.append(callback)
+    
     def load_config(self):
         try:
-            if os.path.exists("config.json"):
-                with open("config.json", "r") as f:
+            config_file = resolve_project_root() / "config.json"
+            if config_file.exists():
+                with open(config_file, "r") as f:
                     config = json.load(f)
                     self.current_lang = config.get("language", "fr")
-            else:
-                # Auto-detect? For now default to FR as per request history implies French user
-                pass
         except:
             pass
             
     def save_config(self):
         try:
+            config_file = resolve_project_root() / "config.json"
             config = {}
-            if os.path.exists("config.json"):
-                with open("config.json", "r") as f:
+            if config_file.exists():
+                with open(config_file, "r") as f:
                     config = json.load(f)
             
             config["language"] = self.current_lang
             
-            with open("config.json", "w") as f:
+            with open(config_file, "w") as f:
                 json.dump(config, f, indent=2)
         except:
             pass
@@ -459,6 +784,11 @@ class LanguageManager:
         if lang_code in TRANSLATIONS:
             self.current_lang = lang_code
             self.save_config()
+            for cb in self._observers:
+                try:
+                    cb()
+                except Exception:
+                    pass
 
     def tr(self, key, *args):
         lang_dict = TRANSLATIONS.get(self.current_lang, TRANSLATIONS["fr"])
@@ -481,3 +811,6 @@ def get_current_lang():
 
 def set_language(lang_code):
     _lm.set_language(lang_code)
+
+def add_language_observer(callback):
+    _lm.add_observer(callback)

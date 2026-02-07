@@ -2,15 +2,16 @@ import os
 import subprocess
 import concurrent.futures
 import shutil
-from app.core.system import resolve_binary, is_apple_silicon, get_optimal_threads
+from pathlib import Path
+from .base_engine import BaseEngine
+from .system import resolve_binary, is_apple_silicon, get_optimal_threads
 
-class FourDGSEngine:
+class FourDGSEngine(BaseEngine):
     """
     Moteur pour la préparation de datasets 4DGS (Video -> COLMAP -> Nerfstudio).
     """
     def __init__(self, logger_callback=None):
-        self.logger = logger_callback if logger_callback else print
-        self.stop_requested = False
+        super().__init__("4DGS", logger_callback)
         
         # Resolve binaries
         self.ffmpeg = resolve_binary("ffmpeg") or "ffmpeg"
@@ -32,16 +33,19 @@ class FourDGSEngine:
         """Extrait les frames d'une vidéo avec ffmpeg"""
         if self.stop_requested: return False
         
-        os.makedirs(output_dir, exist_ok=True)
+        out_p = Path(output_dir)
+        out_p.mkdir(parents=True, exist_ok=True)
         
-        # Construction de la commande
-        cmd = [
-            self.ffmpeg,
-            "-i", video_path,
+        cmd = [self.ffmpeg]
+        if is_apple_silicon():
+            cmd.extend(["-hwaccel", "videotoolbox"])
+            
+        cmd.extend([
+            "-i", str(video_path),
             "-vf", f"fps={fps}",
             "-q:v", "2", # Haute qualité jpeg
-            os.path.join(output_dir, "%05d.jpg")
-        ]
+            str(out_p / "%05d.jpg")
+        ])
         
         try:
             # Videotoolbox sur mac si possible ? 
@@ -59,28 +63,21 @@ class FourDGSEngine:
         """Lance le pipeline COLMAP : Feature Extractor -> Matcher -> Mapper"""
         if self.stop_requested: return False
         
-        db_path = os.path.join(dataset_root, "database.db")
-        images_path = os.path.join(dataset_root, "images")
-        sparse_path = os.path.join(dataset_root, "sparse")
-        os.makedirs(sparse_path, exist_ok=True)
+        root = Path(dataset_root)
+        db_path = root / "database.db"
+        images_path = root / "images"
+        sparse_path = root / "sparse"
+        sparse_path.mkdir(parents=True, exist_ok=True)
 
         # 1. Feature Extraction
         self.log("--- COLMAP: Feature Extraction ---")
         cmd_extract = [
             self.colmap, "feature_extractor",
-            "--database_path", db_path,
-            "--image_path", images_path,
+            "--database_path", str(db_path),
+            "--image_path", str(images_path),
             "--ImageReader.camera_model", "OPENCV",
             "--ImageReader.single_camera", "1" 
-            # On assume souvent que toutes les cams sont identiques si gopro rig ? 
-            # Non, en 4DGS multi-cam, chaque dossier est une cam. 
-            # COLMAP structure habituelle : images/cam1/*.jpg
-            # Si on met tout dans 'images', colmap va tout traiter.
         ]
-        
-        # Adaptation pour Apple Silicon
-        if is_apple_silicon():
-            cmd_extract.append("--SiftExtraction.use_gpu=0")
         
         if self._run_cmd(cmd_extract) != 0: return False
         
@@ -96,10 +93,8 @@ class FourDGSEngine:
         self.log("--- COLMAP: Feature Matching ---")
         cmd_match = [
             self.colmap, "exhaustive_matcher",
-            "--database_path", db_path,
+            "--database_path", str(db_path),
         ]
-        if is_apple_silicon():
-             cmd_match.append("--SiftMatching.use_gpu=0")
 
         if self._run_cmd(cmd_match) != 0: return False
         
@@ -107,9 +102,9 @@ class FourDGSEngine:
         self.log("--- COLMAP: Mapper (Sparse Reconstruction) ---")
         cmd_mapper = [
             self.colmap, "mapper",
-            "--database_path", db_path,
-            "--image_path", images_path,
-            "--output_path", sparse_path
+            "--database_path", str(db_path),
+            "--image_path", str(images_path),
+            "--output_path", str(sparse_path)
         ]
         
         # Threads
@@ -140,8 +135,8 @@ class FourDGSEngine:
         
         self.log(f"Scan du dossier : {videos_dir}")
         supported_ext = (".mp4", ".mov", ".avi", ".mkv")
-        videos = [f for f in os.listdir(videos_dir) if f.lower().endswith(supported_ext)]
-        videos.sort()
+        videos_path = Path(videos_dir)
+        videos = sorted([f for f in videos_path.iterdir() if f.suffix.lower() in supported_ext])
         
         if not videos:
             self.log("Aucune vidéo trouvée.")
@@ -149,17 +144,16 @@ class FourDGSEngine:
             
         self.log(f"Trouvé {len(videos)} vidéos. Début extraction...")
         
-        images_root = os.path.join(output_dir, "images")
-        os.makedirs(images_root, exist_ok=True)
+        images_root = Path(output_dir) / "images"
+        images_root.mkdir(parents=True, exist_ok=True)
         
         # 1. Extraction
-        for idx, vid in enumerate(videos):
+        for idx, vid_path in enumerate(videos):
             if self.stop_requested: return False
             cam_name = f"cam_{idx:02d}" # cam_00, cam_01...
-            cam_dir = os.path.join(images_root, cam_name)
-            vid_path = os.path.join(videos_dir, vid)
+            cam_dir = images_root / cam_name
             
-            self.log(f"Extraction {vid} -> {cam_name} ({fps} fps)...")
+            self.log(f"Extraction {vid_path.name} -> {cam_name} ({fps} fps)...")
             if not self.extract_frames(vid_path, cam_dir, fps):
                 return False
                 
@@ -179,8 +173,8 @@ class FourDGSEngine:
             # ns-process-data images --data output_dir/images --output-dir output_dir
             cmd_ns = [
                 "ns-process-data", "images",
-                "--data", images_root,
-                "--output-dir", output_dir,
+                "--data", str(images_root),
+                "--output-dir", str(output_dir),
                 "--verbose"
             ]
             
@@ -200,14 +194,21 @@ class FourDGSEngine:
 
     def _run_cmd(self, cmd):
         if self.stop_requested: return -1
-        self.log(f"Exec: {' '.join(cmd)}")
+        self.log(f"Exec: {' '.join(map(str, cmd))}")
         try:
+            env = os.environ.copy()
+            if is_apple_silicon():
+                threads = str(get_optimal_threads())
+                env["OMP_NUM_THREADS"] = threads
+                env["VECLIB_MAXIMUM_THREADS"] = threads
+                env["OPENBLAS_NUM_THREADS"] = threads
+                
             process = subprocess.Popen(
                 cmd, 
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.STDOUT, 
                 text=True,
-                env=os.environ
+                env=env
             )
             
             while True:

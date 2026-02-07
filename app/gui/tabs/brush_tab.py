@@ -6,9 +6,10 @@ from PyQt6.QtWidgets import (
     QFileDialog, QScrollArea, QFrame
 )
 from PyQt6.QtCore import pyqtSignal, Qt
-from app.core.i18n import tr
+from app.core.i18n import tr, add_language_observer
 from app.core.system import resolve_binary
 from app.gui.widgets.drop_line_edit import DropLineEdit
+from app.gui.widgets.dialog_utils import get_existing_directory
 
 class BrushTab(QWidget):
     """Onglet de configuration Brush"""
@@ -19,6 +20,7 @@ class BrushTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.init_ui()
+        add_language_observer(self.retranslate_ui)
         
     def init_ui(self):
         # Layout principal (contient Status + Scroll + Boutons)
@@ -29,13 +31,14 @@ class BrushTab(QWidget):
         # 1. Status Check (Fixe en haut)
         self.bin_path = resolve_binary("brush")
         status_layout = QHBoxLayout()
+        self.status_lbl = QLabel()
         if self.bin_path:
-            status_lbl = QLabel(tr("brush_detected", self.bin_path))
-            status_lbl.setStyleSheet("color: #44aa44;")
+            self.status_lbl.setText(tr("brush_detected", self.bin_path))
+            self.status_lbl.setStyleSheet("color: #44aa44;")
         else:
-            status_lbl = QLabel(tr("brush_not_found"))
-            status_lbl.setStyleSheet("color: #aa4444; font-weight: bold;")
-        status_layout.addWidget(status_lbl)
+            self.status_lbl.setText(tr("brush_not_found"))
+            self.status_lbl.setStyleSheet("color: #aa4444; font-weight: bold;")
+        status_layout.addWidget(self.status_lbl)
         main_layout.addLayout(status_layout)
         
         # 2. Zone de défilement pour les paramètres
@@ -52,30 +55,34 @@ class BrushTab(QWidget):
         # --- Contenu des paramètres ---
         
         # A. Core Parameters Group (Paramètres principaux)
-        param_group = QGroupBox(tr("brush_params"))
+        self.param_group = QGroupBox(tr("brush_params"))
         param_layout = QFormLayout()
         
         # Total Steps (Moved to top as requested)
         self.spin_total_steps = self.create_spin(30000, 1000, 200000, 1000, tr("brush_lbl_steps"))
-        param_layout.addRow(tr("brush_lbl_steps"), self.spin_total_steps)
+        self.lbl_steps = QLabel(tr("brush_lbl_steps"))
+        param_layout.addRow(self.lbl_steps, self.spin_total_steps)
         
         # SH Degree
         self.sh_spin = QSpinBox()
         self.sh_spin.setRange(1, 4)
         self.sh_spin.setValue(3)
         self.sh_spin.setMinimumWidth(100)
-        param_layout.addRow(tr("brush_sh_degree"), self.sh_spin)
+        self.lbl_sh = QLabel(tr("brush_sh_degree"))
+        param_layout.addRow(self.lbl_sh, self.sh_spin)
         
         # Device
         self.device_combo = QComboBox()
         self.device_combo.addItems(["mps", "cuda", "cpu", "auto"])
         self.device_combo.setMinimumWidth(150)
-        param_layout.addRow(tr("brush_device"), self.device_combo)
+        self.lbl_device = QLabel(tr("brush_device"))
+        param_layout.addRow(self.lbl_device, self.device_combo)
         
         # Custom Args
         self.custom_args_edit = QLineEdit()
         self.custom_args_edit.setPlaceholderText("--refine_pose ...")
-        param_layout.addRow(tr("brush_args"), self.custom_args_edit)
+        self.lbl_args = QLabel(tr("brush_args"))
+        param_layout.addRow(self.lbl_args, self.custom_args_edit)
         
         # Max Resolution Manual
         res_layout = QHBoxLayout()
@@ -84,14 +91,15 @@ class BrushTab(QWidget):
         self.max_resolution_spin.setValue(0)
         self.max_resolution_spin.setSpecialValueText(tr("brush_res_default"))
         self.max_resolution_spin.setMinimumWidth(120)
-        self.max_resolution_spin.setToolTip("Définir une limite de résolution (côté le plus long). Laisser à 0 pour le défaut.")
+        self.max_resolution_spin.setToolTip(tr("brush_tip_res"))
         
-        warn_label = QLabel(tr("brush_res_warn"))
-        warn_label.setStyleSheet("color: #888888; font-size: 11px;")
+        self.res_warn_label = QLabel(tr("brush_res_warn"))
+        self.res_warn_label.setStyleSheet("color: #888888; font-size: 11px;")
         
-        res_layout.addWidget(QLabel(tr("brush_lbl_res")))
+        self.lbl_res = QLabel(tr("brush_lbl_res"))
+        res_layout.addWidget(self.lbl_res)
         res_layout.addWidget(self.max_resolution_spin)
-        res_layout.addWidget(warn_label)
+        res_layout.addWidget(self.res_warn_label)
         res_layout.addStretch()
         param_layout.addRow(res_layout)
 
@@ -100,8 +108,8 @@ class BrushTab(QWidget):
         self.check_viewer.setChecked(True)
         param_layout.addRow("", self.check_viewer)
         
-        param_group.setLayout(param_layout)
-        layout.addWidget(param_group)
+        self.param_group.setLayout(param_layout)
+        layout.addWidget(self.param_group)
         
         # B. Workflow Configuration
         # 1. Independent Checkbox
@@ -119,9 +127,10 @@ class BrushTab(QWidget):
         self.combo_mode = QComboBox()
         self.combo_mode.addItem(tr("brush_mode_new"), "new")
         self.combo_mode.addItem(tr("brush_mode_refine"), "refine")
-        self.combo_mode.setToolTip("Nouvel entrainement: Crée un nouveau modèle.\nRaffiner: Reprend depuis le dernier checkpoint trouvé.")
+        self.combo_mode.setToolTip(tr("brush_tip_mode"))
         self.combo_mode.currentIndexChanged.connect(self.update_visibility)
-        workflow_form.addRow(tr("brush_lbl_mode"), self.combo_mode)
+        self.lbl_mode = QLabel(tr("brush_lbl_mode"))
+        workflow_form.addRow(self.lbl_mode, self.combo_mode)
 
         # 3. Preset (Moved here, just below Training Mode)
         self.combo_preset = QComboBox()
@@ -131,12 +140,14 @@ class BrushTab(QWidget):
         self.combo_preset.addItem(tr("brush_preset_std"), "std")
         self.combo_preset.addItem(tr("brush_preset_dense"), "dense")
         self.combo_preset.currentIndexChanged.connect(self.apply_preset)
-        workflow_form.addRow(tr("brush_lbl_preset"), self.combo_preset)
+        self.lbl_preset = QLabel(tr("brush_lbl_preset"))
+        workflow_form.addRow(self.lbl_preset, self.combo_preset)
         
         layout.addLayout(workflow_form)
         
         # 4. Manual Dataset Path (Visible only if Independent)
-        self.manual_group = QGroupBox(tr("brush_group_paths"))
+        self.lbl_paths_group = tr("brush_group_paths")
+        self.manual_group = QGroupBox(self.lbl_paths_group)
         manual_layout = QFormLayout()
         
         input_layout = QHBoxLayout()
@@ -144,9 +155,24 @@ class BrushTab(QWidget):
         self.btn_browse_input = QPushButton("...")
         self.btn_browse_input.setMaximumWidth(40)
         self.btn_browse_input.clicked.connect(self.browse_input)
-        input_layout.addWidget(self.input_path)
         input_layout.addWidget(self.btn_browse_input)
-        manual_layout.addRow(tr("brush_lbl_input"), input_layout)
+        self.lbl_dataset = QLabel(tr("brush_lbl_input"))
+        manual_layout.addRow(self.lbl_dataset, input_layout)
+        
+        output_layout = QHBoxLayout()
+        self.output_path = DropLineEdit()
+        self.btn_browse_output = QPushButton("...")
+        self.btn_browse_output.setMaximumWidth(40)
+        self.btn_browse_output.clicked.connect(self.browse_output)
+        output_layout.addWidget(self.output_path)
+        output_layout.addWidget(self.btn_browse_output)
+        self.lbl_export = QLabel(tr("brush_lbl_output"))
+        manual_layout.addRow(self.lbl_export, output_layout)
+        
+        self.ply_name_edit = QLineEdit()
+        self.ply_name_edit.setPlaceholderText("output.ply")
+        self.lbl_ply_manual = QLabel(tr("brush_lbl_ply"))
+        manual_layout.addRow(self.lbl_ply_manual, self.ply_name_edit)
         
         self.manual_group.setLayout(manual_layout)
         layout.addWidget(self.manual_group)
@@ -173,7 +199,8 @@ class BrushTab(QWidget):
         # Row 1: Start Iter 
         row1 = QHBoxLayout()
         self.spin_start_iter = self.create_spin(0, 0, 200000, 1000, tr("brush_lbl_start"))
-        row1.addWidget(QLabel(tr("brush_lbl_start")))
+        self.lbl_start = QLabel(tr("brush_lbl_start"))
+        row1.addWidget(self.lbl_start)
         row1.addWidget(self.spin_start_iter)
         row1.addStretch()
         grid_layout.addLayout(row1)
@@ -182,10 +209,12 @@ class BrushTab(QWidget):
         row2 = QHBoxLayout()
         self.spin_refine = self.create_spin(200, 50, 5000, 50, tr("brush_lbl_refine"))
         self.spin_growth_stop = self.create_spin(15000, 0, 200000, 1000, tr("brush_lbl_stop"))
-        row2.addWidget(QLabel(tr("brush_lbl_refine")))
+        self.lbl_refine = QLabel(tr("brush_lbl_refine"))
+        self.lbl_stop = QLabel(tr("brush_lbl_stop"))
+        row2.addWidget(self.lbl_refine)
         row2.addWidget(self.spin_refine)
         row2.addSpacing(10)
-        row2.addWidget(QLabel(tr("brush_lbl_stop")))
+        row2.addWidget(self.lbl_stop)
         row2.addWidget(self.spin_growth_stop)
         grid_layout.addLayout(row2)
         
@@ -193,10 +222,12 @@ class BrushTab(QWidget):
         row3 = QHBoxLayout()
         self.spin_threshold = self.create_double_spin(0.003, 0.0001, 0.1, 4, 0.0001, tr("brush_lbl_threshold"))
         self.spin_fraction = self.create_double_spin(0.2, 0.0, 1.0, 2, 0.1, tr("brush_lbl_fraction"))
-        row3.addWidget(QLabel(tr("brush_lbl_threshold")))
+        self.lbl_threshold = QLabel(tr("brush_lbl_threshold"))
+        self.lbl_fraction = QLabel(tr("brush_lbl_fraction"))
+        row3.addWidget(self.lbl_threshold)
         row3.addWidget(self.spin_threshold)
         row3.addSpacing(10)
-        row3.addWidget(QLabel(tr("brush_lbl_fraction")))
+        row3.addWidget(self.lbl_fraction)
         row3.addWidget(self.spin_fraction)
         grid_layout.addLayout(row3)
         
@@ -205,10 +236,13 @@ class BrushTab(QWidget):
         self.spin_max_splats = self.create_spin(10000000, 100000, 100000000, 100000, tr("brush_lbl_max_splats"))
         self.spin_checkpoint_interval = self.create_spin(7000, 0, 50000, 1000, tr("brush_lbl_ckpt_interval"))
         
-        row4.addWidget(QLabel(tr("brush_lbl_max_splats")))
+        self.lbl_max_splats = QLabel(tr("brush_lbl_max_splats"))
+        self.lbl_ckpt_interval = QLabel(tr("brush_lbl_ckpt_interval"))
+        
+        row4.addWidget(self.lbl_max_splats)
         row4.addWidget(self.spin_max_splats)
         row4.addSpacing(10)
-        row4.addWidget(QLabel(tr("brush_lbl_ckpt_interval")))
+        row4.addWidget(self.lbl_ckpt_interval)
         row4.addWidget(self.spin_checkpoint_interval)
         grid_layout.addLayout(row4)
         
@@ -297,9 +331,14 @@ class BrushTab(QWidget):
         self.update_visibility()
 
     def browse_input(self):
-        path = QFileDialog.getExistingDirectory(self, tr("brush_lbl_input"))
+        path = get_existing_directory(self, tr("brush_lbl_input"))
         if path:
             self.input_path.setText(path)
+
+    def browse_output(self):
+        path = get_existing_directory(self, tr("brush_lbl_output"))
+        if path:
+            self.output_path.setText(path)
 
     def update_visibility(self):
         # 1. Manual Path visibility
@@ -375,3 +414,63 @@ class BrushTab(QWidget):
         if "input_path" in params: self.input_path.setText(params["input_path"])
         
         self.update_visibility()
+
+    def set_processing_state(self, is_processing):
+        self.btn_train.setEnabled(not is_processing)
+        self.btn_stop.setEnabled(is_processing)
+        self.btn_train.setText(tr("btn_train_brush") if not is_processing else tr("btn_stop"))
+
+    def retranslate_ui(self):
+        """Update texts when language changes"""
+        if self.bin_path:
+            self.status_lbl.setText(tr("brush_detected", self.bin_path))
+        else:
+            self.status_lbl.setText(tr("brush_not_found"))
+            
+        self.param_group.setTitle(tr("brush_params"))
+        self.lbl_steps.setText(tr("brush_lbl_steps"))
+        self.lbl_sh.setText(tr("brush_sh_degree"))
+        self.lbl_device.setText(tr("brush_device"))
+        self.lbl_args.setText(tr("brush_args"))
+        self.lbl_res.setText(tr("brush_lbl_res"))
+        self.res_warn_label.setText(tr("brush_res_warn"))
+        
+        self.max_resolution_spin.setSpecialValueText(tr("brush_res_default"))
+        self.max_resolution_spin.setToolTip(tr("brush_tip_res"))
+        self.check_viewer.setText(tr("brush_viewer"))
+        self.check_independent.setText(tr("check_brush_independent"))
+        
+        # ComboBoxes
+        self.combo_mode.setItemText(0, tr("brush_mode_new"))
+        self.combo_mode.setItemText(1, tr("brush_mode_refine"))
+        self.combo_mode.setToolTip(tr("brush_tip_mode"))
+        self.lbl_mode.setText(tr("brush_lbl_mode"))
+        
+        self.combo_preset.setItemText(0, tr("brush_preset_default"))
+        self.combo_preset.setItemText(1, tr("brush_preset_fast"))
+        self.combo_preset.setItemText(2, tr("brush_preset_std"))
+        self.combo_preset.setItemText(3, tr("brush_preset_dense"))
+        self.lbl_preset.setText(tr("brush_lbl_preset"))
+        
+        self.manual_group.setTitle(tr("brush_group_paths"))
+        self.lbl_dataset.setText(tr("brush_lbl_input"))
+        self.lbl_export.setText(tr("brush_lbl_output"))
+        self.lbl_ply_manual.setText(tr("brush_lbl_ply"))
+        
+        self.btn_train.setText(tr("btn_train_brush") if self.btn_train.isEnabled() else tr("btn_stop"))
+        self.btn_stop.setText(tr("btn_stop"))
+        
+        self.check_details.setText(tr("brush_check_details"))
+        self.lbl_start.setText(tr("brush_lbl_start"))
+        self.lbl_refine.setText(tr("brush_lbl_refine"))
+        self.lbl_stop.setText(tr("brush_lbl_stop"))
+        self.lbl_threshold.setText(tr("brush_lbl_threshold"))
+        self.lbl_fraction.setText(tr("brush_lbl_fraction"))
+        self.lbl_max_splats.setText(tr("brush_lbl_max_splats"))
+        self.lbl_ckpt_interval.setText(tr("brush_lbl_ckpt_interval"))
+
+    def get_state(self):
+        return self.get_params()
+        
+    def set_state(self, state):
+        self.set_params(state)

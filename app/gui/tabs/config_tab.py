@@ -1,11 +1,14 @@
 import os
+from pathlib import Path
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
     QGroupBox, QRadioButton, QSpinBox, QCheckBox, QFileDialog, QMessageBox, QComboBox
 )
 from PyQt6.QtCore import pyqtSignal, Qt
-from app.core.i18n import tr, set_language, get_current_lang
+from app.core.i18n import tr, set_language, get_current_lang, add_language_observer
 from app.gui.widgets.drop_line_edit import DropLineEdit
+from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_names
+from app.core.extractor_360_engine import Extractor360Engine
 
 class ConfigTab(QWidget):
     """Onglet de configuration principale"""
@@ -25,15 +28,16 @@ class ConfigTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.init_ui()
+        add_language_observer(self.retranslate_ui)
         
     def init_ui(self):
         layout = QVBoxLayout(self)
         
         # Header + Language
         header_layout = QHBoxLayout()
-        header_label = QLabel(tr("app_title"))
-        header_label.setStyleSheet("font-size: 18px; font-weight: bold;")
-        header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.header_label = QLabel(tr("app_title"))
+        self.header_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        self.header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # Language Selector
         self.combo_lang = QComboBox()
@@ -50,20 +54,22 @@ class ConfigTab(QWidget):
         self.combo_lang.currentIndexChanged.connect(self.change_language)
         
         header_layout.addStretch(1)
-        header_layout.addWidget(header_label, 2)
+        header_layout.addWidget(self.header_label, 2)
         header_layout.addStretch(1)
-        header_layout.addWidget(QLabel(tr("lang_change") + ":"))
+        self.lbl_lang_change = QLabel(tr("lang_change") + ":")
+        header_layout.addWidget(self.lbl_lang_change)
         header_layout.addWidget(self.combo_lang)
         
         layout.addLayout(header_layout)
         
         # Groupe d'entrée
-        input_group = QGroupBox(tr("group_input"))
+        self.input_group = QGroupBox(tr("group_input"))
         input_layout = QVBoxLayout()
         
         # Nom du Projet
         name_layout = QHBoxLayout()
-        name_layout.addWidget(QLabel(tr("label_project_name") if tr("label_project_name") != "label_project_name" else "Nom du projet :"))
+        self.lbl_proj_name = QLabel(tr("label_project_name"))
+        name_layout.addWidget(self.lbl_proj_name)
         self.input_project_name = QLineEdit()
         self.input_project_name.setPlaceholderText("MonProjet")
         name_layout.addWidget(self.input_project_name)
@@ -71,7 +77,8 @@ class ConfigTab(QWidget):
 
         # Type d'entrée
         type_layout = QHBoxLayout()
-        type_layout.addWidget(QLabel(tr("label_type")))
+        self.lbl_type = QLabel(tr("label_type"))
+        type_layout.addWidget(self.lbl_type)
         self.radio_images = QRadioButton(tr("radio_images"))
         self.radio_video = QRadioButton(tr("radio_video"))
         self.radio_images.setChecked(True)
@@ -82,7 +89,8 @@ class ConfigTab(QWidget):
         
         # Chemin
         path_layout = QHBoxLayout()
-        path_layout.addWidget(QLabel(tr("label_path")))
+        self.lbl_path = QLabel(tr("label_path"))
+        path_layout.addWidget(self.lbl_path)
         self.input_path = DropLineEdit()
         self.input_path.fileDropped.connect(self.on_input_dropped)
         path_layout.addWidget(self.input_path)
@@ -102,19 +110,20 @@ class ConfigTab(QWidget):
         fps_layout.addStretch()
         input_layout.addLayout(fps_layout)
         
-        input_group.setLayout(input_layout)
-        layout.addWidget(input_group)
+        self.input_group.setLayout(input_layout)
+        layout.addWidget(self.input_group)
         
         # Update visibility based on type
         self.radio_images.toggled.connect(self.update_ui_state)
         self.radio_video.toggled.connect(self.update_ui_state)
         
         # Groupe de sortie
-        output_group = QGroupBox(tr("group_output"))
+        self.output_group = QGroupBox(tr("group_output"))
         output_layout = QVBoxLayout()
         
         path_out_layout = QHBoxLayout()
-        path_out_layout.addWidget(QLabel(tr("label_out_path")))
+        self.lbl_out_path = QLabel(tr("label_out_path"))
+        path_out_layout.addWidget(self.lbl_out_path)
         self.output_path = DropLineEdit()
         path_out_layout.addWidget(self.output_path)
         self.btn_browse_output = QPushButton(tr("btn_browse"))
@@ -130,21 +139,41 @@ class ConfigTab(QWidget):
         delete_layout.addStretch()
         output_layout.addLayout(delete_layout)
         
-        # Options supplémentaires
-        options_layout = QHBoxLayout()
-        self.undistort_check = QCheckBox(tr("check_undistort"))
-        options_layout.addWidget(self.undistort_check)
-        
+        # Auto Brush (reste dans Output)
         self.chk_auto_brush = QCheckBox(tr("check_auto_brush"))
-        options_layout.addWidget(self.chk_auto_brush)
+        self.chk_auto_brush.setChecked(False)
+        output_layout.addWidget(self.chk_auto_brush)
         
+        self.output_group.setLayout(output_layout)
+        layout.addWidget(self.output_group)
+        
+        # Nouveau Groupe: Options
+        self.options_group = QGroupBox(tr("group_options"))
+        options_layout = QVBoxLayout()
+        
+        self.undistort_check = QCheckBox(tr("check_undistort"))
+        self.undistort_check.setChecked(False)
+        options_layout.addWidget(self.undistort_check)
+ 
+        # 360 Extractor
+        self.check_source_360 = QCheckBox(tr("check_source_360"))
+        self.check_source_360.setToolTip(tr("tip_source_360"))
+        self.check_source_360.setChecked(False)
+        self.check_source_360.clicked.connect(self.on_source_360_toggled)
+        options_layout.addWidget(self.check_source_360)
+ 
+        # Check if 360 engine is installed
+        if not Extractor360Engine().is_installed():
+            # self.check_source_360.setEnabled(False) # Removed per user request
+            self.check_source_360.setToolTip(tr("360_status_missing"))
+ 
         self.chk_upscale = QCheckBox(tr("upscale_check_colmap"))
+        self.chk_upscale.setChecked(False)
         options_layout.addWidget(self.chk_upscale)
         
-        output_layout.addLayout(options_layout)
-        
-        output_group.setLayout(output_layout)
-        layout.addWidget(output_group)
+        options_layout.addStretch()
+        self.options_group.setLayout(options_layout)
+        layout.addWidget(self.options_group)
         
         # Boutons d'action
         action_layout = QHBoxLayout()
@@ -165,17 +194,17 @@ class ConfigTab(QWidget):
         
         config_layout = QHBoxLayout()
         
-        btn_save = QPushButton(tr("btn_save_cfg"))
-        btn_save.clicked.connect(self.saveConfigRequested.emit)
-        config_layout.addWidget(btn_save)
+        self.btn_save = QPushButton(tr("btn_save_cfg"))
+        self.btn_save.clicked.connect(self.saveConfigRequested.emit)
+        config_layout.addWidget(self.btn_save)
         
-        btn_load = QPushButton(tr("btn_load_cfg"))
-        btn_load.clicked.connect(self.loadConfigRequested.emit)
-        config_layout.addWidget(btn_load)
+        self.btn_load = QPushButton(tr("btn_load_cfg"))
+        self.btn_load.clicked.connect(self.loadConfigRequested.emit)
+        config_layout.addWidget(self.btn_load)
         
-        btn_open_brush = QPushButton(tr("btn_open_brush"))
-        btn_open_brush.clicked.connect(self.openBrushRequested.emit)
-        config_layout.addWidget(btn_open_brush)
+        self.btn_open_brush = QPushButton(tr("btn_open_brush"))
+        self.btn_open_brush.clicked.connect(self.openBrushRequested.emit)
+        config_layout.addWidget(self.btn_open_brush)
         
         layout.addLayout(config_layout)
         
@@ -209,6 +238,8 @@ class ConfigTab(QWidget):
         
         layout.addLayout(restart_layout)
         
+        layout.addStretch()
+        
         # Initial status update
         self.update_ui_state()
 
@@ -219,10 +250,7 @@ class ConfigTab(QWidget):
         
         if lang_code != current:
             set_language(lang_code)
-            QMessageBox.information(
-                self, tr("lang_change"),
-                tr("lang_restart")
-            )
+            # No restart needed anymore!
 
     def update_ui_state(self):
         """Met à jour la visibilité selon le type d'entrée"""
@@ -233,30 +261,45 @@ class ConfigTab(QWidget):
     def browse_input(self):
         """Parcourir l'entrée"""
         if self.radio_images.isChecked():
-            path = QFileDialog.getExistingDirectory(self, tr("group_input")) # Reuse string or add new? reusing group title is ok-ish
+            path = get_existing_directory(self, tr("group_input"))
             if path:
                 self.input_path.setText(path)
         else:
-            paths, _ = QFileDialog.getOpenFileNames(
+            paths, _ = get_open_file_names(
                 self, tr("group_input"),
                 "", "Videos (*.mp4 *.mov *.avi *.mkv *.MP4 *.MOV);;Tous (*.*)"
             )
             if paths:
+                if self.check_source_360.isChecked() and len(paths) > 1:
+                     QMessageBox.warning(self, tr("msg_warning"), tr("err_360_single_video", "Le mode 360 ne supporte qu'une vidéo."))
+                     paths = paths[:1]
+                     
                 joined_paths = "|".join(paths)
                 self.input_path.setText(joined_paths)
             
     def browse_output(self):
         """Parcourir la sortie"""
-        path = QFileDialog.getExistingDirectory(self, tr("group_output"))
+        path = get_existing_directory(self, tr("group_output"))
         if path:
             self.output_path.setText(path)
 
     def on_input_dropped(self, path):
         """Handle drag and drop detection"""
+        # This function is called when a file is dropped.
+        # It should trigger the same logic as on_input_changed.
+        self.on_input_changed(path)
+
+    def on_input_changed(self, path):
+        """Met à jour l'UI en fonction du type d'input"""
         if not path: return
         
-        # Auto-detect type
-        ext = os.path.splitext(path)[1].lower()
+        # 360 Source mode constraint: strictly single video
+        if self.check_source_360.isChecked() and "|" in str(path):
+            QMessageBox.warning(self, tr("msg_warning"), tr("err_360_single_video", "Le mode 360 ne supporte qu'une vidéo."))
+            path = str(path).split("|")[0]
+            self.input_path.setText(path)
+
+        ext = Path(path).suffix.lower()
         if ext in ['.mp4', '.mov', '.avi', '.mkv']:
             self.radio_video.setChecked(True)
         else:
@@ -306,6 +349,26 @@ class ConfigTab(QWidget):
             self.btn_process.setText(tr("btn_process"))
             self.btn_process.setStyleSheet("font-size: 16px; font-weight: bold; background-color: #2a82da; color: white;")
 
+    def on_source_360_toggled(self):
+        """Handle 360 Source logic"""
+        if self.check_source_360.isChecked():
+            # Force Video mode
+            self.radio_video.setChecked(True)
+            self.radio_images.setEnabled(False)
+            
+            # Disable Upscale checkbox
+            self.chk_upscale.setChecked(False)
+            self.chk_upscale.setEnabled(False)
+            
+            # Warn if multiple videos
+            path = self.input_path.text()
+            if "|" in path:
+                QMessageBox.warning(self, tr("msg_warning"), tr("err_360_single_video"))
+                self.input_path.setText(path.split("|")[0])
+        else:
+            self.radio_images.setEnabled(True)
+            self.chk_upscale.setEnabled(True)
+
     def get_state(self):
         """Retourne l'état complet pour la persistance"""
         return {
@@ -316,9 +379,8 @@ class ConfigTab(QWidget):
             "fps": self.get_fps(),
             "undistort": self.get_undistort(),
             "auto_brush": self.get_auto_brush(),
-            "undistort": self.get_undistort(),
-            "auto_brush": self.get_auto_brush(),
             "upscale_active": self.get_upscale(),
+            "source_360": self.check_source_360.isChecked(),
             "lang": self.combo_lang.currentData()
         }
 
@@ -334,6 +396,12 @@ class ConfigTab(QWidget):
         if "undistort" in state: self.set_undistort(state["undistort"])
         if "auto_brush" in state: self.set_auto_brush(state["auto_brush"])
         if "upscale_active" in state: self.set_upscale(state["upscale_active"])
+        
+        # Load 360 state
+        is_360 = state.get("source_360", False)
+        if self.check_source_360.isEnabled():
+            self.check_source_360.setChecked(is_360)
+            self.on_source_360_toggled()
         
         # Lang is special, might require restart if changed, so we just set combo if it matches
         # or we let the main app handle valid lang loading.
@@ -364,3 +432,40 @@ class ConfigTab(QWidget):
         
         if reply == QMessageBox.StandardButton.Yes:
             self.resetRequested.emit()
+
+    def retranslate_ui(self):
+        """Met à jour les textes des widgets lors du changement de langue"""
+        self.header_label.setText(tr("app_title"))
+        self.lbl_lang_change.setText(tr("lang_change") + ":")
+        self.input_group.setTitle(tr("group_input"))
+        self.lbl_proj_name.setText(tr("label_project_name"))
+        self.lbl_type.setText(tr("label_type"))
+        self.radio_images.setText(tr("radio_images"))
+        self.radio_video.setText(tr("radio_video"))
+        self.lbl_path.setText(tr("label_path"))
+        self.btn_browse_input.setText(tr("btn_browse"))
+        self.label_fps.setText(tr("label_fps"))
+        
+        self.output_group.setTitle(tr("group_output"))
+        self.lbl_out_path.setText(tr("label_out_path"))
+        self.btn_browse_output.setText(tr("btn_browse"))
+        self.btn_delete_dataset.setText(tr("btn_delete"))
+        self.chk_auto_brush.setText(tr("check_auto_brush"))
+        
+        self.options_group.setTitle(tr("group_options"))
+        self.undistort_check.setText(tr("check_undistort"))
+        self.check_source_360.setText(tr("check_source_360"))
+        self.check_source_360.setToolTip(tr("tip_source_360"))
+        if not Extractor360Engine().is_installed():
+             self.check_source_360.setToolTip(tr("360_status_missing"))
+             
+        self.chk_upscale.setText(tr("upscale_check_colmap"))
+        
+        self.btn_process.setText(tr("btn_process") if self.btn_process.isEnabled() else tr("btn_stop"))
+        self.btn_stop.setText(tr("btn_stop"))
+        self.btn_save.setText(tr("btn_save_cfg"))
+        self.btn_load.setText(tr("btn_load_cfg"))
+        self.btn_open_brush.setText(tr("btn_open_brush"))
+        self.btn_quit.setText(tr("btn_quit"))
+        self.btn_relaunch.setText(tr("btn_relaunch"))
+        self.btn_reset.setText(tr("btn_reset"))

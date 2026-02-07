@@ -5,25 +5,27 @@ import sys
 import threading
 import http.server
 import socketserver
-from app.core.system import resolve_binary, resolve_project_root
+from pathlib import Path
+from .base_engine import BaseEngine
+from .system import resolve_binary, resolve_project_root
 
-class SuperSplatEngine:
+class SuperSplatEngine(BaseEngine):
     """Moteur pour gérer le serveur SuperSplat et le serveur de données"""
     
-    def __init__(self):
+    def __init__(self, logger_callback=None):
+        super().__init__("SuperSplat", logger_callback)
         self.supersplat_process = None
         self.data_server_process = None
         self.data_server_thread = None
         self.httpd = None
         
-    def get_supersplat_path(self):
-        root = resolve_project_root()
-        return os.path.join(root, "engines", "supersplat")
+    def get_supersplat_path(self) -> Path:
+        return resolve_project_root() / "engines" / "supersplat"
         
     def start_supersplat(self, port=3000):
         """Lance le serveur SuperSplat via npm serve"""
         splat_path = self.get_supersplat_path()
-        if not os.path.exists(splat_path):
+        if not splat_path.exists():
             return False, "Moteur SuperSplat non trouvé"
             
         # Stop existing if any
@@ -67,7 +69,8 @@ class SuperSplatEngine:
         """Lance un serveur HTTP simple pour servir les PLY (CORS enabled)"""
         self.stop_data_server()
         
-        if not os.path.exists(directory):
+        dir_path = Path(directory)
+        if not dir_path.exists():
             return False, "Dossier de données introuvable"
             
         try:

@@ -1,54 +1,53 @@
 import os
+import sys
 import subprocess
 import signal
-import sys
-from app.core.system import resolve_binary
+from pathlib import Path
+from .base_engine import BaseEngine
+from .system import resolve_binary, resolve_project_root
 
-class SharpEngine:
+class SharpEngine(BaseEngine):
     """Moteur d'execution pour Apple ML Sharp"""
     
-    def __init__(self):
-        # On cherche l'executable 'sharp' qui devrait etre dans le venv
+    def __init__(self, logger_callback=None):
+        super().__init__("Sharp", logger_callback)
         self.process = None
         
     def _get_sharp_cmd(self):
         # 1. Look for .venv_sharp dedicated environment
-        # Root is 2 levels up from app/core/ (app/core/ -> app/ -> root/)
-        root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        sharp_venv_bin = os.path.join(root_dir, ".venv_sharp", "bin")
+        root_dir = resolve_project_root()
+        sharp_venv_bin = root_dir / ".venv_sharp" / "bin"
         
         # Check binary in venv_sharp
-        sharp_bin = os.path.join(sharp_venv_bin, "sharp")
-        if os.path.exists(sharp_bin) and os.access(sharp_bin, os.X_OK):
-            return [sharp_bin]
+        sharp_bin = sharp_venv_bin / "sharp"
+        if sharp_bin.exists() and os.access(sharp_bin, os.X_OK):
+            return [str(sharp_bin)]
             
         # Check python in venv_sharp -> run module
-        sharp_python = os.path.join(sharp_venv_bin, "python3")
-        if os.path.exists(sharp_python):
-             return [sharp_python, "-m", "sharp.cli"]
-
+        sharp_python = sharp_venv_bin / "python3"
+        if sharp_python.exists():
+             return [str(sharp_python), "-m", "sharp.cli"]
+ 
         # 2. Try to find 'sharp' in the same bin dir as python executable (venv main)
         # Fallback if dedicated venv failed
-        venv_bin = os.path.dirname(sys.executable)
-        sharp_bin = os.path.join(venv_bin, "sharp")
-        if os.path.exists(sharp_bin) and os.access(sharp_bin, os.X_OK):
-            return [sharp_bin]
-
+        venv_bin = Path(sys.executable).parent
+        sharp_bin = venv_bin / "sharp"
+        if sharp_bin.exists() and os.access(sharp_bin, os.X_OK):
+            return [str(sharp_bin)]
+ 
         # 3. Check global PATH
         from shutil import which
         if which("sharp"):
             return ["sharp"]
             
-        # 3. Fallback: Run module (correct entry point based on pyproject.toml)
-        # Entry point is sharp.cli:main_cli, so we should run -m sharp.cli if possible, 
-        # but 'python -m sharp' failed. Let's try explicit module.
+        # 3. Fallback: Run module
         return [sys.executable, "-m", "sharp.cli"]
     def is_installed(self):
         """Vérifie si Sharp est disponible (venv_sharp ou local)"""
         # Check venv_sharp binary
-        root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        sharp_venv_bin = os.path.join(root_dir, ".venv_sharp", "bin", "sharp")
-        if os.path.exists(sharp_venv_bin): return True
+        root_dir = resolve_project_root()
+        sharp_venv_bin = root_dir / ".venv_sharp" / "bin" / "sharp"
+        if sharp_venv_bin.exists(): return True
         
         from shutil import which
         import importlib.util
@@ -62,27 +61,38 @@ class SharpEngine:
             
         return False
 
-    def predict(self, input_path, output_path, checkpoint=None, device="default", verbose=False):
+    def predict(self, input_path, output_path, params=None):
         """
         Lance la prediction Sharp.
+        params: dict of prediction parameters
         """
+        params = params or {}
         cmd = self._get_sharp_cmd()
         
         cmd.extend(["predict"])
-        cmd.extend(["-i", input_path])
-        cmd.extend(["-o", output_path])
+        # Prepare paths
+        input_path = Path(input_path).resolve()
+        output_path = Path(output_path).resolve()
         
+        cmd.extend(["-i", str(input_path)])
+        cmd.extend(["-o", str(output_path)])
+        
+        checkpoint = params.get("checkpoint")
         if checkpoint:
-            cmd.extend(["-c", checkpoint])
+            cmd.extend(["-c", str(Path(checkpoint).resolve())])
             
+        device = params.get("device", self.device)
         if device and device != "default":
             cmd.extend(["--device", device])
             
-        if verbose:
+        if params.get("verbose"):
             cmd.append("--verbose")
             
         # Environnement
         env = os.environ.copy()
+        
+        # Ensure all args are strings for Popen
+        cmd = [str(arg) for arg in cmd]
         
         print(f"Lancement Sharp: {' '.join(cmd)}")
         
@@ -101,11 +111,15 @@ class SharpEngine:
         
         return self.process
 
+    # stop method inherited and improved in SharpEngine if needed, 
+    # but BaseEngine has a basic one. We keep the process-specific stop here.
     def stop(self):
         """Arrête le processus en cours"""
+        super().stop()
         if self.process and self.process.poll() is None:
             if sys.platform != "win32":
-                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+                try: os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+                except Exception as e: self.log(f"Warning: Failed to kill process group: {e}")
             else:
                 self.process.terminate()
             self.process.wait()
