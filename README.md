@@ -11,16 +11,11 @@ This application provides a unified Graphical User Interface (GUI) to orchestrat
 2.  **Sparse Reconstruction**: Automates **COLMAP** feature extraction, matching, and mapping. Supports **Glomap** as a modern alternative mapper.
 3.  **Undistortion**: Automatically undistorts images for optimal training quality.
 4.  **Training**: Integrates **Brush** to train Gaussian Splats directly on your Mac.
-    -   **Densification Control**: Includes presets (Fast, Standard, Aggressive) and advanced parameters.
-    -   **Auto-Refine**: Resume training seamlessly from your last checkpoint.
 5.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
 6.  **Single Image to 3D**: (Bonus) Uses **Apple ML Sharp** to generate a 3D model from a single 2D image.
 7.  **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
 8.  **360 Extractor (Experimental)**: Converts equirectangular 360° videos into optimal planar image sets (Cube Map, Ring, etc.) for photogrammetry, with AI operator masking.
--   **Multi-Platform & Engine Support**: Native support for Apple Silicon (M1/M2/M3) and standard CUDA/CPU configurations.
--   **Professional Localization**: Detailed support for 5 languages (**English**, **Français**, **Deutsch**, **Italiano**, **Español**) with real-time UI switching.
--   **Detailed Startup Audit**: Explicit engine status checks (Sharp, Brush, Glomap, etc.) with visual indicators.
--   **Factory Reset**: Integrated tools to fix dependency issues by rebuilding the environment from scratch.
+
 
 It is designed to be "click-and-run", handling dependency checks, process management, and **session persistence** for you.
 
