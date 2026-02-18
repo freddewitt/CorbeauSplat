@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.73] - 2026-02-18
+
+### ✨ New Features
+-   **Auto-Update**: Added support for automatic updates of engines (starting with Glomap) via `config.json` (`glomap_auto_update: true`).
+-   **Interactive Updates**: Improved update flow to ask the user for confirmation when auto-update is disabled, ensuring no silent failures or skipped updates.
+
+### 🛠 Fixes
+-   **Glomap Build**: Fixed CMakeCache errors by automatically cleaning the `build` directory before recompiling.
+-   **SuperSplat Update**: Fixed git conflicts (package-lock.json) by forcing a reset before pulling updates.
+-   **Dependency Script**: Corrected configuration loading for nested `config` keys.
+
 ## [0.72] - 2026-02-07
 
 ### Added

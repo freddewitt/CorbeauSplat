@@ -96,7 +96,7 @@ fi
 # --- Phase 4: Engine & Core Component Monitoring ---
 echo "--- Phase 4: Verifying engines and external binaries ---"
 echo "Running system check..."
-"$PYTHON_CMD" -m app.scripts.setup_dependencies --check
+"$PYTHON_CMD" -m app.scripts.setup_dependencies --startup
 echo "✅ System check complete (Engines & Binaries)."
 
 if [[ $(uname -m) == 'arm64' ]]; then

@@ -133,9 +133,9 @@ class DependencyManager:
             except: pass
         return {}
 
-    def main_install(self, check_only=False):
+    def main_install(self, check_only=False, startup=False):
         print("--- System Dependency Check ---")
-        install_system_dependencies(check_only=check_only)
+        install_system_dependencies(check_only=check_only or startup)
         
         config = self.get_config()
         
@@ -156,33 +156,56 @@ class DependencyManager:
             elif name == "supersplat":
                 enabled = config.get("supersplat_enabled", True)
             
-            # During --check, we audit everything. During install, we respect enablement.
-            if not enabled and not check_only:
+            # During --check or --startup, we audit everything. During install, we respect enablement.
+            # actually for startup we might want to skip disabled ones to be faster?
+            # Let's keep auditing but only act on enabled ones if auto-update is on.
+            if not enabled and not (check_only or startup):
                 continue
 
             remote = engine.get_remote_version()
             local = engine.get_local_version()
             
             if not engine.is_installed():
-                if check_only:
-                    print(f"  ❌ {name.capitalize()}: Missing")
-                    continue
-                
-                print(f">>> Engine [{name}] missing.")
-                if sys.stdin.isatty():
-                    res = input(f"Would you like to install {name}? (y/n): ").strip().lower()
-                    if res == 'y': engine.install()
-                else: 
-                    engine.install()
-            elif remote and local and remote != local:
-                if check_only:
-                    print(f"  ⚠️  {name.capitalize()}: Update available")
-                    continue
+                if check_only or startup:
+                    pass # Just report status later
+                else:
+                    print(f">>> Engine [{name}] missing.")
+                    if sys.stdin.isatty():
+                        res = input(f"Would you like to install {name}? (y/n): ").strip().lower()
+                        if res == 'y': engine.install()
+                    else: 
+                        engine.install()
+                        
+                # Report status for check/startup
+                if not engine.is_installed():
+                    status = f"  ❌ {name.capitalize()}: Missing"
+                    if startup: print(status)
+                    elif check_only: print(status)
 
-                print(f">>> An update for [{name}] is available.")
-                if sys.stdin.isatty():
-                    res = input(f"Update {name} now? (y/n): ").strip().lower()
-                    if res == 'y': engine.install()
+            elif remote and local and remote != local:
+                # Update Available
+                
+                # Check Auto-Update Preference
+                # Look in top level or in "config" sub-dict
+                cfg_section = config.get("config", {})
+                auto_update = config.get(f"{name}_auto_update", False) or cfg_section.get(f"{name}_auto_update", False)
+                
+                if startup and auto_update:
+                     print(f">>> Auto-updating {name.capitalize()}...")
+                     try:
+                         engine.install()
+                         print(f"✅ {name.capitalize()} updated.")
+                     except Exception as e:
+                         print(f"❌ Auto-update failed for {name}: {e}")
+                elif check_only:
+                     print(f"  ⚠️  {name.capitalize()}: Update available ({local[:7]} -> {remote[:7]})")
+                     continue
+                else:
+                    # Interactive mode (Normal install OR Startup without auto-update)
+                    print(f">>> An update for [{name}] is available ({local[:7]} -> {remote[:7]}).")
+                    if sys.stdin.isatty():
+                        res = input(f"Update {name} now? (y/n): ").strip().lower()
+                        if res == 'y': engine.install()
             else:
                 if check_only:
                     print(f"  ✅ {name.capitalize()}: Ready")
@@ -426,9 +449,13 @@ class SuperSplatEngineDep(EngineDependency):
         if not shutil.which("node"):
             if not install_node_js(): return
         
+        # Reset local changes before pull to avoid conflicts (package-lock.json)
+        if self.target_dir.exists():
+             try:
+                 subprocess.check_call(["git", "-C", str(self.target_dir), "reset", "--hard", "HEAD"])
+             except: pass
+             
         self.update_git()
-        # Reset local changes
-        subprocess.check_call(["git", "-C", str(self.target_dir), "reset", "--hard", "HEAD"])
         subprocess.check_call(["npm", "install"], cwd=str(self.target_dir))
         subprocess.check_call(["npm", "run", "build"], cwd=str(self.target_dir))
         self.save_local_version(self.get_remote_version())
@@ -436,6 +463,8 @@ class SuperSplatEngineDep(EngineDependency):
 class GlomapEngineDep(EngineDependency):
     def __init__(self):
         super().__init__("glomap", GLOMAP_REPO)
+        # Fix: source code is in a separate dir, not replacing the binary
+        self.target_dir = self.engines_dir / "glomap-source"
 
     def install(self):
         if sys.platform == "darwin" and not check_xcode_tools():
@@ -446,13 +475,13 @@ class GlomapEngineDep(EngineDependency):
             if not install_build_tools(): return
             
         self.update_git()
-        source_dir = self.engines_dir / "glomap-source"
-        if not source_dir.exists():
-            subprocess.check_call(["git", "clone", self.repo_url, str(source_dir)])
-        else:
-            subprocess.check_call(["git", "-C", str(source_dir), "pull"])
+        # Source dir is now handled by update_git via self.target_dir
+        source_dir = self.target_dir
 
         build_dir = source_dir / "build"
+        # Fix CMakeCache error by cleaning build dir if it exists
+        if build_dir.exists():
+            shutil.rmtree(str(build_dir))
         build_dir.mkdir(exist_ok=True)
         
         cmake_args = ["cmake", "..", "-GNinja", "-DCMAKE_BUILD_TYPE=Release"]
@@ -521,7 +550,8 @@ def main():
     manager.register(Extractor360EngineDep())
     
     check_only = "--check" in sys.argv
-    manager.main_install(check_only=check_only)
+    startup = "--startup" in sys.argv
+    manager.main_install(check_only=check_only, startup=startup)
 
 if __name__ == "__main__":
     main()
