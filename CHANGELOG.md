@@ -81,7 +81,7 @@
 ### 🏗 Architecture & Performance (Total Refactor)
 -   **Python 3.13+ & JIT**: Added native detection for modern Python versions to enable Free-threading and JIT optimizations.
 -   **Apple Silicon Optimization**: 
-    -   Rewrite of thread management logic to exploit **Performance Cores** (P-Cores) on M1/M2/M3 chips without blocking the UI.
+    -   Rewrite of thread management logic to exploit **Performance Cores** (P-Cores) on Apple Silicon chips without blocking the UI.
     -   Vectorization improvements via `numpy` and native library bindings.
 -   **Dual-Environment**: Implemented a dedicated sandbox (`.venv_sharp`) for Apple ML Sharp (Python 3.11) preventing conflicts with the main application (Python 3.13+).
 -   **Factory Reset**: Added a "Nuclear Option" in Config Tab to wipe virtual environments and perform a clean re-install.

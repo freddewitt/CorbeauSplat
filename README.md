@@ -32,7 +32,7 @@ It is designed to be "click-and-run", handling dependency checks, process manage
 ## 🛠 Prerequisites & Installation
 
 ### Requirements
-- **macOS** (Silicon recommended - M1/M2/M3)
+- **macOS** (Apple Silicon recommended)
 - **Python 3.13+** (Recommended for JIT/Performance) or Python 3.11 (Supported)
 - **Xcode Command Line Tools** (Required for compiling custom engines like Glomap or Brush)
 - **Homebrew** (for installing system dependencies like COLMAP and FFmpeg)
