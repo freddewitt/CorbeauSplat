@@ -81,4 +81,10 @@ def check_dependencies():
     if resolve_binary('colmap') is None:
         missing.append('colmap')
 
+    # Check send2trash
+    try:
+        import send2trash
+    except ImportError:
+        missing.append('send2trash')
+
     return missing

@@ -93,6 +93,12 @@ if ! "$PYTHON_CMD" -c "import PyQt6" > /dev/null 2>&1; then
     "$PYTHON_CMD" -m pip install PyQt6
 fi
 
+# send2trash specific check
+if ! "$PYTHON_CMD" -c "import send2trash" > /dev/null 2>&1; then
+    echo "🔧 Corrective installation of send2trash..."
+    "$PYTHON_CMD" -m pip install send2trash
+fi
+
 # --- Phase 4: Engine & Core Component Monitoring ---
 echo "--- Phase 4: Verifying engines and external binaries ---"
 echo "Running system check..."

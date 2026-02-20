@@ -138,6 +138,7 @@ class DependencyManager:
         install_system_dependencies(check_only=check_only or startup)
         
         config = self.get_config()
+        missing_engines_startup = False
         
         # Sequentially check/install registered engines
         for name, engine in self.engines.items():
@@ -157,8 +158,6 @@ class DependencyManager:
                 enabled = config.get("supersplat_enabled", True)
             
             # During --check or --startup, we audit everything. During install, we respect enablement.
-            # actually for startup we might want to skip disabled ones to be faster?
-            # Let's keep auditing but only act on enabled ones if auto-update is on.
             if not enabled and not (check_only or startup):
                 continue
 
@@ -166,27 +165,30 @@ class DependencyManager:
             local = engine.get_local_version()
             
             if not engine.is_installed():
-                if check_only or startup:
+                if check_only:
                     pass # Just report status later
-                else:
-                    print(f">>> Engine [{name}] missing.")
-                    if sys.stdin.isatty():
-                        res = input(f"Would you like to install {name}? (y/n): ").strip().lower()
-                        if res == 'y': engine.install()
-                    else: 
+                elif startup:
+                    print(f">>> Auto-installing {name.capitalize()} on startup...")
+                    try:
                         engine.install()
+                        print(f"✅ {name.capitalize()} installed automatically.")
+                    except Exception as e:
+                        print(f"❌ Auto-install failed for {name}: {e}")
+                else:
+                    print(f">>> Auto-installing missing engine [{name}]...")
+                    engine.install()
                         
                 # Report status for check/startup
                 if not engine.is_installed():
                     status = f"  ❌ {name.capitalize()}: Missing"
                     if startup: print(status)
                     elif check_only: print(status)
+                    missing_engines_startup = True
 
             elif remote and local and remote != local:
                 # Update Available
                 
                 # Check Auto-Update Preference
-                # Look in top level or in "config" sub-dict
                 cfg_section = config.get("config", {})
                 auto_update = config.get(f"{name}_auto_update", False) or cfg_section.get(f"{name}_auto_update", False)
                 
@@ -199,16 +201,15 @@ class DependencyManager:
                          print(f"❌ Auto-update failed for {name}: {e}")
                 elif check_only:
                      print(f"  ⚠️  {name.capitalize()}: Update available ({local[:7]} -> {remote[:7]})")
-                     continue
                 else:
-                    # Interactive mode (Normal install OR Startup without auto-update)
-                    print(f">>> An update for [{name}] is available ({local[:7]} -> {remote[:7]}).")
-                    if sys.stdin.isatty():
-                        res = input(f"Update {name} now? (y/n): ").strip().lower()
-                        if res == 'y': engine.install()
+                    print(f">>> Auto-updating {name} ({local[:7]} -> {remote[:7]})...")
+                    engine.install()
             else:
                 if check_only:
                     print(f"  ✅ {name.capitalize()}: Ready")
+
+        if missing_engines_startup:
+            print("\nℹ️  Note: Automatically installed missing engines.")
 
 class Extractor360EngineDep(PipEngine):
     def __init__(self):
@@ -523,13 +524,8 @@ class UpscaleEngineDep(PipEngine):
         self.python_bin = Path(sys.executable)
 
     def is_installed(self) -> bool:
-        return shutil.which("realesrgan") is not None or self.check_pkg("realesrgan")
-
-    def check_pkg(self, name):
-        try:
-            subprocess.check_call([sys.executable, "-c", f"import {name}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return True
-        except: return False
+        from app.core.upscale_engine import UpscaleEngine
+        return UpscaleEngine().is_installed()
 
     def install(self):
         pkgs = ["torch", "torchvision", "realesrgan"]
