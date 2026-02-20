@@ -27,7 +27,7 @@ class Extractor360Engine(BaseEngine):
         """Uninstalls"""
         uninstall_extractor_360()
 
-    def run_extraction(self, input_path, output_dir, params, progress_callback=None, log_callback=None):
+    def run_extraction(self, input_path, output_dir, params, progress_callback=None, log_callback=None, check_cancel_callback=None):
         """
         Runs the extraction CLI.
         params: dict of arguments mirroring CLI args
@@ -93,7 +93,7 @@ class Extractor360Engine(BaseEngine):
         # Ensure all arguments are strings for subprocess
         cmd_str = [str(arg) for arg in cmd]
         
-        process = subprocess.Popen(
+        self.process = subprocess.Popen(
             cmd_str,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -102,7 +102,11 @@ class Extractor360Engine(BaseEngine):
             cwd=self.extractor_dir # Important for relative paths in script if any
         )
 
-        for line in process.stdout:
+        for line in self.process.stdout:
+            if check_cancel_callback and check_cancel_callback():
+                if log_callback: log_callback("Processus arrêté par l'utilisateur.")
+                self.stop()
+                return False
             line = line.strip()
             if not line: continue
             
@@ -123,4 +127,4 @@ class Extractor360Engine(BaseEngine):
                 except:
                     pass
 
-        return process.wait() == 0
+        return self.process.wait() == 0

@@ -12,6 +12,11 @@ from app.core.extractor_360_engine import Extractor360Engine
 class Extractor360Worker(BaseWorker):
     """Thread worker pour exécuter 360Extractor"""
     
+    def stop(self):
+        if hasattr(self, 'engine') and self.engine:
+            self.engine.stop()
+        super().stop()
+
     def run(self):
         self.log_signal.emit("--- Démarrage 360Extractor ---")
         if not self.engine.is_installed():
@@ -24,7 +29,8 @@ class Extractor360Worker(BaseWorker):
             self.output_path, 
             self.params,
             progress_callback=self.progress_signal.emit,
-            log_callback=self.log_signal.emit
+            log_callback=self.log_signal.emit,
+            check_cancel_callback=self.isInterruptionRequested
         )
         
         if success:
@@ -47,6 +53,7 @@ class ColmapWorker(BaseWorker):
         super().__init__()
         self.upscale_params = upscale_params
         self.extractor_360_params = extractor_360_params
+        self.ext_360 = None
         self.engine = ColmapEngine(
             params, input_path, output_path, input_type, fps, project_name,
             logger_callback=self.log_signal.emit,
@@ -55,6 +62,8 @@ class ColmapWorker(BaseWorker):
         )
         
     def stop(self):
+        if self.ext_360:
+            self.ext_360.stop()
         self.engine.stop()
         super().stop()
         
@@ -62,9 +71,9 @@ class ColmapWorker(BaseWorker):
         # 1. Check 360 Extractor
         if self.extractor_360_params and self.extractor_360_params.get("enabled", False):
             from app.core.extractor_360_engine import Extractor360Engine
-            ext_360 = Extractor360Engine()
+            self.ext_360 = Extractor360Engine()
             
-            if not ext_360.is_installed():
+            if not self.ext_360.is_installed():
                 self.log_signal.emit("ERREUR: 360 Extractor activé mais non installé.")
                 self.finished_signal.emit(False, "Dépendances 360 manquantes")
                 return
@@ -76,12 +85,13 @@ class ColmapWorker(BaseWorker):
             images_dir.mkdir(parents=True, exist_ok=True)
             
             # Run extraction
-            success = ext_360.run_extraction(
+            success = self.ext_360.run_extraction(
                 self.engine.input_path, # Video path
                 images_dir, # Output folder
                 self.extractor_360_params,
                 progress_callback=self.progress_signal.emit,
-                log_callback=self.log_signal.emit
+                log_callback=self.log_signal.emit,
+                check_cancel_callback=self.isInterruptionRequested
             )
             
             if not success:
