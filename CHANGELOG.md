@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.74] - 2026-03-01
+
+### ✨ Installation & Stability
+-   **Brush Engine Optimization**: 
+    -   **Native Binaries**: The dependency installer now downloads the official, pre-compiled `v0.3.0` release binaries of Brush for macOS (Apple Silicon), Windows, and Linux rather than building from source. This entirely bypasses the Rust toolchain requirements and typical `cargo` compilation errors.
+    -   **Fail-safe Compilation**: If the binary download fails or the platform is unsupported, the `cargo install` fallback is now strictly pinned to tag `v0.3.0` with `--locked` dependencies, preventing build breakages caused by upstream library updates (like the previous `naga` crate issue).
+
 ## [0.73] - 2026-02-18
 
 ### ✨ New Features
