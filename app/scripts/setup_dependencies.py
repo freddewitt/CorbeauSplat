@@ -228,22 +228,101 @@ class BrushEngineDep(EngineDependency):
     def __init__(self):
         super().__init__("brush", BRUSH_REPO)
 
+    def get_remote_version(self) -> str:
+        # Pinned to a specific documented release to ensure stability
+        return "v0.3.0"
+
     def install(self):
+        if self.bin_path.exists():
+            print("Brush is already installed. Skipping.")
+            return
+
+        import platform
+        import urllib.request
+        import tarfile
+        import zipfile
+        
+        system = platform.system()
+        machine = platform.machine()
+        
+        # We try to use pre-built binaries for supported platforms first
+        release_url = None
+        if system == "Darwin" and machine == "arm64":
+            release_url = "https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-aarch64-apple-darwin.tar.xz"
+        elif system == "Windows" and machine == "AMD64":
+            release_url = "https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-x86_64-pc-windows-msvc.zip"
+        elif system == "Linux" and machine == "x86_64":
+            release_url = "https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-x86_64-unknown-linux-gnu.tar.xz"
+
+        if release_url:
+            print(f"Downloading official Brush release from {release_url}...")
+            try:
+                archive_path = self.engines_dir / release_url.split('/')[-1]
+                urllib.request.urlretrieve(release_url, str(archive_path))
+                
+                print("Extracting Brush...")
+                extracted_dir_name = archive_path.name.replace(".tar.xz", "").replace(".zip", "")
+                
+                if archive_path.name.endswith(".zip"):
+                    with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+                        zip_ref.extractall(self.engines_dir / extracted_dir_name)
+                elif archive_path.name.endswith(".tar.xz"):
+                    with tarfile.open(archive_path, 'r:xz') as tar_ref:
+                        tar_ref.extractall(self.engines_dir)
+                        
+                archive_path.unlink() # Clean up archive
+                
+                # Find the executable
+                extracted_bin = None
+                for root_dir, dirs, files in os.walk(str(self.engines_dir / extracted_dir_name)):
+                    for file in files:
+                        if file in ("brush-app", "brush_app", "brush-app.exe", "brush_app.exe"):
+                            extracted_bin = Path(root_dir) / file
+                            break
+                    if extracted_bin:
+                        break
+                        
+                if extracted_bin:
+                    shutil.move(str(extracted_bin), str(self.engines_dir / "brush"))
+                    # Make executable if it's not on Windows
+                    if system != "Windows":
+                        os.chmod(str(self.engines_dir / "brush"), 0o755)
+                    print("✅ Brush installed successfully from release binary.")
+                    self.save_local_version("v0.3.0")
+                    # Clean up extracted folder
+                    shutil.rmtree(str(self.engines_dir / extracted_dir_name), ignore_errors=True)
+                    return
+                else:
+                    print("⚠️ Could not find brush executable in archive.")
+                    shutil.rmtree(str(self.engines_dir / extracted_dir_name), ignore_errors=True)
+            except Exception as e:
+                print(f"⚠️ Failed to install from binary: {e}")
+                print("Falling back to cargo install...")
+
+        # Fallback to source install pinned to v0.3.0 with --locked
+        print("Installing Brush from source (pinned to v0.3.0)...")
         if not shutil.which("cargo"):
             if not install_rust_toolchain(): return
         
-        remote = self.get_remote_version()
-        subprocess.check_call(["cargo", "install", "--git", self.repo_url, "brush-app", "--root", str(self.engines_dir)])
-        
-        # Move bin
-        bin_dir = self.engines_dir / "bin"
-        for name in ["brush", "brush-app"]:
-            src = bin_dir / name
-            if src.exists():
-                shutil.move(str(src), str(self.engines_dir / "brush"))
-                break
-        shutil.rmtree(str(bin_dir), ignore_errors=True)
-        self.save_local_version(remote)
+        try:
+            subprocess.check_call([
+                "cargo", "install", "--git", self.repo_url, 
+                "--tag", "v0.3.0", "--locked",
+                "brush-app", "--root", str(self.engines_dir)
+            ])
+            
+            # Move bin
+            bin_dir = self.engines_dir / "bin"
+            for name in ["brush", "brush-app", "brush_app", "brush.exe", "brush-app.exe"]:
+                src = bin_dir / name
+                if src.exists():
+                    shutil.move(str(src), str(self.engines_dir / "brush"))
+                    break
+            shutil.rmtree(str(bin_dir), ignore_errors=True)
+            self.save_local_version("v0.3.0")
+            print("✅ Brush compiled and installed successfully.")
+        except Exception as e:
+            print(f"❌ Failed to install Brush from source: {e}")
 
 class SharpEngineDep(PipEngine):
     def __init__(self):
