@@ -16,8 +16,8 @@ This application provides a unified Graphical User Interface (GUI) to orchestrat
 7.  **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
 8.  **360 Extractor (Experimental)**: Converts equirectangular 360° videos into optimal planar image sets (Cube Map, Ring, etc.) for photogrammetry, with AI operator masking.
 
-
 It is designed to be "click-and-run", handling dependency checks, process management, and **session persistence** for you.
+It also includes built-in full localization support for **French, English, German, Italian, Spanish, Arabic, Russian, Chinese, and Japanese**.
 
 ## ✍️ A Note from the Author
 
