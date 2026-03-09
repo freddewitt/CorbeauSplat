@@ -17,13 +17,6 @@ class FourDGSEngine(BaseEngine):
         self.ffmpeg = resolve_binary("ffmpeg") or "ffmpeg"
         self.colmap = resolve_binary("colmap") or "colmap" 
         
-    def log(self, message):
-        if self.logger:
-            self.logger(message)
-
-    def stop(self):
-        self.stop_requested = True
-
     def check_nerfstudio(self):
         """Vérifie si ns-process-data est disponible"""
         # ns-process-data est souvent un script python/entrypoint
@@ -211,18 +204,16 @@ class FourDGSEngine(BaseEngine):
                 env=env
             )
             
-            while True:
+            for line in process.stdout:
                 if self.stop_requested:
                     process.terminate()
+                    process.wait()
                     return -1
-                
-                line = process.stdout.readline()
-                if not line and process.poll() is not None:
-                    break
-                if line:
-                    self.log(line.strip())
-                    
-            return process.poll()
+                stripped = line.strip()
+                if stripped:
+                    self.log(stripped)
+
+            return process.wait()
         except Exception as e:
             self.log(f"Exception: {e}")
             return -1

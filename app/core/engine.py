@@ -9,6 +9,9 @@ from pathlib import Path
 from .base_engine import BaseEngine
 from .params import ColmapParams
 from .system import is_apple_silicon, get_optimal_threads, resolve_binary, get_device
+from .i18n import tr
+
+_IMAGE_EXTS = {'.jpg', '.jpeg', '.png'}
 
 class ColmapEngine(BaseEngine):
     """Moteur d'exécution COLMAP indépendant de l'interface graphique"""
@@ -78,7 +81,13 @@ class ColmapEngine(BaseEngine):
             if upscale_conf and upscale_conf.get("active", False):
                 if not self._run_upscale(project_dir, images_dir):
                     return False, "Echec Upscale"
-                
+
+            # --- RESOLUTION NORMALIZATION ---
+            if not self._check_and_normalize_resolution(images_dir):
+                if self.is_cancelled():
+                    return False, tr("USER_CANCELLED")
+                return False, "Échec normalisation résolution"
+
             # Structure de dossiers
             database_path = project_dir / "database.db"
             sparse_dir = project_dir / "sparse"
@@ -175,12 +184,12 @@ class ColmapEngine(BaseEngine):
             
             try:
                 # Recherche récursive de fichiers images, en ignorant les masques (*.mask.png)
-                src_files = []
-                # On utilise rglob pour la récursivité
-                for ext in ('*.jpg', '*.jpeg', '*.png'):
-                    for f in self.input_path.rglob(ext):
-                        if f.is_file() and not f.name.lower().endswith('.mask.png'):
-                            src_files.append(f)
+                src_files = [
+                    f for f in self.input_path.rglob('*')
+                    if f.is_file()
+                    and f.suffix.lower() in _IMAGE_EXTS
+                    and not f.name.lower().endswith('.mask.png')
+                ]
                 
                 total_files = len(src_files)
                 self.log(f"{total_files} images trouvées.")
@@ -207,12 +216,6 @@ class ColmapEngine(BaseEngine):
                         self.progress(p)
                 
                 self.log(f"✅ {total_files} images copiées vers {images_dir}")
-                return True
-                    
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    list(executor.map(copy_image, src_files))
-                    
-                self.log(f"{len(src_files)} images copiees.")
                 return True
             except Exception as e:
                 self.log(f"Erreur copie images: {e}")
@@ -271,6 +274,74 @@ class ColmapEngine(BaseEngine):
         except Exception as e:
             self.log(f"Erreur Upscale: {e}")
             return False
+
+    def _check_and_normalize_resolution(self, images_dir: Path) -> bool:
+        """
+        Vérifie que toutes les images ont la même résolution.
+        Si non, redimensionne toutes vers la plus petite résolution trouvée.
+        """
+        self.log(f"\n{'='*60}\nVérification résolution images\n{'='*60}")
+
+        try:
+            import cv2
+        except ImportError:
+            self.log("⚠️ OpenCV non disponible — vérification résolution ignorée.")
+            return True
+
+        files = sorted([
+            f for f in images_dir.iterdir()
+            if f.is_file() and f.suffix.lower() in _IMAGE_EXTS
+        ])
+
+        if len(files) < 2:
+            return True
+
+        self.log(f"Analyse de {len(files)} images...")
+
+        # 1re passe : lecture dimensions (grayscale = 1 canal, plus rapide)
+        sizes = {}  # Path -> (w, h)
+        for f in files:
+            if self.is_cancelled():
+                return False
+            img = cv2.imread(str(f), cv2.IMREAD_GRAYSCALE)
+            if img is None:
+                self.log(f"⚠️ Lecture impossible: {f.name}")
+                continue
+            h, w = img.shape
+            sizes[f] = (w, h)
+
+        if not sizes:
+            return True
+
+        unique_sizes = set(sizes.values())
+        if len(unique_sizes) == 1:
+            w, h = next(iter(unique_sizes))
+            self.log(f"✅ Résolution uniforme: {w}×{h} px")
+            return True
+
+        # Cible = plus petite résolution
+        min_w = min(s[0] for s in unique_sizes)
+        min_h = min(s[1] for s in unique_sizes)
+        images_to_resize = [(f, s) for f, s in sizes.items() if s != (min_w, min_h)]
+
+        self.log(f"⚠️ {len(unique_sizes)} résolutions différentes détectées.")
+        self.log(f"Redimensionnement de {len(images_to_resize)} images → {min_w}×{min_h} px")
+
+        # 2e passe : resize uniquement les images hors cible
+        for i, (f, _) in enumerate(images_to_resize):
+            if self.is_cancelled():
+                return False
+            img = cv2.imread(str(f), cv2.IMREAD_UNCHANGED)
+            if img is None:
+                self.log(f"⚠️ Lecture impossible: {f.name}")
+                continue
+            resized = cv2.resize(img, (min_w, min_h), interpolation=cv2.INTER_AREA)
+            cv2.imwrite(str(f), resized)
+            if (i + 1) % 10 == 0 or (i + 1) == len(images_to_resize):
+                self.log(f"Redimensionnement: {i+1}/{len(images_to_resize)}")
+
+        self.log(f"✅ {len(images_to_resize)} images redimensionnées vers {min_w}×{min_h} px")
+        return True
 
     def extract_frames_from_video(self, video_path: str, images_dir: Path, prefix=None):
         """Extraction vidéo optimisée"""

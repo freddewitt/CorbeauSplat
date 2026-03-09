@@ -15,16 +15,24 @@ def is_apple_silicon():
 
 
 def get_optimal_threads():
-    """Retourne le nombre optimal de threads pour Apple Silicon"""
+    """Retourne le nombre optimal de threads pour Apple Silicon (P-cores) ou autres plateformes"""
     if is_apple_silicon():
-        # Apple Silicon: Utilize Performance cores efficiently
-        # Initial heurestic: 80% of total cores usually avoids blocking UI/efficiency cores
-        # We ensure at least 2 cores are left free if possible
+        # Apple Silicon has heterogeneous P-cores (performance) + E-cores (efficiency).
+        # For compute-heavy tasks (COLMAP, ffmpeg), we prefer P-cores only.
+        try:
+            result = subprocess.run(
+                ["sysctl", "-n", "hw.perflevel0.logicalcpu"],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode == 0:
+                p_cores = int(result.stdout.strip())
+                if p_cores > 0:
+                    return p_cores
+        except (ValueError, subprocess.SubprocessError, OSError):
+            pass
+        # Fallback: assume P-cores are half of total (conservative for M1/M2/M3)
         cpu_count = os.cpu_count() or 8
-        if cpu_count > 4:
-             return max(1, int(cpu_count * 0.80))
-        else:
-             return max(1, cpu_count - 1)
+        return max(1, cpu_count // 2)
     return os.cpu_count() or 4
 
 def resolve_binary(name):

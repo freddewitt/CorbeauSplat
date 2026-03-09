@@ -75,11 +75,4 @@ class BrushEngine(BaseEngine):
 
     def stop(self):
         """Arrête le processus en cours"""
-        if self.process and self.process.poll() is None:
-            if sys.platform != "win32":
-                import os
-                try: os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
-                except: pass
-            else:
-                self.process.terminate()
-            self.process.wait()
+        self._kill_process(self.process)

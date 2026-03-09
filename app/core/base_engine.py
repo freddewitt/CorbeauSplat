@@ -1,4 +1,6 @@
 import os
+import sys
+import signal
 import logging
 from pathlib import Path
 from .system import get_device, resolve_project_root
@@ -23,6 +25,19 @@ class BaseEngine:
     def stop(self):
         self.stop_requested = True
 
+    def _kill_process(self, process):
+        """Terminate a subprocess gracefully, using process group kill on Unix."""
+        if process is None or process.poll() is not None:
+            return
+        if sys.platform != "win32":
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, OSError):
+                process.terminate()
+        else:
+            process.terminate()
+        process.wait()
+
     def validate_path(self, path):
         """Resolves and validates a path to prevent traversal"""
         if not path:
@@ -35,10 +50,9 @@ class BaseEngine:
     def is_safe_path(self, path):
         """Checks if a path is within allowed boundaries"""
         try:
-            p = Path(path).resolve()
-            # We can add more strict checks here if needed
+            Path(path).resolve()
             return True
-        except:
+        except (TypeError, ValueError, OSError):
             return False
 
     def cleanup_temp_files(self, patterns):

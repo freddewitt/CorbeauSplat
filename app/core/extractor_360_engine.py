@@ -87,8 +87,8 @@ class Extractor360Engine(BaseEngine):
         # Run process
         # We use Popen to capture stdout/stderr for progress
         env = os.environ.copy()
-        # Ensure we don't conflict with system python path if set
-        env["PYTHONPATH"] = "" 
+        # Isolate from the main app's PYTHONPATH to avoid package conflicts
+        env.pop("PYTHONPATH", None)
         
         # Ensure all arguments are strings for subprocess
         cmd_str = [str(arg) for arg in cmd]
@@ -121,10 +121,10 @@ class Extractor360Engine(BaseEngine):
                     # Very naive parsing, depends on tqdm output format
                     # or custom logging [XX%]
                     if "[" in line and "%]" in line:
-                         # [ 10%] ...
-                         part = line.split("[")[1].split("%]")[0]
-                         progress_callback(int(part.strip()))
-                except:
+                        # [ 10%] ...
+                        part = line.split("[")[1].split("%]")[0]
+                        progress_callback(int(part.strip()))
+                except (ValueError, IndexError):
                     pass
 
         return self.process.wait() == 0

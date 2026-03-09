@@ -116,10 +116,4 @@ class SharpEngine(BaseEngine):
     def stop(self):
         """Arrête le processus en cours"""
         super().stop()
-        if self.process and self.process.poll() is None:
-            if sys.platform != "win32":
-                try: os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
-                except Exception as e: self.log(f"Warning: Failed to kill process group: {e}")
-            else:
-                self.process.terminate()
-            self.process.wait()
+        self._kill_process(self.process)

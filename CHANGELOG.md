@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.75] - 2026-03-03
+
+### 🛠 Bug Fixes (Critical)
+-   **`engine.py`**: Added missing `from .i18n import tr` import — without it, any cancellation or error during COLMAP processing would crash with a `NameError`.
+-   **`four_dgs_engine.py`**: Removed broken `log()` override that called the non-existent `self.logger` attribute (correct name is `self.logger_callback` inherited from `BaseEngine`). Also removed a redundant `stop()` override.
+-   **`brush_engine.py`**: Added missing `import signal` — `signal.SIGTERM` was used in `stop()` without being imported, causing a `NameError` on process termination.
+-   **`engine.py`**: Removed an unreachable `concurrent.futures.ThreadPoolExecutor` block that appeared after a `return True` statement and was never executed.
+-   **`workers.py` — `Extractor360Worker`**: Added missing `__init__` method. The class referenced `self.engine`, `self.input_path`, `self.output_path`, and `self.params` but never assigned them, causing an immediate `AttributeError` on use.
+-   **`workers.py` — `FourDGSWorker`**: Fixed `stop()` which wrote to `self._is_running` (wrong attribute, never read) instead of calling `super().stop()` to properly signal thread interruption.
+
+### 🛡 Security
+-   **`superplat_engine.py`**: Fixed CORS origin validation — the previous `"localhost" in origin` substring check could be bypassed by a crafted hostname like `evil.localhost.com`. Replaced with strict `urlparse().hostname` comparison.
+-   **`extractor_360_engine.py`**: Replaced `env["PYTHONPATH"] = ""` (which broke the subprocess's module resolution) with `env.pop("PYTHONPATH", None)` for clean isolation.
+-   **`base_engine.py`**: Narrowed bare `except:` in `is_safe_path()` to `except (TypeError, ValueError, OSError)`.
+
+### ⚡ Apple Silicon Optimization
+-   **`system.py` — `get_optimal_threads()`**: Now queries `sysctl hw.perflevel0.logicalcpu` to retrieve the actual **P-core count** on Apple Silicon (e.g. 4 on M1/M2). Previously used an 80% heuristic of total cores, which inadvertently scheduled compute-heavy tasks (COLMAP, ffmpeg) on efficiency cores.
+
+### 🏗 Refactoring & Code Quality
+-   **`base_engine.py`**: Extracted shared `_kill_process(process)` helper — consolidates three identical `os.killpg` / `signal.SIGTERM` implementations previously duplicated in `brush_engine`, `superplat_engine`, and `sharp_engine`.
+-   **`engine.py`**: Replaced 3× `rglob(ext)` calls (three separate filesystem traversals) with a single `rglob('*')` + `suffix.lower()` filter. Also fixes case-insensitive matching for `.JPG`/`.PNG` extensions. `_IMAGE_EXTS` promoted to module-level constant.
+-   **`four_dgs_engine.py`**: Replaced `readline()` while-loop with cleaner `for line in process.stdout:` iteration.
+-   **`config_tab.py`**: Removed duplicate `quitRequested = pyqtSignal()` signal definition.
+-   **`extractor_360_engine.py`**: Narrowed bare `except:` to `except (ValueError, IndexError)` in progress parsing.
+
 ## [0.74] - 2026-03-01
 
 ### ✨ Installation & Stability

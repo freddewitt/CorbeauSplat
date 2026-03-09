@@ -21,7 +21,6 @@ class ConfigTab(QWidget):
     openBrushRequested = pyqtSignal()
     deleteDatasetRequested = pyqtSignal()
     quitRequested = pyqtSignal()
-    quitRequested = pyqtSignal()
     relaunchRequested = pyqtSignal()
     resetRequested = pyqtSignal()
     

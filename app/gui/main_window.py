@@ -238,7 +238,7 @@ class ColmapGUI(QMainWindow):
             # Auto-launch Brush?
             if self.config_tab.get_auto_brush():
                 self.logs_tab.append_log("Lancement automatique de Brush...")
-                self.train_brush()
+                self.train_brush(force_auto=True)
             else:
                 QMessageBox.information(self, tr("msg_success"), 
                                       f"{message}\n\n{tr('success_open_brush')}")
@@ -374,11 +374,11 @@ class ColmapGUI(QMainWindow):
             
         QMessageBox.information(self, tr("btn_open_brush"), msg)
 
-    def train_brush(self):
+    def train_brush(self, force_auto=False):
         """Lance l'entrainement Brush"""
         brush_params = self.brush_tab.get_params()
         
-        if brush_params.get("independent"):
+        if not force_auto and brush_params.get("independent"):
             # Mode Indépendant
             input_path_str = brush_params.get("input_path")
             

@@ -6,6 +6,7 @@ import threading
 import http.server
 import socketserver
 from pathlib import Path
+from urllib.parse import urlparse
 from .base_engine import BaseEngine
 from .system import resolve_binary, resolve_project_root
 
@@ -55,14 +56,7 @@ class SuperSplatEngine(BaseEngine):
     def stop_supersplat(self):
         """Arrête le serveur SuperSplat"""
         if self.supersplat_process:
-            if sys.platform != "win32":
-                try:
-                    os.killpg(os.getpgid(self.supersplat_process.pid), signal.SIGTERM)
-                except:
-                    self.supersplat_process.terminate()
-            else:
-                self.supersplat_process.terminate()
-            self.supersplat_process.wait()
+            self._kill_process(self.supersplat_process)
             self.supersplat_process = None
 
     def start_data_server(self, directory, port=8000):
@@ -75,16 +69,16 @@ class SuperSplatEngine(BaseEngine):
             
         try:
             # We use a custom handler to enable CORS, otherwise SuperSplat can't fetch local files
+            _allowed_origin = f'http://localhost:{port}'
+
             class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 def end_headers(self):
-                    # Restrict CORS to localhost for security
                     origin = self.headers.get('Origin')
-                    if origin and "localhost" in origin:
-                         self.send_header('Access-Control-Allow-Origin', origin)
-                    else:
-                         # Default fallback for local dev if origin is missing or strict mode
-                         self.send_header('Access-Control-Allow-Origin', 'http://localhost:3000')
-                    
+                    safe = bool(origin) and urlparse(origin).hostname in ('localhost', '127.0.0.1')
+                    self.send_header(
+                        'Access-Control-Allow-Origin',
+                        origin if safe else _allowed_origin
+                    )
                     super().end_headers()
                 
                 # Silent log

@@ -11,10 +11,16 @@ from app.core.extractor_360_engine import Extractor360Engine
 
 class Extractor360Worker(BaseWorker):
     """Thread worker pour exécuter 360Extractor"""
-    
+
+    def __init__(self, input_path, output_path, params):
+        super().__init__()
+        self.engine = Extractor360Engine()
+        self.input_path = input_path
+        self.output_path = output_path
+        self.params = params
+
     def stop(self):
-        if hasattr(self, 'engine') and self.engine:
-            self.engine.stop()
+        self.engine.stop()
         super().stop()
 
     def run(self):
@@ -270,6 +276,8 @@ class BrushWorker(BaseWorker):
             
             if densify_args:
                 custom_args += " " + " ".join(densify_args)
+                
+            self.params['custom_args'] = custom_args.strip()
 
             # Construct CMD
             self.log_signal.emit("Lancement de la commande Brush...")
@@ -467,6 +475,6 @@ class FourDGSWorker(BaseWorker):
             self.finished_signal.emit(False, str(e))
 
     def stop(self):
-        self._is_running = False
         if self.engine:
             self.engine.stop()
+        super().stop()
