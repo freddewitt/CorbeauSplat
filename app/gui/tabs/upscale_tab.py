@@ -332,9 +332,9 @@ class UpscaleTab(QWidget):
         }
         
     def get_scale_factor(self):
-        txt = self.scale_combo.currentText()
-        if "x2" in txt: return 2
-        if "x1" in txt: return 1
+        idx = self.scale_combo.currentIndex()
+        if idx == 1: return 2
+        if idx == 2: return 1
         return 4
 
     def set_params(self, params):
