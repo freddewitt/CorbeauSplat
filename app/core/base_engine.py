@@ -55,4 +55,11 @@ class BaseEngine:
             return False
 
     def cleanup_temp_files(self, patterns):
-        """Standardized cleanup for temp files"""
+        """Standardized cleanup for temp files matching given glob patterns"""
+        import glob
+        for pattern in patterns:
+            for f in glob.glob(str(pattern)):
+                try:
+                    Path(f).unlink()
+                except OSError:
+                    pass

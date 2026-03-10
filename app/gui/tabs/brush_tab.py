@@ -14,6 +14,7 @@ class BrushTab(QWidget):
     
     trainRequested = pyqtSignal()
     stopRequested = pyqtSignal()
+    restartRequested = pyqtSignal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -41,7 +42,14 @@ class BrushTab(QWidget):
         self.btn_reinstall_brush = QPushButton(tr("btn_reinstall_brush"))
         self.btn_reinstall_brush.clicked.connect(self.on_reinstall_clicked)
         
+        self.combo_build_mode = QComboBox()
+        self.combo_build_mode.addItem(tr("brush_build_release"), "release")
+        self.combo_build_mode.addItem(tr("brush_build_compile"), "source")
+        
         status_layout.addStretch()
+        lbl_build_mode = QLabel(tr("brush_lbl_build_mode"))
+        status_layout.addWidget(lbl_build_mode)
+        status_layout.addWidget(self.combo_build_mode)
         status_layout.addWidget(self.btn_reinstall_brush)
         
         main_layout.addLayout(status_layout)
@@ -122,11 +130,7 @@ class BrushTab(QWidget):
         self.check_independent.toggled.connect(self.on_manual_toggled)
         layout.addWidget(self.check_independent)
         
-        # 2. Training Mode 
-        QHBoxLayout()
-        # mode_layout.addWidget(QLabel(tr("brush_lbl_mode")))
-        # Use Form Layout style for alignment? Or just clean VBox for this section
-        # Let's use a FormLayout for Mode & Preset to align labels nicely
+        # 2. Training Mode
         workflow_form = QFormLayout()
         
         self.combo_mode = QComboBox()
@@ -160,6 +164,7 @@ class BrushTab(QWidget):
         self.btn_browse_input = QPushButton("...")
         self.btn_browse_input.setMaximumWidth(40)
         self.btn_browse_input.clicked.connect(self.browse_input)
+        input_layout.addWidget(self.input_path)
         input_layout.addWidget(self.btn_browse_input)
         self.lbl_dataset = QLabel(tr("brush_lbl_input"))
         manual_layout.addRow(self.lbl_dataset, input_layout)
@@ -361,6 +366,7 @@ class BrushTab(QWidget):
         self.combo_mode.setEnabled(not is_processing)
         self.combo_preset.setEnabled(not is_processing)
         self.manual_group.setEnabled(not is_processing and self.check_independent.isChecked())
+        self.btn_train.setText(tr("btn_train_brush") if not is_processing else tr("btn_stop"))
 
     def get_params(self):
         """Retourne les parametres"""
@@ -383,9 +389,10 @@ class BrushTab(QWidget):
             "max_resolution": self.max_resolution_spin.value(),
             "with_viewer": self.check_viewer.isChecked(),
             "independent": self.check_independent.isChecked(),
-            "independent": self.check_independent.isChecked(),
             "input_path": self.input_path.text(),
-            "show_details": self.check_details.isChecked()
+            "output_path": self.output_path.text(),
+            "show_details": self.check_details.isChecked(),
+            "build_mode": self.combo_build_mode.currentData()
         }
         
     def set_params(self, params):
@@ -416,15 +423,16 @@ class BrushTab(QWidget):
         # Details state
         if "show_details" in params: self.check_details.setChecked(params["show_details"])
         
+        if "build_mode" in params:
+            idx = self.combo_build_mode.findData(params["build_mode"])
+            if idx >= 0: self.combo_build_mode.setCurrentIndex(idx)
+        
         # Manual paths
         if "input_path" in params: self.input_path.setText(params["input_path"])
+        if "output_path" in params: self.output_path.setText(params["output_path"])
         
         self.update_visibility()
 
-    def set_processing_state(self, is_processing):
-        self.btn_train.setEnabled(not is_processing)
-        self.btn_stop.setEnabled(is_processing)
-        self.btn_train.setText(tr("btn_train_brush") if not is_processing else tr("btn_stop"))
 
     def retranslate_ui(self):
         """Update texts when language changes"""
@@ -447,6 +455,9 @@ class BrushTab(QWidget):
         self.check_independent.setText(tr("check_brush_independent"))
         
         self.btn_reinstall_brush.setText(tr("btn_reinstall_brush"))
+        
+        self.combo_build_mode.setItemText(0, tr("brush_build_release"))
+        self.combo_build_mode.setItemText(1, tr("brush_build_compile"))
         
         # ComboBoxes
         self.combo_mode.setItemText(0, tr("brush_mode_new"))
@@ -508,5 +519,6 @@ class BrushTab(QWidget):
                     tr("btn_reinstall_brush"),
                     tr("brush_reinstall_info")
                 )
+                self.restartRequested.emit()
             except Exception as e:
                 QMessageBox.critical(self, "Erreur", f"Erreur lors de la suppression de Brush: {e}")

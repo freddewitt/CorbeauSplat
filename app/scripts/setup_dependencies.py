@@ -162,7 +162,9 @@ class DependencyManager:
 
             remote = engine.get_remote_version()
             local = engine.get_local_version()
-            
+            # Normalize local version for comparison (strip build-mode suffixes like -source)
+            local_clean = local.replace("-source", "") if local else local
+
             if not engine.is_installed():
                 if check_only:
                     pass # Just report status later
@@ -184,7 +186,7 @@ class DependencyManager:
                     elif check_only: print(status)
                     missing_engines_startup = True
 
-            elif remote and local and remote != local:
+            elif remote and local and remote != local_clean:
                 # Update Available
                 
                 # Check Auto-Update Preference
@@ -199,9 +201,9 @@ class DependencyManager:
                      except Exception as e:
                          print(f"❌ Auto-update failed for {name}: {e}")
                 elif check_only:
-                     print(f"  ⚠️  {name.capitalize()}: Update available ({local[:7]} -> {remote[:7]})")
+                     print(f"  ⚠️  {name.capitalize()}: Update available ({local_clean} -> {remote})")
                 else:
-                    print(f">>> Auto-updating {name} ({local[:7]} -> {remote[:7]})...")
+                    print(f">>> Auto-updating {name} ({local_clean} -> {remote})...")
                     engine.install()
             else:
                 if check_only:
@@ -228,99 +230,219 @@ class BrushEngineDep(EngineDependency):
         super().__init__("brush", BRUSH_REPO)
 
     def get_remote_version(self) -> str:
-        # Pinned to a specific documented release to ensure stability
-        return "v0.3.0"
+        """Queries GitHub API for the latest Brush release tag."""
+        import urllib.request
+        import json as _json
+        try:
+            req = urllib.request.Request(
+                "https://api.github.com/repos/ArthurBrussee/brush/releases/latest",
+                headers={"Accept": "application/vnd.github+json", "User-Agent": "CorbeauSplat"}
+            )
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = _json.loads(resp.read())
+                tag = data.get("tag_name", "")
+                if tag:
+                    print(f"Latest Brush release: {tag}")
+                    return tag
+        except Exception as e:
+            print(f"⚠️ Could not fetch latest Brush version: {e}")
+        return ""
+
+    def _get_head_commit(self) -> str:
+        """Returns the short HEAD commit hash of the remote repo."""
+        try:
+            out = subprocess.check_output(
+                ["git", "ls-remote", self.repo_url, "HEAD"], text=True, timeout=10
+            ).strip()
+            return out.split()[0][:12] if out else ""
+        except Exception as e:
+            print(f"⚠️ Could not fetch HEAD commit: {e}")
+            return ""
 
     def install(self):
-        if self.bin_path.exists():
-            print("Brush is already installed. Skipping.")
-            return
+        config = {}
+        try:
+            config = json.loads((self.root / "config.json").read_text())
+        except:
+            pass
+        build_mode = config.get("brush_params", {}).get("build_mode", "release")
 
+        if build_mode == "source":
+            # Source mode tracks the HEAD commit, not a release tag
+            remote_ref = self._get_head_commit()
+            release_version = None
+        else:
+            remote_ref = self.get_remote_version() or "v0.3.0"
+            release_version = remote_ref
+
+        if self.bin_path.exists():
+            local_ver = self.get_local_version()
+            installed_as_source = "-source" in local_ver
+            requested_source = (build_mode == "source")
+
+            if installed_as_source != requested_source:
+                print(f"Build mode changed ({'release → source' if requested_source else 'source → release'}). Replacing existing binary...")
+                self.bin_path.unlink()
+                if self.version_file.exists():
+                    self.version_file.unlink()
+            else:
+                # Same mode — compare versions
+                local_ref = local_ver.replace("-source", "")
+                if remote_ref and local_ref == remote_ref:
+                    print(f"Brush {local_ver} is already up to date.")
+                    return
+                elif remote_ref:
+                    print(f"Brush update: {local_ref} → {remote_ref}. Updating...")
+                    self.bin_path.unlink()
+                    if self.version_file.exists():
+                        self.version_file.unlink()
+                else:
+                    print("Brush installed, could not check for updates.")
+                    return
+
+        if build_mode == "source":
+            head = remote_ref or "HEAD"
+            print(f"Mode source sélectionné — compilation depuis HEAD ({head[:7]})...")
+            if not self._install_from_source(head):
+                print("❌ Compilation source échouée. Relancez après avoir vérifié votre installation Rust/cargo.")
+        else:
+            print(f"Mode release sélectionné ({release_version}). Téléchargement...")
+            if not self._install_from_release(release_version):
+                print("❌ Téléchargement release échoué. Vérifiez votre connexion.")
+
+    def _install_from_release(self, version: str) -> bool:
         import platform
         import urllib.request
         import tarfile
         import zipfile
-        
+
         system = platform.system()
         machine = platform.machine()
-        
-        # We try to use pre-built binaries for supported platforms first
-        release_url = None
+
+        platform_suffix = None
         if system == "Darwin" and machine == "arm64":
-            release_url = "https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-aarch64-apple-darwin.tar.xz"
+            platform_suffix = "aarch64-apple-darwin.tar.xz"
         elif system == "Windows" and machine == "AMD64":
-            release_url = "https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-x86_64-pc-windows-msvc.zip"
+            platform_suffix = "x86_64-pc-windows-msvc.zip"
         elif system == "Linux" and machine == "x86_64":
-            release_url = "https://github.com/ArthurBrussee/brush/releases/download/v0.3.0/brush-app-x86_64-unknown-linux-gnu.tar.xz"
+            platform_suffix = "x86_64-unknown-linux-gnu.tar.xz"
 
-        if release_url:
-            print(f"Downloading official Brush release from {release_url}...")
-            try:
-                archive_path = self.engines_dir / release_url.split('/')[-1]
-                urllib.request.urlretrieve(release_url, str(archive_path))
-                
-                print("Extracting Brush...")
-                extracted_dir_name = archive_path.name.replace(".tar.xz", "").replace(".zip", "")
-                
-                if archive_path.name.endswith(".zip"):
-                    with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-                        zip_ref.extractall(self.engines_dir / extracted_dir_name)
-                elif archive_path.name.endswith(".tar.xz"):
-                    with tarfile.open(archive_path, 'r:xz') as tar_ref:
-                        tar_ref.extractall(self.engines_dir)
-                        
-                archive_path.unlink() # Clean up archive
-                
-                # Find the executable
-                extracted_bin = None
-                for root_dir, dirs, files in os.walk(str(self.engines_dir / extracted_dir_name)):
-                    for file in files:
-                        if file in ("brush-app", "brush_app", "brush-app.exe", "brush_app.exe"):
-                            extracted_bin = Path(root_dir) / file
-                            break
-                    if extracted_bin:
-                        break
-                        
-                if extracted_bin:
-                    shutil.move(str(extracted_bin), str(self.engines_dir / "brush"))
-                    # Make executable if it's not on Windows
-                    if system != "Windows":
-                        os.chmod(str(self.engines_dir / "brush"), 0o755)
-                    print("✅ Brush installed successfully from release binary.")
-                    self.save_local_version("v0.3.0")
-                    # Clean up extracted folder
-                    shutil.rmtree(str(self.engines_dir / extracted_dir_name), ignore_errors=True)
-                    return
-                else:
-                    print("⚠️ Could not find brush executable in archive.")
-                    shutil.rmtree(str(self.engines_dir / extracted_dir_name), ignore_errors=True)
-            except Exception as e:
-                print(f"⚠️ Failed to install from binary: {e}")
-                print("Falling back to cargo install...")
+        if not platform_suffix:
+            print(f"⚠️ No pre-built release for {system}/{machine}.")
+            return False
 
-        # Fallback to source install pinned to v0.3.0 with --locked
-        print("Installing Brush from source (pinned to v0.3.0)...")
-        if not shutil.which("cargo"):
-            if not install_rust_toolchain(): return
-        
+        release_url = f"https://github.com/ArthurBrussee/brush/releases/download/{version}/brush-app-{platform_suffix}"
+        print(f"Downloading Brush {version} from {release_url}...")
+
+        archive_path = self.engines_dir / f"brush-app-{platform_suffix}"
         try:
-            subprocess.check_call([
-                "cargo", "install", "--git", self.repo_url, 
-                "--tag", "v0.3.0", "--locked",
-                "brush-app", "--root", str(self.engines_dir)
-            ])
-            
-            # Move bin
-            bin_dir = self.engines_dir / "bin"
-            for name in ["brush", "brush-app", "brush_app", "brush.exe", "brush-app.exe"]:
-                src = bin_dir / name
-                if src.exists():
-                    shutil.move(str(src), str(self.engines_dir / "brush"))
-                    break
-            shutil.rmtree(str(bin_dir), ignore_errors=True)
-            print("✅ Brush compiled and installed successfully.")
+            urllib.request.urlretrieve(release_url, str(archive_path))
         except Exception as e:
-            print(f"❌ Failed to install Brush from source: {e}")
+            print(f"⚠️ Download failed: {e}")
+            if archive_path.exists():
+                archive_path.unlink()
+            return False
+
+        print("Extracting Brush...")
+        extract_dir = self.engines_dir / f"brush-extract-{version}"
+        extract_dir.mkdir(exist_ok=True)
+        try:
+            if archive_path.name.endswith(".zip"):
+                with zipfile.ZipFile(archive_path, 'r') as zf:
+                    zf.extractall(extract_dir)
+            else:
+                with tarfile.open(archive_path, 'r:xz') as tf:
+                    tf.extractall(extract_dir)
+        except Exception as e:
+            print(f"⚠️ Extraction failed: {e}")
+            archive_path.unlink(missing_ok=True)
+            shutil.rmtree(str(extract_dir), ignore_errors=True)
+            return False
+        finally:
+            archive_path.unlink(missing_ok=True)
+
+        # Find the executable anywhere in the extracted tree
+        extracted_bin = None
+        bin_names = {"brush-app", "brush_app", "brush-app.exe", "brush_app.exe"}
+        for root_dir, dirs, files in os.walk(str(extract_dir)):
+            for f in files:
+                if f in bin_names:
+                    extracted_bin = Path(root_dir) / f
+                    break
+            if extracted_bin:
+                break
+
+        if not extracted_bin:
+            print("⚠️ Could not find brush executable in archive.")
+            shutil.rmtree(str(extract_dir), ignore_errors=True)
+            return False
+
+        dest = self.engines_dir / "brush"
+        shutil.move(str(extracted_bin), str(dest))
+        shutil.rmtree(str(extract_dir), ignore_errors=True)
+
+        if system != "Windows":
+            os.chmod(str(dest), 0o755)
+
+        self.save_local_version(version)
+        print(f"✅ Brush {version} installed successfully from release binary.")
+        return True
+
+    def _install_from_source(self, head_ref: str) -> bool:
+        """Compiles Brush from the latest commit on the default branch (HEAD)."""
+        print(f"Compiling Brush from source (HEAD: {head_ref[:7] if head_ref else '?'})...")
+        cargo = shutil.which("cargo")
+        if not cargo:
+            if not install_rust_toolchain():
+                return False
+            cargo = shutil.which("cargo")
+            if not cargo:
+                print("❌ cargo still not found after Rust install.")
+                return False
+
+        # Build from HEAD (no --tag), try --locked first then without
+        base_cmd = [cargo, "install", "--git", self.repo_url, "brush-app", "--root", str(self.engines_dir)]
+        env = os.environ.copy()
+        # Ensure cargo home bin is in PATH after potential rustup install
+        cargo_bin = Path.home() / ".cargo" / "bin"
+        if cargo_bin.exists():
+            env["PATH"] = str(cargo_bin) + os.pathsep + env.get("PATH", "")
+
+        success = False
+        for extra in [["--locked"], []]:
+            cmd = base_cmd + extra
+            flag_str = " --locked" if extra else " (no lockfile)"
+            print(f"cargo install{flag_str}...")
+            try:
+                subprocess.check_call(cmd, env=env)
+                success = True
+                break
+            except subprocess.CalledProcessError as e:
+                print(f"⚠️ Attempt failed{flag_str}: {e}")
+
+        if not success:
+            print("❌ Brush source compilation failed.")
+            return False
+
+        bin_dir = self.engines_dir / "bin"
+        moved = False
+        for name in ["brush-app", "brush_app", "brush", "brush-app.exe", "brush_app.exe"]:
+            src = bin_dir / name
+            if src.exists():
+                shutil.move(str(src), str(self.engines_dir / "brush"))
+                moved = True
+                break
+        shutil.rmtree(str(bin_dir), ignore_errors=True)
+
+        if not moved:
+            print("❌ Binary not found after compilation.")
+            return False
+
+        # Save HEAD commit as version identifier
+        version_str = f"{head_ref[:12]}-source" if head_ref else "HEAD-source"
+        self.save_local_version(version_str)
+        print(f"✅ Brush compiled from HEAD ({head_ref[:7] if head_ref else '?'}) and installed.")
+        return True
 
 class SharpEngineDep(PipEngine):
     def __init__(self):

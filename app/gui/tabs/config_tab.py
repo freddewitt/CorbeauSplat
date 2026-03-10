@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
     QGroupBox, QRadioButton, QSpinBox, QCheckBox, QMessageBox, QComboBox,
-    QProgressBar
+    QProgressBar, QButtonGroup
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 from app.core.i18n import tr, set_language, get_current_lang, add_language_observer
@@ -95,11 +95,15 @@ class ConfigTab(QWidget):
         self.lbl_type = QLabel(tr("label_type"))
         type_layout.addWidget(self.lbl_type)
         
+        self.type_button_group = QButtonGroup(self)
+        
         self.radio_images = QRadioButton(tr("radio_images"))
         self.radio_images.setChecked(True)
+        self.type_button_group.addButton(self.radio_images)
         type_layout.addWidget(self.radio_images)
         
         self.radio_video = QRadioButton(tr("radio_video"))
+        self.type_button_group.addButton(self.radio_video)
         type_layout.addWidget(self.radio_video)
         type_layout.addStretch()
         input_layout.addLayout(type_layout)
@@ -110,11 +114,15 @@ class ConfigTab(QWidget):
         self.lbl_source_select = QLabel(tr("label_source_select"))
         self.source_select_layout.addWidget(self.lbl_source_select)
         
+        self.source_button_group = QButtonGroup(self)
+        
         self.radio_source_folder = QRadioButton(tr("radio_source_folder"))
         self.radio_source_folder.setChecked(True)
+        self.source_button_group.addButton(self.radio_source_folder)
         self.source_select_layout.addWidget(self.radio_source_folder)
         
         self.radio_source_files = QRadioButton(tr("radio_source_files"))
+        self.source_button_group.addButton(self.radio_source_files)
         self.source_select_layout.addWidget(self.radio_source_files)
         self.source_select_layout.addStretch()
         input_layout.addLayout(self.source_select_layout)
@@ -130,6 +138,12 @@ class ConfigTab(QWidget):
         self.btn_browse_input.clicked.connect(self.browse_input)
         path_layout.addWidget(self.btn_browse_input)
         input_layout.addLayout(path_layout)
+        
+        # Connect clear signals now that input_path exists
+        self.radio_images.clicked.connect(self.input_path.clear)
+        self.radio_video.clicked.connect(self.input_path.clear)
+        self.radio_source_folder.clicked.connect(self.input_path.clear)
+        self.radio_source_files.clicked.connect(self.input_path.clear)
         
         # FPS (pour vidéo)
         fps_layout = QHBoxLayout()
@@ -460,6 +474,7 @@ class ConfigTab(QWidget):
             "fps": self.get_fps(),
             "undistort": self.get_undistort(),
             "auto_brush": self.get_auto_brush(),
+            "upscale": self.get_upscale(),
             "lang": self.combo_lang.currentData()
         }
 
@@ -474,6 +489,7 @@ class ConfigTab(QWidget):
         if "fps" in state: self.set_fps(state["fps"])
         if "undistort" in state: self.set_undistort(state["undistort"])
         if "auto_brush" in state: self.set_auto_brush(state["auto_brush"])
+        if "upscale" in state: self.set_upscale(state["upscale"])
         
         # Lang is special, might require restart if changed, so we just set combo if it matches
         # or we let the main app handle valid lang loading.
@@ -483,16 +499,6 @@ class ConfigTab(QWidget):
             
         self.update_ui_state()
 
-    def get_upscale_config(self, tab_params):
-        """Returns upscale generic params for the ColmapWorker if needed, default offline"""
-        return {
-            "active": False,
-            "model_name": tab_params.get("model_name", "RealESRGAN_x4plus"),
-            "tile": tab_params.get("tile", 0),
-            "target_scale": tab_params.get("scale_factor", 4),
-            "face_enhance": tab_params.get("face_enhance", False)
-        }
-        
     def on_reset_clicked(self):
         reply = QMessageBox.question(
             self, 

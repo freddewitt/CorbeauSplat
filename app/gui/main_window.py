@@ -98,6 +98,7 @@ class ColmapGUI(QMainWindow):
         
         self.brush_tab.trainRequested.connect(self.train_brush)
         self.brush_tab.stopRequested.connect(self.stop_brush)
+        self.brush_tab.restartRequested.connect(self.restart_application)
         
 
         
@@ -271,11 +272,11 @@ class ColmapGUI(QMainWindow):
         self.config_tab.set_processing_state(False)
         
         if success:
-            self.logs_tab.append_log("COLMAP termine avec succes.")
-            
+            self.logs_tab.append_log(tr("msg_success"))
+
             # Auto-launch Brush?
             if self.config_tab.get_auto_brush():
-                self.logs_tab.append_log("Lancement automatique de Brush...")
+                self.logs_tab.append_log(tr("msg_brush_start", ""))
                 self.train_brush(force_auto=True)
             else:
                 QMessageBox.information(self, tr("msg_success"), 
@@ -354,10 +355,13 @@ class ColmapGUI(QMainWindow):
             if not input_path.exists():
                  QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier Dataset valide.")
                  return
-                 
-            # Brush output logic in manual mode:
-            # Force output to input/checkpoints
-            output_path = input_path / "checkpoints"
+
+            # Use custom output path if provided, otherwise default to input/checkpoints
+            output_path_str = brush_params.get("output_path", "").strip()
+            if output_path_str:
+                output_path = Path(output_path_str)
+            else:
+                output_path = input_path / "checkpoints"
             output_path.mkdir(parents=True, exist_ok=True)
             
         else:
@@ -464,6 +468,7 @@ class ColmapGUI(QMainWindow):
     def on_sharp_finished(self, success, message):
         """Fin Sharp"""
         self.sharp_tab.set_processing_state(False)
+        self.config_tab.set_processing_state(False)
         self.logs_tab.append_log(f"Fin Sharp: {message}")
         
         if success:
@@ -477,32 +482,47 @@ class ColmapGUI(QMainWindow):
             self.save_session_state()
         except Exception as e:
             print(f"Error saving session before restart: {e}")
-            
-        # Determine root dir
+
+        import subprocess
         root_dir = resolve_project_root()
-        
-        # Prepare command
         python = sys.executable
         main_py = root_dir / "main.py"
-        
+
+        # Si un binaire engine est manquant (ex: après réinstall Brush),
+        # on réinjecte l'étape setup_dependencies --startup avant de relancer.
+        engines_dir = root_dir / "engines"
+        needs_setup = any([
+            not (engines_dir / "brush").exists() and (engines_dir / "brush.version").exists() is False,
+            not (engines_dir / "brush").exists(),
+        ])
+
+        if needs_setup and sys.platform != "win32":
+            print("Reinstall detected: running setup before relaunch...")
+            extra_argv = [a for a in sys.argv[1:] if a not in ("--gui",)]
+            main_args = " ".join(f'"{a}"' for a in extra_argv)
+            cmd = (
+                f'sleep 1 && '
+                f'"{python}" -m app.scripts.setup_dependencies --startup && '
+                f'"{python}" "{main_py}" {main_args}'
+            )
+            subprocess.Popen(cmd, shell=True, cwd=str(root_dir), start_new_session=True)
+            QApplication.quit()
+            sys.exit(0)
+
+        # Relance normale
         args = [python, str(main_py)] + sys.argv[1:]
-        
         print(f"Relaunching via execv: {args}")
-        
-        # Sur Unix (macOS/Linux), execv remplace le processus actuel.
-        # C'est beaucoup plus propre pour des relaunchs successifs.
+
         if sys.platform != "win32":
             try:
                 os.execv(python, args)
             except Exception as e:
                 print(f"execv failed: {e}. Falling back to Popen.")
-                
-        # Fallback pour Windows ou si execv échoue
-        import subprocess
+
         kwargs = {}
         if sys.platform != "win32":
             kwargs["start_new_session"] = True
-            
+
         subprocess.Popen(args, cwd=str(root_dir), **kwargs)
         QApplication.quit()
         sys.exit(0)
@@ -553,6 +573,7 @@ class ColmapGUI(QMainWindow):
             "sharp_params": self.sharp_tab,
             "upscale_params": self.upscale_tab,
             "extractor_360_params": self.extractor_360_tab,
+            "four_dgs_params": self.four_dgs_tab,
         }
         
         for key, tab in tab_mapping.items():

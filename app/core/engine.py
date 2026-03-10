@@ -378,6 +378,7 @@ class ColmapEngine(BaseEngine):
 
     def extract_frames_from_video(self, video_path: str, images_dir: Path, prefix=None):
         """Extraction vidéo optimisée"""
+        base_name = Path(video_path).stem
         self.log(f"\n{'='*60}\nExtraction frames: {Path(video_path).name}\n{'='*60}")
         images_dir.mkdir(parents=True, exist_ok=True)
         

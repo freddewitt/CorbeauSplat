@@ -90,7 +90,7 @@ def check_dependencies():
 
     # Check send2trash
     try:
-        pass
+        import send2trash  # noqa: F401
     except ImportError:
         missing.append('send2trash')
 

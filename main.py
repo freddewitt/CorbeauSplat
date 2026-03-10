@@ -101,8 +101,10 @@ def run_brush(args):
     }
     
     process = engine.train(args.input, args.output, params=params)
-    
+
     try:
+        for line in process.stdout:
+            print(line, end="")
         process.wait()
         if process.returncode == 0:
             print(tr("msg_success"))
@@ -129,8 +131,10 @@ def run_sharp(args):
     }
     
     process = engine.predict(args.input, args.output, params=params)
-    
+
     try:
+        for line in process.stdout:
+            print(line, end="")
         process.wait()
         if process.returncode == 0:
             print(tr("msg_success"))

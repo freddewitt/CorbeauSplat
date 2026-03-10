@@ -259,6 +259,20 @@ class BrushWorker(BaseWorker):
 
             # Fin gestion Init / Refine
 
+            # Mode "new" : s'assurer que Brush parte d'un dossier vide
+            # Brush auto-reprend depuis les checkpoints existants → on les archive
+            if not refine_mode:
+                output_dir = Path(self.output_path)
+                has_checkpoints = output_dir.exists() and any(output_dir.rglob("*.ply"))
+                if has_checkpoints:
+                    import time
+                    backup_name = f"checkpoints_backup_{int(time.time())}"
+                    backup_dir = output_dir.parent / backup_name
+                    shutil.move(str(output_dir), str(backup_dir))
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    self.output_path = output_dir
+                    self.log_signal.emit(f"Nouveau training : anciens checkpoints archivés dans '{backup_name}'")
+
             # Args Densification
             densify_args = []
             if "start_iter" in self.params: densify_args.append(f"--start-iter {self.params['start_iter']}")
