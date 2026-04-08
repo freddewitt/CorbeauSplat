@@ -509,8 +509,8 @@ class ColmapEngine(BaseEngine):
             '--image_path', images_dir,
             '--ImageReader.camera_model', self.params.camera_model,
             '--ImageReader.single_camera', '1' if self.params.single_camera else '0',
-            '--ImageReader.max_image_size', str(self.params.max_image_size),
-            '--SiftExtraction.num_threads', str(self.num_threads),
+            '--FeatureExtraction.num_threads', str(self.num_threads),
+            '--FeatureExtraction.max_image_size', str(self.params.max_image_size),
             '--SiftExtraction.max_num_features', str(self.params.max_num_features),
             '--SiftExtraction.estimate_affine_shape', '1' if self.params.estimate_affine_shape else '0',
             '--SiftExtraction.domain_size_pooling', '1' if self.params.domain_size_pooling else '0',
@@ -522,7 +522,7 @@ class ColmapEngine(BaseEngine):
             cmd = [
                 self.colmap_bin, 'sequential_matcher',
                 '--database_path', database_path,
-                '--SiftMatching.num_threads', str(self.num_threads),
+                '--FeatureMatching.num_threads', str(self.num_threads),
                 '--SiftMatching.max_ratio', str(self.params.max_ratio),
                 '--SiftMatching.max_distance', str(self.params.max_distance),
                 '--SiftMatching.cross_check', '1' if self.params.cross_check else '0',
@@ -532,7 +532,7 @@ class ColmapEngine(BaseEngine):
             cmd = [
                 self.colmap_bin, 'exhaustive_matcher',
                 '--database_path', database_path,
-                '--SiftMatching.num_threads', str(self.num_threads),
+                '--FeatureMatching.num_threads', str(self.num_threads),
                 '--SiftMatching.max_ratio', str(self.params.max_ratio),
                 '--SiftMatching.max_distance', str(self.params.max_distance),
                 '--SiftMatching.cross_check', '1' if self.params.cross_check else '0',
