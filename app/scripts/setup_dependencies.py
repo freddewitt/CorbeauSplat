@@ -488,6 +488,56 @@ def relax_requirements(src, dst):
                 line = line.replace('==', '>=')
             f_out.write(line)
 
+class ColmapBrewDep(EngineDependency):
+    """COLMAP géré via Homebrew — vérifie la version et met à jour si nécessaire"""
+
+    def __init__(self):
+        super().__init__("colmap")
+
+    def is_installed(self) -> bool:
+        return shutil.which("colmap") is not None
+
+    def is_enabled_in_config(self, config: dict) -> bool:
+        return sys.platform == "darwin" and shutil.which("brew") is not None
+
+    def get_local_version(self) -> str:
+        try:
+            out = subprocess.check_output(
+                ["brew", "list", "--versions", "colmap"],
+                text=True, stderr=subprocess.DEVNULL
+            ).strip()
+            parts = out.split()
+            return parts[1] if len(parts) >= 2 else ""
+        except:
+            return ""
+
+    def get_remote_version(self) -> str:
+        try:
+            out = subprocess.check_output(
+                ["brew", "info", "--json", "colmap"],
+                text=True, stderr=subprocess.DEVNULL, timeout=10
+            )
+            data = json.loads(out)
+            if data and isinstance(data, list):
+                return data[0].get("versions", {}).get("stable", "")
+        except Exception as e:
+            print(f"⚠️ Could not fetch latest COLMAP version: {e}")
+        return ""
+
+    def install(self):
+        if not shutil.which("brew"):
+            print("❌ Homebrew requis pour mettre à jour COLMAP.")
+            return
+        try:
+            if self.is_installed():
+                print("Mise à jour de COLMAP via Homebrew...")
+                subprocess.check_call(["brew", "upgrade", "colmap"])
+            else:
+                print("Installation de COLMAP via Homebrew...")
+                subprocess.check_call(["brew", "install", "colmap"])
+        except subprocess.CalledProcessError:
+            print("⚠️ brew upgrade/install colmap a échoué (peut-être déjà à jour).")
+
 def install_system_dependencies(check_only=False):
     print("--- System Dependency Check (Homebrew) ---")
     missing = []
@@ -744,6 +794,7 @@ def main():
     engines_dir.mkdir(parents=True, exist_ok=True)
     
     manager = DependencyManager(engines_dir)
+    manager.register(ColmapBrewDep())
     manager.register(GlomapEngineDep())
     manager.register(BrushEngineDep())
     manager.register(SharpEngineDep())
