@@ -34,7 +34,7 @@ class BrushEngine(BaseEngine):
         cmd.extend(["--export-path", str(safe_output)])
         
         if params.get("total_steps"):
-            cmd.extend(["--total-steps", str(params["total_steps"])])
+            cmd.extend(["--total-train-iters", str(params["total_steps"])])
             
         if params.get("sh_degree"):
              cmd.extend(["--sh-degree", str(params["sh_degree"])])
