@@ -17,6 +17,8 @@ REALESRGAN_PIP = "realesrgan"
 
 class EngineDependency:
     """Represents an external engine (Colmap, Glomap, Brush, etc.)"""
+    auto_update_default = False  # Subclasses can override to enable auto-update by default
+
     def __init__(self, name, repo_url=None, bin_name=None):
         self.name = name
         self.repo_url = repo_url
@@ -186,7 +188,7 @@ class DependencyManager:
                 
                 # Check Auto-Update Preference
                 cfg_section = config.get("config", {})
-                auto_update = config.get(f"{name}_auto_update", False) or cfg_section.get(f"{name}_auto_update", False)
+                auto_update = config.get(f"{name}_auto_update", engine.auto_update_default) or cfg_section.get(f"{name}_auto_update", engine.auto_update_default)
                 
                 if startup and auto_update:
                      print(f">>> Auto-updating {name.capitalize()}...")
@@ -446,6 +448,8 @@ class BrushEngineDep(EngineDependency):
         return True
 
 class SharpEngineDep(PipEngine):
+    auto_update_default = True
+
     def __init__(self):
         super().__init__("sharp", SHARP_REPO, ".venv_sharp")
 
@@ -490,6 +494,7 @@ def relax_requirements(src, dst):
 
 class ColmapBrewDep(EngineDependency):
     """COLMAP géré via Homebrew — vérifie la version et met à jour si nécessaire"""
+    auto_update_default = True
 
     def __init__(self):
         super().__init__("colmap")
@@ -771,6 +776,8 @@ class GlomapEngineDep(EngineDependency):
 
 class UpscaleEngineDep(PipEngine):
     """Upscale is special as it installs in main sys.executable (usually)"""
+    auto_update_default = True
+
     def __init__(self):
         # We use a fake venv name to satisfy PipEngine but we'll override
         super().__init__("upscale", None, "fake")
@@ -783,10 +790,38 @@ class UpscaleEngineDep(PipEngine):
         from app.core.upscale_engine import UpscaleEngine
         return UpscaleEngine().is_installed()
 
+    def get_local_version(self) -> str:
+        try:
+            out = subprocess.check_output(
+                [str(self.python_bin), "-m", "pip", "show", "realesrgan"],
+                text=True, stderr=subprocess.DEVNULL
+            )
+            for line in out.splitlines():
+                if line.startswith("Version:"):
+                    return line.split(":", 1)[1].strip()
+        except:
+            pass
+        return ""
+
+    def get_remote_version(self) -> str:
+        import urllib.request
+        import json as _json
+        try:
+            req = urllib.request.Request(
+                "https://pypi.org/pypi/realesrgan/json",
+                headers={"User-Agent": "CorbeauSplat"}
+            )
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = _json.loads(resp.read())
+                return data.get("info", {}).get("version", "")
+        except Exception as e:
+            print(f"⚠️ Could not fetch latest realesrgan version: {e}")
+        return ""
+
     def install(self):
         pkgs = ["torch", "torchvision", "realesrgan"]
         print(f"Installing/Updating: {', '.join(pkgs)}...")
-        self.pip_install(pkgs)
+        self.pip_install(["--upgrade"] + pkgs)
 
 def main():
     root = Path(__file__).resolve().parent.parent.parent
