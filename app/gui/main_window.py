@@ -434,31 +434,71 @@ class ColmapGUI(QMainWindow):
     def run_sharp(self):
         """Lance Sharp"""
         params = self.sharp_tab.get_params()
-        input_path_str = params.get("input_path")
-        output_path_str = params.get("output_path")
-        
-        if not input_path_str:
-             QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier d'images valide.")
-             return
-             
-        input_path = Path(input_path_str)
-        if not input_path.exists():
-             QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier d'images valide.")
-             return
-             
-        if not output_path_str:
-             QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier de sortie.")
-             return
-        
-        output_path = Path(output_path_str)
+        mode = params.get("mode", "image")
         
         self.sharp_tab.set_processing_state(True)
-        self.logs_tab.append_log(f"--- Lancement Apple ML Sharp ---")
-        self.logs_tab.append_log(f"Input: {input_path}")
-        self.logs_tab.append_log(f"Output: {output_path}")
+        self.logs_tab.append_log(f"--- Lancement Apple ML Sharp (Mode: {mode}) ---")
         
-        self.sharp_worker = SharpWorker(str(input_path), str(output_path), params)
+        if mode == "image":
+            input_path_str = params.get("input_path")
+            output_path_str = params.get("output_path")
+            
+            if not input_path_str:
+                 QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier d'images valide.")
+                 self.sharp_tab.set_processing_state(False)
+                 return
+                 
+            input_path = Path(input_path_str)
+            if not input_path.exists():
+                 QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier d'images valide.")
+                 self.sharp_tab.set_processing_state(False)
+                 return
+                 
+            if not output_path_str:
+                 QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier de sortie.")
+                 self.sharp_tab.set_processing_state(False)
+                 return
+            
+            output_path = Path(output_path_str)
+            
+            self.logs_tab.append_log(f"Input: {input_path}")
+            self.logs_tab.append_log(f"Output: {output_path}")
+            
+            self.sharp_worker = SharpWorker(str(input_path), str(output_path), params)
+            
+        else: # video
+            video_path_str = params.get("video_path")
+            output_path_str = params.get("video_output_path")
+            
+            if not video_path_str:
+                 QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un fichier video.")
+                 self.sharp_tab.set_processing_state(False)
+                 return
+                 
+            video_path = Path(video_path_str)
+            if not video_path.exists():
+                 QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un fichier video existant.")
+                 self.sharp_tab.set_processing_state(False)
+                 return
+                 
+            if not output_path_str:
+                 QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier de sortie.")
+                 self.sharp_tab.set_processing_state(False)
+                 return
+                 
+            output_path = Path(output_path_str)
+            
+            self.logs_tab.append_log(f"Video Input: {video_path}")
+            self.logs_tab.append_log(f"Output: {output_path}")
+            
+            from app.gui.workers import SharpVideoWorker
+            self.sharp_worker = SharpVideoWorker(str(video_path), str(output_path), params)
+
         self.sharp_worker.log_signal.connect(self.logs_tab.append_log)
+        if hasattr(self.sharp_worker, "progress_signal"):
+            self.sharp_worker.progress_signal.connect(self.config_tab.progress_bar.setValue)
+        if hasattr(self.sharp_worker, "status_signal"):
+            self.sharp_worker.status_signal.connect(self.config_tab.lbl_status.setText)
         self.sharp_worker.finished_signal.connect(self.on_sharp_finished)
         self.sharp_worker.start()
         

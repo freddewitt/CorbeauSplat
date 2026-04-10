@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.95] - 2026-04-10
+
+### ✨ New Features
+- **Video to 3D Sequence (Apple Sharp)**: The Apple Sharp tab now supports converting entire videos into a sequence of `.ply` Gaussian splats.
+  - Automatically extracts video frames via FFmpeg.
+  - Added an adjustable "Frame Skip" parameter to accelerate long videos and save storage by sampling at precise intervals.
+  - The UI now features a dynamic toggle (QStackedWidget) switching seamlessly between "Image → PLY" and "Video → PLY" modes.
+- **Global Localization**: Full support for the new Video features integrated into all 9 supported languages (EN, FR, ES, DE, IT, JA, ZH, RU, AR).
+
 ## [0.9] - 2026-03-15
 
 ### 🏗 Architecture & Codebase Refactoring (Audit V3)

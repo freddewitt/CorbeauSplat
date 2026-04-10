@@ -427,6 +427,115 @@ class SharpWorker(BaseWorker):
         except Exception as e:
             self.finished_signal.emit(False, str(e))
 
+class SharpVideoWorker(BaseWorker):
+    """Thread worker for executing Apple ML Sharp on a sequence of frames from a video."""
+    
+    def __init__(self, video_path, output_path, params, engine=None):
+        super().__init__()
+        from app.core.sharp_engine import SharpEngine
+        self.engine = engine or SharpEngine(logger_callback=self.log_signal.emit)
+        self.video_path = video_path
+        self.output_path = output_path
+        self.params = params
+        
+    def stop(self):
+        self.engine.stop()
+        super().stop()
+        
+    def run(self):
+        import subprocess
+        try:
+            self.status_signal.emit(tr("sharp_msg_extract_frames"))
+            self.log_signal.emit(tr("sharp_msg_extract_frames"))
+            
+            video_path = Path(self.video_path)
+            output_dir = Path(self.output_path)
+            
+            # 1. Create temporary frames directory
+            frames_dir = output_dir / "temp_frames"
+            frames_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Clean directory
+            for f in frames_dir.glob("*.png"):
+                f.unlink()
+                
+            skip = self.params.get("skip_frames", 1)
+            
+            # 2. Extract frames using ffmpeg
+            cmd = [
+                "ffmpeg", "-y", "-i", str(video_path),
+                "-vf", f"select=not(mod(n\,{skip}))",
+                "-vsync", "vfr", "-q:v", "1",
+                str(frames_dir / "frame_%04d.png")
+            ]
+            self.log_signal.emit(f"Running: {' '.join(cmd)}")
+            
+            env = os.environ.copy()
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+            if result.returncode != 0:
+                self.log_signal.emit(f"FFmpeg error: {result.stderr}")
+                self.finished_signal.emit(False, tr("sharp_err_ffmpeg"))
+                return
+                
+            # Count extracted frames
+            frames = sorted(list(frames_dir.glob("*.png")))
+            total_frames = len(frames)
+            
+            if total_frames == 0:
+                self.finished_signal.emit(False, "Aucune frame extraite. Vérifiez la vidéo ou le frame skip.")
+                return
+                
+            self.log_signal.emit(f"Total frames extraites: {total_frames}")
+            
+            # 3. Process each frame with SHARP
+            success_count = 0
+            for current_idx, frame_path in enumerate(frames):
+                if self.isInterruptionRequested():
+                    self.log_signal.emit("--- Arrêté par l'utilisateur ---")
+                    break
+                    
+                display_idx = current_idx + 1
+                self.status_signal.emit(tr("sharp_msg_process_frame", display_idx, total_frames))
+                self.log_signal.emit(f"Processing frame {display_idx}/{total_frames}: {frame_path.name}")
+                
+                # Output dir for this frame
+                frame_out_dir = output_dir / frame_path.stem
+                
+                # Predict
+                returncode = self.engine.predict(str(frame_path), str(frame_out_dir), self.params)
+                
+                if returncode == 0:
+                    # 4. Copy the resulting PLY to the main dir
+                    ply_files = list(frame_out_dir.rglob("*.ply"))
+                    if ply_files:
+                        first_ply = ply_files[0]
+                        dest_ply = output_dir / f"{frame_path.stem}.ply"
+                        shutil.copy2(first_ply, dest_ply)
+                        self.log_signal.emit(f"Saved: {dest_ply.name}")
+                        success_count += 1
+                        
+                # Progress update
+                progress = int((display_idx / total_frames) * 100)
+                self.progress_signal.emit(progress)
+                
+                # Cleanup temp dir for frame
+                if frame_out_dir.exists():
+                    shutil.rmtree(frame_out_dir)
+                    
+            # 5. Cleanup temp frames
+            if frames_dir.exists():
+                shutil.rmtree(frames_dir)
+                
+            if success_count > 0:
+                self.finished_signal.emit(True, f"Conversion Video -> PLY terminée. {success_count}/{total_frames} frames traitées avec succès.")
+            else:
+                self.finished_signal.emit(False, "Aucune frame n'a pu être traitée par SHARP.")
+                
+        except Exception as e:
+            import traceback
+            self.log_signal.emit(f"EXCEPTION: {e}\n{traceback.format_exc()}")
+            self.finished_signal.emit(False, str(e))
 
 
 # ---------------------------------------------------------------------

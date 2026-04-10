@@ -83,9 +83,9 @@ It also includes built-in full localization support for **French, English, Germa
     -   **Activate**: Install the dedicated environment (PySide6, YOLOv8).
     -   **Convert**: Extract images from 360° videos with advanced layouts (Ring, Cube Map, Fibonacci).
     -   **AI Masking**: Automatically mask the operator.
-8.  **Apple Sharp Tab (Bonus)**:
-    -   Select a single source image.
-    -   Click **"Predict 3D Model"** to generate a mesh using machine learning.
+86. **Apple Sharp Tab (Bonus)**:
+    -   Select a single source image or a **Video**.
+    -   Click **"Predict 3D Model"** or **"Start Conversion"** to generate a mesh sequence using machine learning.
 
 ### ⌨️ Command Line Interface (CLI)
 

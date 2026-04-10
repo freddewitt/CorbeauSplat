@@ -5,7 +5,8 @@ from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_n
 from app.scripts.setup_dependencies import install_sharp, uninstall_sharp
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QGroupBox,
-    QFormLayout, QCheckBox, QComboBox, QMessageBox, QProgressDialog, QApplication
+    QFormLayout, QCheckBox, QComboBox, QMessageBox, QProgressDialog, QApplication,
+    QRadioButton, QButtonGroup, QStackedWidget, QSpinBox
 )
 
 class SharpTab(QWidget):
@@ -39,11 +40,36 @@ class SharpTab(QWidget):
         layout.addWidget(self.status_lbl)
         self.check_status() # Update text/color
         
-        # Paths Group
-        self.path_group = QGroupBox(tr("sharp_group_paths")) # Make it class member for enabling/disabling
+        # Mode Selection
+        mode_layout = QHBoxLayout()
+        self.radio_mode_image = QRadioButton(tr("sharp_mode_image"))
+        self.radio_mode_video = QRadioButton(tr("sharp_mode_video"))
+        self.radio_mode_image.setChecked(True) # default
+        
+        mode_layout.addWidget(self.radio_mode_image)
+        mode_layout.addWidget(self.radio_mode_video)
+        mode_layout.addStretch()
+        
+        self.mode_group = QButtonGroup(self)
+        self.mode_group.addButton(self.radio_mode_image, 0)
+        self.mode_group.addButton(self.radio_mode_video, 1)
+        self.mode_group.buttonClicked.connect(self.on_mode_changed)
+        
+        layout.addLayout(mode_layout)
+
+        # Stacked Widget for Modes
+        self.stacked_widget = QStackedWidget()
+        
+        # -----------------------------
+        # MODE A: Image -> PLY
+        # -----------------------------
+        self.page_image = QWidget()
+        page_image_layout = QVBoxLayout(self.page_image)
+        page_image_layout.setContentsMargins(0, 5, 0, 0)
+        
+        self.path_group = QGroupBox(tr("sharp_group_paths"))
         path_layout = QVBoxLayout()
         
-        # Input Path (File or Folder)
         self.lbl_input = QLabel(tr("sharp_lbl_input"))
         path_layout.addWidget(self.lbl_input)
         
@@ -60,7 +86,6 @@ class SharpTab(QWidget):
         input_controls.addWidget(self.btn_browse_input_file)
         path_layout.addLayout(input_controls)
         
-        # Output Path
         self.lbl_output = QLabel(tr("sharp_lbl_output"))
         path_layout.addWidget(self.lbl_output)
         
@@ -74,10 +99,70 @@ class SharpTab(QWidget):
         path_layout.addLayout(output_controls)
         
         self.path_group.setLayout(path_layout)
-        layout.addWidget(self.path_group)
+        page_image_layout.addWidget(self.path_group)
+        self.stacked_widget.addWidget(self.page_image)
         
-        # Options Group
-        self.opt_group = QGroupBox(tr("group_options")) # Make member
+        # -----------------------------
+        # MODE B: Video -> PLY
+        # -----------------------------
+        self.page_video = QWidget()
+        page_video_layout = QVBoxLayout(self.page_video)
+        page_video_layout.setContentsMargins(0, 5, 0, 0)
+        
+        self.video_group = QGroupBox(tr("sharp_group_paths"))
+        video_layout = QVBoxLayout()
+        
+        self.lbl_video_input = QLabel(tr("sharp_lbl_video_input"))
+        video_layout.addWidget(self.lbl_video_input)
+        
+        video_input_controls = QHBoxLayout()
+        self.video_path = DropLineEdit()
+        self.video_path.setPlaceholderText(tr("sharp_placeholder_video_input"))
+        self.btn_browse_video_file = QPushButton(tr("btn_browse"))
+        self.btn_browse_video_file.clicked.connect(self.browse_video_file)
+        
+        video_input_controls.addWidget(self.video_path)
+        video_input_controls.addWidget(self.btn_browse_video_file)
+        video_layout.addLayout(video_input_controls)
+        
+        self.lbl_video_output = QLabel(tr("sharp_lbl_output"))
+        video_layout.addWidget(self.lbl_video_output)
+        
+        video_output_controls = QHBoxLayout()
+        self.video_output_path = DropLineEdit()
+        self.video_output_path.setPlaceholderText(tr("sharp_placeholder_output"))
+        self.btn_browse_video_output = QPushButton(tr("btn_browse"))
+        self.btn_browse_video_output.clicked.connect(self.browse_video_output)
+        video_output_controls.addWidget(self.video_output_path)
+        video_output_controls.addWidget(self.btn_browse_video_output)
+        video_layout.addLayout(video_output_controls)
+        
+        # Frame skip for video mode
+        skip_layout = QHBoxLayout()
+        self.lbl_frame_skip = QLabel(tr("sharp_lbl_frame_skip"))
+        self.spin_frame_skip = QSpinBox()
+        self.spin_frame_skip.setMinimum(1)
+        self.spin_frame_skip.setMaximum(100)
+        self.spin_frame_skip.setValue(1)
+        skip_layout.addWidget(self.lbl_frame_skip)
+        skip_layout.addWidget(self.spin_frame_skip)
+        skip_layout.addStretch()
+        video_layout.addLayout(skip_layout)
+        
+        self.lbl_frame_skip_desc = QLabel(tr("sharp_tip_frame_skip"))
+        self.lbl_frame_skip_desc.setStyleSheet("color: #888888; font-size: 11px;")
+        video_layout.addWidget(self.lbl_frame_skip_desc)
+        
+        self.video_group.setLayout(video_layout)
+        page_video_layout.addWidget(self.video_group)
+        self.stacked_widget.addWidget(self.page_video)
+
+        layout.addWidget(self.stacked_widget)
+        
+        # -----------------------------
+        # SHARED OPTIONS
+        # -----------------------------
+        self.opt_group = QGroupBox(tr("group_options"))
         opt_layout = QFormLayout()
         
         # Checkpoint
@@ -128,10 +213,20 @@ class SharpTab(QWidget):
         
         layout.addStretch()
         
+    def on_mode_changed(self, button):
+        mode_idx = self.mode_group.id(button)
+        self.stacked_widget.setCurrentIndex(mode_idx)
+        if mode_idx == 1:
+            self.btn_run.setText(tr("sharp_btn_run_video"))
+        else:
+            self.btn_run.setText(tr("sharp_btn_run"))
+
     def set_processing_state(self, is_processing):
         self.btn_run.setEnabled(not is_processing)
         self.btn_stop.setEnabled(is_processing)
         self.chk_activate.setEnabled(not is_processing) # Lock activation during run
+        self.radio_mode_image.setEnabled(not is_processing)
+        self.radio_mode_video.setEnabled(not is_processing)
 
     def browse_input_dir(self):
         path = get_existing_directory(self, tr("sharp_dlg_input_dir"))
@@ -147,6 +242,16 @@ class SharpTab(QWidget):
         path = get_existing_directory(self, tr("sharp_dlg_output"))
         if path:
             self.output_path.setText(path)
+            
+    def browse_video_file(self):
+        path, _ = get_open_file_name(self, tr("sharp_dlg_video_file"), "", "Videos (*.mp4 *.mov *.avi *.mkv)")
+        if path:
+            self.video_path.setText(path)
+            
+    def browse_video_output(self):
+        path = get_existing_directory(self, tr("sharp_dlg_output"))
+        if path:
+            self.video_output_path.setText(path)
             
     def browse_ckpt(self):
         path, _ = get_open_file_name(self, tr("sharp_dlg_ckpt"), "", "PyTorch Model (*.pt)")
@@ -190,6 +295,7 @@ class SharpTab(QWidget):
 
     def enable_controls(self, enabled):
         self.path_group.setEnabled(enabled)
+        self.video_group.setEnabled(enabled)
         self.opt_group.setEnabled(enabled)
         self.btn_run.setEnabled(enabled)
 
@@ -199,10 +305,8 @@ class SharpTab(QWidget):
         progress.show()
         QApplication.processEvents()
         
-        # Need engines dir
         try:
             success = install_sharp()
-            
             if success:
                 QMessageBox.information(self, tr("msg_success"), tr("sharp_msg_install_ok"))
                 self.enable_controls(True)
@@ -235,12 +339,15 @@ class SharpTab(QWidget):
             progress.close()
 
     def get_params(self):
-        # We overload get_params from parent class actually? No, this is QWidget.
-        # But we need to include enabled state.
+        mode = "image" if self.radio_mode_image.isChecked() else "video"
         return {
+            "mode": mode,
             "enabled": self.chk_activate.isChecked(),
             "input_path": self.input_path.text(),
             "output_path": self.output_path.text(),
+            "video_path": self.video_path.text(),
+            "video_output_path": self.video_output_path.text(),
+            "skip_frames": self.spin_frame_skip.value(),
             "checkpoint": self.ckpt_path.text(),
             "device": self.device_combo.currentText(),
             "verbose": self.verbose_check.isChecked(),
@@ -254,18 +361,21 @@ class SharpTab(QWidget):
              enabled = params["enabled"]
              self.chk_activate.setChecked(enabled)
              self.enable_controls(enabled)
-             # If enabled but not installed?
-             if enabled and not self.engine.is_installed():
-                 # Maybe auto-trigger install? Or let user click?
-                 # If user enabled it previously, they expect it to work.
-                 # But if they deleted files manually?
-                 # We mark it as enabled checkbox, but if deps missing, user will see status "missing" and might click.
-                 # But we should probably warn or auto-fix?
-                 # Let's leave it as is: checkbox checked, but if run predict, it might fail or warn.
-                 pass
+             
+        if "mode" in params:
+            if params["mode"] == "video":
+                self.radio_mode_video.setChecked(True)
+                self.stacked_widget.setCurrentIndex(1)
+            else:
+                self.radio_mode_image.setChecked(True)
+                self.stacked_widget.setCurrentIndex(0)
              
         if "input_path" in params: self.input_path.setText(params["input_path"])
         if "output_path" in params: self.output_path.setText(params["output_path"])
+        if "video_path" in params: self.video_path.setText(params["video_path"])
+        if "video_output_path" in params: self.video_output_path.setText(params["video_output_path"])
+        if "skip_frames" in params: self.spin_frame_skip.setValue(params["skip_frames"])
+            
         if "checkpoint" in params: self.ckpt_path.setText(params["checkpoint"])
         if "device" in params: self.device_combo.setCurrentText(params["device"])
         if "verbose" in params: self.verbose_check.setChecked(params["verbose"])
@@ -282,6 +392,9 @@ class SharpTab(QWidget):
         self.chk_activate.setText(tr("sharp_activate"))
         self.check_status() # Updates status_lbl text
         
+        self.radio_mode_image.setText(tr("sharp_mode_image"))
+        self.radio_mode_video.setText(tr("sharp_mode_video"))
+        
         self.path_group.setTitle(tr("sharp_group_paths"))
         self.lbl_input.setText(tr("sharp_lbl_input"))
         self.input_path.setPlaceholderText(tr("sharp_placeholder_input"))
@@ -292,6 +405,21 @@ class SharpTab(QWidget):
         self.output_path.setPlaceholderText(tr("sharp_placeholder_output"))
         self.btn_browse_output.setText(tr("btn_browse"))
         
+        self.video_group.setTitle(tr("sharp_group_paths"))
+        self.lbl_video_input.setText(tr("sharp_lbl_video_input"))
+        self.video_path.setPlaceholderText(tr("sharp_placeholder_video_input"))
+        self.btn_browse_video_file.setText(tr("btn_browse"))
+        self.lbl_video_output.setText(tr("sharp_lbl_output"))
+        self.video_output_path.setPlaceholderText(tr("sharp_placeholder_output"))
+        self.btn_browse_video_output.setText(tr("btn_browse"))
+        self.lbl_frame_skip.setText(tr("sharp_lbl_frame_skip"))
+        
+        frame_skip_tip = tr("sharp_tip_frame_skip")
+        self.lbl_frame_skip.setToolTip(frame_skip_tip)
+        self.spin_frame_skip.setToolTip(frame_skip_tip)
+        if hasattr(self, 'lbl_frame_skip_desc'):
+            self.lbl_frame_skip_desc.setText(frame_skip_tip)
+        
         self.opt_group.setTitle(tr("group_options"))
         self.lbl_ckpt.setText(tr("sharp_lbl_ckpt"))
         self.ckpt_path.setPlaceholderText(tr("sharp_placeholder_ckpt"))
@@ -300,5 +428,13 @@ class SharpTab(QWidget):
         self.verbose_check.setText(tr("sharp_check_verbose"))
         self.upscale_check.setText(tr("upscale_check_sharp"))
         
-        self.btn_run.setText(tr("sharp_btn_run"))
+        # update button run according to mode? well, keep it simple and just let it say "Lancer predict"/"Lancer la conversion".
+        # actually, let's keep "sharp_btn_run" for both or separate it.
+        # sharp_btn_run works well. The requirement originally said "Bouton Lancer la conversion" for video.
+        # But maybe just one single button at the bottom is cleaner.
+        if self.radio_mode_video.isChecked():
+            self.btn_run.setText(tr("sharp_btn_run_video"))
+        else:
+            self.btn_run.setText(tr("sharp_btn_run"))
+        
         self.btn_stop.setText(tr("btn_stop"))
