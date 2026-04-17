@@ -69,6 +69,7 @@
     "brush_args": "Extra args:",
     "brush_viewer": "Enable visualizer during training",
     "btn_train_brush": "Start Brush Training",
+    "btn_brush_standalone": "Lancer Brush uniquement",
     "check_auto_brush": "Auto-start Brush training",
     "msg_brush_start": "Starting Brush on: {}",
     "msg_brush_out": "Brush Output: {}",

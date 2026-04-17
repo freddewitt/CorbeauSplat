@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.96] - 2026-04-17
+
+### ✨ New Features
+- **Standalone Brush Launcher**: Added a "Lancer Brush uniquement" button to launch the Brush application independently without feeding any dataset, ideal for visualizing without processing.
+- **Enhanced Sharp Video Integration**: The ML Sharp's "Video → PLY" mode is now fully accessible from the main Training (Config) tab, allowing direct conversion of videos skipping the dedicated isolated tab. It introduces an integrated Frame Skip selector directly in the Config tab that correctly syncs with the engine.
+
+### 🛠 Improvements & Fixes
+- **UI Alignment & Theming**: Fixed misaligned action buttons in the Brush tab by standardizing Qt stylesheets, ensuring cross-platform native button behaviors do not break the layout.
+
 ## [0.95] - 2026-04-10
 
 ### ✨ New Features

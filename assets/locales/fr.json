@@ -69,6 +69,7 @@
     "brush_args": "Arguments suppl. :",
     "brush_viewer": "Activer le visualiseur pendant l'entrainement",
     "btn_train_brush": "Lancer Entrainement Brush",
+    "btn_brush_standalone": "Lancer Brush uniquement",
     "check_auto_brush": "Lancer entrainement Brush automatiquement",
     "msg_brush_start": "Lancement Brush sur : {}",
     "msg_brush_out": "Sortie Brush : {}",

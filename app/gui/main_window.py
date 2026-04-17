@@ -215,7 +215,17 @@ class ColmapGUI(QMainWindow):
             sharp_params = self.sharp_tab.get_params()
             sharp_params.update(self.get_upscale_config())
             
-            self.sharp_worker = SharpWorker(input_path, output_path, sharp_params)
+            input_type = self.config_tab.get_input_type()
+            if input_type == "video":
+                from app.gui.workers import SharpVideoWorker
+                sharp_params["mode"] = "video"
+                if hasattr(self.config_tab, "spin_sharp_skip"):
+                    sharp_params["skip_frames"] = self.config_tab.spin_sharp_skip.value()
+                self.sharp_worker = SharpVideoWorker(input_path, output_path, sharp_params)
+            else:
+                sharp_params["mode"] = "image"
+                self.sharp_worker = SharpWorker(input_path, output_path, sharp_params)
+                
             self.sharp_worker.log_signal.connect(self.logs_tab.append_log)
             self.sharp_worker.progress_signal.connect(self.config_tab.progress_bar.setValue)
             self.sharp_worker.status_signal.connect(self.config_tab.lbl_status.setText)

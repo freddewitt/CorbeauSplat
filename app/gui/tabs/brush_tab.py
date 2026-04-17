@@ -271,15 +271,24 @@ class BrushTab(QWidget):
         
         self.btn_train = QPushButton(tr("btn_train_brush"))
         self.btn_train.setMinimumHeight(40)
-        self.btn_train.setStyleSheet("background-color: #2a82da; color: white; font-weight: bold;")
+        self.btn_train.setStyleSheet("background-color: #2a82da; color: white; font-weight: bold; border-radius: 4px;")
         self.btn_train.clicked.connect(self.trainRequested.emit)
         if not self.bin_path:
             self.btn_train.setEnabled(False)
             
         action_layout.addWidget(self.btn_train)
         
+        self.btn_run_standalone = QPushButton(tr("btn_brush_standalone", "Lancer Brush uniquement"))
+        self.btn_run_standalone.setMinimumHeight(40)
+        self.btn_run_standalone.setStyleSheet("background-color: #555555; color: white; font-weight: bold; border-radius: 4px;")
+        self.btn_run_standalone.clicked.connect(self.run_standalone)
+        if not self.bin_path:
+            self.btn_run_standalone.setEnabled(False)
+        action_layout.addWidget(self.btn_run_standalone)
+        
         self.btn_stop = QPushButton(tr("btn_stop"))
         self.btn_stop.setMinimumHeight(40)
+        self.btn_stop.setStyleSheet("background-color: #555555; color: white; font-weight: bold; border-radius: 4px;")
         self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self.stopRequested.emit)
         action_layout.addWidget(self.btn_stop)
@@ -361,6 +370,8 @@ class BrushTab(QWidget):
         
     def set_processing_state(self, is_processing):
         self.btn_train.setEnabled(not is_processing and bool(self.bin_path))
+        if hasattr(self, 'btn_run_standalone'):
+            self.btn_run_standalone.setEnabled(not is_processing and bool(self.bin_path))
         self.btn_stop.setEnabled(is_processing)
         self.check_independent.setEnabled(not is_processing)
         self.combo_mode.setEnabled(not is_processing)
@@ -477,6 +488,8 @@ class BrushTab(QWidget):
         self.lbl_ply_manual.setText(tr("brush_lbl_ply"))
         
         self.btn_train.setText(tr("btn_train_brush") if self.btn_train.isEnabled() else tr("btn_stop"))
+        if hasattr(self, 'btn_run_standalone'):
+            self.btn_run_standalone.setText(tr("btn_brush_standalone", "Lancer Brush uniquement"))
         self.btn_stop.setText(tr("btn_stop"))
         
         self.check_details.setText(tr("brush_check_details"))
@@ -522,3 +535,28 @@ class BrushTab(QWidget):
                 self.restartRequested.emit()
             except Exception as e:
                 QMessageBox.critical(self, "Erreur", f"Erreur lors de la suppression de Brush: {e}")
+
+    def run_standalone(self):
+        import subprocess
+        import os
+        from app.core.system import resolve_binary
+        
+        bin_path = resolve_binary("brush")
+        if not bin_path:
+            QMessageBox.critical(self, "Erreur", "Exécutable brush introuvable.")
+            return
+            
+        env = os.environ.copy()
+        device = self.device_combo.currentText()
+        if device == "mps":
+            env["WGPU_BACKEND"] = "metal"
+            env["WGPU_POWER_PREF"] = "high_performance"
+        elif device == "cuda":
+            env["WGPU_BACKEND"] = "vulkan"
+            env["WGPU_POWER_PREF"] = "high_performance"
+            
+        try:
+            # Lancement détaché
+            subprocess.Popen([str(bin_path)], env=env)
+        except Exception as e:
+            QMessageBox.critical(self, "Erreur", f"Erreur de lancement : {e}")
