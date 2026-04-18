@@ -9,11 +9,11 @@
 ### 🛠 Improvements & Fixes
 - **UI Alignment & Theming**: Fixed misaligned action buttons in the Brush tab by standardizing Qt stylesheets, ensuring cross-platform native button behaviors do not break the layout.
 
-### 🏗 Architecture Upscale (2026-04-18)
-- **Venv dédié `.venv_upscale`** : Real-ESRGAN et ses dépendances (`torch`, `basicsr`, `realesrgan`) sont maintenant installés dans un environnement Python 3.11 isolé, résolvant définitivement l'incompatibilité de `basicsr 1.4.2` avec Python 3.13.
-- **Architecture subprocess** : `upscale_engine.py` délègue l'exécution à `upscale_runner.py` via subprocess (comme Sharp). L'API publique (`load_model`, `upscale_image`, `upscale_folder`) reste inchangée. Progress reporting en temps réel via stdout.
-- **`is_installed()` optimisé** : utilise `pip show` au lieu d'importer torch (évite un timeout de 30-60s au démarrage).
-- **5 bugs corrigés dans le module Upscale** : `is_installed()` ne détectait pas réellement realesrgan ; modèle anime (`RealESRGAN_x4plus_anime_6B`) non géré dans `load_model()` ; `on_toggle_activation()` désactivait toujours l'UI même sur annulation ; téléchargement de modèle bloquait le thread GUI (migré en `QThread`) ; dead code et import inutile supprimés.
+### 🏗 Upscale Architecture (2026-04-18)
+- **Dedicated `.venv_upscale` environment**: Real-ESRGAN and its dependencies (`torch`, `basicsr`, `realesrgan`) are now installed in an isolated Python 3.11 venv, permanently resolving the `basicsr 1.4.2` incompatibility with Python 3.13.
+- **Subprocess architecture**: `upscale_engine.py` delegates execution to `upscale_runner.py` via subprocess (same pattern as Sharp). Public API (`load_model`, `upscale_image`, `upscale_folder`) is unchanged. Real-time progress reporting via stdout.
+- **Faster `is_installed()` check**: now uses `pip show` instead of importing torch, avoiding a 30-60s startup timeout.
+- **5 Upscale module bugs fixed**: `is_installed()` did not actually detect realesrgan; anime model (`RealESRGAN_x4plus_anime_6B`) was unhandled in `load_model()`; `on_toggle_activation()` always disabled the UI even on cancel; model download blocked the GUI thread (moved to `QThread`); dead code and unused import removed.
 
 ### 🐞 Bug Fixes (2026-04-18)
 - **Brush Engine**: `--max-resolution` and `--refine-pose` were silently blocked by the custom args security whitelist — both flags are now allowed.
@@ -25,7 +25,7 @@
 - **i18n**: Added 14 missing translation keys across all 9 languages (`btn_launch_supersplat`, `btn_stop_supersplat`, `err_360_*`, `err_sharp`, `err_upscale_*`, `status_360_*`, `status_upscale_done`). Fixed `btn_brush_standalone` which was untranslated in 8 languages.
 
 ### ✨ New Features (2026-04-18)
-- **SuperSplat Tab**: Simplified to a single toggle button — "Démarrer SuperSplat" starts both servers and automatically opens the browser after 1.5s; the button becomes "Arrêter SuperSplat" while running.
+- **SuperSplat Tab**: Simplified to a single toggle button — "Start SuperSplat" launches both servers and automatically opens the browser after 1.5s; the button switches to "Stop SuperSplat" while running.
 - **Interactive Update Prompt**: Brush and Glomap now prompt the user at startup when a new version is detected, instead of silently skipping or auto-updating. Other engines (COLMAP, Sharp, Upscale) retain silent auto-update.
 - **`--clean` flag for `run.command`**: Running `./run.command --clean` performs a full deep reset (deletes `.venv`, engines, config) with confirmation before launching.
 - **Python 3.13 Priority**: `run.command` now tries Python 3.13 and 3.12 before older versions when creating the virtual environment.
