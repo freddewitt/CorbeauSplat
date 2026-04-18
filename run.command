@@ -4,6 +4,38 @@
 cd "$(dirname "$0")"
 echo "Working directory: $(pwd)"
 
+# --- Phase 0: Clean Reset (--clean flag) ---
+CLEAN_MODE=false
+FILTERED_ARGS=()
+for arg in "$@"; do
+    if [ "$arg" = "--clean" ]; then
+        CLEAN_MODE=true
+    else
+        FILTERED_ARGS+=("$arg")
+    fi
+done
+
+if [ "$CLEAN_MODE" = true ]; then
+    echo ""
+    echo "⚠️  MODE CLEAN DÉTECTÉ"
+    echo "    Ceci va supprimer :"
+    echo "      - .venv, .venv_sharp, .venv_360  (environnements Python)"
+    echo "      - engines/                        (binaires COLMAP, Brush, Glomap...)"
+    echo "      - config.json                     (configuration)"
+    echo ""
+    read -p "    Confirmer la réinitialisation complète ? (o/n) : " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[OoYy]$ ]]; then
+        echo "🧹 Nettoyage en cours..."
+        rm -rf ".venv" ".venv_sharp" ".venv_360" "engines" "config.json"
+        echo "✅ Réinitialisation complète effectuée."
+    else
+        echo "Annulé. Lancement normal."
+        CLEAN_MODE=false
+    fi
+    echo ""
+fi
+
 # --- Phase 1: Update Check ---
 if [ -d ".git" ]; then
     echo "--- Phase 1: Checking for updates ---"
@@ -114,4 +146,4 @@ fi
 # --- Phase 5: Launch ---
 echo "--- Phase 5: Launching CorbeauSplat ---"
 echo "------------------------------------------------"
-"$PYTHON_CMD" main.py "$@"
+"$PYTHON_CMD" main.py "${FILTERED_ARGS[@]}"
