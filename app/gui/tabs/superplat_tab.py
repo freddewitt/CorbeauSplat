@@ -88,7 +88,7 @@ class SuperSplatTab(QWidget):
         # Actions
         action_layout = QHBoxLayout()
 
-        self.btn_start = QPushButton(tr("btn_launch_supersplat", "Lancer SuperSplat"))
+        self.btn_start = QPushButton(tr("btn_launch_supersplat", "Démarrer SuperSplat"))
         self.btn_start.setMinimumHeight(40)
         self.btn_start.setStyleSheet("background-color: #2a82da; color: white; font-weight: bold; border-radius: 4px;")
         self.btn_start.clicked.connect(self.toggle_server)
@@ -130,7 +130,7 @@ class SuperSplatTab(QWidget):
                     QMessageBox.warning(self, tr("msg_warning"), f"Erreur Serveur Données: {msg_data}")
 
         self.is_running = True
-        self.btn_start.setText(tr("btn_stop_supersplat", "Stopper SuperSplat"))
+        self.btn_start.setText(tr("btn_stop_supersplat", "Arrêter SuperSplat"))
         self.btn_start.setStyleSheet("background-color: #aa4444; color: white; font-weight: bold; border-radius: 4px;")
         self.status_label.setText(tr("status_running", "Statut : En cours d'exécution"))
 
@@ -140,7 +140,7 @@ class SuperSplatTab(QWidget):
     def stop_server(self):
         self.engine.stop_all()
         self.is_running = False
-        self.btn_start.setText(tr("btn_launch_supersplat", "Lancer SuperSplat"))
+        self.btn_start.setText(tr("btn_launch_supersplat", "Démarrer SuperSplat"))
         self.btn_start.setStyleSheet("background-color: #2a82da; color: white; font-weight: bold; border-radius: 4px;")
         self.status_label.setText(tr("status_stopped", "Statut : Arrêté"))
 
@@ -213,5 +213,5 @@ class SuperSplatTab(QWidget):
         self.chk_no_ui.setText(tr("check_no_ui"))
         self.lbl_cam_pos.setText(tr("lbl_cam_pos"))
         self.lbl_cam_rot.setText(tr("lbl_cam_rot"))
-        self.btn_start.setText(tr("btn_stop_supersplat" if self.is_running else "btn_launch_supersplat"))
+        self.btn_start.setText(tr("btn_stop_supersplat" if self.is_running else "btn_launch_supersplat", "Arrêter SuperSplat" if self.is_running else "Démarrer SuperSplat"))
         self.status_label.setText(tr("status_running" if self.is_running else "status_stopped"))
