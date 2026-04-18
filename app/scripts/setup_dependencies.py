@@ -251,7 +251,17 @@ class BrushEngineDep(EngineDependency):
         return config.get("brush_params", {}).get("enabled", False) or config.get("brush_enabled", False)
 
     def get_remote_version(self) -> str:
-        """Queries GitHub API for the latest Brush release tag."""
+        """Returns HEAD commit hash in source mode, latest release tag otherwise."""
+        config = {}
+        try:
+            config = json.loads((self.root / "config.json").read_text())
+        except:
+            pass
+        build_mode = config.get("brush_params", {}).get("build_mode", "release")
+
+        if build_mode == "source":
+            return self._get_head_commit()
+
         import urllib.request
         import json as _json
         try:
