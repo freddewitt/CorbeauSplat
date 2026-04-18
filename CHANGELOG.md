@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.96] - 2026-04-17
+## [0.96] - 2026-04-17 → 2026-04-18
 
 ### ✨ New Features
 - **Standalone Brush Launcher**: Added a "Lancer Brush uniquement" button to launch the Brush application independently without feeding any dataset, ideal for visualizing without processing.
@@ -8,6 +8,21 @@
 
 ### 🛠 Improvements & Fixes
 - **UI Alignment & Theming**: Fixed misaligned action buttons in the Brush tab by standardizing Qt stylesheets, ensuring cross-platform native button behaviors do not break the layout.
+
+### 🐞 Bug Fixes (2026-04-18)
+- **Brush Engine**: `--max-resolution` and `--refine-pose` were silently blocked by the custom args security whitelist — both flags are now allowed.
+- **Brush Tab**: `ply_name` field was never transmitted to the worker nor restored on session reload — both `get_params()` and `set_params()` are now correct.
+- **SharpVideoWorker**: Missing FFmpeg now raises a clear user-facing error instead of an unhandled `FileNotFoundError`.
+- **Brush Version Detection**: In source build mode, `get_remote_version()` now returns the HEAD commit hash (not the release tag), eliminating a false "update available" prompt on every launch.
+- **Glomap Startup**: Version check is now skipped unless `use_glomap=True` in config, removing an unnecessary network call at startup for users who don't use Glomap.
+- **`requirements.txt`**: Removed `basicsr`, `facexlib`, `gfpgan`, `realesrgan` (incompatible with Python 3.13, installed on-demand by the upscale engine). Removed `numpy<2` and `urllib3<2` version pins.
+- **i18n**: Added 14 missing translation keys across all 9 languages (`btn_launch_supersplat`, `btn_stop_supersplat`, `err_360_*`, `err_sharp`, `err_upscale_*`, `status_360_*`, `status_upscale_done`). Fixed `btn_brush_standalone` which was untranslated in 8 languages.
+
+### ✨ New Features (2026-04-18)
+- **SuperSplat Tab**: Simplified to a single toggle button — "Démarrer SuperSplat" starts both servers and automatically opens the browser after 1.5s; the button becomes "Arrêter SuperSplat" while running.
+- **Interactive Update Prompt**: Brush and Glomap now prompt the user at startup when a new version is detected, instead of silently skipping or auto-updating. Other engines (COLMAP, Sharp, Upscale) retain silent auto-update.
+- **`--clean` flag for `run.command`**: Running `./run.command --clean` performs a full deep reset (deletes `.venv`, engines, config) with confirmation before launching.
+- **Python 3.13 Priority**: `run.command` now tries Python 3.13 and 3.12 before older versions when creating the virtual environment.
 
 ## [0.95] - 2026-04-10
 
