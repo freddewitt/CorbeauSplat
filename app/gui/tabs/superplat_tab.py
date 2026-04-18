@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
     QGroupBox, QCheckBox, QMessageBox, QSpinBox, QFormLayout
 )
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, QTimer
 from app.core.i18n import tr, add_language_observer
 from app.core.superplat_engine import SuperSplatEngine
 from app.gui.widgets.dialog_utils import get_open_file_name
@@ -87,18 +87,13 @@ class SuperSplatTab(QWidget):
         
         # Actions
         action_layout = QHBoxLayout()
-        
-        self.btn_start = QPushButton(tr("btn_start_server", "Démarrer Serveurs"))
+
+        self.btn_start = QPushButton(tr("btn_launch_supersplat", "Lancer SuperSplat"))
         self.btn_start.setMinimumHeight(40)
+        self.btn_start.setStyleSheet("background-color: #2a82da; color: white; font-weight: bold; border-radius: 4px;")
         self.btn_start.clicked.connect(self.toggle_server)
         action_layout.addWidget(self.btn_start)
-        
-        self.btn_open = QPushButton(tr("btn_open_browser", "Ouvrir Navigateur"))
-        self.btn_open.setMinimumHeight(40)
-        self.btn_open.setEnabled(False)
-        self.btn_open.clicked.connect(self.open_browser)
-        action_layout.addWidget(self.btn_open)
-        
+
         layout.addLayout(action_layout)
         layout.addStretch()
         
@@ -123,7 +118,7 @@ class SuperSplatTab(QWidget):
         if not success:
             QMessageBox.critical(self, tr("msg_error"), f"Erreur SuperSplat: {msg}")
             return
-            
+
         # 2. Start Data Server (if path provided)
         path_str = self.input_path.text()
         if path_str:
@@ -133,23 +128,20 @@ class SuperSplatTab(QWidget):
                 success_data, msg_data = self.engine.start_data_server(str(directory), self.data_port.value())
                 if not success_data:
                     QMessageBox.warning(self, tr("msg_warning"), f"Erreur Serveur Données: {msg_data}")
-                else:
-                    print(msg_data)
-        
+
         self.is_running = True
-        self.btn_start.setText(tr("btn_stop_server", "Arrêter Serveurs"))
-        self.btn_start.setStyleSheet("background-color: #aa4444; color: white;")
-        self.btn_open.setEnabled(True)
+        self.btn_start.setText(tr("btn_stop_supersplat", "Stopper SuperSplat"))
+        self.btn_start.setStyleSheet("background-color: #aa4444; color: white; font-weight: bold; border-radius: 4px;")
         self.status_label.setText(tr("status_running", "Statut : En cours d'exécution"))
-        
-        # Auto open? Maybe optional. For now manual.
-        
+
+        # Ouvre le navigateur après 1.5s pour laisser le serveur démarrer
+        QTimer.singleShot(1500, self.open_browser)
+
     def stop_server(self):
         self.engine.stop_all()
         self.is_running = False
-        self.btn_start.setText(tr("btn_start_server", "Démarrer Serveurs"))
-        self.btn_start.setStyleSheet("")
-        self.btn_open.setEnabled(False)
+        self.btn_start.setText(tr("btn_launch_supersplat", "Lancer SuperSplat"))
+        self.btn_start.setStyleSheet("background-color: #2a82da; color: white; font-weight: bold; border-radius: 4px;")
         self.status_label.setText(tr("status_stopped", "Statut : Arrêté"))
 
     def open_browser(self):
@@ -221,6 +213,5 @@ class SuperSplatTab(QWidget):
         self.chk_no_ui.setText(tr("check_no_ui"))
         self.lbl_cam_pos.setText(tr("lbl_cam_pos"))
         self.lbl_cam_rot.setText(tr("lbl_cam_rot"))
-        self.btn_start.setText(tr("btn_stop_server" if self.is_running else "btn_start_server"))
-        self.btn_open.setText(tr("btn_open_browser"))
+        self.btn_start.setText(tr("btn_stop_supersplat" if self.is_running else "btn_launch_supersplat"))
         self.status_label.setText(tr("status_running" if self.is_running else "status_stopped"))
