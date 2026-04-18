@@ -332,5 +332,20 @@
     "reset_light_desc": "Удаляет .venv и перезапускает установку.",
     "reset_deep_desc": "Удаляет ВСЕ (Envs + Engines + Config).",
     "select_output_dir": "Выбрать папку для вывода",
-    "placeholder_output_dir": "Корневая папка проекта (напр., ~/SPLAT_OUT)"
+    "placeholder_output_dir": "Корневая папка проекта (напр., ~/SPLAT_OUT)",
+    "btn_launch_supersplat": "Запустить SuperSplat",
+    "btn_stop_supersplat": "Остановить SuperSplat",
+    "err_360_failed": "Ошибка при извлечении 360",
+    "err_360_missing": "Модуль 360Extractor отсутствует",
+    "err_360_not_installed": "Модуль 360Extractor не установлен",
+    "err_360_not_installed_colmap": "Для модуля 360 требуется COLMAP",
+    "err_sharp": "Ошибка Sharp",
+    "err_upscale_failed": "Сбой апскейлинга",
+    "err_upscale_missing": "Модуль апскейлинга недоступен",
+    "status_360_colmap": "Реконструкция COLMAP (360)...",
+    "status_360_done": "Извлечение 360 завершено",
+    "status_360_pre": "Предобработка 360°...",
+    "status_360_start": "Запуск извлечения 360°...",
+    "status_upscale_done": "Апскейлинг завершён",
+    "btn_brush_standalone": "Запустить только Brush"
 }

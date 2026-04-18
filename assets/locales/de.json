@@ -333,5 +333,20 @@
     "btn_reinstall_brush": "Neu installieren",
     "brush_reinstall_confirm": "Möchten Sie Brush löschen und neu installieren?",
     "brush_reinstall_info": "Installation wurde zurückgesetzt. Bitte App neu starten.",
-    "brush_lbl_build_mode": "Brush-Version:"
+    "brush_lbl_build_mode": "Brush-Version:",
+    "btn_launch_supersplat": "SuperSplat starten",
+    "btn_stop_supersplat": "SuperSplat stoppen",
+    "err_360_failed": "Fehler bei der 360-Extraktion",
+    "err_360_missing": "360Extractor-Modul fehlt",
+    "err_360_not_installed": "360Extractor-Modul nicht installiert",
+    "err_360_not_installed_colmap": "COLMAP für das 360-Modul erforderlich",
+    "err_sharp": "Sharp-Fehler",
+    "err_upscale_failed": "Upscale fehlgeschlagen",
+    "err_upscale_missing": "Upscale-Modul nicht verfügbar",
+    "status_360_colmap": "COLMAP-Rekonstruktion (360)...",
+    "status_360_done": "360-Extraktion abgeschlossen",
+    "status_360_pre": "360°-Vorverarbeitung...",
+    "status_360_start": "360°-Extraktion wird gestartet...",
+    "status_upscale_done": "Upscale abgeschlossen",
+    "btn_brush_standalone": "Nur Brush starten"
 }

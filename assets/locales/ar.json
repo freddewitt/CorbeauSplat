@@ -332,5 +332,20 @@
     "reset_light_desc": "يحذف البيئات الافتراضية ويبدأ التثبيت من جديد.",
     "reset_deep_desc": "يحذف كل شيء (البيئات + المحركات + الإعدادات).",
     "select_output_dir": "اختر مجلد مخرجات",
-    "placeholder_output_dir": "جذر مخرجات المشروع (مثلاً ~/SPLAT_OUT)"
+    "placeholder_output_dir": "جذر مخرجات المشروع (مثلاً ~/SPLAT_OUT)",
+    "btn_launch_supersplat": "تشغيل SuperSplat",
+    "btn_stop_supersplat": "إيقاف SuperSplat",
+    "err_360_failed": "خطأ أثناء استخراج 360",
+    "err_360_missing": "وحدة 360Extractor مفقودة",
+    "err_360_not_installed": "وحدة 360Extractor غير مثبتة",
+    "err_360_not_installed_colmap": "COLMAP مطلوب لوحدة 360",
+    "err_sharp": "خطأ Sharp",
+    "err_upscale_failed": "فشل تحسين الدقة",
+    "err_upscale_missing": "وحدة تحسين الدقة غير متوفرة",
+    "status_360_colmap": "إعادة بناء COLMAP (360)...",
+    "status_360_done": "اكتمل استخراج 360",
+    "status_360_pre": "المعالجة المسبقة 360°...",
+    "status_360_start": "بدء استخراج 360°...",
+    "status_upscale_done": "اكتمل تحسين الدقة",
+    "btn_brush_standalone": "تشغيل Brush فقط"
 }

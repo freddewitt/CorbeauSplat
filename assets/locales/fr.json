@@ -333,5 +333,19 @@
     "status_reconstruction": "Reconstruction 3D (Mapper)...",
     "status_sharp": "Prédiction ML Sharp...",
     "status_undistorting": "Correction de distorsion...",
-    "status_upscaling": "Agrandissement (Real-ESRGAN)..."
+    "status_upscaling": "Agrandissement (Real-ESRGAN)...",
+    "btn_launch_supersplat": "Démarrer SuperSplat",
+    "btn_stop_supersplat": "Arrêter SuperSplat",
+    "err_360_failed": "Erreur lors de l'extraction 360",
+    "err_360_missing": "Module 360Extractor manquant",
+    "err_360_not_installed": "Module 360Extractor non installé",
+    "err_360_not_installed_colmap": "COLMAP requis pour le module 360",
+    "err_sharp": "Erreur Sharp",
+    "err_upscale_failed": "Échec de l'upscale",
+    "err_upscale_missing": "Module Upscale non disponible",
+    "status_360_colmap": "Reconstruction COLMAP (360)...",
+    "status_360_done": "Extraction 360 terminée",
+    "status_360_pre": "Pré-traitement 360°...",
+    "status_360_start": "Démarrage extraction 360°...",
+    "status_upscale_done": "Upscale terminé"
 }

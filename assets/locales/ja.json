@@ -332,5 +332,20 @@
     "reset_light_desc": ".venv を削除して、インストールを再開します。",
     "reset_deep_desc": "すべてを削除します (環境 + エンジン + 設定)。",
     "select_output_dir": "出力フォルダを選択",
-    "placeholder_output_dir": "プロジェクトの出力ルート (例: ~/SPLAT_OUT)"
+    "placeholder_output_dir": "プロジェクトの出力ルート (例: ~/SPLAT_OUT)",
+    "btn_launch_supersplat": "SuperSplatを起動",
+    "btn_stop_supersplat": "SuperSplatを停止",
+    "err_360_failed": "360°抽出エラー",
+    "err_360_missing": "360Extractorモジュールが見つかりません",
+    "err_360_not_installed": "360Extractorモジュールがインストールされていません",
+    "err_360_not_installed_colmap": "360モジュールにはCOLMAPが必要です",
+    "err_sharp": "Sharpエラー",
+    "err_upscale_failed": "アップスケール失敗",
+    "err_upscale_missing": "アップスケールモジュールが利用できません",
+    "status_360_colmap": "COLMAP再構成 (360)...",
+    "status_360_done": "360°抽出完了",
+    "status_360_pre": "360°前処理中...",
+    "status_360_start": "360°抽出を開始中...",
+    "status_upscale_done": "アップスケール完了",
+    "btn_brush_standalone": "Brushのみ起動"
 }

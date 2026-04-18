@@ -332,5 +332,20 @@
     "reset_light_desc": "删除 .venv 并重新开始安装。",
     "reset_deep_desc": "删除所有内容 (环境 + 引擎 + 配置)。",
     "select_output_dir": "选择输出文件夹",
-    "placeholder_output_dir": "项目输出根目录 (例：~/SPLAT_OUT)"
+    "placeholder_output_dir": "项目输出根目录 (例：~/SPLAT_OUT)",
+    "btn_launch_supersplat": "启动 SuperSplat",
+    "btn_stop_supersplat": "停止 SuperSplat",
+    "err_360_failed": "360提取错误",
+    "err_360_missing": "缺少360Extractor模块",
+    "err_360_not_installed": "360Extractor模块未安装",
+    "err_360_not_installed_colmap": "360模块需要COLMAP",
+    "err_sharp": "Sharp错误",
+    "err_upscale_failed": "超分辨率失败",
+    "err_upscale_missing": "超分辨率模块不可用",
+    "status_360_colmap": "COLMAP重建 (360)...",
+    "status_360_done": "360提取完成",
+    "status_360_pre": "360°预处理中...",
+    "status_360_start": "开始360°提取...",
+    "status_upscale_done": "超分辨率完成",
+    "btn_brush_standalone": "仅启动 Brush"
 }

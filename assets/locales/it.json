@@ -332,5 +332,20 @@
     "reset_light_desc": "Elimina .venv e riavvia l'installazione.",
     "reset_deep_desc": "Elimina TUTTO (Envs + Engines + Config).",
     "select_output_dir": "Seleziona cartella di output",
-    "placeholder_output_dir": "Radice di output del progetto (es: ~/SPLAT_OUT)"
+    "placeholder_output_dir": "Radice di output del progetto (es: ~/SPLAT_OUT)",
+    "btn_launch_supersplat": "Avvia SuperSplat",
+    "btn_stop_supersplat": "Ferma SuperSplat",
+    "err_360_failed": "Errore durante l'estrazione 360",
+    "err_360_missing": "Modulo 360Extractor mancante",
+    "err_360_not_installed": "Modulo 360Extractor non installato",
+    "err_360_not_installed_colmap": "COLMAP richiesto per il modulo 360",
+    "err_sharp": "Errore Sharp",
+    "err_upscale_failed": "Upscale fallito",
+    "err_upscale_missing": "Modulo upscale non disponibile",
+    "status_360_colmap": "Ricostruzione COLMAP (360)...",
+    "status_360_done": "Estrazione 360 completata",
+    "status_360_pre": "Pre-elaborazione 360°...",
+    "status_360_start": "Avvio estrazione 360°...",
+    "status_upscale_done": "Upscale completato",
+    "btn_brush_standalone": "Avvia solo Brush"
 }
