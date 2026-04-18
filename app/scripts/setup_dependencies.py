@@ -808,13 +808,11 @@ class GlomapEngineDep(EngineDependency):
             self.save_local_version(self.get_remote_version())
 
 class UpscaleEngineDep(PipEngine):
-    """Upscale is special as it installs in main sys.executable (usually)"""
+    """Upscale dans un venv dédié Python 3.11 pour compatibilité basicsr/Python 3.13"""
     auto_update_default = True
 
     def __init__(self):
-        # We use a fake venv name to satisfy PipEngine but we'll override
-        super().__init__("upscale", None, "fake")
-        self.python_bin = Path(sys.executable)
+        super().__init__("upscale", None, ".venv_upscale")
 
     def is_enabled_in_config(self, config: dict) -> bool:
         return config.get("upscale_params", {}).get("enabled", False) or config.get("upscale_enabled", False)
@@ -852,9 +850,19 @@ class UpscaleEngineDep(PipEngine):
         return ""
 
     def install(self):
-        pkgs = ["torch", "torchvision", "realesrgan"]
-        print(f"Installing/Updating: {', '.join(pkgs)}...")
-        self.pip_install(["--upgrade"] + pkgs)
+        # basicsr 1.4.2 incompatible Python 3.13 → venv dédié Python 3.11/3.10
+        py = shutil.which("python3.11") or shutil.which("python3.10")
+        if not py:
+            print("❌ Python 3.11 ou 3.10 requis pour le module Upscale (compatibilité basicsr).")
+            return
+
+        print(f"Création du venv Upscale avec {py}...")
+        self.create_venv(py)
+
+        print("Installation : torch, torchvision, basicsr, realesrgan...")
+        self.pip_install(["--upgrade", "torch", "torchvision", "basicsr", "realesrgan"])
+        self.save_local_version(self.get_remote_version())
+        print("✅ Upscale installé dans .venv_upscale")
 
 def main():
     root = Path(__file__).resolve().parent.parent.parent

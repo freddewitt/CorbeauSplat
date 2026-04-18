@@ -9,6 +9,12 @@
 ### 🛠 Improvements & Fixes
 - **UI Alignment & Theming**: Fixed misaligned action buttons in the Brush tab by standardizing Qt stylesheets, ensuring cross-platform native button behaviors do not break the layout.
 
+### 🏗 Architecture Upscale (2026-04-18)
+- **Venv dédié `.venv_upscale`** : Real-ESRGAN et ses dépendances (`torch`, `basicsr`, `realesrgan`) sont maintenant installés dans un environnement Python 3.11 isolé, résolvant définitivement l'incompatibilité de `basicsr 1.4.2` avec Python 3.13.
+- **Architecture subprocess** : `upscale_engine.py` délègue l'exécution à `upscale_runner.py` via subprocess (comme Sharp). L'API publique (`load_model`, `upscale_image`, `upscale_folder`) reste inchangée. Progress reporting en temps réel via stdout.
+- **`is_installed()` optimisé** : utilise `pip show` au lieu d'importer torch (évite un timeout de 30-60s au démarrage).
+- **5 bugs corrigés dans le module Upscale** : `is_installed()` ne détectait pas réellement realesrgan ; modèle anime (`RealESRGAN_x4plus_anime_6B`) non géré dans `load_model()` ; `on_toggle_activation()` désactivait toujours l'UI même sur annulation ; téléchargement de modèle bloquait le thread GUI (migré en `QThread`) ; dead code et import inutile supprimés.
+
 ### 🐞 Bug Fixes (2026-04-18)
 - **Brush Engine**: `--max-resolution` and `--refine-pose` were silently blocked by the custom args security whitelist — both flags are now allowed.
 - **Brush Tab**: `ply_name` field was never transmitted to the worker nor restored on session reload — both `get_params()` and `set_params()` are now correct.

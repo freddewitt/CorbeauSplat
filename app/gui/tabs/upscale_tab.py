@@ -3,10 +3,10 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QPushButton, QLabel, QGroupBox, QFormLayout,
     QCheckBox, QComboBox, QSpinBox, QMessageBox, QProgressDialog, QApplication
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from app.core.i18n import tr, add_language_observer
 from app.core.upscale_engine import UpscaleEngine
-from app.scripts.setup_dependencies import install_upscale, uninstall_upscale, resolve_project_root
+from app.scripts.setup_dependencies import install_upscale, uninstall_upscale
 
 class UpscaleTab(QWidget):
     """
@@ -194,110 +194,60 @@ class UpscaleTab(QWidget):
 
     def download_current_model(self):
         model = self.model_combo.currentText()
-        
-        progress = QProgressDialog(tr("upscale_msg_downloading", model), tr("btn_cancel"), 0, 0, self)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.show()
-        
-        def log_cb(line):
-             # We could pipe logs here
-             pass
-             
-        # Run download in main thread for simplicity (files are ~100MB, might freeze GUI briefly without thread)
-        # Ideally threading, but UpscaleEngine.download_model is blocking 'urllib'.
-        # Let's hope user has fiber, otherwise we should use a worker.
-        # Check UpscaleEngine again, I used urllib.request.urlretrieve. It blocks.
-        # But I added a (broken in my head) progress callback logic which I didn't fully implement.
-        # For now, let's just run it.
-        
-        QApplication.processEvents()
-        success = self.engine.download_model(model)
-        progress.close()
-        
-        if success:
-            QMessageBox.information(self, tr("msg_success"), tr("upscale_msg_success_download"))
-            self.check_model_status()
-        else:
-            QMessageBox.critical(self, tr("msg_error"), tr("upscale_msg_err_download"))
+
+        self.progress = QProgressDialog(tr("upscale_msg_downloading", model), None, 0, 0, self)
+        self.progress.setWindowModality(Qt.WindowModality.WindowModal)
+        self.progress.show()
+        self.btn_download.setEnabled(False)
+
+        self._dl_thread = _DownloadWorker(self.engine, model)
+        self._dl_thread.finished.connect(self._on_download_finished)
+        self._dl_thread.start()
 
     def on_toggle_activation(self):
         if self.chk_activate.isChecked():
-            # Activation requested
             if not self.engine.is_installed():
                 reply = QMessageBox.question(
-                    self, 
-                    "Installation Requise", 
-                    "Le module Real-ESRGAN doit être installé (~50MB + dépendances Torch).\nContinuer ?",
+                    self,
+                    tr("upscale_install_title"),
+                    tr("upscale_install_msg"),
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
-                
                 if reply == QMessageBox.StandardButton.Yes:
-                     self.install_deps()
+                    self.install_deps()
                 else:
                     self.chk_activate.setChecked(False)
             else:
                 self.settings_group.setEnabled(True)
         else:
-            # Deactivation requested
             reply = QMessageBox.question(
                 self,
-                "Désactivation",
-                "Voulez-vous désinstaller le module Real-ESRGAN pour libérer de l'espace ?\n(Les modèles seront supprimés)",
+                tr("upscale_uninstall_title"),
+                tr("upscale_uninstall_msg"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
-            
             if reply == QMessageBox.StandardButton.Yes:
                 self.uninstall_deps()
             else:
-                # If user cancels uninstall, do we keep it checked? 
-                # User request: "Une fois décoché, il supprime..."
-                # If they say no, maybe they just want to disable without uninstalling?
-                # "Quand c'est décoché, le contenu... est grisée".
-                # So we can allow uncheck without uninstall if we want, OR enforce it.
-                # Use case: "Une fois décoché, il supprime les programmes". Explicit.
-                # So if they say No to uninstall, we probably should cancel the uncheck action (re-check it), 
-                # OR we accept uncheck but don't uninstall (just disable UI).
-                # Let's assume strict compliance: "Une fois décoché, il supprime".
-                # But typically users might just want to disable to save startup time without deleting files.
-                # Let's offer: "Oui (Supprimer fichiers)", "Non (Désactiver seulement)", "Annuler".
-                # For now, simple Yes/No. 
-                # If No, we just disable UI but keep files.
+                # Désactivation sans désinstallation : juste griser l'UI
                 self.settings_group.setEnabled(False)
-            self.settings_group.setEnabled(False)
 
     def install_deps(self):
-        progress = QProgressDialog("Installation de Real-ESRGAN...", "Annuler", 0, 0, self)
+        progress = QProgressDialog(tr("upscale_installing"), None, 0, 0, self)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.show()
         QApplication.processEvents()
-        
+
         try:
-             # install_upscale_deps uses subprocess check_call, so it blocks.
-             # We pass None as version file as it's pip managed mostly or we don't care about version file for pip packages primarily here.
-             # setup_dependencies.py: install_upscale_deps(engines_dir, version_file...)
-             # But wait, my import might be tricky if paths are relative.
-             # We assume imports work.
-             
-             # We need engines_dir.
-             # We can get it from engine instance or resolve it.
-             # UpscaleEngine doesn't expose it easily?
-             # setup_dependencies has resolve_project_root.
-             # We can just pass a dummy path if it resolves internally?
-             # install_upscale_deps(engines_dir, version_file)
-             
-             resolve_project_root() / "engines"
-             
-             success = install_upscale()
-             
-             if success:
-                 QMessageBox.information(self, tr("msg_success"), "Installation terminée.")
-                 self.settings_group.setEnabled(True)
-                 self.check_model_status()
-             else:
-                 QMessageBox.critical(self, tr("msg_error"), "Echec de l'installation.")
-                 self.chk_activate.setChecked(False)
-                 self.settings_group.setEnabled(False)
-                 
+            success = install_upscale()
+            if success:
+                QMessageBox.information(self, tr("msg_success"), tr("upscale_msg_installed"))
+                self.settings_group.setEnabled(True)
+                self.check_model_status()
+            else:
+                QMessageBox.critical(self, tr("msg_error"), tr("upscale_err_install"))
+                self.chk_activate.setChecked(False)
+                self.settings_group.setEnabled(False)
         except Exception as e:
             QMessageBox.critical(self, tr("msg_error"), f"Erreur: {e}")
             self.chk_activate.setChecked(False)
@@ -378,3 +328,25 @@ class UpscaleTab(QWidget):
         
         self.check_model_status()
         self.update_model_desc()
+
+    def _on_download_finished(self, success):
+        self.progress.close()
+        self.btn_download.setEnabled(True)
+        if success:
+            QMessageBox.information(self, tr("msg_success"), tr("upscale_msg_success_download"))
+            self.check_model_status()
+        else:
+            QMessageBox.critical(self, tr("msg_error"), tr("upscale_msg_err_download"))
+
+
+class _DownloadWorker(QThread):
+    finished = pyqtSignal(bool)
+
+    def __init__(self, engine, model_name):
+        super().__init__()
+        self.engine = engine
+        self.model_name = model_name
+
+    def run(self):
+        success = self.engine.download_model(self.model_name)
+        self.finished.emit(success)

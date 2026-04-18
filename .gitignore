@@ -33,4 +33,5 @@ config.json
 target/
 .venv_sharp/
 .venv_360/
+.venv_upscale/
 *.pth

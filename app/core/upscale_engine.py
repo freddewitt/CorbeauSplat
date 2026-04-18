@@ -1,267 +1,201 @@
+import subprocess
 from pathlib import Path
 from .base_engine import BaseEngine
+from .system import resolve_project_root
+
 
 class UpscaleEngine(BaseEngine):
     """
     Engine for Real-ESRGAN upscaling.
-    Handles dynamic installation of dependencies and execution of upscaling.
+    Délègue l'exécution à upscale_runner.py via .venv_upscale (Python 3.11).
     """
 
     def __init__(self, logger_callback=None):
         super().__init__("Upscale", logger_callback)
 
-    # log method inherited from BaseEngine
+    def _venv_python(self) -> Path:
+        return resolve_project_root() / ".venv_upscale" / "bin" / "python3"
 
-    def _apply_patches(self):
-        """
-        Hotfix for basicsr/realesrgan compatibility with newer torchvision.
-        Populates torchvision.transforms.functional_tensor with functional.
-        """
-        import sys
-        try:
-            import torchvision.transforms.functional_tensor
-        except ImportError:
-            try:
-                import torchvision.transforms.functional as F
-                sys.modules["torchvision.transforms.functional_tensor"] = F
-            except Exception as e:
-                # If this fails, we can't do much, but we print it
-                print(f"DEBUG: Patching failed: {e}")
+    def _runner(self) -> Path:
+        return resolve_project_root() / "app" / "scripts" / "upscale_runner.py"
 
-    def is_installed(self):
-        """Checks if realesrgan and torch are importable."""
+    def is_installed(self) -> bool:
+        py = self._venv_python()
+        if not py.exists():
+            return False
         try:
-            self._apply_patches()
-            return True
-        except ImportError as e:
-            print(f"DEBUG: Upscale import failed: {e}")
+            result = subprocess.run(
+                [str(py), "-m", "pip", "show", "realesrgan", "torch"],
+                capture_output=True, timeout=10
+            )
+            return result.returncode == 0
+        except Exception as e:
+            print(f"DEBUG: Upscale check failed: {e}")
             return False
 
-    def get_version(self):
-        """Returns installed version of realesrgan"""
-        try:
-            import realesrgan
-            return getattr(realesrgan, "__version__", "Unknown")
-        except ImportError:
+    def get_version(self) -> str:
+        py = self._venv_python()
+        if not py.exists():
             return None
+        try:
+            out = subprocess.check_output(
+                [str(py), "-m", "pip", "show", "realesrgan"],
+                text=True, stderr=subprocess.DEVNULL
+            )
+            for line in out.splitlines():
+                if line.startswith("Version:"):
+                    return line.split(":", 1)[1].strip()
+        except Exception:
+            pass
+        return None
 
     def get_models_path(self) -> Path:
-        """Returns the directory where weights are stored"""
-        # We store weights in app/weights for persistence
-        root = Path(__file__).resolve().parent.parent
+        root = resolve_project_root() / "app"
         weights_dir = root / "weights"
         weights_dir.mkdir(parents=True, exist_ok=True)
         return weights_dir
 
-    def check_model_availability(self, model_name):
-        """Checks if model weights are present locally"""
-        weights_dir = self.get_models_path()
+    def check_model_availability(self, model_name: str) -> bool:
         file_map = {
             "RealESRGAN_x4plus": "RealESRGAN_x4plus.pth",
-            "RealESRNet_x4plus": "RealESRNet_x4plus.pth", 
-            "RealESRGAN_x4plus_anime_6B": "RealESRGAN_x4plus_anime_6B.pth"
+            "RealESRNet_x4plus": "RealESRNet_x4plus.pth",
+            "RealESRGAN_x4plus_anime_6B": "RealESRGAN_x4plus_anime_6B.pth",
         }
         filename = file_map.get(model_name)
-        if not filename: return False
-        
-        path = weights_dir / filename
-        return path.exists()
-
-    # install/uninstall methods deprecated, handled by setup_dependencies.py
-
-    def load_model(self, model_name='RealESRGAN_x4plus', tile=0, target_scale=4, half=False):
-        """
-        Loads the RealESRGANer model. 
-        Returns the model object or None.
-        """
-        if not self.is_installed():
-            self.log("Dependencies not installed.")
-            return None
-
-        try:
-            self._apply_patches()
-            from basicsr.archs.rrdbnet_arch import RRDBNet
-            from realesrgan import RealESRGANer
-            
-            model = None
-            netscale = 4
-            
-            if model_name == 'RealESRGAN_x4plus':
-                model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
-                netscale = 4
-            elif model_name == 'RealESRNet_x4plus':
-                model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
-                netscale = 4
-            # Add more models if needed
-            
-            # Auto-download if missing
-            file_path = self.get_models_path() / f"{model_name}.pth"
-            if not file_path.exists():
-                self.log(f"Model {model_name} missing. Attempting auto-download...")
-                if not self.download_model(model_name):
-                    self.log(f"Failed to auto-download {model_name}.")
-                    return None
-            
-            # Let's rely on standard usage:
-            upsampler = RealESRGANer(
-                scale=netscale,
-                model=model,
-                tile=tile,
-                tile_pad=10,
-                pre_pad=0,
-                half=half, # Dynamic FP16
-                device=self.device,
-                model_path=str(file_path)
-            )
-            # Inject target scale into upsampler object for later retrieval if needed
-            upsampler.target_scale = target_scale
-            return upsampler
-            
-        except Exception as e:
-            self.log(f"Failed to load model: {e}")
-            return None
-
-    def verify_checksum(self, file_path, expected_hash):
-        """Verifies the SHA256 checksum of a file"""
-        import hashlib
-        sha256_hash = hashlib.sha256()
-        try:
-            with open(file_path, "rb") as f:
-                # Read chunks to avoid memory issues
-                for byte_block in iter(lambda: f.read(4096), b""):
-                    sha256_hash.update(byte_block)
-            return sha256_hash.hexdigest() == expected_hash
-        except Exception as e:
-            self.log(f"Checksum verification failed: {e}")
+        if not filename:
             return False
+        return (self.get_models_path() / filename).exists()
 
-    def download_model(self, model_name):
-        """Downloads the specific model weights with checksum verification"""
-        # Urls from realesrgan repo
+    def download_model(self, model_name: str) -> bool:
+        """Télécharge les poids du modèle (urllib, pas de subprocess nécessaire)."""
         urls = {
             "RealESRGAN_x4plus": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
             "RealESRNet_x4plus": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.1/RealESRNet_x4plus.pth",
-            "RealESRGAN_x4plus_anime_6B": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
+            "RealESRGAN_x4plus_anime_6B": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
         }
-        
-        # SHA256 Checksums
         checksums = {
             "RealESRGAN_x4plus": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1",
-            # Add others if needed
         }
-        
+
         url = urls.get(model_name)
         if not url:
-            self.log(f"No URL found for {model_name}")
+            self.log(f"Aucune URL pour {model_name}")
             return False
-            
+
         save_path = self.get_models_path() / f"{model_name}.pth"
         expected_hash = checksums.get(model_name)
-        
-        if save_path.exists():
-            # Check size first
-            if save_path.stat().st_size > 1024 * 1024: 
-                # Verify checksum if known
-                if expected_hash:
-                    self.log(f"Verifying existing model {model_name}...")
-                    if self.verify_checksum(str(save_path), expected_hash):
-                        self.log(f"Model {model_name} valid (Checksum OK).")
-                        return True
-                    else:
-                        self.log(f"Model {model_name} corrupted (Checksum Mismatch). Deleting.")
-                        save_path.unlink()
-                else:
-                    self.log(f"Model {model_name} exists (No checksum to verify).")
-                    return True
+
+        if save_path.exists() and save_path.stat().st_size > 1024 * 1024:
+            if expected_hash and self._verify_checksum(str(save_path), expected_hash):
+                self.log(f"Modèle {model_name} valide (checksum OK).")
+                return True
+            elif not expected_hash:
+                self.log(f"Modèle {model_name} présent (pas de checksum).")
+                return True
             else:
-                self.log(f"Model {model_name} exists but seems empty. Redownloading.")
+                self.log(f"Modèle {model_name} corrompu. Suppression.")
                 save_path.unlink()
-            
-        self.log(f"Downloading {model_name}...")
+
+        self.log(f"Téléchargement de {model_name}...")
         try:
             import urllib.request
             urllib.request.urlretrieve(url, str(save_path))
-            
-            self.log(f"Download complete: {save_path}")
-            
-            # Verify size post download
             if not save_path.exists() or save_path.stat().st_size < 1024 * 1024:
-                 self.log("Download failed (file too small or missing).")
-                 return False
-            
-            # Verify checksum post download
+                self.log("Téléchargement échoué (fichier trop petit).")
+                return False
             if expected_hash:
-                self.log("Verifying download checksum...")
-                if not self.verify_checksum(str(save_path), expected_hash):
-                    self.log("SECURITY WARNING: Downloaded file checksum mismatch!")
+                if not self._verify_checksum(str(save_path), expected_hash):
+                    self.log("AVERTISSEMENT SÉCURITÉ: checksum incorrect !")
                     save_path.unlink()
                     return False
                 self.log("Checksum OK.")
-                 
             return True
         except Exception as e:
-            self.log(f"Download failed: {e}")
+            self.log(f"Téléchargement échoué: {e}")
             return False
 
-    def upscale_image(self, input_path, output_path, upsampler, face_enhance=False):
-        """
-        Upscales a single image.
-        """
+    def _verify_checksum(self, file_path: str, expected_hash: str) -> bool:
+        import hashlib
+        sha256 = hashlib.sha256()
         try:
-            import cv2
-            img = cv2.imread(input_path, cv2.IMREAD_UNCHANGED)
-            if img is None:
-                self.log(f"Failed to read {input_path}")
-                return False
-                
-            # Upscale
-            # Determine outscale. 
-            # If using RealESRGAN, 'outscale' parameter in enhance() handles resizing.
-            
-            # Default to 4 if not specified
-            final_scale = 4
-            if hasattr(upsampler, 'target_scale') and upsampler.target_scale:
-                final_scale = upsampler.target_scale
-                
-            output, _ = upsampler.enhance(img, outscale=final_scale)
-            
-            # Face Enhance (GFPGAN) - Optional, implementation complex without helper wrapper.
-            if face_enhance:
-                # Placeholder: Face enhancement logic usually requires loading GFPGANer
-                # For this iteration, we acknowledge the flag but might not implement full GFPGAN unless requested heavily
-                # or if we implement a FaceEnhancer helper.
-                # Given dependencies list had 'gfpgan', we could try using it if installed.
-                pass
-            
-            cv2.imwrite(output_path, output)
-            return True
-        except Exception as e:
-            self.log(f"Error upscaling {input_path}: {e}")
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    sha256.update(chunk)
+            return sha256.hexdigest() == expected_hash
+        except Exception:
             return False
 
-    def upscale_folder(self, input_dir, output_dir, extension='jpg', model_name='RealESRGAN_x4plus', tile=0, target_scale=4, face_enhance=False):
-        """
-        Upscales all images in input_dir to output_dir.
-        """
-        in_p = Path(input_dir)
-        out_p = Path(output_dir)
-        out_p.mkdir(parents=True, exist_ok=True)
-            
-        # Get images
-        files = sorted([f for f in in_p.iterdir() if f.is_file() and f.suffix.lower() in (f'.{extension}', '.png')])
-             
-        self.log(f"Found {len(files)} images to upscale.")
-        
-        # Load Model
-        upsampler = self.load_model(model_name=model_name, tile=tile, target_scale=target_scale)
-        if not upsampler:
-            return False, "Failed to load model"
-            
-        success_count = 0
-        for idx, img_path in enumerate(files):
-            self.log(f"Upscaling [{idx+1}/{len(files)}]: {img_path.name} (x{target_scale})")
-            if self.upscale_image(str(img_path), str(out_p / img_path.name), upsampler, face_enhance=face_enhance):
-                success_count += 1
-                
-        self.log(f"Upscaling complete. {success_count}/{len(files)} processed.")
-        return True, "Success"
+    def load_model(self, model_name="RealESRGAN_x4plus", tile=0, target_scale=4, half=False):
+        """Retourne un dict de paramètres (utilisé comme handle par upscale_image/folder)."""
+        if not self.is_installed():
+            self.log("Dépendances non installées.")
+            return None
+        if not self.check_model_availability(model_name):
+            self.log(f"Modèle {model_name} manquant. Téléchargement...")
+            if not self.download_model(model_name):
+                self.log(f"Impossible de télécharger {model_name}.")
+                return None
+        return {"model_name": model_name, "tile": tile, "target_scale": target_scale, "half": half}
+
+    def _build_cmd(self, mode: str, input_path: str, output_path: str, params: dict) -> list:
+        cmd = [
+            str(self._venv_python()), str(self._runner()),
+            "--mode", mode,
+            "--input", str(input_path),
+            "--output", str(output_path),
+            "--model", params.get("model_name", "RealESRGAN_x4plus"),
+            "--weights-dir", str(self.get_models_path()),
+            "--tile", str(params.get("tile", 512)),
+            "--scale", str(params.get("target_scale", 4)),
+        ]
+        if params.get("half"):
+            cmd.append("--half")
+        return cmd
+
+    def upscale_image(self, input_path, output_path, upsampler, face_enhance=False) -> bool:
+        """upsampler est un dict de params retourné par load_model()."""
+        if upsampler is None:
+            return False
+        cmd = self._build_cmd("image", input_path, output_path, upsampler)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            for line in result.stdout.splitlines():
+                self.log(line)
+            if result.returncode != 0:
+                self.log(f"Erreur upscale: {result.stderr[:500]}")
+                return False
+            return True
+        except Exception as e:
+            self.log(f"Erreur subprocess upscale: {e}")
+            return False
+
+    def upscale_folder(self, input_dir, output_dir, extension="jpg",
+                       model_name="RealESRGAN_x4plus", tile=0,
+                       target_scale=4, face_enhance=False) -> tuple:
+        """Lance l'upscale d'un dossier entier via subprocess avec suivi de progression."""
+        params = {"model_name": model_name, "tile": tile, "target_scale": target_scale}
+        cmd = self._build_cmd("folder", input_dir, output_dir, params)
+
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            success_count, total = 0, 0
+            for line in proc.stdout:
+                line = line.strip()
+                if line.startswith("PROGRESS:"):
+                    _, counts, name = line.split(":", 2)
+                    current, total = map(int, counts.split("/"))
+                    self.log(f"Upscale [{current}/{total}]: {name}")
+                elif line.startswith("DONE:"):
+                    parts = line[5:].split("/")
+                    success_count, total = int(parts[0]), int(parts[1])
+                else:
+                    self.log(line)
+            proc.wait()
+            if proc.returncode != 0:
+                err = proc.stderr.read(500) if proc.stderr else ""
+                return False, f"Erreur upscale: {err}"
+            return True, f"{success_count}/{total} images traitées."
+        except Exception as e:
+            return False, str(e)
