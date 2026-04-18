@@ -402,6 +402,7 @@ class BrushTab(QWidget):
             "independent": self.check_independent.isChecked(),
             "input_path": self.input_path.text(),
             "output_path": self.output_path.text(),
+            "ply_name": self.ply_name_edit.text(),
             "show_details": self.check_details.isChecked(),
             "build_mode": self.combo_build_mode.currentData()
         }
@@ -441,7 +442,8 @@ class BrushTab(QWidget):
         # Manual paths
         if "input_path" in params: self.input_path.setText(params["input_path"])
         if "output_path" in params: self.output_path.setText(params["output_path"])
-        
+        if "ply_name" in params: self.ply_name_edit.setText(params["ply_name"])
+
         self.update_visibility()
 
 

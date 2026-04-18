@@ -18,6 +18,7 @@ REALESRGAN_PIP = "realesrgan"
 class EngineDependency:
     """Represents an external engine (Colmap, Glomap, Brush, etc.)"""
     auto_update_default = False  # Subclasses can override to enable auto-update by default
+    ask_before_update = False    # If True, prompt user at startup before updating
 
     def __init__(self, name, repo_url=None, bin_name=None):
         self.name = name
@@ -185,12 +186,27 @@ class DependencyManager:
 
             elif remote and local and remote != local_clean:
                 # Update Available
-                
+
                 # Check Auto-Update Preference
                 cfg_section = config.get("config", {})
                 auto_update = config.get(f"{name}_auto_update", engine.auto_update_default) or cfg_section.get(f"{name}_auto_update", engine.auto_update_default)
-                
-                if startup and auto_update:
+
+                if startup and engine.ask_before_update:
+                    print(f"\n>>> Mise à jour disponible pour {name.capitalize()} ({local_clean} → {remote})")
+                    try:
+                        answer = input(f"    Mettre à jour maintenant ? (o/n) : ").strip().lower()
+                    except EOFError:
+                        answer = "n"
+                    if answer in ("o", "y", "oui", "yes"):
+                        print(f">>> Mise à jour de {name.capitalize()}...")
+                        try:
+                            engine.install()
+                            print(f"✅ {name.capitalize()} mis à jour.")
+                        except Exception as e:
+                            print(f"❌ Échec de la mise à jour de {name}: {e}")
+                    else:
+                        print(f"    Mise à jour de {name.capitalize()} ignorée.")
+                elif startup and auto_update:
                      print(f">>> Auto-updating {name.capitalize()}...")
                      try:
                          engine.install()
@@ -226,6 +242,8 @@ class Extractor360EngineDep(PipEngine):
         self.save_local_version(self.get_remote_version())
 
 class BrushEngineDep(EngineDependency):
+    ask_before_update = True
+
     def __init__(self):
         super().__init__("brush", BRUSH_REPO)
 
@@ -720,10 +738,15 @@ class SuperSplatEngineDep(EngineDependency):
         self.save_local_version(self.get_remote_version())
 
 class GlomapEngineDep(EngineDependency):
+    ask_before_update = True
+
     def __init__(self):
         super().__init__("glomap", GLOMAP_REPO)
         # Fix: source code is in a separate dir, not replacing the binary
         self.target_dir = self.engines_dir / "glomap-source"
+
+    def is_enabled_in_config(self, config: dict) -> bool:
+        return config.get("params", {}).get("use_glomap", False)
 
     def install(self):
         if sys.platform == "darwin" and not check_xcode_tools():

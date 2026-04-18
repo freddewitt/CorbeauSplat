@@ -60,7 +60,7 @@ class BrushEngine(BaseEngine):
                 "--save-iterations", "--log-level", "--test-split",
                 "--start-iter", "--refine-every", "--growth-grad-threshold",
                 "--growth-select-fraction", "--growth-stop-iter", "--max-splats",
-                "--eval-every"
+                "--eval-every", "--max-resolution", "--refine-pose"
             }
             args_list = custom_args.split()
             safe_args = []

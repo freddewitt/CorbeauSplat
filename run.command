@@ -40,14 +40,14 @@ if [ ! -d "$VENV_DIR" ] || [ ! -f "$PYTHON_CMD" ]; then
     echo "Creating virtual environment..."
     if [ -d "$VENV_DIR" ]; then echo "⚠️ Venv corrupted. Rebuilding..."; rm -rf "$VENV_DIR"; fi
     
-    PY_CANDIDATES=("python3.11" "python3.10" "python3")
+    PY_CANDIDATES=("python3.13" "python3.12" "python3.11" "python3.10" "python3")
     SELECTED_PY=""
     for py in "${PY_CANDIDATES[@]}"; do
         if command -v $py >/dev/null 2>&1; then SELECTED_PY=$py; break; fi
     done
-    
+
     if [ -z "$SELECTED_PY" ]; then
-        echo "❌ ERROR: Python 3 not found. Please install Python 3.10 or 3.11."
+        echo "❌ ERROR: Python 3 not found. Please install Python 3.13+."
         exit 1
     fi
     echo "Detected Python candidate: $SELECTED_PY"

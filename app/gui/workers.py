@@ -471,8 +471,13 @@ class SharpVideoWorker(BaseWorker):
             self.log_signal.emit(f"Running: {' '.join(cmd)}")
             
             env = os.environ.copy()
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+            except FileNotFoundError:
+                self.log_signal.emit("Erreur : FFmpeg introuvable. Installez-le via Homebrew : brew install ffmpeg")
+                self.finished_signal.emit(False, "FFmpeg non installé.")
+                return
             if result.returncode != 0:
                 self.log_signal.emit(f"FFmpeg error: {result.stderr}")
                 self.finished_signal.emit(False, tr("sharp_err_ffmpeg"))
