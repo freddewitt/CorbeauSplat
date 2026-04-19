@@ -4,6 +4,8 @@ import argparse
 import time
 import signal
 from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtGui import QIcon
+from pathlib import Path as _Path
 
 from app.core.i18n import tr
 from app.core.params import ColmapParams
@@ -204,6 +206,9 @@ def main():
     # Dispatch logic
     if args.gui:
         app = QApplication(sys.argv)
+        _icon_path = _Path(__file__).parent / "assets" / "icon.icns"
+        if _icon_path.exists():
+            app.setWindowIcon(QIcon(str(_icon_path)))
         window = ColmapGUI()
         window.show()
         sys.exit(app.exec())
