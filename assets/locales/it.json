@@ -186,7 +186,7 @@
     "upscale_msg_installed": "Moduli installati con successo!",
     "upscale_msg_uninstalled": "Moduli disinstallati.",
     "upscale_err_install": "Installazione fallita.",
-    "upscale_check_colmap": "Upscale (Real-ESRGAN)",
+    "upscale_check_colmap": "Attiva Upscale (upscayl-ncnn)",
     "upscale_check_sharp": "Upscale Input (Real-ESRGAN)",
     "upscale_lbl_status": "Stato:",
     "upscale_btn_download": "Scarica Modello",

@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.98] - 2026-04-19
+
+### ✨ New Features — Upscale Module (complete rewrite)
+- **upscayl-ncnn replaces Real-ESRGAN**: The upscale engine now uses `upscayl-bin`, a standalone NCNN-based binary with no Python venv required. No pip dependencies, no build issues.
+- **Startup auto-install**: `upscayl-bin` is automatically downloaded from the latest GitHub release at first launch (macOS arm64). Bundled models are extracted alongside.
+- **Interactive update prompt**: When a newer version of `upscayl-bin` is detected at startup, the user is asked before updating (same pattern as Brush/Glomap).
+- **Model catalogue** (6 curated models, duplicates removed):
+  - `Real-ESRGAN x4+` — general ⭐ (bundled)
+  - `Real-ESRGAN General` — fast variant (bundled)
+  - `4xLSDIR` — ultra fidelity (custom download)
+  - `4xNomos8kSC` — texture detail (custom download)
+  - `Real-ESRGAN Anime` — stylized content (bundled)
+  - `NMKD-Siax` — low-compression sources (custom download)
+- **Upscale tab redesign**: scrollable model list with per-model status, download and delete buttons; configuration section (model, scale, format, compression, TTA, tile size); quick test on a single image.
+- **"Enable Upscale" moved to Training tab**: the workflow toggle is now in the Training tab alongside other pipeline options (was buried in the Upscale tab).
+- **Startup model check**: `on_startup_ready()` logs which models are available and warns if none are installed.
+- **Smart model directory detection**: automatically detects models from `./models/upscayl/`, the binary's bundle, or Upscayl.app — no `-m` flag passed when using a system binary.
+
+### 🐞 Bug Fixes
+- **Upscale tab crash on startup**: `get_effective_models_dir()` returning `None` caused a `TypeError` in `_ModelCard` — fallback to local models dir prevents the crash.
+- **Bundled models now visible in combo**: when `upscayl-bin` is present, bundled models appear in the active model selector even before individual files are downloaded locally.
+
 ## [0.96] - 2026-04-17 → 2026-04-18
 
 ### ✨ New Features

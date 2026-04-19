@@ -186,7 +186,7 @@
     "upscale_msg_installed": "インストール成功！",
     "upscale_msg_uninstalled": "アンインストールしました。",
     "upscale_err_install": "インストール失敗",
-    "upscale_check_colmap": "アップスケール (Real-ESRGAN)",
+    "upscale_check_colmap": "Upscaleを有効化 (upscayl-ncnn)",
     "upscale_check_sharp": "入力のアップスケール (Real-ESRGAN)",
     "upscale_lbl_status": "ステータス:",
     "upscale_btn_download": "モデルをダウンロード",

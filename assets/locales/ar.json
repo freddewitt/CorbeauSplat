@@ -186,7 +186,7 @@
     "upscale_msg_installed": "نجاح التثبيت",
     "upscale_msg_uninstalled": "نجاح الإزالة",
     "upscale_err_install": "فشل.",
-    "upscale_check_colmap": "Upscale",
+    "upscale_check_colmap": "تفعيل Upscale (upscayl-ncnn)",
     "upscale_check_sharp": "Upscale Input",
     "upscale_lbl_status": "الحالة:",
     "upscale_btn_download": "تنزيل النموذج",

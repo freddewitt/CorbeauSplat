@@ -20,6 +20,10 @@ class EngineDependency:
     auto_update_default = False  # Subclasses can override to enable auto-update by default
     ask_before_update = False    # If True, prompt user at startup before updating
 
+    def on_startup_ready(self):
+        """Called at startup when the engine is installed and up to date."""
+        pass
+
     def __init__(self, name, repo_url=None, bin_name=None):
         self.name = name
         self.repo_url = repo_url
@@ -171,6 +175,7 @@ class DependencyManager:
                     try:
                         engine.install()
                         print(f"✅ {name.capitalize()} installed automatically.")
+                        engine.on_startup_ready()
                     except Exception as e:
                         print(f"❌ Auto-install failed for {name}: {e}")
                 else:
@@ -219,6 +224,8 @@ class DependencyManager:
                     print(f">>> Auto-updating {name} ({local_clean} -> {remote})...")
                     engine.install()
             else:
+                if startup:
+                    engine.on_startup_ready()
                 if check_only:
                     print(f"  ✅ {name.capitalize()}: Ready")
 
@@ -807,76 +814,73 @@ class GlomapEngineDep(EngineDependency):
             shutil.copy2(str(built_bin), str(self.engines_dir / "glomap"))
             self.save_local_version(self.get_remote_version())
 
-class UpscaleEngineDep(PipEngine):
-    """Upscale dans un venv dédié Python 3.11 pour compatibilité basicsr/Python 3.13"""
-    auto_update_default = True
+class UpscaylEngineDep(EngineDependency):
+    """upscayl-ncnn — downloaded from GitHub releases, no build required."""
+    ask_before_update = True
 
     def __init__(self):
-        super().__init__("upscale", None, ".venv_upscale")
+        super().__init__("upscayl", "https://github.com/upscayl/upscayl-ncnn")
 
     def is_enabled_in_config(self, config: dict) -> bool:
-        return config.get("upscale_params", {}).get("enabled", False) or config.get("upscale_enabled", False)
+        return True  # Always check; upscayl is used globally by the upscale workflow
 
     def is_installed(self) -> bool:
-        from app.core.upscale_engine import UpscaleEngine
-        return UpscaleEngine().is_installed()
+        from app.upscayl_manager import find_binary
+        return find_binary() is not None
 
     def get_local_version(self) -> str:
-        try:
-            out = subprocess.check_output(
-                [str(self.python_bin), "-m", "pip", "show", "realesrgan"],
-                text=True, stderr=subprocess.DEVNULL
-            )
-            for line in out.splitlines():
-                if line.startswith("Version:"):
-                    return line.split(":", 1)[1].strip()
-        except:
-            pass
+        if self.version_file.exists():
+            return self.version_file.read_text().strip()
         return ""
 
     def get_remote_version(self) -> str:
-        import urllib.request
-        import json as _json
+        import urllib.request, json as _json
         try:
             req = urllib.request.Request(
-                "https://pypi.org/pypi/realesrgan/json",
-                headers={"User-Agent": "CorbeauSplat"}
+                "https://api.github.com/repos/upscayl/upscayl-ncnn/releases/latest",
+                headers={"Accept": "application/vnd.github+json", "User-Agent": "CorbeauSplat"}
             )
             with urllib.request.urlopen(req, timeout=8) as resp:
                 data = _json.loads(resp.read())
-                return data.get("info", {}).get("version", "")
+                tag = data.get("tag_name", "")
+                if tag:
+                    print(f"Latest upscayl-ncnn release: {tag}")
+                    return tag
         except Exception as e:
-            print(f"⚠️ Could not fetch latest realesrgan version: {e}")
+            print(f"⚠️ Could not fetch upscayl-ncnn version: {e}")
         return ""
 
     def install(self):
-        # basicsr 1.4.2 incompatible Python 3.13 → venv dédié Python 3.11/3.10
-        py = shutil.which("python3.11") or shutil.which("python3.10")
-        if not py:
-            print("❌ Python 3.11 ou 3.10 requis pour le module Upscale (compatibilité basicsr).")
-            return
-
-        print(f"Création du venv Upscale avec {py}...")
-        self.create_venv(py)
-
-        print("Installation : torch, torchvision, basicsr, realesrgan...")
-        self.pip_install(["--upgrade", "torch", "torchvision", "basicsr", "realesrgan"])
+        from app.upscayl_manager import download_binary
+        dest = download_binary(log_callback=print)
         self.save_local_version(self.get_remote_version())
-        print("✅ Upscale installé dans .venv_upscale")
+        print(f"✅ upscayl-bin installed: {dest}")
+
+    def on_startup_ready(self):
+        """Log model availability at startup."""
+        from app.upscayl_manager import get_models_dir
+        from app.upscayl_models import MODELS
+        models_dir = get_models_dir()
+        downloaded = [m.id for m in MODELS if m.is_downloaded(models_dir)]
+        if not downloaded:
+            print("  ⚠️  Upscale: no models in ./models/upscayl/ — open the Upscale tab to download.")
+        else:
+            print(f"  ✅ Upscale models available: {', '.join(downloaded)}")
+
 
 def main():
     root = Path(__file__).resolve().parent.parent.parent
     engines_dir = root / "engines"
     engines_dir.mkdir(parents=True, exist_ok=True)
-    
+
     manager = DependencyManager(engines_dir)
     manager.register(ColmapBrewDep())
     manager.register(GlomapEngineDep())
     manager.register(BrushEngineDep())
     manager.register(SharpEngineDep())
     manager.register(SuperSplatEngineDep())
-    manager.register(UpscaleEngineDep())
     manager.register(Extractor360EngineDep())
+    manager.register(UpscaylEngineDep())
     
     check_only = "--check" in sys.argv
     startup = "--startup" in sys.argv

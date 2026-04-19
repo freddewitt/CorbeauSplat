@@ -186,7 +186,7 @@
     "upscale_msg_installed": "Модули успешно установлены!",
     "upscale_msg_uninstalled": "Модули удалены.",
     "upscale_err_install": "Сбой установки.",
-    "upscale_check_colmap": "Upscale (Real-ESRGAN)",
+    "upscale_check_colmap": "Включить Upscale (upscayl-ncnn)",
     "upscale_check_sharp": "Upscale Ввод (Real-ESRGAN)",
     "upscale_lbl_status": "Статус:",
     "upscale_btn_download": "Скачать модель",

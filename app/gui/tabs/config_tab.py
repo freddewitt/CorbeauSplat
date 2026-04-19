@@ -291,7 +291,7 @@ class ConfigTab(QWidget):
         self.undistort_check.setChecked(False)
         options_layout.addWidget(self.undistort_check)
         
-        self.chk_upscale = QCheckBox(tr("upscale_check_colmap", "Upscale (Real-ESRGAN)"))
+        self.chk_upscale = QCheckBox(tr("upscale_check_colmap", "Enable Upscale (upscayl-ncnn)"))
         self.chk_upscale.setChecked(False)
         options_layout.addWidget(self.chk_upscale)
         

@@ -186,7 +186,7 @@
     "upscale_msg_installed": "模块安装成功！",
     "upscale_msg_uninstalled": "模块已卸载。",
     "upscale_err_install": "安装失败。",
-    "upscale_check_colmap": "AI 放大 (Real-ESRGAN)",
+    "upscale_check_colmap": "启用超分辨率 (upscayl-ncnn)",
     "upscale_check_sharp": "放大输入 (Real-ESRGAN)",
     "upscale_lbl_status": "状态:",
     "upscale_btn_download": "下载模型",

@@ -1,352 +1,508 @@
+from pathlib import Path
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton, QLabel, QGroupBox, QFormLayout,
-    QCheckBox, QComboBox, QSpinBox, QMessageBox, QProgressDialog, QApplication
-)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QGroupBox,
+    QFormLayout, QCheckBox, QComboBox, QSpinBox, QMessageBox,
+    QProgressDialog, QApplication, QScrollArea, QFrame, QSlider,
+    QFileDialog, QSizePolicy,
+)
+
 from app.core.i18n import tr, add_language_observer
-from app.core.upscale_engine import UpscaleEngine
-from app.scripts.setup_dependencies import install_upscale, uninstall_upscale
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Background workers
+# ──────────────────────────────────────────────────────────────────────────────
+
+class _BinaryInstallWorker(QThread):
+    log_signal = pyqtSignal(str)
+    finished   = pyqtSignal(bool, str)   # success, message
+
+    def run(self):
+        try:
+            from app.upscayl_manager import download_binary
+            download_binary(log_callback=self.log_signal.emit)
+            self.finished.emit(True, "upscayl-bin installed.")
+        except Exception as e:
+            self.finished.emit(False, str(e))
+
+
+class _ModelDownloadWorker(QThread):
+    log_signal = pyqtSignal(str)
+    finished   = pyqtSignal(bool, str, str)   # success, model_id, message
+
+    def __init__(self, model_id: str, url_bin: str, url_param: str):
+        super().__init__()
+        self.model_id  = model_id
+        self.url_bin   = url_bin
+        self.url_param = url_param
+
+    def run(self):
+        try:
+            from app.upscayl_manager import download_model_files
+            ok = download_model_files(
+                self.url_bin, self.url_param, self.model_id,
+                log_callback=self.log_signal.emit
+            )
+            self.finished.emit(ok, self.model_id,
+                               "Downloaded." if ok else "Download failed.")
+        except Exception as e:
+            self.finished.emit(False, self.model_id, str(e))
+
+
+class _TestWorker(QThread):
+    log_signal = pyqtSignal(str)
+    finished   = pyqtSignal(bool, str)
+
+    def __init__(self, input_path: str, output_dir: str, params: dict):
+        super().__init__()
+        self.input_path = input_path
+        self.output_dir = output_dir
+        self.params     = params
+
+    def run(self):
+        try:
+            from app.core.upscale_engine import UpscaleEngine
+            engine = UpscaleEngine(logger_callback=self.log_signal.emit)
+            model  = engine.load_model(**self.params)
+            if not model:
+                self.finished.emit(False, "Could not load model.")
+                return
+            success = engine.upscale_image(
+                self.input_path,
+                Path(self.output_dir) / Path(self.input_path).name,
+                model,
+            )
+            self.finished.emit(success, self.output_dir if success else "Test failed.")
+        except Exception as e:
+            self.finished.emit(False, str(e))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Model card widget
+# ──────────────────────────────────────────────────────────────────────────────
+
+class _ModelCard(QFrame):
+    download_requested = pyqtSignal(str)   # model_id
+    delete_requested   = pyqtSignal(str)   # model_id
+
+    def __init__(self, model, models_dir: Path, recommended: bool = False):
+        super().__init__()
+        self.model      = model
+        self.models_dir = models_dir
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self._build()
+
+    def _build(self):
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 6, 8, 6)
+
+        # Left: name + description
+        info = QVBoxLayout()
+        name = QLabel(f"<b>{self.model.label}</b>")
+        desc = QLabel(self.model.description)
+        desc.setStyleSheet("color: #888; font-size: 11px;")
+        info.addWidget(name)
+        info.addWidget(desc)
+        layout.addLayout(info, stretch=1)
+
+        # Scale badge
+        badge = QLabel(f"x{self.model.scale}")
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        badge.setFixedWidth(32)
+        badge.setStyleSheet(
+            "background: #2a82da; color: white; border-radius: 4px; "
+            "font-size: 11px; font-weight: bold; padding: 2px 4px;"
+        )
+        layout.addWidget(badge)
+
+        # Status + actions
+        self.lbl_status = QLabel()
+        self.lbl_status.setFixedWidth(120)
+        self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.lbl_status)
+
+        self.btn_action = QPushButton()
+        self.btn_action.setFixedWidth(90)
+        layout.addWidget(self.btn_action)
+
+        self.refresh()
+
+    def refresh(self):
+        downloaded = self.model.is_downloaded(self.models_dir)
+        if downloaded:
+            size = self.model.size_on_disk_mb(self.models_dir)
+            self.lbl_status.setText(f"✅ {size} MB")
+            self.lbl_status.setStyleSheet("color: #44aa44; font-size: 11px;")
+            self.btn_action.setText("Delete")
+            self.btn_action.setStyleSheet("color: #cc4444;")
+            try:
+                self.btn_action.clicked.disconnect()
+            except Exception:
+                pass
+            self.btn_action.clicked.connect(
+                lambda: self.delete_requested.emit(self.model.id)
+            )
+            self.btn_action.setEnabled(True)
+        elif self.model.bundled:
+            self.lbl_status.setText("Bundled")
+            self.lbl_status.setStyleSheet("color: #888; font-size: 11px;")
+            self.btn_action.setText("—")
+            self.btn_action.setEnabled(False)
+        else:
+            self.lbl_status.setText("Not installed")
+            self.lbl_status.setStyleSheet("color: #888; font-size: 11px;")
+            self.btn_action.setText("Download")
+            self.btn_action.setStyleSheet("")
+            try:
+                self.btn_action.clicked.disconnect()
+            except Exception:
+                pass
+            self.btn_action.clicked.connect(
+                lambda: self.download_requested.emit(self.model.id)
+            )
+            self.btn_action.setEnabled(True)
+
+    def set_downloading(self, active: bool):
+        self.btn_action.setEnabled(not active)
+        if active:
+            self.lbl_status.setText("Downloading…")
+            self.lbl_status.setStyleSheet("color: #2a82da; font-size: 11px;")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Main tab
+# ──────────────────────────────────────────────────────────────────────────────
 
 class UpscaleTab(QWidget):
-    """
-    Tab for Upscale Configuration & Management.
-    """
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.engine = UpscaleEngine()
+        self._model_cards: dict[str, _ModelCard] = {}
+        self._active_workers: list[QThread] = []
         self.init_ui()
         add_language_observer(self.retranslate_ui)
 
+    # ──────────────────────────────────────────── build UI
+
     def init_ui(self):
-        layout = QVBoxLayout(self)
-        
-        # Header
-        self.lbl_title = QLabel(tr("upscale_title"))
-        self.lbl_title.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 10px;")
-        layout.addWidget(self.lbl_title)
-        
-        self.lbl_desc = QLabel(tr("upscale_desc"))
-        self.lbl_desc.setWordWrap(True)
-        self.lbl_desc.setStyleSheet("color: #aaa; margin-bottom: 5px;")
-        layout.addWidget(self.lbl_desc)
+        from app.upscayl_manager import find_binary, get_effective_models_dir, get_models_dir
+        from app.upscayl_models import MODELS
 
-        # Activation / Installation
-        self.chk_activate = QCheckBox(tr("upscale_activate"))
-        self.chk_activate.setStyleSheet("font-weight: bold; padding: 5px;")
-        self.chk_activate.clicked.connect(self.on_toggle_activation)
-        layout.addWidget(self.chk_activate)
+        self._models_dir = get_effective_models_dir() or get_models_dir()
 
-        # Settings Group
-        self.settings_group = QGroupBox(tr("upscale_group_settings"))
-        form_layout = QFormLayout()
-        
-        # Model Selection
-        self.model_combo = QComboBox()
-        self.model_combo.addItems([
-            "RealESRGAN_x4plus", 
-            "RealESRNet_x4plus",
-            "RealESRGAN_x4plus_anime_6B"
-        ])
-        self.lbl_model = QLabel(tr("upscale_lbl_model"))
-        form_layout.addRow(self.lbl_model, self.model_combo)
-        
-        # Model Description
-        self.model_desc = QLabel("")
-        self.model_desc.setStyleSheet("color: #888; font-style: italic; margin-bottom: 5px;")
-        self.model_desc.setWordWrap(True)
-        form_layout.addRow("", self.model_desc)
-        
-        self.model_combo.currentIndexChanged.connect(self.on_model_changed)
-        
-        # Status Label
-        self.status_label = QLabel("")
-        self.lbl_status = QLabel(tr("upscale_lbl_status"))
-        form_layout.addRow(self.lbl_status, self.status_label)
-        
-        # Download Button (Visible only if missing)
-        self.btn_download = QPushButton(tr("upscale_btn_download"))
-        self.btn_download.clicked.connect(self.download_current_model)
-        self.btn_download.setVisible(False)
-        form_layout.addRow("", self.btn_download)
-        self.scale_combo = QComboBox()
-        self.scale_combo.addItems([tr("upscale_scale_x4"), tr("upscale_scale_x2"), tr("upscale_scale_x1")])
-        self.scale_combo.setCurrentIndex(2) # Default to x1 (Enhance only)
-        self.scale_combo.setToolTip(tr("upscale_tip_scale"))
-        self.lbl_scale = QLabel(tr("upscale_lbl_scale"))
-        form_layout.addRow(self.lbl_scale, self.scale_combo)
+        root = QVBoxLayout(self)
+        root.setSpacing(8)
 
-        # Performance Profile
-        self.profile_combo = QComboBox()
-        self.profile_combo.addItems([
-            "Safe / MacBook Air (Defaut)",
-            "Qualite Max",
-            "Vitesse Max (High VRAM)",
-            "Ultimate (Ultra VRAM)",
-            "Personnalise"
-        ])
-        self.profile_combo.setToolTip(tr("upscale_tip_profile"))
-        self.lbl_profile = QLabel(tr("upscale_lbl_profile"))
-        form_layout.addRow(self.lbl_profile, self.profile_combo)
-        
-        self.profile_combo.currentIndexChanged.connect(self.on_profile_changed)
-        
-        # Tile Size (Memory management)
-        self.tile_spin = QSpinBox()
-        self.tile_spin.setRange(0, 4096)
-        self.tile_spin.setValue(512) # Default to 512 for safety on Air/8GB
-        self.tile_spin.setSingleStep(128)
-        self.tile_spin.setSuffix(" px")
-        self.tile_spin.setToolTip(tr("upscale_tip_tile"))
-        self.tile_spin.valueChanged.connect(self.on_manual_change)
-        self.lbl_tile = QLabel(tr("upscale_lbl_tile"))
-        form_layout.addRow(self.lbl_tile, self.tile_spin)
-        
-        # Face Enhance Option
-        self.face_enhance = QCheckBox(tr("upscale_check_face"))
-        self.face_enhance.setToolTip(tr("upscale_tip_face"))
-        form_layout.addRow("", self.face_enhance)
+        # ── Engine status ─────────────────────────────────────────────────
+        engine_grp = QGroupBox("Engine")
+        engine_lay = QVBoxLayout(engine_grp)
 
-        # FP16 Option
-        self.fp16_check = QCheckBox(tr("upscale_lbl_fp16"))
-        self.fp16_check.setToolTip(tr("upscale_tip_fp16"))
-        self.fp16_check.setChecked(True) # Default true for mac
-        self.fp16_check.toggled.connect(self.on_manual_change)
-        self.lbl_fp16 = QLabel(tr("upscale_lbl_fp16"))
-        form_layout.addRow(self.lbl_fp16, self.fp16_check)
-        
-        self.settings_group.setLayout(form_layout)
-        layout.addWidget(self.settings_group)
-        
-        layout.addStretch()
-        
-        # Initial State Check
-        # Always enabled now
-        self.settings_group.setEnabled(True)
-        # Check dependencies just for status label, but don't block
-        if not self.engine.is_installed():
-            # Should behave if setup_dependencies ran, but show warning if not
-            # Should behave if setup_dependencies ran, but show warning if not
-            self.status_label.setText(tr("upscale_status_deps_missing"))
-            # self.settings_group.setEnabled(False) # Let user try anyway/debug
+        binary = find_binary()
+        status_row = QHBoxLayout()
+        self.lbl_binary_status = QLabel()
+        self._update_binary_status(binary)
+        status_row.addWidget(self.lbl_binary_status, stretch=1)
 
-        self.on_model_changed()
-        
-        self._updating_profile = False
+        self.btn_reinstall = QPushButton("Reinstall")
+        self.btn_reinstall.setToolTip("Force re-download of upscayl-bin from GitHub")
+        self.btn_reinstall.clicked.connect(self._install_binary)
+        status_row.addWidget(self.btn_reinstall)
 
-    def on_profile_changed(self):
-        if self._updating_profile: return
-        
-        idx = self.profile_combo.currentIndex()
-        self._updating_profile = True
-        
-        if idx == 0: # Safe
-            self.tile_spin.setValue(512)
-            self.fp16_check.setChecked(True)
-        elif idx == 1: # Quality Max
-            self.tile_spin.setValue(512)
-            self.fp16_check.setChecked(False)
-        elif idx == 2: # Speed (High VRAM)
-            self.tile_spin.setValue(0)
-            self.fp16_check.setChecked(True)
-        elif idx == 3: # Ultimate
-            self.tile_spin.setValue(0)
-            self.fp16_check.setChecked(False)
-            
-        self._updating_profile = False
+        engine_lay.addLayout(status_row)
 
-    def on_manual_change(self):
-        if self._updating_profile: return
-        # Switch to Custom if parameters don't match current profile
-        # Simple approach: just switch to Custom whenever user touches controls
-        self.profile_combo.setCurrentIndex(4) # Custom
+        if binary is None:
+            hint = QLabel("upscayl-bin will be installed automatically on next launch.")
+            hint.setStyleSheet("color: #888; font-size: 11px;")
+            engine_lay.addWidget(hint)
 
-    def on_model_changed(self):
-        self.update_model_desc()
-        self.check_model_status()
+        root.addWidget(engine_grp)
 
-    def update_model_desc(self):
-        txt = self.model_combo.currentText()
-        desc = ""
-        if "x4plus_anime" in txt:
-            desc = tr("upscale_desc_anime")
-        elif "x4plus" in txt:
-            desc = tr("upscale_desc_x4plus")
-        elif "x4net" in txt:
-            desc = tr("upscale_desc_x4net")
-        self.model_desc.setText(desc)
+        # ── Models list ───────────────────────────────────────────────────
+        models_grp = QGroupBox("Models")
+        models_outer = QVBoxLayout(models_grp)
 
-    def check_model_status(self):
-        if not self.engine.is_installed():
-            self.status_label.setText(tr("upscale_status_not_installed"))
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setMaximumHeight(280)
+
+        container = QWidget()
+        self._model_list_layout = QVBoxLayout(container)
+        self._model_list_layout.setSpacing(4)
+        self._model_list_layout.setContentsMargins(0, 0, 0, 0)
+
+        for model in MODELS:
+            card = _ModelCard(model, self._models_dir,
+                              recommended=False)
+            card.download_requested.connect(self._download_model)
+            card.delete_requested.connect(self._delete_model)
+            self._model_cards[model.id] = card
+            self._model_list_layout.addWidget(card)
+
+        self._model_list_layout.addStretch()
+        scroll.setWidget(container)
+        models_outer.addWidget(scroll)
+        root.addWidget(models_grp)
+
+        # ── Configuration ─────────────────────────────────────────────────
+        config_grp = QGroupBox("Configuration")
+        config_lay = QFormLayout(config_grp)
+
+        # Active model
+        self.combo_model = QComboBox()
+        self._refresh_model_combo()
+        self.lbl_model = QLabel("Active Model:")
+        config_lay.addRow(self.lbl_model, self.combo_model)
+
+        # Scale
+        self.combo_scale = QComboBox()
+        self.combo_scale.addItem("x4 (default)", 4)
+        self.combo_scale.addItem("x2", 2)
+        self.combo_scale.addItem("x3", 3)
+        self.lbl_scale = QLabel("Output Scale:")
+        config_lay.addRow(self.lbl_scale, self.combo_scale)
+
+        # Format
+        self.combo_format = QComboBox()
+        self.combo_format.addItem("PNG (lossless)", "png")
+        self.combo_format.addItem("JPEG", "jpg")
+        self.combo_format.addItem("WebP", "webp")
+        self.combo_format.currentIndexChanged.connect(self._on_format_changed)
+        self.lbl_format = QLabel("Output Format:")
+        config_lay.addRow(self.lbl_format, self.combo_format)
+
+        # Compression (JPG/WebP only)
+        compression_row = QHBoxLayout()
+        self.slider_compression = QSlider(Qt.Orientation.Horizontal)
+        self.slider_compression.setRange(0, 100)
+        self.slider_compression.setValue(80)
+        self.lbl_compression_val = QLabel("80")
+        self.slider_compression.valueChanged.connect(
+            lambda v: self.lbl_compression_val.setText(str(v))
+        )
+        compression_row.addWidget(self.slider_compression)
+        compression_row.addWidget(self.lbl_compression_val)
+        self.lbl_compression = QLabel("Compression:")
+        self.compression_widget = QWidget()
+        self.compression_widget.setLayout(compression_row)
+        self.compression_widget.setVisible(False)
+        config_lay.addRow(self.lbl_compression, self.compression_widget)
+
+        # Tile size
+        self.spin_tile = QSpinBox()
+        self.spin_tile.setRange(0, 4096)
+        self.spin_tile.setValue(0)
+        self.spin_tile.setSpecialValueText("Auto (0)")
+        self.spin_tile.setSuffix(" px")
+        self.lbl_tile = QLabel("Tile Size:")
+        config_lay.addRow(self.lbl_tile, self.spin_tile)
+
+        # TTA
+        self.chk_tta = QCheckBox("TTA mode  ⚠ Slow but better quality")
+        config_lay.addRow("", self.chk_tta)
+
+        root.addWidget(config_grp)
+
+        # ── Quick test ────────────────────────────────────────────────────
+        test_grp = QGroupBox("Quick Test")
+        test_lay = QHBoxLayout(test_grp)
+        self.btn_test = QPushButton("Test on an image…")
+        self.btn_test.clicked.connect(self._run_test)
+        self.lbl_test_result = QLabel("")
+        self.lbl_test_result.setStyleSheet("color: #888; font-size: 11px;")
+        test_lay.addWidget(self.btn_test)
+        test_lay.addWidget(self.lbl_test_result, stretch=1)
+        root.addWidget(test_grp)
+
+        root.addStretch()
+
+    # ──────────────────────────────────────────── helpers
+
+    def _update_binary_status(self, binary):
+        from app.upscayl_manager import get_version
+        if binary:
+            ver = get_version(binary)
+            self.lbl_binary_status.setText(f"✅  {binary}  —  {ver}")
+            self.lbl_binary_status.setStyleSheet("color: #44aa44;")
+        else:
+            self.lbl_binary_status.setText("⚠️  upscayl-bin not found")
+            self.lbl_binary_status.setStyleSheet("color: #cc6600; font-weight: bold;")
+
+    def _refresh_model_combo(self):
+        from app.upscayl_manager import find_binary, is_using_local_binary
+        from app.upscayl_models import MODELS
+        self.combo_model.blockSignals(True)
+        prev = self.combo_model.currentData()
+        self.combo_model.clear()
+
+        binary_present = find_binary() is not None
+        local_binary   = is_using_local_binary()
+
+        for m in MODELS:
+            locally_downloaded = m.is_downloaded(self._models_dir) if self._models_dir else False
+            # Bundled models are available when any binary is present
+            # (system/app install has them built-in; local install extracts them)
+            available = locally_downloaded or (m.bundled and binary_present)
+            if available:
+                self.combo_model.addItem(m.label, m.id)
+
+        if not self.combo_model.count():
+            self.combo_model.addItem("(install upscayl-bin first)", "")
+
+        idx = self.combo_model.findData(prev)
+        if idx >= 0:
+            self.combo_model.setCurrentIndex(idx)
+        self.combo_model.blockSignals(False)
+
+    def _on_format_changed(self):
+        fmt = self.combo_format.currentData()
+        self.compression_widget.setVisible(fmt in ("jpg", "webp"))
+
+    # ──────────────────────────────────────────── binary install
+
+    def _install_binary(self):
+        reply = QMessageBox.question(
+            self, "Reinstall upscayl-bin",
+            "Download the latest upscayl-bin release for macOS arm64?\n"
+            "Bundled models will also be extracted to ./models/upscayl/.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
             return
-            
-        model = self.model_combo.currentText()
-        if self.engine.check_model_availability(model):
-            self.status_label.setText(tr("upscale_status_available"))
-            self.status_label.setStyleSheet("color: green;")
-            self.btn_download.setVisible(False)
+
+        self.btn_reinstall.setEnabled(False)
+        self._install_worker = _BinaryInstallWorker()
+        self._install_worker.finished.connect(self._on_binary_installed)
+        self._install_worker.start()
+
+    def _on_binary_installed(self, success: bool, msg: str):
+        self.btn_reinstall.setEnabled(True)
+        from app.upscayl_manager import find_binary
+        binary = find_binary()
+        self._update_binary_status(binary)
+        if success:
+            self._refresh_all_cards()
+            self._refresh_model_combo()
+            QMessageBox.information(self, "Success", msg)
         else:
-            self.status_label.setText(tr("upscale_status_missing_model"))
-            self.status_label.setStyleSheet("color: orange;")
-            self.btn_download.setVisible(True)
+            QMessageBox.critical(self, "Error", msg)
 
-    def download_current_model(self):
-        model = self.model_combo.currentText()
+    # ──────────────────────────────────────────── model download / delete
 
-        self.progress = QProgressDialog(tr("upscale_msg_downloading", model), None, 0, 0, self)
-        self.progress.setWindowModality(Qt.WindowModality.WindowModal)
-        self.progress.show()
-        self.btn_download.setEnabled(False)
+    def _download_model(self, model_id: str):
+        from app.upscayl_models import get_model
+        model = get_model(model_id)
+        if not model or not model.url_bin:
+            QMessageBox.warning(self, "Warning",
+                                "This model is bundled with the binary.\n"
+                                "Install upscayl-bin first.")
+            return
 
-        self._dl_thread = _DownloadWorker(self.engine, model)
-        self._dl_thread.finished.connect(self._on_download_finished)
-        self._dl_thread.start()
+        card = self._model_cards.get(model_id)
+        if card:
+            card.set_downloading(True)
 
-    def on_toggle_activation(self):
-        if self.chk_activate.isChecked():
-            if not self.engine.is_installed():
-                reply = QMessageBox.question(
-                    self,
-                    tr("upscale_install_title"),
-                    tr("upscale_install_msg"),
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                )
-                if reply == QMessageBox.StandardButton.Yes:
-                    self.install_deps()
-                else:
-                    self.chk_activate.setChecked(False)
-            else:
-                self.settings_group.setEnabled(True)
+        worker = _ModelDownloadWorker(model_id, model.url_bin, model.url_param)
+        worker.finished.connect(self._on_model_downloaded)
+        self._active_workers.append(worker)
+        worker.start()
+
+    def _on_model_downloaded(self, success: bool, model_id: str, msg: str):
+        card = self._model_cards.get(model_id)
+        if card:
+            card.refresh()
+        self._refresh_model_combo()
+        if not success:
+            QMessageBox.warning(self, "Download failed", msg)
+
+    def _delete_model(self, model_id: str):
+        reply = QMessageBox.question(
+            self, "Delete model",
+            f"Delete model '{model_id}'? (.bin and .param files will be removed)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        for ext in (".bin", ".param"):
+            f = self._models_dir / f"{model_id}{ext}"
+            f.unlink(missing_ok=True)
+        card = self._model_cards.get(model_id)
+        if card:
+            card.refresh()
+        self._refresh_model_combo()
+
+    def _refresh_all_cards(self):
+        for card in self._model_cards.values():
+            card.refresh()
+
+    # ──────────────────────────────────────────── quick test
+
+    def _run_test(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select a test image", "",
+            "Images (*.png *.jpg *.jpeg *.tif *.tiff *.webp)"
+        )
+        if not path:
+            return
+
+        import tempfile
+        out_dir = tempfile.mkdtemp(prefix="upscayl_test_")
+        self.lbl_test_result.setText("Running…")
+        self.btn_test.setEnabled(False)
+
+        self._test_worker = _TestWorker(path, out_dir, self.get_params())
+        self._test_worker.finished.connect(self._on_test_done)
+        self._test_worker.start()
+
+    def _on_test_done(self, success: bool, result: str):
+        self.btn_test.setEnabled(True)
+        if success:
+            self.lbl_test_result.setText(f"✅ Saved to {result}")
+            import subprocess
+            subprocess.Popen(["open", result])
         else:
-            reply = QMessageBox.question(
-                self,
-                tr("upscale_uninstall_title"),
-                tr("upscale_uninstall_msg"),
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            if reply == QMessageBox.StandardButton.Yes:
-                self.uninstall_deps()
-            else:
-                # Désactivation sans désinstallation : juste griser l'UI
-                self.settings_group.setEnabled(False)
+            self.lbl_test_result.setText(f"❌ {result}")
 
-    def install_deps(self):
-        progress = QProgressDialog(tr("upscale_installing"), None, 0, 0, self)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.show()
-        QApplication.processEvents()
+    # ──────────────────────────────────────────── params / state
 
-        try:
-            success = install_upscale()
-            if success:
-                QMessageBox.information(self, tr("msg_success"), tr("upscale_msg_installed"))
-                self.settings_group.setEnabled(True)
-                self.check_model_status()
-            else:
-                QMessageBox.critical(self, tr("msg_error"), tr("upscale_err_install"))
-                self.chk_activate.setChecked(False)
-                self.settings_group.setEnabled(False)
-        except Exception as e:
-            QMessageBox.critical(self, tr("msg_error"), f"Erreur: {e}")
-            self.chk_activate.setChecked(False)
-        finally:
-            progress.close()
-
-    def uninstall_deps(self):
-        progress = QProgressDialog("Désinstallation de Real-ESRGAN...", None, 0, 0, self)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.show()
-        QApplication.processEvents()
-        
-        try:
-            success = uninstall_upscale()
-            if success:
-                QMessageBox.information(self, "Succès", "Module désinstallé.")
-                self.settings_group.setEnabled(False)
-                self.status_label.setText(tr("upscale_status_not_installed"))
-        except Exception as e:
-             QMessageBox.critical(self, tr("msg_error"), f"Erreur: {e}")
-        finally:
-            progress.close()
-
-    def get_params(self):
+    def get_params(self) -> dict:
         return {
-            "enabled": self.chk_activate.isChecked(),
-            "model_name": self.model_combo.currentText(),
-            "tile": self.tile_spin.value(),
-            "target_scale": self.get_scale_factor(),
-            "face_enhance": self.face_enhance.isChecked(),
-            "fp16": self.fp16_check.isChecked()
+            "model_id":    self.combo_model.currentData() or "realesrgan-x4plus",
+            "scale":       self.combo_scale.currentData() or 4,
+            "format":      self.combo_format.currentData() or "png",
+            "tile":        self.spin_tile.value(),
+            "tta":         self.chk_tta.isChecked(),
+            "compression": self.slider_compression.value(),
         }
-        
-    def get_scale_factor(self):
-        idx = self.scale_combo.currentIndex()
-        if idx == 1: return 2
-        if idx == 2: return 1
-        return 4
 
-    def set_params(self, params):
-        if not params: return
-        if "enabled" in params:
-            self.chk_activate.setChecked(params["enabled"])
-            self.settings_group.setEnabled(params["enabled"])
-        if "tile" in params: self.tile_spin.setValue(params["tile"])
-        if "fp16" in params: self.fp16_check.setChecked(params["fp16"])
-        if "model_name" in params: self.model_combo.setCurrentText(params["model_name"])
+    def set_params(self, params: dict):
+        if not params:
+            return
+        idx = self.combo_model.findData(params.get("model_id", ""))
+        if idx >= 0:
+            self.combo_model.setCurrentIndex(idx)
+        idx = self.combo_scale.findData(params.get("scale", 4))
+        if idx >= 0:
+            self.combo_scale.setCurrentIndex(idx)
+        idx = self.combo_format.findData(params.get("format", "png"))
+        if idx >= 0:
+            self.combo_format.setCurrentIndex(idx)
+        if "tile" in params:
+            self.spin_tile.setValue(params["tile"])
+        if "tta" in params:
+            self.chk_tta.setChecked(params["tta"])
+        if "compression" in params:
+            self.slider_compression.setValue(params["compression"])
 
-    def get_state(self):
+    def get_state(self) -> dict:
         return self.get_params()
-        
-    def set_state(self, state):
+
+    def set_state(self, state: dict):
         self.set_params(state)
 
+    # ──────────────────────────────────────────── i18n (minimal, uses fallbacks)
+
     def retranslate_ui(self):
-        """Update texts when language changes"""
-        self.lbl_title.setText(tr("upscale_title"))
-        self.lbl_desc.setText(tr("upscale_desc"))
-        self.chk_activate.setText(tr("upscale_activate"))
-        self.settings_group.setTitle(tr("upscale_group_settings"))
-        self.lbl_model.setText(tr("upscale_lbl_model"))
-        self.lbl_status.setText(tr("upscale_lbl_status"))
-        self.btn_download.setText(tr("upscale_btn_download"))
-        self.lbl_scale.setText(tr("upscale_lbl_scale"))
-        self.scale_combo.setToolTip(tr("upscale_tip_scale"))
-        self.scale_combo.setItemText(0, tr("upscale_scale_x4"))
-        self.scale_combo.setItemText(1, tr("upscale_scale_x2"))
-        self.scale_combo.setItemText(2, tr("upscale_scale_x1"))
-        
-        self.lbl_profile.setText(tr("upscale_lbl_profile", "Profil Performance"))
-        # Update profile combo items if localized
-        
-        self.lbl_tile.setText(tr("upscale_lbl_tile"))
-        self.tile_spin.setToolTip(tr("upscale_tip_tile"))
-        self.face_enhance.setText(tr("upscale_check_face"))
-        self.face_enhance.setToolTip(tr("upscale_tip_face"))
-        self.lbl_fp16.setText(tr("upscale_lbl_fp16", "Demi-précision (FP16)"))
-        
-        self.check_model_status()
-        self.update_model_desc()
-
-    def _on_download_finished(self, success):
-        self.progress.close()
-        self.btn_download.setEnabled(True)
-        if success:
-            QMessageBox.information(self, tr("msg_success"), tr("upscale_msg_success_download"))
-            self.check_model_status()
-        else:
-            QMessageBox.critical(self, tr("msg_error"), tr("upscale_msg_err_download"))
-
-
-class _DownloadWorker(QThread):
-    finished = pyqtSignal(bool)
-
-    def __init__(self, engine, model_name):
-        super().__init__()
-        self.engine = engine
-        self.model_name = model_name
-
-    def run(self):
-        success = self.engine.download_model(self.model_name)
-        self.finished.emit(success)
+        pass

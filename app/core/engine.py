@@ -284,53 +284,50 @@ class ColmapEngine(BaseEngine):
                 return False
 
     def _run_upscale(self, project_dir: Path, images_dir: Path):
-        """Gère l'upscaling"""
-        self.log(f"\n{'='*60}\nUpscaling (Super-Resolution)\n{'='*60}")
+        """Gère l'upscaling via upscayl-bin."""
+        self.log(f"\n{'='*60}\nUpscaling (upscayl-ncnn)\n{'='*60}")
         if self.is_cancelled(): return False
-        
+
         try:
             from app.core.upscale_engine import UpscaleEngine
             upscaler = UpscaleEngine(logger_callback=self.log)
-            
+
             if not upscaler.is_installed():
-                 self.log("ATTENTION: Upscale activé mais dépendances manquantes. Ignoré.")
-                 return True # Non-fatal
-            
-            # 1. Move original images to "images_src"
+                self.log("WARNING: upscayl-bin not found. Upscale skipped.")
+                return True  # Non-fatal
+
             images_sources_dir = project_dir / "images_src"
-            
+
             if not images_sources_dir.exists():
-                self.log(f"Déplacement des originaux vers {images_sources_dir}...")
+                self.log(f"Moving originals to {images_sources_dir}...")
                 shutil.move(str(images_dir), str(images_sources_dir))
                 images_dir.mkdir(parents=True, exist_ok=True)
-                
-                # Perform Upscale
-                model_name = self.upscale_config.get("model_name", "RealESRGAN_x4plus")
-                tile_size = self.upscale_config.get("tile", 0)
-                target_scale = self.upscale_config.get("target_scale", 4)
-                face_enhance = self.upscale_config.get("face_enhance", False)
-                fp16 = self.upscale_config.get("fp16", False)
-                
-                upsampler = upscaler.load_model(model_name=model_name, tile=tile_size, target_scale=target_scale, half=fp16)
-                if not upsampler:
-                    self.log("Echec chargement modele Upscale")
+
+                model_id    = self.upscale_config.get("model_id", "realesrgan-x4plus")
+                scale       = self.upscale_config.get("scale", 4)
+                out_format  = self.upscale_config.get("format", "png")
+                tile        = self.upscale_config.get("tile", 0)
+                tta         = self.upscale_config.get("tta", False)
+                compression = self.upscale_config.get("compression", 0)
+
+                self.log(f"Upscaling x{scale} with model '{model_id}'...")
+                success, msg = upscaler.upscale_folder(
+                    input_dir=str(images_sources_dir),
+                    output_dir=str(images_dir),
+                    model_id=model_id,
+                    scale=scale,
+                    output_format=out_format,
+                    tile=tile,
+                    tta=tta,
+                    compression=compression,
+                )
+                if not success:
+                    self.log(f"Upscale failed: {msg}")
                     return False
-                    
-                self.log(f"Traitement Upscale (x{target_scale}) en cours...")
-                files = sorted([f for f in images_sources_dir.iterdir() if f.is_file() and f.suffix.lower() in ('.jpg', '.png', '.jpeg')])
-                
-                total = len(files)
-                for i, f_path in enumerate(files):
-                    if self.is_cancelled(): return False
-                    out_p = images_dir / f_path.name
-                    
-                    upscaler.upscale_image(str(f_path), str(out_p), upsampler, face_enhance=face_enhance)
-                    if (i % 5 == 0): self.log(f"Upscale {i+1}/{total}...")
-                    
-                self.log("Upscale termine.")
+                self.log("Upscale complete.")
             else:
-                self.log("Dossier 'images_src' existant. On présume que l'upscale a déjà été fait.")
-                
+                self.log("'images_src' already exists — upscale already done.")
+
             return True
             
         except Exception as e:

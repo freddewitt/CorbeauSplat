@@ -405,16 +405,23 @@ class SharpWorker(BaseWorker):
                         temp_dir = output_path / "temp_upscale"
                         temp_dir.mkdir(parents=True, exist_ok=True)
                         upscaled_path = temp_dir / input_path.name
-                        model = upscaler.load_model()
+                        model = upscaler.load_model(
+                            model_id=self.params.get("model_id", "realesrgan-x4plus"),
+                            scale=self.params.get("scale", 4),
+                            output_format=self.params.get("format", "png"),
+                            tile=self.params.get("tile", 0),
+                            tta=self.params.get("tta", False),
+                            compression=self.params.get("compression", 0),
+                        )
                         if model and upscaler.upscale_image(input_path, upscaled_path, model):
                             self.input_path = str(upscaled_path)
-                            self.log_signal.emit(tr("status_upscale_done", "Upscale terminé. Lancement Sharp..."))
+                            self.log_signal.emit(tr("status_upscale_done", "Upscale done. Launching Sharp..."))
                         else:
-                            self.log_signal.emit(tr("err_upscale_failed", "Echec Upscale. Utilisation image originale."))
+                            self.log_signal.emit(tr("err_upscale_failed", "Upscale failed. Using original image."))
                     else:
-                        self.log_signal.emit("Upscale de dossier pour Sharp non supporté dans cette version simple (TODO).")
+                        self.log_signal.emit("Folder upscale not supported in Sharp mode.")
                 else:
-                    self.log_signal.emit(tr("err_upscale_missing", "Erreur: Upscale demandé mais non installé."))
+                    self.log_signal.emit(tr("err_upscale_missing", "Error: Upscale requested but upscayl-bin not found."))
             
             # Use refactored predict method
             self.status_signal.emit(tr("status_sharp", "Amélioration avec ML Sharp..."))

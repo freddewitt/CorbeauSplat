@@ -16,11 +16,12 @@ This application provides a unified Graphical User Interface (GUI) to orchestrat
 1.  **Project Management**: Automatically organizes your outputs into structured project folders with images, sparse data, and checkpoints.
 2.  **Sparse Reconstruction**: Automates **COLMAP** feature extraction, matching, and mapping. Supports **Glomap** as a modern alternative mapper.
 3.  **Undistortion**: Automatically undistorts images for optimal training quality.
-4.  **Training**: Integrates **Brush** to train Gaussian Splats directly on your Mac.
-5.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
-6.  **ML Sharp (Image/Video to 3D)**: Uses **Apple ML Sharp** to generate a 3D model from a single image or a sequence of 3D models directly from a video.
-7.  **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
-8.  **360 Extractor (Experimental)**: Converts equirectangular 360° videos into optimal planar image sets (Cube Map, Ring, etc.) for photogrammetry, with AI operator masking.
+4.  **AI Upscaling**: Optionally enhances input images before reconstruction using **upscayl-ncnn** — a fast NCNN-based upscaler with 6 curated models (Real-ESRGAN x4+, 4xLSDIR, 4xNomos8kSC, and more). Installed automatically at first launch.
+5.  **Training**: Integrates **Brush** to train Gaussian Splats directly on your Mac.
+6.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
+7.  **ML Sharp (Image/Video to 3D)**: Uses **Apple ML Sharp** to generate a 3D model from a single image or a sequence of 3D models directly from a video.
+8.  **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
+9.  **360 Extractor (Experimental)**: Converts equirectangular 360° videos into optimal planar image sets (Cube Map, Ring, etc.) for photogrammetry, with AI operator masking.
 
 It is designed to be "click-and-run", handling dependency checks, process management, and **session persistence** for you.
 It also includes built-in full localization support for **French, English, German, Italian, Spanish, Arabic, Russian, Chinese, and Japanese**.
@@ -65,9 +66,10 @@ It also includes built-in full localization support for **French, English, Germa
     -   Click **"Create COLMAP Dataset"**.
 2.  **Params Tab**: (Optional) Tweak advanced COLMAP settings or enable **Glomap**.
 3.  **Upscale Tab**: (Optional)
-    -   Check **"Activate Upscale Module"** to install dependencies.
-    -   Select a model (e.g., RealESRGAN_x4plus) and a scale factor (x2, x4).
-    -   These settings will be applied during the "Create COLMAP Dataset" phase.
+    -   Enable **"Enable Upscale"** in the Training tab to apply upscaling during dataset creation.
+    -   `upscayl-bin` is automatically downloaded and installed on first launch — no manual setup required.
+    -   Choose a model (e.g., Real-ESRGAN x4+ for photos, 4xLSDIR for ultra fidelity) and configure scale, format, and tile size.
+    -   Download additional models directly from the tab (4xLSDIR, 4xNomos8kSC, NMKD-Siax).
 4.  **Brush Tab**: 
     -   **Auto-Refine**: Choose "Refine" mode to resume training from the latest checkpoint.
     -   **Presets**: Use specific densification strategies (e.g., "Aggressive Densification").
@@ -103,7 +105,7 @@ This project stands on the shoulders of giants. A huge thank you to the creators
 *   **360Extractor**: Advanced 360° video extraction tool. [GitHub](https://github.com/nicolasdiolez/360Extractor)
 *   **Apple ML Sharp**: Machine Learning tools for Swift. [GitHub](https://github.com/apple/ml-sharp)
 *   **Nerfstudio**: The modular NeRF and Splatting framework (used for 4DGS data prep). [GitHub](https://github.com/nerfstudio-project/nerfstudio)
-*   **Real-ESRGAN**: AI algorithms for image restoration and enhancement. [GitHub](https://github.com/xinntao/Real-ESRGAN)
+*   **upscayl-ncnn**: High-performance AI image upscaling using NCNN. Powers the Upscale tab. [GitHub](https://github.com/upscayl/upscayl-ncnn)
 
 ## 📄 License
 
