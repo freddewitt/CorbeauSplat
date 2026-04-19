@@ -190,6 +190,112 @@ def _extract_archive(archive: Path, bin_dest: Path, models_dest: Path, log):
         log(f"Unknown archive format: {archive.name}")
 
 
+def run_upscayl(input_path, output_path, params,
+                log_callback=None, progress_callback=None, done_callback=None):
+    """
+    Runs upscayl-bin as a blocking subprocess (call from a worker thread).
+
+    params keys:
+      bin_path    — path to upscayl-bin (auto-detected if absent)
+      model_id    — model name without extension
+      models_dir  — path to models folder (auto-detected if absent)
+      scale       — int: 2, 3 or 4 (native scale used with -s)
+      format      — 'png', 'jpg' or 'webp'
+      tile        — int tile size, 0 = auto
+      tta         — bool
+      compression — int 0-100 (ignored for png)
+
+    Calls done_callback(success: bool) when finished.
+    """
+    def _log(msg):
+        if log_callback:
+            log_callback(msg)
+
+    binary = params.get("bin_path") or find_binary()
+    if not binary or not os.access(str(binary), os.X_OK):
+        _log("❌ upscayl-bin introuvable ou non exécutable.")
+        if done_callback:
+            done_callback(False)
+        return
+
+    model_id = params.get("model_id", "")
+    if not model_id:
+        _log("❌ Aucun modèle upscayl sélectionné.")
+        if done_callback:
+            done_callback(False)
+        return
+
+    models_dir = params.get("models_dir") or get_effective_models_dir()
+    if models_dir:
+        models_dir = Path(models_dir)
+        if not (models_dir / f"{model_id}.bin").exists() or \
+                not (models_dir / f"{model_id}.param").exists():
+            _log(f"❌ Modèle introuvable : {model_id} (.bin/.param manquant dans {models_dir})")
+            if done_callback:
+                done_callback(False)
+            return
+
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+
+    scale       = params.get("scale", 4)
+    fmt         = params.get("format", "png")
+    tile        = params.get("tile", 0)
+    tta         = params.get("tta", False)
+    compression = params.get("compression", 0)
+
+    cmd = [
+        str(binary),
+        "-i", str(input_path),
+        "-o", str(output_path),
+        "-n", model_id,
+        "-s", str(scale),
+        "-f", fmt,
+        "-t", str(tile),
+    ]
+    if models_dir:
+        models_arg = os.path.relpath(str(models_dir), str(Path(binary).parent))
+        cmd += ["-m", models_arg]
+    if tta:
+        cmd.append("-x")
+    if compression > 0 and fmt in ("jpg", "webp"):
+        cmd += ["-c", str(compression)]
+
+    _log(f"upscayl-bin: {' '.join(cmd)}")
+    success = False
+    try:
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
+        for line in proc.stdout:
+            _log(line.rstrip())
+        proc.wait()
+        success = (proc.returncode == 0)
+        if not success:
+            _log(f"❌ upscayl-bin a retourné le code {proc.returncode}")
+    except Exception as e:
+        _log(f"❌ Exception upscayl : {e}")
+
+    if done_callback:
+        done_callback(success)
+
+
+def resize_to_original(upscaled_dir, original_sizes_dict):
+    """
+    Resize each image in upscaled_dir back to its original (pre-upscale) size.
+    original_sizes_dict = { 'filename.png': (width, height), ... }
+    Uses Pillow LANCZOS resampling.
+    """
+    from PIL import Image
+    upscaled_dir = Path(upscaled_dir)
+    for filename, (orig_w, orig_h) in original_sizes_dict.items():
+        src = upscaled_dir / filename
+        if not src.exists():
+            continue
+        with Image.open(src) as img:
+            resized = img.resize((orig_w, orig_h), Image.LANCZOS)
+            resized.save(src)
+
+
 def download_model_files(url_bin: str, url_param: str,
                          model_id: str, log_callback=None) -> bool:
     """Downloads a single model's .bin and .param files."""

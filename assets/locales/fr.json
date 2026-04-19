@@ -349,5 +349,15 @@
     "status_360_done": "Extraction 360 terminée",
     "status_360_pre": "Pré-traitement 360°...",
     "status_360_start": "Démarrage extraction 360°...",
-    "status_upscale_done": "Upscale terminé"
+    "status_upscale_done": "Upscale terminé",
+
+    "sharp_done_title": "Reconstruction accomplie",
+    "sharp_done_body": "Votre scène vient de prendre forme. Les nuages de points sont prêts à être explorés.",
+    "sharp_error_title": "Reconstruction interrompue",
+    "sharp_error_body": "La reconstruction n'a pas abouti. Consultez les journaux pour en savoir plus.",
+
+    "brush_done_title": "Entraînement accompli",
+    "brush_done_body": "Les splats gaussiens ont appris votre scène. Le modèle est prêt pour la suite.",
+    "brush_error_title": "Entraînement interrompu",
+    "brush_error_body": "L'entraînement n'a pas abouti. Consultez les journaux pour en savoir plus."
 }

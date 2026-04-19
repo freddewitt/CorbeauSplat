@@ -406,7 +406,7 @@ class BrushTab(QWidget):
             "output_path": self.output_path.text(),
             "ply_name": self.ply_name_edit.text(),
             "show_details": self.check_details.isChecked(),
-            "build_mode": self.combo_build_mode.currentData()
+            "build_mode": self.combo_build_mode.currentData(),
         }
         
     def set_params(self, params):

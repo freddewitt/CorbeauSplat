@@ -64,24 +64,54 @@ class _TestWorker(QThread):
 
     def run(self):
         try:
-            from app.core.upscale_engine import UpscaleEngine
-            engine = UpscaleEngine(logger_callback=self.log_signal.emit)
-            fmt = self.params.get("format", "png")
-            model = engine.load_model(
-                model_id=self.params.get("model_id", "realesrgan-x4plus"),
-                scale=self.params.get("scale", 4),
-                output_format=fmt,
-                tile=self.params.get("tile", 0),
-                tta=self.params.get("tta", False),
-                compression=self.params.get("compression", 0),
-            )
-            if not model:
-                self.finished.emit(False, "Could not load model.")
+            from app.upscayl_manager import run_upscayl, find_binary, resize_to_original
+            from app.upscayl_models import get_model
+            import shutil as _shutil
+            import tempfile as _tempfile
+
+            model_id = self.params.get("model_id", "")
+            if not model_id:
+                self.finished.emit(False, "Aucun modèle sélectionné.")
                 return
+            if not find_binary():
+                self.finished.emit(False, "upscayl-bin introuvable.")
+                return
+
+            fmt        = self.params.get("format", "png")
+            req_scale  = self.params.get("scale", 4)
             input_path = Path(self.input_path)
-            output_path = Path(self.output_dir) / (input_path.stem + "." + fmt)
-            success = engine.upscale_image(self.input_path, output_path, model)
-            self.finished.emit(success, self.output_dir if success else "Test failed.")
+
+            # x1 mode: upscale at native model scale then resize back
+            x1_mode = (req_scale == 1)
+            if x1_mode:
+                m = get_model(model_id)
+                actual_scale = m.scale if m else 4
+                from PIL import Image as _PIL
+                with _PIL.open(input_path) as im:
+                    orig_size = im.size  # (w, h)
+            else:
+                actual_scale = req_scale
+
+            with _tempfile.TemporaryDirectory(prefix="upscayl_test_in_") as tmp_in:
+                _shutil.copy2(input_path, Path(tmp_in) / input_path.name)
+                success = [False]
+                run_upscayl(
+                    tmp_in, self.output_dir,
+                    {
+                        "model_id":    model_id,
+                        "scale":       actual_scale,
+                        "format":      fmt,
+                        "tile":        self.params.get("tile", 0),
+                        "tta":         self.params.get("tta", False),
+                        "compression": self.params.get("compression", 0),
+                    },
+                    log_callback=self.log_signal.emit,
+                    done_callback=lambda ok: success.__setitem__(0, ok),
+                )
+                if success[0] and x1_mode:
+                    out_name = input_path.stem + "." + fmt
+                    resize_to_original(self.output_dir, {out_name: orig_size})
+                self.finished.emit(success[0], self.output_dir if success[0] else "Test failed.")
         except Exception as e:
             self.finished.emit(False, str(e))
 
@@ -152,7 +182,8 @@ class _ModelCard(QFrame):
                 lambda: self.delete_requested.emit(self.model.id)
             )
             self.btn_action.setEnabled(True)
-        elif self.model.bundled:
+        elif self.model.bundled and not self.model.url_bin:
+            # Truly bundled (no separate download URL) — requires reinstalling binary
             self.lbl_status.setText("Bundled")
             self.lbl_status.setStyleSheet("color: #888; font-size: 11px;")
             self.btn_action.setText("—")
@@ -265,11 +296,10 @@ class UpscaleTab(QWidget):
 
         # Scale
         self.combo_scale = QComboBox()
-        self.combo_scale.addItem("x1 (denoise only)", 1)
+        self.combo_scale.addItem("x1 (qualité sans changement de résolution)", 1)
         self.combo_scale.addItem("x2", 2)
-        self.combo_scale.addItem("x3", 3)
         self.combo_scale.addItem("x4 (default)", 4)
-        self.combo_scale.setCurrentIndex(3)
+        self.combo_scale.setCurrentIndex(2)
         self.lbl_scale = QLabel("Output Scale:")
         config_lay.addRow(self.lbl_scale, self.combo_scale)
 
@@ -362,21 +392,13 @@ class UpscaleTab(QWidget):
             self.lbl_binary_status.setStyleSheet("color: #cc6600; font-weight: bold;")
 
     def _refresh_model_combo(self):
-        from app.upscayl_manager import find_binary, is_using_local_binary
         from app.upscayl_models import MODELS
         self.combo_model.blockSignals(True)
         prev = self.combo_model.currentData()
         self.combo_model.clear()
 
-        binary_present = find_binary() is not None
-        local_binary   = is_using_local_binary()
-
         for m in MODELS:
-            locally_downloaded = m.is_downloaded(self._models_dir) if self._models_dir else False
-            # Bundled models are available when any binary is present
-            # (system/app install has them built-in; local install extracts them)
-            available = locally_downloaded or (m.bundled and binary_present)
-            if available:
+            if self._models_dir and m.is_downloaded(self._models_dir):
                 self.combo_model.addItem(m.label, m.id)
 
         if not self.combo_model.count():
@@ -519,7 +541,7 @@ class UpscaleTab(QWidget):
 
     def get_params(self) -> dict:
         return {
-            "model_id":    self.combo_model.currentData() or "realesrgan-x4plus",
+            "model_id":    self.combo_model.currentData() or "",
             "scale":       self.combo_scale.currentData() or 4,
             "format":      self.combo_format.currentData() or "png",
             "tile":        self.spin_tile.value(),

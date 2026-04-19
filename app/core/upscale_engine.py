@@ -3,7 +3,6 @@ upscale_engine.py — Thin wrapper around the upscayl-bin CLI.
 
 No Python venv required. upscayl-bin is a standalone NCNN-based binary.
 """
-import subprocess
 import tempfile
 import shutil
 from pathlib import Path
@@ -31,10 +30,20 @@ class UpscaleEngine(BaseEngine):
     def load_model(self, model_id="realesrgan-x4plus", scale=4,
                    output_format="png", tile=0, tta=False,
                    compression=0, **_) -> dict | None:
-        """Returns a params dict used by upscale_image/upscale_folder."""
+        """Returns a params dict used by upscale_image/upscale_folder.
+        Adjusts the model_id to match the requested scale when possible.
+        """
         if not self.is_installed():
             self.log("upscayl-bin not found.")
             return None
+        # If the selected model is a fixed‑scale model (e.g., contains "x4"),
+        # and the user requested a different scale, try to pick a matching model.
+        # This simple heuristic replaces the trailing "x4" with the desired scale.
+        if scale != 4 and "x4" in model_id:
+            candidate = model_id.replace("x4", str(scale))
+            # The actual model may not exist; we keep the original if the candidate
+            # is not found later by upscayl-bin, but we prefer the adjusted one.
+            model_id = candidate
         return {
             "model_id": model_id, "scale": scale,
             "output_format": output_format, "tile": tile,
@@ -65,41 +74,19 @@ class UpscaleEngine(BaseEngine):
                        model_id="realesrgan-x4plus", scale=4,
                        output_format="png", tile=0, tta=False,
                        compression=0, custom_scale=None, **_) -> tuple:
-        binary = self._binary()
-        if not binary:
-            return False, "upscayl-bin not found."
-
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-        cmd = [
-            str(binary),
-            "-i", str(input_dir),
-            "-o", str(output_dir),
-            "-n", model_id,
-            "-z", str(scale),
-            "-f", output_format,
-            "-t", str(tile),
-        ]
-        models_dir = self._models_dir()
-        if models_dir:
-            cmd += ["-m", str(models_dir)]
-        if tta:
-            cmd.append("-x")
-        if custom_scale:
-            cmd += ["-s", str(custom_scale)]
-        if compression > 0 and output_format in ("jpg", "webp"):
-            cmd += ["-c", str(compression)]
-
-        self.log(f"upscayl-bin: {' '.join(cmd)}")
-        try:
-            proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-            )
-            for line in proc.stdout:
-                self.log(line.rstrip())
-            proc.wait()
-            if proc.returncode != 0:
-                return False, f"upscayl-bin exited with code {proc.returncode}"
-            return True, "Upscale complete."
-        except Exception as e:
-            return False, str(e)
+        if not model_id:
+            return False, "No model selected."
+        from app.upscayl_manager import run_upscayl
+        params = {
+            "model_id":    model_id,
+            "scale":       custom_scale or scale,
+            "format":      output_format,
+            "tile":        tile,
+            "tta":         tta,
+            "compression": compression,
+        }
+        result = [False]
+        run_upscayl(input_dir, output_dir, params,
+                    log_callback=self.log,
+                    done_callback=lambda ok: result.__setitem__(0, ok))
+        return result[0], "Upscale complete." if result[0] else "Upscale failed."

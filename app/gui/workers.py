@@ -125,7 +125,7 @@ class ColmapWorker(BaseWorker):
 
 class BrushWorker(BaseWorker):
     """Thread worker pour exécuter Brush"""
-    
+
     def __init__(self, input_path, output_path, params, engine=None):
         super().__init__()
         # [AUDIT] DIP : Injection
@@ -388,9 +388,8 @@ class SharpWorker(BaseWorker):
         try:
             # Handle Upscale
             if self.params.get("upscale", False):
-                from app.core.upscale_engine import UpscaleEngine
-                upscaler = UpscaleEngine(logger_callback=self.log_signal.emit)
-                if upscaler.is_installed():
+                from app.upscayl_manager import run_upscayl, find_binary
+                if find_binary():
                     self.log_signal.emit(tr("status_upscaling", "--- Upscale Image ---"))
                     input_path = Path(self.input_path)
                     output_path = Path(self.output_path)
@@ -398,20 +397,37 @@ class SharpWorker(BaseWorker):
                         temp_dir = output_path / "temp_upscale"
                         temp_dir.mkdir(parents=True, exist_ok=True)
                         fmt = self.params.get("format", "png")
-                        upscaled_path = temp_dir / (input_path.stem + "." + fmt)
-                        model = upscaler.load_model(
-                            model_id=self.params.get("model_id", "realesrgan-x4plus"),
-                            scale=self.params.get("scale", 4),
-                            output_format=fmt,
-                            tile=self.params.get("tile", 0),
-                            tta=self.params.get("tta", False),
-                            compression=self.params.get("compression", 0),
-                        )
-                        if model and upscaler.upscale_image(input_path, upscaled_path, model):
-                            self.input_path = str(upscaled_path)
-                            self.log_signal.emit(tr("status_upscale_done", "Upscale done. Launching Sharp..."))
+                        model_id = self.params.get("model_id") or ""
+                        if not model_id:
+                            from app.upscayl_models import get_downloaded_models
+                            from app.upscayl_manager import get_models_dir
+                            _dl = get_downloaded_models(get_models_dir())
+                            model_id = _dl[0].id if _dl else ""
+                        if model_id:
+                            # upscayl-bin operates on folders; use a temp input folder
+                            tmp_in = temp_dir / "_in"
+                            tmp_in.mkdir(exist_ok=True)
+                            shutil.copy2(input_path, tmp_in / input_path.name)
+                            upscale_params = {
+                                "model_id":    model_id,
+                                "scale":       self.params.get("scale", 4),
+                                "format":      fmt,
+                                "tile":        self.params.get("tile", 0),
+                                "tta":         self.params.get("tta", False),
+                                "compression": self.params.get("compression", 0),
+                            }
+                            success = [False]
+                            run_upscayl(str(tmp_in), str(temp_dir), upscale_params,
+                                        log_callback=self.log_signal.emit,
+                                        done_callback=lambda ok: success.__setitem__(0, ok))
+                            upscaled_path = temp_dir / (input_path.stem + "." + fmt)
+                            if success[0] and upscaled_path.exists():
+                                self.input_path = str(upscaled_path)
+                                self.log_signal.emit(tr("status_upscale_done", "Upscale done. Launching Sharp..."))
+                            else:
+                                self.log_signal.emit(tr("err_upscale_failed", "Upscale failed. Using original image."))
                         else:
-                            self.log_signal.emit(tr("err_upscale_failed", "Upscale failed. Using original image."))
+                            self.log_signal.emit("⚠ Upscale activé mais aucun modèle disponible — ignoré.")
                     else:
                         self.log_signal.emit(tr("err_upscale_folder", "Folder upscale not supported in Sharp mode."))
                 else:
@@ -424,7 +440,7 @@ class SharpWorker(BaseWorker):
             returncode = self.engine.predict(self.input_path, self.output_path, self.params)
             success = (returncode == 0)
             
-            self.finished_signal.emit(success, tr("msg_sharp_done", "Prediction Sharp terminée avec succès") if success else tr("err_sharp", "Erreur Sharp."))
+            self.finished_signal.emit(success, "Prédiction Sharp terminée." if success else "Sharp a retourné une erreur (voir logs).")
         except Exception as e:
             self.finished_signal.emit(False, str(e))
 

@@ -407,7 +407,7 @@ class ColmapGUI(QMainWindow):
         self.brush_worker = BrushWorker(
             input_path,
             output_path,
-            brush_params
+            brush_params,
         )
         
         self.brush_worker.log_signal.connect(self.logs_tab.append_log)
@@ -427,19 +427,25 @@ class ColmapGUI(QMainWindow):
     def on_brush_finished(self, success, message):
         """Fin entrainement Brush"""
         self.brush_tab.set_processing_state(False)
-        self.logs_tab.append_log(f"Fin Brush: {message}")
-        
+        self.logs_tab.append_log(message)
+
         if success:
-            QMessageBox.information(self, tr("msg_success"), f"Brush terminé!\n{message}")
+            QMessageBox.information(self, tr("brush_done_title"), tr("brush_done_body"))
         else:
             if not (self.brush_worker and self.brush_worker.stopped_by_user):
-                QMessageBox.warning(self, tr("msg_error"), f"Erreur Brush:\n{message}")
+                QMessageBox.warning(self, tr("brush_error_title"), tr("brush_error_body"))
 
 
 
     def run_sharp(self):
         """Lance Sharp"""
         params = self.sharp_tab.get_params()
+        
+        # Merge upscale settings for run_sharp as well
+        sharp_upscale_checked = params.get("upscale", False)
+        params.update(self.upscale_tab.get_params())
+        params["upscale"] = sharp_upscale_checked
+        
         mode = params.get("mode", "image")
         
         self.sharp_tab.set_processing_state(True)
@@ -519,12 +525,12 @@ class ColmapGUI(QMainWindow):
         """Fin Sharp"""
         self.sharp_tab.set_processing_state(False)
         self.config_tab.set_processing_state(False)
-        self.logs_tab.append_log(f"Fin Sharp: {message}")
-        
+        self.logs_tab.append_log(message)
+
         if success:
-            QMessageBox.information(self, tr("msg_success"), f"Sharp terminé!\n{message}")
+            QMessageBox.information(self, tr("sharp_done_title"), tr("sharp_done_body"))
         else:
-            QMessageBox.warning(self, tr("msg_error"), f"Erreur Sharp:\n{message}")
+            QMessageBox.warning(self, tr("sharp_error_title"), tr("sharp_error_body"))
 
     def restart_application(self):
         """Redémarre l'application."""
