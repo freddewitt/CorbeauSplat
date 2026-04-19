@@ -15,7 +15,30 @@ def _set_macos_dock_icon(icon_path: _Path):
         if ns_image:
             NSApplication.sharedApplication().setApplicationIconImage_(ns_image)
     except Exception:
-        pass  # pyobjc not available or other issue — silently skip
+        pass
+
+
+def _launch_gui():
+    """Creates QApplication, sets the icon and shows the main window."""
+    from PyQt6.QtCore import QTimer
+    app = QApplication(sys.argv)
+
+    assets = _Path(__file__).parent / "assets"
+    # Prefer PNG for QIcon — more reliably loaded by PyQt6 than .icns
+    png_path  = assets / "icon.png"
+    icns_path = assets / "icon.icns"
+    icon_file = png_path if png_path.exists() else icns_path
+    if icon_file.exists():
+        app.setWindowIcon(QIcon(str(icon_file)))
+
+    # Dock icon must be set after the Qt event loop has started; defer via timer
+    dock_src = icns_path if icns_path.exists() else png_path
+    if dock_src.exists():
+        QTimer.singleShot(0, lambda: _set_macos_dock_icon(dock_src))
+
+    window = ColmapGUI()
+    window.show()
+    sys.exit(app.exec())
 
 from app.core.i18n import tr
 from app.core.params import ColmapParams
@@ -215,14 +238,7 @@ def main():
 
     # Dispatch logic
     if args.gui:
-        app = QApplication(sys.argv)
-        _icon_path = _Path(__file__).parent / "assets" / "icon.icns"
-        if _icon_path.exists():
-            app.setWindowIcon(QIcon(str(_icon_path)))
-            _set_macos_dock_icon(_icon_path)
-        window = ColmapGUI()
-        window.show()
-        sys.exit(app.exec())
+        _launch_gui()
         
     elif args.train:
         run_brush(args)
@@ -240,10 +256,7 @@ def main():
     else:
         # Si aucun argument, lancer GUI par défaut (comportement utilisateur classique double-clic)
         if len(sys.argv) == 1:
-            app = QApplication(sys.argv)
-            window = ColmapGUI()
-            window.show()
-            sys.exit(app.exec())
+            _launch_gui()
         else:
             parser.print_help()
             sys.exit(0)

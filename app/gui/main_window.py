@@ -106,7 +106,9 @@ class ColmapGUI(QMainWindow):
         
         self.sharp_tab.predictRequested.connect(self.run_sharp)
         self.sharp_tab.stopRequested.connect(self.stop_sharp)
-        
+
+        self.upscale_tab.log_signal.connect(self.logs_tab.append_log)
+
         # Apply visual hierarchy to utility tabs
         self.apply_tab_styling()
 

@@ -1,7 +1,7 @@
 import subprocess
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QGroupBox,
     QFormLayout, QCheckBox, QComboBox, QSpinBox, QMessageBox,
@@ -234,6 +234,8 @@ class _ModelCard(QFrame):
 # ──────────────────────────────────────────────────────────────────────────────
 
 class UpscaleTab(QWidget):
+
+    log_signal = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -567,7 +569,7 @@ class UpscaleTab(QWidget):
         self.btn_test.setEnabled(False)
 
         self._test_worker = _TestWorker(src, dest, self.get_params())
-        self._test_worker.log_signal.connect(lambda _: None)  # consumed by worker only
+        self._test_worker.log_signal.connect(self.log_signal)
         self._test_worker.finished.connect(self._on_test_done)
         self._test_worker.start()
 
