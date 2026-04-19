@@ -36,6 +36,74 @@ if [ "$CLEAN_MODE" = true ]; then
     echo ""
 fi
 
+# --- Phase 0.5: Prerequisites (Xcode CLT + Homebrew) ---
+echo "--- Phase 0.5: Checking prerequisites ---"
+
+# 1. Xcode Command Line Tools
+if ! xcode-select -p > /dev/null 2>&1; then
+    echo ""
+    echo "⚠️  Xcode Command Line Tools not found."
+    echo "    Required for: git, compilers, build tools."
+    read -p "    Install now? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo ">>> Launching Xcode CLT installer (a dialog will open)..."
+        xcode-select --install 2>/dev/null
+        echo ""
+        echo "    Complete the installation in the dialog, then press Enter to continue."
+        read -p "    Press Enter when done..."
+        if ! xcode-select -p > /dev/null 2>&1; then
+            echo "❌ Xcode CLT still not detected. Please install manually and relaunch."
+            exit 1
+        fi
+        echo "✅ Xcode Command Line Tools installed."
+    else
+        echo "⚠️  Skipped. Some features may not work without Xcode CLT."
+    fi
+else
+    echo "✅ Xcode Command Line Tools: $(xcode-select -p)"
+fi
+
+# 2. Homebrew
+BREW_BIN=""
+# Check known locations before relying on PATH (especially after a fresh Apple Silicon install)
+if   [[ -x "/opt/homebrew/bin/brew" ]]; then BREW_BIN="/opt/homebrew/bin/brew"
+elif [[ -x "/usr/local/bin/brew"    ]]; then BREW_BIN="/usr/local/bin/brew"
+elif command -v brew > /dev/null 2>&1;  then BREW_BIN="$(command -v brew)"
+fi
+
+if [ -z "$BREW_BIN" ]; then
+    echo ""
+    echo "⚠️  Homebrew not found."
+    echo "    Required for: ffmpeg, COLMAP, Node.js, libomp, cmake..."
+    read -p "    Install Homebrew now? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo ">>> Installing Homebrew..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        # Activate Homebrew in the current shell session
+        if   [[ -x "/opt/homebrew/bin/brew" ]]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+            BREW_BIN="/opt/homebrew/bin/brew"
+        elif [[ -x "/usr/local/bin/brew" ]]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+            BREW_BIN="/usr/local/bin/brew"
+        fi
+        if [ -z "$BREW_BIN" ]; then
+            echo "❌ Homebrew installation failed or not found."
+            echo "   Install manually from https://brew.sh and relaunch."
+            exit 1
+        fi
+        echo "✅ Homebrew installed: $("$BREW_BIN" --version | head -1)"
+    else
+        echo "⚠️  Skipped. System tools (ffmpeg, COLMAP...) may fail to install."
+    fi
+else
+    # Ensure brew is in PATH for the rest of this session
+    eval "$("$BREW_BIN" shellenv)" 2>/dev/null
+    echo "✅ Homebrew: $("$BREW_BIN" --version | head -1)"
+fi
+
 # --- Phase 1: Update Check ---
 if [ -d ".git" ]; then
     echo "--- Phase 1: Checking for updates ---"
