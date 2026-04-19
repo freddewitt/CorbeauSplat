@@ -55,34 +55,31 @@ class ColmapGUI(QMainWindow):
         self.tabs = QTabWidget()
         main_layout.addWidget(self.tabs)
         
-        # Init Tabs
+        # Init Tabs — order: Entraînement, Brush, SuperSplat, ML Sharp,
+        #                    4DGS, 360 Extractor, Upscale, Params COLMAP, Logs
         self.config_tab = ConfigTab()
         self.tabs.addTab(self.config_tab, tr("tab_config"))
-        
-        self.params_tab = ParamsTab()
-        self.tabs.addTab(self.params_tab, tr("tab_params"))
-        
 
-        
         self.brush_tab = BrushTab()
         self.tabs.addTab(self.brush_tab, tr("tab_brush"))
-        
+
         self.superplat_tab = SuperSplatTab()
         self.tabs.addTab(self.superplat_tab, tr("tab_supersplat"))
 
-        self.upscale_tab = UpscaleTab()
-        self.tabs.addTab(self.upscale_tab, tr("tab_upscale"))
-        
         self.sharp_tab = SharpTab()
         self.tabs.addTab(self.sharp_tab, tr("tab_sharp"))
-        
-
 
         self.four_dgs_tab = FourDGSTab()
         self.tabs.addTab(self.four_dgs_tab, tr("tab_four_dgs"))
 
         self.extractor_360_tab = Extractor360Tab()
         self.tabs.addTab(self.extractor_360_tab, tr("tab_360"))
+
+        self.upscale_tab = UpscaleTab()
+        self.tabs.addTab(self.upscale_tab, tr("tab_upscale"))
+
+        self.params_tab = ParamsTab()
+        self.tabs.addTab(self.params_tab, tr("tab_params"))
 
         self.logs_tab = LogsTab()
         self.tabs.addTab(self.logs_tab, tr("tab_logs"))
