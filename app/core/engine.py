@@ -152,7 +152,16 @@ class ColmapEngine(BaseEngine):
         database_path = project_dir / "database.db"
         sparse_dir = project_dir / "sparse"
         sparse_dir.mkdir(exist_ok=True)
-        
+
+        # Always start from a fresh database to avoid SQLite schema incompatibilities
+        # (especially between COLMAP and GLOMAP's bundled SQLite versions).
+        for db_file in [database_path,
+                        database_path.with_suffix(".db-wal"),
+                        database_path.with_suffix(".db-shm")]:
+            if db_file.exists():
+                db_file.unlink()
+                self.log(f"Base de données précédente supprimée : {db_file.name}")
+
         self.progress(25)
         
         if self.is_cancelled(): return False, tr("USER_CANCELLED")
@@ -170,6 +179,13 @@ class ColmapEngine(BaseEngine):
         self.progress(75)
         
         if self.is_cancelled(): return False, tr("USER_CANCELLED")
+
+        # GLOMAP's bundled SQLite does not support WAL journal mode created by
+        # recent COLMAP versions. Convert the database to DELETE mode before
+        # handing it off to GLOMAP.
+        if self.params.use_glomap:
+            self._convert_db_journal_mode(database_path)
+
         self.status(tr("status_reconstruction", "Création de la scène 3D..."))
         if not self.mapper(str(database_path), str(images_dir), str(sparse_dir)):
             return False, "Échec reconstruction"
@@ -281,6 +297,27 @@ class ColmapEngine(BaseEngine):
             except Exception as e:
                 self.log(f"Erreur copie images: {e}")
                 return False
+
+    def _convert_db_journal_mode(self, database_path: Path):
+        """Switch the COLMAP database from WAL to DELETE journal mode.
+
+        Recent COLMAP versions open the database in WAL mode, which GLOMAP's
+        bundled SQLite cannot handle. This converts it back to the classic
+        rollback-journal mode before GLOMAP reads the file.
+        """
+        import sqlite3
+        try:
+            con = sqlite3.connect(str(database_path))
+            con.execute("PRAGMA journal_mode=DELETE")
+            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            con.close()
+            for wal_file in [database_path.parent / (database_path.name + "-wal"),
+                             database_path.parent / (database_path.name + "-shm")]:
+                if wal_file.exists():
+                    wal_file.unlink()
+            self.log("Base de données convertie (WAL → DELETE) pour compatibilité GLOMAP.")
+        except Exception as e:
+            self.log(f"Avertissement : conversion journal mode échouée : {e}")
 
     def _run_upscale(self, project_dir: Path, images_dir: Path) -> bool:
         """Gère l'upscaling via upscayl-bin."""

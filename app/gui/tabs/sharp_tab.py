@@ -6,7 +6,7 @@ from app.scripts.setup_dependencies import install_sharp, uninstall_sharp
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QGroupBox,
     QFormLayout, QCheckBox, QComboBox, QMessageBox, QProgressDialog, QApplication,
-    QRadioButton, QButtonGroup, QStackedWidget, QSpinBox
+    QRadioButton, QButtonGroup, QStackedWidget, QSpinBox, QProgressBar
 )
 
 class SharpTab(QWidget):
@@ -208,9 +208,17 @@ class SharpTab(QWidget):
         self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self.stopRequested.emit)
         action_layout.addWidget(self.btn_stop)
-        
+
         layout.addLayout(action_layout)
-        
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setVisible(False)
+        layout.addWidget(self.progress_bar)
+
         layout.addStretch()
         
     def on_mode_changed(self, button):
@@ -224,9 +232,21 @@ class SharpTab(QWidget):
     def set_processing_state(self, is_processing):
         self.btn_run.setEnabled(not is_processing)
         self.btn_stop.setEnabled(is_processing)
-        self.chk_activate.setEnabled(not is_processing) # Lock activation during run
+        self.chk_activate.setEnabled(not is_processing)
         self.radio_mode_image.setEnabled(not is_processing)
         self.radio_mode_video.setEnabled(not is_processing)
+
+        if is_processing:
+            self.progress_bar.setValue(0)
+            if self.radio_mode_image.isChecked():
+                self.progress_bar.setRange(0, 0)  # indeterminate / pulsing
+            else:
+                self.progress_bar.setRange(0, 100)
+            self.progress_bar.setVisible(True)
+        else:
+            self.progress_bar.setVisible(False)
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(0)
 
     def browse_input_dir(self):
         path = get_existing_directory(self, tr("sharp_dlg_input_dir"))

@@ -786,8 +786,25 @@ class GlomapEngineDep(EngineDependency):
         
         cmake_args = ["cmake", "..", "-GNinja", "-DCMAKE_BUILD_TYPE=Release"]
         env = os.environ.copy()
-        
+
         if sys.platform == "darwin":
+            # Use the system (Homebrew) COLMAP so that GLOMAP's embedded database
+            # reader shares the same SQLite schema as the colmap binary we call for
+            # feature extraction and matching.  Without this flag GLOMAP fetches its
+            # own COLMAP snapshot (thirdparty/CMakeLists.txt GIT_TAG) which often
+            # differs from the Homebrew version, causing "SQL logic error" crashes.
+            brew_prefix = "/opt/homebrew"
+            try:
+                brew_prefix = subprocess.check_output(
+                    ["brew", "--prefix"], text=True
+                ).strip()
+            except Exception:
+                pass
+            cmake_args.extend([
+                "-DFETCH_COLMAP=OFF",
+                f"-DCMAKE_PREFIX_PATH={brew_prefix}",
+            ])
+
             try:
                 libomp = subprocess.check_output(["brew", "--prefix", "libomp"], text=True).strip()
                 include_p = f"{libomp}/include"
@@ -799,7 +816,8 @@ class GlomapEngineDep(EngineDependency):
                 ])
                 env["LDFLAGS"] = f"-L{lib_p} -lomp"
                 env["CPPFLAGS"] = f"-I{include_p} -Xpreprocessor -fopenmp"
-            except: pass
+            except Exception:
+                pass
 
         subprocess.check_call(cmake_args, cwd=str(build_dir), env=env)
         subprocess.check_call(["ninja"], cwd=str(build_dir), env=env)

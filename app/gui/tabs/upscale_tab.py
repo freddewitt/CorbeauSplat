@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.core.i18n import tr, add_language_observer
+from app.gui.widgets.drop_line_edit import DropLineEdit
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -77,41 +78,60 @@ class _TestWorker(QThread):
                 self.finished.emit(False, "upscayl-bin introuvable.")
                 return
 
-            fmt        = self.params.get("format", "png")
-            req_scale  = self.params.get("scale", 4)
-            input_path = Path(self.input_path)
+            fmt       = self.params.get("format", "png")
+            req_scale = self.params.get("scale", 4)
+            src       = Path(self.input_path)
 
-            # x1 mode: upscale at native model scale then resize back
             x1_mode = (req_scale == 1)
             if x1_mode:
                 m = get_model(model_id)
                 actual_scale = m.scale if m else 4
-                from PIL import Image as _PIL
-                with _PIL.open(input_path) as im:
-                    orig_size = im.size  # (w, h)
             else:
                 actual_scale = req_scale
 
-            with _tempfile.TemporaryDirectory(prefix="upscayl_test_in_") as tmp_in:
-                _shutil.copy2(input_path, Path(tmp_in) / input_path.name)
+            upscayl_params = {
+                "model_id":    model_id,
+                "scale":       actual_scale,
+                "format":      fmt,
+                "tile":        self.params.get("tile", 0),
+                "tta":         self.params.get("tta", False),
+                "compression": self.params.get("compression", 0),
+            }
+
+            if src.is_dir():
+                # Folder input: collect original sizes for x1 then run directly
+                if x1_mode:
+                    from PIL import Image as _PIL
+                    image_exts = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
+                    orig_sizes = {}
+                    for f in src.iterdir():
+                        if f.is_file() and f.suffix.lower() in image_exts:
+                            with _PIL.open(f) as im:
+                                orig_sizes[f.stem + "." + fmt] = im.size
+
                 success = [False]
-                run_upscayl(
-                    tmp_in, self.output_dir,
-                    {
-                        "model_id":    model_id,
-                        "scale":       actual_scale,
-                        "format":      fmt,
-                        "tile":        self.params.get("tile", 0),
-                        "tta":         self.params.get("tta", False),
-                        "compression": self.params.get("compression", 0),
-                    },
-                    log_callback=self.log_signal.emit,
-                    done_callback=lambda ok: success.__setitem__(0, ok),
-                )
+                run_upscayl(str(src), self.output_dir, upscayl_params,
+                            log_callback=self.log_signal.emit,
+                            done_callback=lambda ok: success.__setitem__(0, ok))
                 if success[0] and x1_mode:
-                    out_name = input_path.stem + "." + fmt
-                    resize_to_original(self.output_dir, {out_name: orig_size})
-                self.finished.emit(success[0], self.output_dir if success[0] else "Test failed.")
+                    resize_to_original(self.output_dir, orig_sizes)
+            else:
+                # Single file: wrap in a temp folder
+                if x1_mode:
+                    from PIL import Image as _PIL
+                    with _PIL.open(src) as im:
+                        orig_sizes = {src.stem + "." + fmt: im.size}
+
+                with _tempfile.TemporaryDirectory(prefix="upscayl_in_") as tmp_in:
+                    _shutil.copy2(src, Path(tmp_in) / src.name)
+                    success = [False]
+                    run_upscayl(tmp_in, self.output_dir, upscayl_params,
+                                log_callback=self.log_signal.emit,
+                                done_callback=lambda ok: success.__setitem__(0, ok))
+                    if success[0] and x1_mode:
+                        resize_to_original(self.output_dir, orig_sizes)
+
+            self.finished.emit(success[0], self.output_dir if success[0] else "Upscale échoué.")
         except Exception as e:
             self.finished.emit(False, str(e))
 
@@ -345,35 +365,48 @@ class UpscaleTab(QWidget):
         root.addWidget(config_grp)
 
         # ── Quick test ────────────────────────────────────────────────────
-        test_grp = QGroupBox("Quick Test")
-        test_lay = QVBoxLayout(test_grp)
+        test_grp = QGroupBox("Upscale")
+        test_form = QFormLayout(test_grp)
 
-        # Destination folder row
+        # Source (file or folder)
+        src_row = QHBoxLayout()
+        self.edit_test_src = DropLineEdit()
+        self.edit_test_src.setPlaceholderText("Fichier ou dossier source…")
+        src_row.addWidget(self.edit_test_src, stretch=1)
+        btn_src_file = QPushButton("Fichier")
+        btn_src_file.setFixedWidth(70)
+        btn_src_file.clicked.connect(self._pick_test_src_file)
+        src_row.addWidget(btn_src_file)
+        btn_src_dir = QPushButton("Dossier")
+        btn_src_dir.setFixedWidth(70)
+        btn_src_dir.clicked.connect(self._pick_test_src_dir)
+        src_row.addWidget(btn_src_dir)
+        test_form.addRow("Source :", src_row)
+
+        # Destination folder
         dest_row = QHBoxLayout()
-        self.lbl_test_dest = QLabel("Dossier de sortie :")
-        dest_row.addWidget(self.lbl_test_dest)
-        self.lbl_test_dest_path = QLabel("(dossier temporaire)")
-        self.lbl_test_dest_path.setStyleSheet("color: #888; font-size: 11px;")
-        self.lbl_test_dest_path.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
-        )
-        dest_row.addWidget(self.lbl_test_dest_path, stretch=1)
-        self.btn_test_dest = QPushButton("Parcourir…")
-        self.btn_test_dest.setFixedWidth(90)
-        self.btn_test_dest.clicked.connect(self._pick_test_dest)
-        dest_row.addWidget(self.btn_test_dest)
-        self._test_output_dir: str | None = None
-        test_lay.addLayout(dest_row)
+        self.edit_test_dest = DropLineEdit()
+        self.edit_test_dest.setPlaceholderText("Dossier de destination…")
+        dest_row.addWidget(self.edit_test_dest, stretch=1)
+        btn_dest = QPushButton("Parcourir…")
+        btn_dest.setFixedWidth(90)
+        btn_dest.clicked.connect(self._pick_test_dest)
+        dest_row.addWidget(btn_dest)
+        test_form.addRow("Destination :", dest_row)
 
         # Launch row
         launch_row = QHBoxLayout()
-        self.btn_test = QPushButton("Tester sur une image…")
+        self.btn_test = QPushButton("Upscale")
+        self.btn_test.setMinimumHeight(32)
+        self.btn_test.setStyleSheet(
+            "background-color: #2a82da; color: white; font-weight: bold; border-radius: 4px;"
+        )
         self.btn_test.clicked.connect(self._run_test)
         self.lbl_test_result = QLabel("")
         self.lbl_test_result.setStyleSheet("color: #888; font-size: 11px;")
         launch_row.addWidget(self.btn_test)
         launch_row.addWidget(self.lbl_test_result, stretch=1)
-        test_lay.addLayout(launch_row)
+        test_form.addRow("", launch_row)
 
         root.addWidget(test_grp)
 
@@ -492,47 +525,56 @@ class UpscaleTab(QWidget):
 
     # ──────────────────────────────────────────── quick test
 
-    def _pick_test_dest(self):
-        folder = QFileDialog.getExistingDirectory(
-            self, "Choisir le dossier de sortie du test", "",
+    def _pick_test_src_file(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Sélectionner une image source", "",
+            "Images (*.png *.jpg *.jpeg *.tif *.tiff *.webp)",
+        )
+        if path:
+            self.edit_test_src.setText(path)
+
+    def _pick_test_src_dir(self):
+        path = QFileDialog.getExistingDirectory(
+            self, "Sélectionner un dossier source", "",
             QFileDialog.Option.ShowDirsOnly,
         )
-        if folder:
-            self._test_output_dir = folder
-            # Truncate long paths for display
-            display = folder if len(folder) <= 60 else "…" + folder[-57:]
-            self.lbl_test_dest_path.setText(display)
-            self.lbl_test_dest_path.setStyleSheet("color: #ddd; font-size: 11px;")
-        else:
-            self._test_output_dir = None
-            self.lbl_test_dest_path.setText("(dossier temporaire)")
-            self.lbl_test_dest_path.setStyleSheet("color: #888; font-size: 11px;")
+        if path:
+            self.edit_test_src.setText(path)
+
+    def _pick_test_dest(self):
+        path = QFileDialog.getExistingDirectory(
+            self, "Sélectionner le dossier de destination", "",
+            QFileDialog.Option.ShowDirsOnly,
+        )
+        if path:
+            self.edit_test_dest.setText(path)
 
     def _run_test(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Sélectionner une image de test", "",
-            "Images (*.png *.jpg *.jpeg *.tif *.tiff *.webp)"
-        )
-        if not path:
-            return
+        src = self.edit_test_src.text().strip()
+        dest = self.edit_test_dest.text().strip()
 
-        if self._test_output_dir:
-            out_dir = self._test_output_dir
-        else:
-            import tempfile
-            out_dir = tempfile.mkdtemp(prefix="upscayl_test_")
+        if not src:
+            self.lbl_test_result.setText("⚠ Sélectionnez une source.")
+            return
+        if not Path(src).exists():
+            self.lbl_test_result.setText("⚠ Source introuvable.")
+            return
+        if not dest:
+            self.lbl_test_result.setText("⚠ Sélectionnez un dossier de destination.")
+            return
 
         self.lbl_test_result.setText("En cours…")
         self.btn_test.setEnabled(False)
 
-        self._test_worker = _TestWorker(path, out_dir, self.get_params())
+        self._test_worker = _TestWorker(src, dest, self.get_params())
+        self._test_worker.log_signal.connect(lambda _: None)  # consumed by worker only
         self._test_worker.finished.connect(self._on_test_done)
         self._test_worker.start()
 
     def _on_test_done(self, success: bool, result: str):
         self.btn_test.setEnabled(True)
         if success:
-            self.lbl_test_result.setText(f"✅ Saved to {result}")
+            self.lbl_test_result.setText("✅ Terminé.")
             subprocess.Popen(["open", result])
         else:
             self.lbl_test_result.setText(f"❌ {result}")

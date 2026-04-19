@@ -508,6 +508,7 @@ class ColmapGUI(QMainWindow):
         self.sharp_worker.log_signal.connect(self.logs_tab.append_log)
         if hasattr(self.sharp_worker, "progress_signal"):
             self.sharp_worker.progress_signal.connect(self.config_tab.progress_bar.setValue)
+            self.sharp_worker.progress_signal.connect(self.sharp_tab.progress_bar.setValue)
         if hasattr(self.sharp_worker, "status_signal"):
             self.sharp_worker.status_signal.connect(self.config_tab.lbl_status.setText)
         self.sharp_worker.finished_signal.connect(self.on_sharp_finished)
