@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.99.1] - 2026-04-19
+
+### ✨ New Features
+- **Upscale tab — redesigned action panel**: the "Quick Test" section is replaced by a full source/destination form with dedicated File and Folder buttons (drag-and-drop supported), a Destination folder picker, and a prominent Upscale button. Both single files and entire folders are supported as input.
+- **Scale x1 (quality pass without resolution change)**: available in both the Upscale tab and the Quick Test panel. Upscayl runs at the model's native scale then each output image is resized back to its original dimensions via Pillow LANCZOS, preserving resolution while gaining sharpness.
+- **ML Sharp — progress bar**: a slim 6 px progress bar appears below the action buttons while Sharp is running. Image mode shows an indeterminate pulse; video mode fills 0 → 100 % frame by frame.
+
+### 🐞 Bug Fixes
+- **upscayl-bin not stopped on user cancel**: `run_upscayl()` now accepts a `cancel_check` callback tested on every stdout line. The subprocess is terminated immediately when the user clicks Stop. Propagated through `UpscaleEngine.upscale_folder()`, `ColmapEngine._run_upscale()`, and `SharpWorker`.
+- **GLOMAP crash "SQL logic error"**: two-part fix — (1) `database.db` is deleted before each reconstruction run to avoid leftover WAL artefacts; (2) after COLMAP feature matching the database is converted from WAL to DELETE journal mode (`PRAGMA journal_mode=DELETE`) so GLOMAP's bundled SQLite can open it without crashing.
+- **GLOMAP / COLMAP schema mismatch (root cause)**: GLOMAP was compiled with its own COLMAP snapshot (Nov 2025 commit) whose database schema differs from Homebrew COLMAP 4.0.3. The build script now passes `-DFETCH_COLMAP=OFF -DCMAKE_PREFIX_PATH=$(brew --prefix)` so GLOMAP is compiled against the installed COLMAP — schemas match after reinstall.
+- **Completion dialogs showed raw i18n key `msg_sharp_done`**: `tr()` returns the key itself when no translation is found. SharpWorker now emits a plain string; `on_sharp_finished` and `on_brush_finished` display dedicated literary messages defined in `fr.json`.
+
+### 🛠 Improvements
+- **Literary completion messages**: Sharp and Brush completion dialogs now display evocative French prose instead of technical status strings. Keys added to `fr.json`: `sharp_done_title/body`, `sharp_error_title/body`, `brush_done_title/body`, `brush_error_title/body`.
+- **Centralised upscayl-bin call**: `run_upscayl()` in `upscayl_manager.py` is now the single function that builds the command and calls the subprocess. `UpscaleEngine.upscale_folder()` and all workers delegate to it — no duplicate subprocess logic.
+- **`resize_to_original()` helper**: added to `upscayl_manager.py`, used by both the Upscale tab test worker and the x1 pipeline in `BrushWorker`.
+- **Pillow added to `requirements.txt`** (`>=10.0,<12`) for the x1 resize step.
+- **App icon regenerated**: `icon.icns` rebuilt from the current pixel-art crow PNG at all required resolutions (16 → 1024 px). macOS icon cache cleared.
+- **Tab order**: Entraînement → Brush → SuperSplat → Apple ML Sharp → 4DGS → 360 Extractor → Upscale → Paramètres COLMAP → Logs.
+
 ## [0.99] - 2026-04-19
 
 ### 🔒 Security
