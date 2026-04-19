@@ -191,7 +191,8 @@ def _extract_archive(archive: Path, bin_dest: Path, models_dest: Path, log):
 
 
 def run_upscayl(input_path, output_path, params,
-                log_callback=None, progress_callback=None, done_callback=None):
+                log_callback=None, progress_callback=None, done_callback=None,
+                cancel_check=None):
     """
     Runs upscayl-bin as a blocking subprocess (call from a worker thread).
 
@@ -267,10 +268,14 @@ def run_upscayl(input_path, output_path, params,
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
         )
         for line in proc.stdout:
+            if cancel_check and cancel_check():
+                proc.terminate()
+                _log("⚠ Upscale interrompu par l'utilisateur.")
+                break
             _log(line.rstrip())
         proc.wait()
-        success = (proc.returncode == 0)
-        if not success:
+        success = (proc.returncode == 0) and not (cancel_check and cancel_check())
+        if proc.returncode != 0 and not (cancel_check and cancel_check()):
             _log(f"❌ upscayl-bin a retourné le code {proc.returncode}")
     except Exception as e:
         _log(f"❌ Exception upscayl : {e}")

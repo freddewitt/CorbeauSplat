@@ -419,7 +419,8 @@ class SharpWorker(BaseWorker):
                             success = [False]
                             run_upscayl(str(tmp_in), str(temp_dir), upscale_params,
                                         log_callback=self.log_signal.emit,
-                                        done_callback=lambda ok: success.__setitem__(0, ok))
+                                        done_callback=lambda ok: success.__setitem__(0, ok),
+                                        cancel_check=self.isInterruptionRequested)
                             upscaled_path = temp_dir / (input_path.stem + "." + fmt)
                             if success[0] and upscaled_path.exists():
                                 self.input_path = str(upscaled_path)

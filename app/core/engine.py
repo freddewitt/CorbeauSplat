@@ -13,6 +13,16 @@ from .i18n import tr
 
 _IMAGE_EXTS = {'.jpg', '.jpeg', '.png'}
 
+
+def _first_available_model() -> str:
+    try:
+        from app.upscayl_models import get_downloaded_models
+        from app.upscayl_manager import get_models_dir
+        models = get_downloaded_models(get_models_dir())
+        return models[0].id if models else ""
+    except Exception:
+        return ""
+
 class ColmapEngine(BaseEngine):
     """Moteur d'exécution COLMAP indépendant de l'interface graphique"""
     
@@ -292,7 +302,7 @@ class ColmapEngine(BaseEngine):
                 shutil.move(str(images_dir), str(images_sources_dir))
                 images_dir.mkdir(parents=True, exist_ok=True)
 
-                model_id    = self.upscale_config.get("model_id", "realesrgan-x4plus")
+                model_id    = self.upscale_config.get("model_id") or _first_available_model()
                 scale       = self.upscale_config.get("scale", 4)
                 out_format  = self.upscale_config.get("format", "png")
                 tile        = self.upscale_config.get("tile", 0)
@@ -309,6 +319,7 @@ class ColmapEngine(BaseEngine):
                     tile=tile,
                     tta=tta,
                     compression=compression,
+                    cancel_check=self.is_cancelled,
                 )
                 if not success:
                     self.log(f"Upscale failed: {msg}")

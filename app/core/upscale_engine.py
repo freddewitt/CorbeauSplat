@@ -73,7 +73,8 @@ class UpscaleEngine(BaseEngine):
     def upscale_folder(self, input_dir, output_dir,
                        model_id="realesrgan-x4plus", scale=4,
                        output_format="png", tile=0, tta=False,
-                       compression=0, custom_scale=None, **_) -> tuple:
+                       compression=0, custom_scale=None,
+                       cancel_check=None, **_) -> tuple:
         if not model_id:
             return False, "No model selected."
         from app.upscayl_manager import run_upscayl
@@ -88,5 +89,6 @@ class UpscaleEngine(BaseEngine):
         result = [False]
         run_upscayl(input_dir, output_dir, params,
                     log_callback=self.log,
-                    done_callback=lambda ok: result.__setitem__(0, ok))
+                    done_callback=lambda ok: result.__setitem__(0, ok),
+                    cancel_check=cancel_check)
         return result[0], "Upscale complete." if result[0] else "Upscale failed."
