@@ -13,7 +13,6 @@ BRUSH_REPO = "https://github.com/ArthurBrussee/brush.git"
 SHARP_REPO = "https://github.com/apple/ml-sharp.git"
 GLOMAP_REPO = "https://github.com/colmap/glomap.git"
 SUPERPLAT_REPO = "https://github.com/playcanvas/supersplat.git"
-REALESRGAN_PIP = "realesrgan"
 
 class EngineDependency:
     """Represents an external engine (Colmap, Glomap, Brush, etc.)"""
@@ -110,7 +109,7 @@ class PipEngine(EngineDependency):
         # Ensure pip is present (sometimes venv is created --without-pip on some systems)
         try:
             subprocess.check_call([str(self.python_bin), "-m", "ensurepip", "--upgrade"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except:
+        except subprocess.CalledProcessError:
             pass
             
         # Upgrade pip
@@ -143,8 +142,10 @@ class DependencyManager:
     def get_config(self) -> dict:
         p = self.engines_dir.parent / "config.json"
         if p.exists():
-            try: return json.loads(p.read_text())
-            except: pass
+            try:
+                return json.loads(p.read_text())
+            except (OSError, json.JSONDecodeError):
+                pass
         return {}
 
     def main_install(self, check_only=False, startup=False):
@@ -262,7 +263,7 @@ class BrushEngineDep(EngineDependency):
         config = {}
         try:
             config = json.loads((self.root / "config.json").read_text())
-        except:
+        except (OSError, json.JSONDecodeError):
             pass
         build_mode = config.get("brush_params", {}).get("build_mode", "release")
 
@@ -301,7 +302,7 @@ class BrushEngineDep(EngineDependency):
         config = {}
         try:
             config = json.loads((self.root / "config.json").read_text())
-        except:
+        except (OSError, json.JSONDecodeError):
             pass
         build_mode = config.get("brush_params", {}).get("build_mode", "release")
 
@@ -548,7 +549,7 @@ class ColmapBrewDep(EngineDependency):
             ).strip()
             parts = out.split()
             return parts[1] if len(parts) >= 2 else ""
-        except:
+        except (subprocess.CalledProcessError, OSError):
             return ""
 
     def get_remote_version(self) -> str:
@@ -613,8 +614,8 @@ def install_system_dependencies(check_only=False):
         if "libomp" in missing: subprocess.check_call(["brew", "install", "libomp"])
         if "freeimage" in missing: subprocess.check_call(["brew", "install", "freeimage"])
         return True
-    except:
-        print("System installation failed.")
+    except subprocess.CalledProcessError as e:
+        print(f"System installation failed: {e}")
         return False
 
 def install_node_js():
@@ -681,7 +682,7 @@ def get_local_version(version_file: Path):
     if version_file.exists():
         try:
             return version_file.read_text().strip()
-        except:
+        except OSError:
             pass
     return None
 
@@ -714,7 +715,7 @@ def check_xcode_tools():
         # xcode-select -p prints the path if installed, or exits with error
         subprocess.check_call(["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
-    except:
+    except (subprocess.CalledProcessError, OSError):
         return False
 
 # --- INSTALLERS HELPERS ---

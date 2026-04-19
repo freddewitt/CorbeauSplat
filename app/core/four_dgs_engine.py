@@ -24,10 +24,11 @@ class FourDGSEngine(BaseEngine):
     def extract_frames(self, video_path, output_dir, fps=5):
         """Extrait les frames d'une vidéo avec ffmpeg"""
         if self.stop_requested: return False
-        
+
+        fps = max(1, int(fps))
         out_p = Path(output_dir)
         out_p.mkdir(parents=True, exist_ok=True)
-        
+
         cmd = [self.ffmpeg]
         if is_apple_silicon():
             cmd.extend(["-hwaccel", "videotoolbox"])

@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
@@ -65,15 +66,21 @@ class _TestWorker(QThread):
         try:
             from app.core.upscale_engine import UpscaleEngine
             engine = UpscaleEngine(logger_callback=self.log_signal.emit)
-            model  = engine.load_model(**self.params)
+            fmt = self.params.get("format", "png")
+            model = engine.load_model(
+                model_id=self.params.get("model_id", "realesrgan-x4plus"),
+                scale=self.params.get("scale", 4),
+                output_format=fmt,
+                tile=self.params.get("tile", 0),
+                tta=self.params.get("tta", False),
+                compression=self.params.get("compression", 0),
+            )
             if not model:
                 self.finished.emit(False, "Could not load model.")
                 return
-            success = engine.upscale_image(
-                self.input_path,
-                Path(self.output_dir) / Path(self.input_path).name,
-                model,
-            )
+            input_path = Path(self.input_path)
+            output_path = Path(self.output_dir) / (input_path.stem + "." + fmt)
+            success = engine.upscale_image(self.input_path, output_path, model)
             self.finished.emit(success, self.output_dir if success else "Test failed.")
         except Exception as e:
             self.finished.emit(False, str(e))
@@ -139,7 +146,7 @@ class _ModelCard(QFrame):
             self.btn_action.setStyleSheet("color: #cc4444;")
             try:
                 self.btn_action.clicked.disconnect()
-            except Exception:
+            except TypeError:
                 pass
             self.btn_action.clicked.connect(
                 lambda: self.delete_requested.emit(self.model.id)
@@ -258,9 +265,11 @@ class UpscaleTab(QWidget):
 
         # Scale
         self.combo_scale = QComboBox()
-        self.combo_scale.addItem("x4 (default)", 4)
+        self.combo_scale.addItem("x1 (denoise only)", 1)
         self.combo_scale.addItem("x2", 2)
         self.combo_scale.addItem("x3", 3)
+        self.combo_scale.addItem("x4 (default)", 4)
+        self.combo_scale.setCurrentIndex(3)
         self.lbl_scale = QLabel("Output Scale:")
         config_lay.addRow(self.lbl_scale, self.combo_scale)
 
@@ -307,13 +316,35 @@ class UpscaleTab(QWidget):
 
         # ── Quick test ────────────────────────────────────────────────────
         test_grp = QGroupBox("Quick Test")
-        test_lay = QHBoxLayout(test_grp)
-        self.btn_test = QPushButton("Test on an image…")
+        test_lay = QVBoxLayout(test_grp)
+
+        # Destination folder row
+        dest_row = QHBoxLayout()
+        self.lbl_test_dest = QLabel("Dossier de sortie :")
+        dest_row.addWidget(self.lbl_test_dest)
+        self.lbl_test_dest_path = QLabel("(dossier temporaire)")
+        self.lbl_test_dest_path.setStyleSheet("color: #888; font-size: 11px;")
+        self.lbl_test_dest_path.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
+        dest_row.addWidget(self.lbl_test_dest_path, stretch=1)
+        self.btn_test_dest = QPushButton("Parcourir…")
+        self.btn_test_dest.setFixedWidth(90)
+        self.btn_test_dest.clicked.connect(self._pick_test_dest)
+        dest_row.addWidget(self.btn_test_dest)
+        self._test_output_dir: str | None = None
+        test_lay.addLayout(dest_row)
+
+        # Launch row
+        launch_row = QHBoxLayout()
+        self.btn_test = QPushButton("Tester sur une image…")
         self.btn_test.clicked.connect(self._run_test)
         self.lbl_test_result = QLabel("")
         self.lbl_test_result.setStyleSheet("color: #888; font-size: 11px;")
-        test_lay.addWidget(self.btn_test)
-        test_lay.addWidget(self.lbl_test_result, stretch=1)
+        launch_row.addWidget(self.btn_test)
+        launch_row.addWidget(self.lbl_test_result, stretch=1)
+        test_lay.addLayout(launch_row)
+
         root.addWidget(test_grp)
 
         root.addStretch()
@@ -385,9 +416,9 @@ class UpscaleTab(QWidget):
         if success:
             self._refresh_all_cards()
             self._refresh_model_combo()
-            QMessageBox.information(self, "Success", msg)
+            QMessageBox.information(self, tr("msg_success"), msg)
         else:
-            QMessageBox.critical(self, "Error", msg)
+            QMessageBox.critical(self, tr("msg_error"), msg)
 
     # ──────────────────────────────────────────── model download / delete
 
@@ -395,9 +426,9 @@ class UpscaleTab(QWidget):
         from app.upscayl_models import get_model
         model = get_model(model_id)
         if not model or not model.url_bin:
-            QMessageBox.warning(self, "Warning",
-                                "This model is bundled with the binary.\n"
-                                "Install upscayl-bin first.")
+            QMessageBox.warning(self, tr("msg_warning"),
+                                tr("upscale_bundled_warning",
+                                   "This model is bundled with the binary.\nInstall upscayl-bin first."))
             return
 
         card = self._model_cards.get(model_id)
@@ -415,7 +446,7 @@ class UpscaleTab(QWidget):
             card.refresh()
         self._refresh_model_combo()
         if not success:
-            QMessageBox.warning(self, "Download failed", msg)
+            QMessageBox.warning(self, tr("msg_error"), msg)
 
     def _delete_model(self, model_id: str):
         reply = QMessageBox.question(
@@ -439,17 +470,37 @@ class UpscaleTab(QWidget):
 
     # ──────────────────────────────────────────── quick test
 
+    def _pick_test_dest(self):
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choisir le dossier de sortie du test", "",
+            QFileDialog.Option.ShowDirsOnly,
+        )
+        if folder:
+            self._test_output_dir = folder
+            # Truncate long paths for display
+            display = folder if len(folder) <= 60 else "…" + folder[-57:]
+            self.lbl_test_dest_path.setText(display)
+            self.lbl_test_dest_path.setStyleSheet("color: #ddd; font-size: 11px;")
+        else:
+            self._test_output_dir = None
+            self.lbl_test_dest_path.setText("(dossier temporaire)")
+            self.lbl_test_dest_path.setStyleSheet("color: #888; font-size: 11px;")
+
     def _run_test(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select a test image", "",
+            self, "Sélectionner une image de test", "",
             "Images (*.png *.jpg *.jpeg *.tif *.tiff *.webp)"
         )
         if not path:
             return
 
-        import tempfile
-        out_dir = tempfile.mkdtemp(prefix="upscayl_test_")
-        self.lbl_test_result.setText("Running…")
+        if self._test_output_dir:
+            out_dir = self._test_output_dir
+        else:
+            import tempfile
+            out_dir = tempfile.mkdtemp(prefix="upscayl_test_")
+
+        self.lbl_test_result.setText("En cours…")
         self.btn_test.setEnabled(False)
 
         self._test_worker = _TestWorker(path, out_dir, self.get_params())
@@ -460,7 +511,6 @@ class UpscaleTab(QWidget):
         self.btn_test.setEnabled(True)
         if success:
             self.lbl_test_result.setText(f"✅ Saved to {result}")
-            import subprocess
             subprocess.Popen(["open", result])
         else:
             self.lbl_test_result.setText(f"❌ {result}")

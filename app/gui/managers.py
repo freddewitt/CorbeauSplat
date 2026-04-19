@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import json
@@ -7,6 +8,8 @@ from app.core.system import resolve_project_root
 from app.core.params import ColmapParams
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer
+
+logger = logging.getLogger(__name__)
 
 class SessionManager:
     """[AUDIT] SOLID-SRP : Gestion responsable uniquement de la persistance JSON"""
@@ -54,8 +57,8 @@ class SessionManager:
         try:
             with open(self.get_session_file(), 'w') as f:
                 json.dump(state, f, indent=2)
-        except Exception as e:
-            print(f"Erreur sauvegarde session: {e}")
+        except OSError as e:
+            logger.error("Erreur sauvegarde session: %s", e)
 
     def load(self):
         session_file = self.get_session_file()
@@ -86,8 +89,8 @@ class SessionManager:
                             tab.set_params(ColmapParams.from_dict(state[key]))
                         else:
                             tab.set_params(state[key])
-        except Exception as e:
-            print(f"Erreur chargement session: {e}")
+        except (OSError, json.JSONDecodeError) as e:
+            logger.error("Erreur chargement session: %s", e)
 
 
 class AppLifecycle:
@@ -95,41 +98,40 @@ class AppLifecycle:
     @staticmethod
     def restart(save_callback=None):
         if save_callback:
-            try: save_callback()
-            except Exception as e: print(f"Error saving session before restart: {e}")
+            try:
+                save_callback()
+            except Exception as e:
+                logger.warning("Error saving session before restart: %s", e)
 
         root_dir = resolve_project_root()
         python = sys.executable
         main_py = root_dir / "main.py"
 
         engines_dir = root_dir / "engines"
-        needs_setup = any([
-            not (engines_dir / "brush").exists() and (engines_dir / "brush.version").exists() is False,
-            not (engines_dir / "brush").exists(),
-        ])
+        needs_setup = not (engines_dir / "brush").exists()
 
         if needs_setup and sys.platform != "win32":
-            print("Reinstall detected: running setup before relaunch...")
-            extra_argv = [a for a in sys.argv[1:] if a not in ("--gui",)]
-            main_args = " ".join(f'"{a}"' for a in extra_argv)
-            cmd = (
-                f'sleep 1 && '
-                f'"{python}" -m app.scripts.setup_dependencies --startup && '
-                f'"{python}" "{main_py}" {main_args}'
-            )
-            subprocess.Popen(cmd, shell=True, cwd=str(root_dir), start_new_session=True)
+            logger.info("Reinstall detected: running setup before relaunch...")
+            # Build safe argv: whitelist known flags only
+            safe_argv = [a for a in sys.argv[1:] if a in ("--gui", "--debug", "--reset")]
+            cmd = [
+                "bash", "-c",
+                f'sleep 1 && "{python}" -m app.scripts.setup_dependencies --startup'
+                f' && "{python}" "{main_py}"'
+            ] + safe_argv
+            subprocess.Popen(cmd, cwd=str(root_dir), start_new_session=True)
             QApplication.quit()
             sys.exit(0)
 
         # Relance normale
         args = [python, str(main_py)] + sys.argv[1:]
-        print(f"Relaunching via execv: {args}")
+        logger.info("Relaunching via execv: %s", args)
 
         if sys.platform != "win32":
             try:
                 os.execv(python, args)
-            except Exception as e:
-                print(f"execv failed: {e}. Falling back to Popen.")
+            except OSError as e:
+                logger.warning("execv failed: %s. Falling back to Popen.", e)
 
         kwargs = {}
         if sys.platform != "win32":
@@ -158,11 +160,19 @@ class AppLifecycle:
             for p in root_dir.glob("config.sync-conflict-*"):
                 to_delete.append(p)
         
-        delete_cmd = " ".join([f'"{str(p)}"' for p in to_delete])
-        
-        print(f"Reset Factory {'DEEP' if deep else 'LIGHT'} initie sur: {root_dir}")
-        print(f"Commande relance: {run_cmd}")
-        
-        cmd = f"sleep 2 && rm -rf {delete_cmd} && \"{run_cmd}\" &"
-        subprocess.Popen(cmd, shell=True, cwd=str(root_dir))
+        logger.info("Reset Factory %s initié sur: %s", "DEEP" if deep else "LIGHT", root_dir)
+
+        # Spawn a standalone Python subprocess to delete dirs + relaunch — no shell=True
+        import tempfile, textwrap
+        cleanup_script = textwrap.dedent(f"""\
+            import time, shutil, subprocess
+            time.sleep(2)
+            for p in {[str(p) for p in to_delete]!r}:
+                shutil.rmtree(p, ignore_errors=True)
+            subprocess.Popen(["open", {str(run_cmd)!r}])
+        """)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+            tmp.write(cleanup_script)
+            tmp_path = tmp.name
+        subprocess.Popen([sys.executable, tmp_path], start_new_session=True)
         sys.exit(0)

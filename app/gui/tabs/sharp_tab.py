@@ -334,7 +334,7 @@ class SharpTab(QWidget):
                  self.enable_controls(False)
                  self.check_status()
         except Exception as e:
-             QMessageBox.critical(self, "Erreur", f"Exception: {e}")
+             QMessageBox.critical(self, tr("msg_error"), f"Exception: {e}")
         finally:
             progress.close()
 

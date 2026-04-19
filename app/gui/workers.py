@@ -1,6 +1,9 @@
 import os
 import shutil
 import re
+import subprocess
+import time
+import traceback
 from pathlib import Path
 from app.core.engine import ColmapEngine
 from app.core.brush_engine import BrushEngine
@@ -50,7 +53,8 @@ class Extractor360Worker(BaseWorker):
             try:
                 part = line.split("[")[1].split("%]")[0].strip()
                 self.progress_signal.emit(int(part))
-            except: pass
+            except (ValueError, IndexError):
+                pass
 
 class ColmapWorker(BaseWorker):
     """Thread worker pour exécuter COLMAP via le moteur"""
@@ -108,21 +112,13 @@ class ColmapWorker(BaseWorker):
                 
             self.log_signal.emit(tr("status_360_colmap", "Extraction 360 terminée. Passage à COLMAP..."))
             
-            self.engine.input_type = "images" 
+            self.engine.input_type = "images"
             self.engine.input_path = images_dir
-            
-            # Need to update image_path internal in engine if it was already resolved?
-            # ColmapEngine init resolves paths.
-            # Let's verify ColmapEngine internals later, but for now assuming property update works 
-            # or we re-instantiate logic? 
-            # Actually ColmapEngine might have already set internal variables. 
-            # Let's hope modifying input_path matches. 
-            # Update: ColmapEngine.run() uses self.input_path. So it's fine.
 
         # 2. Check Upscale 
         if self.upscale_params and self.upscale_params.get("active", False):
             self.engine.upscale_config = self.upscale_params
-            self.log_signal.emit("--- Upscale activé pour COLMAP ---")
+            self.log_signal.emit(tr("status_upscale_colmap", "--- Upscale activé pour COLMAP ---"))
         
         success, message = self.engine.run()
         self.finished_signal.emit(success, message)
@@ -269,7 +265,6 @@ class BrushWorker(BaseWorker):
                 output_dir = Path(self.output_path)
                 has_checkpoints = output_dir.exists() and any(output_dir.rglob("*.ply"))
                 if has_checkpoints:
-                    import time
                     backup_name = f"checkpoints_backup_{int(time.time())}"
                     backup_dir = output_dir.parent / backup_name
                     shutil.move(str(output_dir), str(backup_dir))
@@ -311,9 +306,7 @@ class BrushWorker(BaseWorker):
                 self.finished_signal.emit(False, "Brush a retourné une erreur (voir logs ci-dessus).")
                 
         except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            self.log_signal.emit(f"EXCEPTION dans BrushWorker: {e}\n{error_details}")
+            self.log_signal.emit(f"EXCEPTION dans BrushWorker: {e}\n{traceback.format_exc()}")
             self.finished_signal.emit(False, f"Exception: {e}")
 
     def handle_ply_rename(self):
@@ -404,11 +397,12 @@ class SharpWorker(BaseWorker):
                     if input_path.is_file():
                         temp_dir = output_path / "temp_upscale"
                         temp_dir.mkdir(parents=True, exist_ok=True)
-                        upscaled_path = temp_dir / input_path.name
+                        fmt = self.params.get("format", "png")
+                        upscaled_path = temp_dir / (input_path.stem + "." + fmt)
                         model = upscaler.load_model(
                             model_id=self.params.get("model_id", "realesrgan-x4plus"),
                             scale=self.params.get("scale", 4),
-                            output_format=self.params.get("format", "png"),
+                            output_format=fmt,
                             tile=self.params.get("tile", 0),
                             tta=self.params.get("tta", False),
                             compression=self.params.get("compression", 0),
@@ -419,7 +413,7 @@ class SharpWorker(BaseWorker):
                         else:
                             self.log_signal.emit(tr("err_upscale_failed", "Upscale failed. Using original image."))
                     else:
-                        self.log_signal.emit("Folder upscale not supported in Sharp mode.")
+                        self.log_signal.emit(tr("err_upscale_folder", "Folder upscale not supported in Sharp mode."))
                 else:
                     self.log_signal.emit(tr("err_upscale_missing", "Error: Upscale requested but upscayl-bin not found."))
             
@@ -450,7 +444,6 @@ class SharpVideoWorker(BaseWorker):
         super().stop()
         
     def run(self):
-        import subprocess
         try:
             self.status_signal.emit(tr("sharp_msg_extract_frames"))
             self.log_signal.emit(tr("sharp_msg_extract_frames"))
@@ -466,12 +459,12 @@ class SharpVideoWorker(BaseWorker):
             for f in frames_dir.glob("*.png"):
                 f.unlink()
                 
-            skip = self.params.get("skip_frames", 1)
-            
+            skip = max(1, int(self.params.get("skip_frames", 1)))
+
             # 2. Extract frames using ffmpeg
             cmd = [
                 "ffmpeg", "-y", "-i", str(video_path),
-                "-vf", f"select=not(mod(n\,{skip}))",
+                "-vf", f"select=not(mod(n\\,{skip}))",
                 "-vsync", "vfr", "-q:v", "1",
                 str(frames_dir / "frame_%04d.png")
             ]
@@ -545,7 +538,6 @@ class SharpVideoWorker(BaseWorker):
                 self.finished_signal.emit(False, "Aucune frame n'a pu être traitée par SHARP.")
                 
         except Exception as e:
-            import traceback
             self.log_signal.emit(f"EXCEPTION: {e}\n{traceback.format_exc()}")
             self.finished_signal.emit(False, str(e))
 
@@ -571,10 +563,6 @@ class FourDGSWorker(BaseWorker):
         self.log_signal.emit("--- Démarrage 4DGS ---")
 
         
-        # 4DGS process is more complex, but we can still use run_subprocess for its internal steps if needed.
-        # For now, keep it calling engine.process_dataset but ensure engine doesn't block if we can.
-        # Actually FourDGSEngine.process_dataset likely runs subprocesses.
-        
         try:
             if self.videos_dir:
                 success = self.engine.process_dataset(self.videos_dir, self.output_dir, self.fps)
@@ -589,4 +577,5 @@ class FourDGSWorker(BaseWorker):
     def stop(self):
         if self.engine:
             self.engine.stop()
+        super().stop()
         super().stop()

@@ -2,6 +2,7 @@ import os
 import sys
 import json
 from pathlib import Path
+from app.gui.managers import SessionManager, AppLifecycle
 from app.core.system import resolve_project_root
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, QFileDialog, QApplication, QLabel
@@ -22,7 +23,8 @@ from app.gui.tabs.superplat_tab import SuperSplatTab
 from app.gui.tabs.upscale_tab import UpscaleTab
 from app.gui.tabs.four_dgs_tab import FourDGSTab
 from app.gui.tabs.extractor_360_tab import Extractor360Tab
-from app.gui.workers import ColmapWorker, BrushWorker, SharpWorker
+from app.gui.workers import ColmapWorker, BrushWorker, SharpWorker, FourDGSWorker
+from app.gui.workers import SharpVideoWorker
 from app import VERSION
 
 class ColmapGUI(QMainWindow):
@@ -32,8 +34,6 @@ class ColmapGUI(QMainWindow):
         self.brush_worker = None
         self.sharp_worker = None
         
-        # [AUDIT] SRP : Extraction de la gestion de session
-        from app.gui.managers import SessionManager
         self.session_manager = SessionManager(self)
         
         self.init_ui()
@@ -213,11 +213,14 @@ class ColmapGUI(QMainWindow):
         elif mode == "sharp":
             self.logs_tab.append_log(tr("msg_processing") + " (ML Sharp)")
             sharp_params = self.sharp_tab.get_params()
+            
+            # Retrieve upscale settings but keep the 'upscale' checkbox value from sharp_tab!
+            sharp_upscale_checked = sharp_params.get("upscale", False)
             sharp_params.update(self.get_upscale_config())
+            sharp_params["upscale"] = sharp_upscale_checked
             
             input_type = self.config_tab.get_input_type()
             if input_type == "video":
-                from app.gui.workers import SharpVideoWorker
                 sharp_params["mode"] = "video"
                 if hasattr(self.config_tab, "spin_sharp_skip"):
                     sharp_params["skip_frames"] = self.config_tab.spin_sharp_skip.value()
@@ -253,9 +256,6 @@ class ColmapGUI(QMainWindow):
             
         elif mode == "4dgs":
             self.logs_tab.append_log(tr("msg_processing") + " (4DGS)")
-            
-            # Need to import FourDGSWorker if not already done. It is imported at line 27.
-            from app.gui.workers import FourDGSWorker
             self.fourdgs_worker = FourDGSWorker(input_path, output_path, self.config_tab.get_fps())
             self.fourdgs_worker.log_signal.connect(self.logs_tab.append_log)
             self.fourdgs_worker.progress_signal.connect(self.config_tab.progress_bar.setValue)
@@ -263,8 +263,6 @@ class ColmapGUI(QMainWindow):
             self.fourdgs_worker.finished_signal.connect(self.on_finished)
             self.fourdgs_worker.start()
             
-        # self.tabs.setCurrentWidget(self.logs_tab)
-        
     def stop_process(self):
         """Arrête le processus en cours"""
         if (self.worker and self.worker.isRunning()) or \
@@ -288,16 +286,14 @@ class ColmapGUI(QMainWindow):
         
         if success:
             self.logs_tab.append_log(tr("msg_success"))
-
-            # Auto-launch Brush?
             if self.config_tab.get_auto_brush():
                 self.logs_tab.append_log(tr("msg_brush_start", ""))
                 self.train_brush(force_auto=True)
             else:
-                QMessageBox.information(self, tr("msg_success"), 
-                                      f"{message}\n\n{tr('success_open_brush')}")
+                QMessageBox.information(self, tr("msg_success"),
+                                        f"{message}\n\n{tr('success_open_brush')}")
         else:
-            if "Arrete" not in message:
+            if not (self.worker and self.worker.stopped_by_user):
                 QMessageBox.warning(self, tr("msg_error"), f"{tr('msg_error')}:\n{message}")
             
     def delete_dataset(self):
@@ -339,7 +335,7 @@ class ColmapGUI(QMainWindow):
         else:
             reply = QMessageBox.question(
                 self, tr("msg_warning"),
-                f"Voulez-vous mettre a la corbeille le contenu du dossier :\n\n{target_path}",
+                tr("confirm_delete_dataset", str(target_path)),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             
@@ -436,7 +432,7 @@ class ColmapGUI(QMainWindow):
         if success:
             QMessageBox.information(self, tr("msg_success"), f"Brush terminé!\n{message}")
         else:
-            if "Arrete" not in message:
+            if not (self.brush_worker and self.brush_worker.stopped_by_user):
                 QMessageBox.warning(self, tr("msg_error"), f"Erreur Brush:\n{message}")
 
 
@@ -501,7 +497,6 @@ class ColmapGUI(QMainWindow):
             self.logs_tab.append_log(f"Video Input: {video_path}")
             self.logs_tab.append_log(f"Output: {output_path}")
             
-            from app.gui.workers import SharpVideoWorker
             self.sharp_worker = SharpVideoWorker(str(video_path), str(output_path), params)
 
         self.sharp_worker.log_signal.connect(self.logs_tab.append_log)
@@ -532,13 +527,11 @@ class ColmapGUI(QMainWindow):
             QMessageBox.warning(self, tr("msg_error"), f"Erreur Sharp:\n{message}")
 
     def restart_application(self):
-        """Redémarre l'application de manière plus robuste (SRP)"""
-        from app.gui.managers import AppLifecycle
+        """Redémarre l'application."""
         AppLifecycle.restart(save_callback=lambda: self.session_manager.save(immediate=True))
-        
+
     def reset_factory(self, deep=False):
-        """Supprime les venvs et relance l'installation/application (SRP)"""
-        from app.gui.managers import AppLifecycle
+        """Supprime les venvs et relance l'installation/application."""
         AppLifecycle.reset_factory(deep)
 
     # --- Session Persistence Externalisée ---

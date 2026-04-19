@@ -37,7 +37,7 @@ class UpscaleEngine(BaseEngine):
             return None
         return {
             "model_id": model_id, "scale": scale,
-            "format": output_format, "tile": tile,
+            "output_format": output_format, "tile": tile,
             "tta": tta, "compression": compression,
         }
 

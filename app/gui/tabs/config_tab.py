@@ -76,8 +76,7 @@ class ResetDialog(QDialog):
         layout.addWidget(line)
         
         # Bouton Annuler
-        self.btn_cancel = QPushButton(tr("btn_quit", "Annuler")) # Re-using quit/cancel
-        if self.btn_cancel.text() == "Quitter": self.btn_cancel.setText("Annuler")
+        self.btn_cancel = QPushButton(tr("btn_cancel", tr("btn_quit", "Annuler")))
         self.btn_cancel.setMinimumHeight(40)
         layout.addWidget(self.btn_cancel)
         

@@ -2,6 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 from .base_engine import BaseEngine
+from .i18n import tr
 from app.scripts.setup_dependencies import install_extractor_360, get_venv_360_python, uninstall_extractor_360, resolve_project_root
 
 

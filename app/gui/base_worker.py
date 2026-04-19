@@ -1,6 +1,7 @@
-from PyQt6.QtCore import QThread, pyqtSignal
-import subprocess
 import os
+import subprocess
+import traceback
+from PyQt6.QtCore import QThread, pyqtSignal
 
 class BaseWorker(QThread):
     """Classe de base pour les workers avec signaux standardisés"""
@@ -12,17 +13,17 @@ class BaseWorker(QThread):
     def __init__(self):
         super().__init__()
         self.is_running = True
+        self.stopped_by_user = False
         self.process = None
-        
+
     def stop(self):
         """Arrêt générique du thread et du processus associé"""
         self.is_running = False
+        self.stopped_by_user = True
         if self.process:
             try:
                 self.process.terminate()
-                # On ne fait pas wait() ici car on veut que l'interface reste réactive
-                # Le thread se terminera de lui-même quand run() s'arrêtera
-            except:
+            except OSError:
                 pass
         self.requestInterruption()
         
@@ -63,7 +64,6 @@ class BaseWorker(QThread):
             return self.process.returncode == 0
         except Exception as e:
             self.log_signal.emit(f"Erreur CRITIQUE lors du lancement du processus : {e}")
-            import traceback
             self.log_signal.emit(traceback.format_exc())
             return False
 

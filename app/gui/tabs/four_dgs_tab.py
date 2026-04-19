@@ -152,7 +152,7 @@ class FourDGSTab(QWidget):
             cmd = [sys.executable, "-m", "pip", "install", "nerfstudio"]
             subprocess.check_call(cmd)
             
-            QMessageBox.information(self, tr("msg_success"), "Installation terminée. Veuillez redémarrer l'application.")
+            QMessageBox.information(self, tr("msg_success"), tr("four_dgs_install_ok", "Installation terminée. Veuillez redémarrer l'application."))
             self.controls_group.setEnabled(True)
             self.btn_run.setEnabled(True)
         except Exception as e:
@@ -176,13 +176,13 @@ class FourDGSTab(QWidget):
         dst = self.output_edit.text().strip()
         
         if not src or not dst:
-            QMessageBox.warning(self, tr("msg_warning"), "Veuillez sélectionner les dossiers source et destination.")
+            QMessageBox.warning(self, tr("msg_warning"), tr("err_no_paths"))
             return
 
         if not Path(src).exists():
-             QMessageBox.warning(self, tr("msg_warning"), "Le dossier source n'existe pas.")
-             return
-             
+            QMessageBox.warning(self, tr("msg_warning"), tr("err_path_not_exists"))
+            return
+
         self.btn_run.setEnabled(False)
         self.btn_stop.setEnabled(True)
         self.log_view.clear()
@@ -195,13 +195,13 @@ class FourDGSTab(QWidget):
     def run_colmap_only(self):
         dst = self.output_edit.text().strip()
         if not dst:
-            QMessageBox.warning(self, tr("msg_warning"), "Veuillez sélectionner un dossier destination.")
+            QMessageBox.warning(self, tr("msg_warning"), tr("err_no_paths"))
             return
-            
+
         if not Path(dst).exists():
-             QMessageBox.warning(self, tr("msg_warning"), "Le dossier destination n'existe pas.")
-             return
-             
+            QMessageBox.warning(self, tr("msg_warning"), tr("err_path_not_exists"))
+            return
+
         self.btn_run.setEnabled(False)
         self.btn_colmap.setEnabled(False)
         self.btn_stop.setEnabled(True)
@@ -228,9 +228,8 @@ class FourDGSTab(QWidget):
         self.btn_stop.setEnabled(False)
         if success:
             QMessageBox.information(self, tr("msg_success"), message)
-        else:
-             if "Arrêté" not in message:
-                QMessageBox.critical(self, tr("msg_error"), message)
+        elif not (self.worker and self.worker.stopped_by_user):
+            QMessageBox.critical(self, tr("msg_error"), message)
         self.worker = None
 
     def append_log(self, text):

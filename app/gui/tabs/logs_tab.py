@@ -54,9 +54,9 @@ class LogsTab(QWidget):
             try:
                 with open(filename, 'w') as f:
                     f.write(self.log_text.toPlainText())
-                QMessageBox.information(self, tr("msg_success"), "Logs sauvegardes!")
-            except Exception as e:
-                QMessageBox.critical(self, tr("msg_error"), f"Impossible de sauvegarder:\n{str(e)}")
+                QMessageBox.information(self, tr("msg_success"), tr("logs_saved", "Logs sauvegardés !"))
+            except OSError as e:
+                QMessageBox.critical(self, tr("msg_error"), f"{tr('err_save_log', 'Impossible de sauvegarder')}:\n{e}")
 
     def retranslate_ui(self):
         """Update texts when language changes"""

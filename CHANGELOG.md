@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.99] - 2026-04-19
+
+### 🔒 Security
+- **Shell injection closed** (`managers.py`): `AppLifecycle.restart()` was building a shell command with `shell=True` and unsanitized `sys.argv` arguments. Replaced with a safe `Popen` list and a strict allowlist for argv flags.
+- **Shell injection closed** (`managers.py`): `AppLifecycle.reset_factory()` was running `rm -rf` via an f-string with `shell=True`. Replaced with a temporary Python subprocess that calls `shutil.rmtree` directly — no shell involved.
+- **ffmpeg filter injection** (`workers.py`): `skip_frames` was interpolated into a `-vf select=not(mod(...))` expression without validation. Now clamped to `max(1, int(skip))` before use.
+- **`fps` validation** (`four_dgs_engine.py`): `extract_frames()` now clamps fps to `max(1, int(fps))` to prevent divide-by-zero and ffmpeg crashes.
+
+### 🐞 Bug Fixes
+- **`NameError: tr` in extractor_360_engine** — `tr()` was called in two places without being imported. Added missing import; previously caused a hard crash at runtime whenever 360 extraction started or finished.
+- **`FourDGSWorker.stop()` did not propagate** — `super().stop()` was never called, so `stop_requested` was never set to `True` and the engine loop never interrupted.
+- **Upscale format mismatch** (`upscale_engine.py`) — `load_model()` returned key `"format"` but `upscale_folder()` expects `"output_format"`, silently ignoring the user's format setting. Key renamed; output filename in `SharpWorker` now uses the correct extension.
+- **Upscale x1 scale added** — `upscale_tab.py` now exposes `x1 (denoise only)` alongside x2/x3/x4; x4 remains default.
+- **`upscayl_check_sharp` locale stale** — All 9 locales still referenced `Real-ESRGAN` in the Sharp upscale checkbox label. Updated to `upscayl-ncnn`.
+- **`upscale_install_msg` stale** — Five locales mentioned `Torch, RealESRGAN (~2GB)`. Updated to reflect upscayl-bin standalone binary (~30 MB).
+- **Stop dialog false positive** — `on_finished` / `on_brush_finished` / `on_process_finished` detected user-requested stops by matching the string `"Arrete"` in the message, which broke silently when messages changed. Replaced with a proper `stopped_by_user` flag on `BaseWorker`.
+- **`IndentationError` in `four_dgs_tab.py`** — extra leading space in two `return` statements caused a startup crash. Fixed.
+
+### 🛠 Code Quality (Audit v2026.1)
+- **`psutil` removed from `system.py`** — `get_memory_info()` imported `psutil` which was never in `requirements.txt`; replaced with a `sysctl hw.memsize` call.
+- **`requirements.txt` pinned** — All 6 dependencies now use `>=X,<Y` range pins instead of unpinned names, preventing silent regressions on major version bumps.
+- **Bare `except:` eliminated** — 18 occurrences replaced with typed exceptions (`OSError`, `json.JSONDecodeError`, `subprocess.CalledProcessError`, `TypeError`, etc.) across `i18n.py`, `managers.py`, `setup_dependencies.py`, `base_worker.py`, `workers.py`, and tab files.
+- **`print()` replaced by `logging`** — `i18n.py` and `managers.py` now use `logging.getLogger(__name__)` with proper levels (`error`, `warning`, `debug`).
+- **`import traceback / subprocess / time / os`** — 10 in-function imports moved to module top-level.
+- **i18n coverage improved** — Added `confirm_delete_dataset`, `btn_cancel`, `four_dgs_install_ok`, `err_brush_missing`, `logs_saved`, `upscale_bundled_warning` across all 9 languages. Removed `REALESRGAN_PIP` dead constant from `setup_dependencies.py`.
+- **`BaseWorker.stop()`** — Added `stopped_by_user` flag; bare `except` replaced with `except OSError`.
+- **Qt signal disconnect** — `except Exception: pass` on `signal.disconnect()` replaced with `except TypeError` (the correct Qt6 exception for disconnecting an unconnected slot).
+
 ## [0.98] - 2026-04-19
 
 ### ✨ New Features — Upscale Module (complete rewrite)

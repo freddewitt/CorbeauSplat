@@ -1,7 +1,10 @@
 import json
+import logging
 import os
 from pathlib import Path
 from app.core.system import resolve_project_root
+
+logger = logging.getLogger(__name__)
 
 class LanguageManager:
     _instance = None
@@ -40,8 +43,8 @@ class LanguageManager:
                     self._translations = json.load(f)
             else:
                 self._translations = {}
-        except Exception as e:
-            print(f"Error loading translations: {e}")
+        except (OSError, json.JSONDecodeError) as e:
+            logger.error("Error loading translations: %s", e)
             self._translations = {}
 
     def load_config(self):
@@ -51,9 +54,9 @@ class LanguageManager:
                 with open(config_file, "r") as f:
                     config = json.load(f)
                     self.current_lang = config.get("language", "fr")
-        except:
-            pass
-            
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning("Could not load language config: %s", e)
+
     def save_config(self):
         try:
             config_file = resolve_project_root() / "config.json"
@@ -61,13 +64,11 @@ class LanguageManager:
             if config_file.exists():
                 with open(config_file, "r") as f:
                     config = json.load(f)
-            
             config["language"] = self.current_lang
-            
             with open(config_file, "w") as f:
                 json.dump(config, f, indent=2)
-        except:
-            pass
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning("Could not save language config: %s", e)
 
     def set_language(self, lang_code):
         self.current_lang = lang_code
@@ -84,8 +85,8 @@ class LanguageManager:
         if args:
             try:
                 text = text.format(*args)
-            except:
-                pass
+            except (IndexError, KeyError) as e:
+                logger.debug("i18n format error for key '%s': %s", key, e)
         return text
 
 # Global instance convenience

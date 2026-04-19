@@ -7,6 +7,16 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtGui import QIcon
 from pathlib import Path as _Path
 
+def _set_macos_dock_icon(icon_path: _Path):
+    """Sets the macOS Dock icon via NSApplication (requires pyobjc)."""
+    try:
+        from AppKit import NSApplication, NSImage
+        ns_image = NSImage.alloc().initWithContentsOfFile_(str(icon_path))
+        if ns_image:
+            NSApplication.sharedApplication().setApplicationIconImage_(ns_image)
+    except Exception:
+        pass  # pyobjc not available or other issue — silently skip
+
 from app.core.i18n import tr
 from app.core.params import ColmapParams
 from app.core.engine import ColmapEngine
@@ -209,6 +219,7 @@ def main():
         _icon_path = _Path(__file__).parent / "assets" / "icon.icns"
         if _icon_path.exists():
             app.setWindowIcon(QIcon(str(_icon_path)))
+            _set_macos_dock_icon(_icon_path)
         window = ColmapGUI()
         window.show()
         sys.exit(app.exec())

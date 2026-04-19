@@ -1,6 +1,8 @@
+import os
+import subprocess
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
-    QGroupBox, QFormLayout, QSpinBox, QCheckBox, QComboBox, QDoubleSpinBox, 
+    QGroupBox, QFormLayout, QSpinBox, QCheckBox, QComboBox, QDoubleSpinBox,
     QScrollArea, QFrame, QMessageBox
 )
 from PyQt6.QtCore import pyqtSignal
@@ -536,16 +538,14 @@ class BrushTab(QWidget):
                 )
                 self.restartRequested.emit()
             except Exception as e:
-                QMessageBox.critical(self, "Erreur", f"Erreur lors de la suppression de Brush: {e}")
+                QMessageBox.critical(self, tr("msg_error"), f"Erreur lors de la suppression de Brush: {e}")
 
     def run_standalone(self):
-        import subprocess
-        import os
         from app.core.system import resolve_binary
         
         bin_path = resolve_binary("brush")
         if not bin_path:
-            QMessageBox.critical(self, "Erreur", "Exécutable brush introuvable.")
+            QMessageBox.critical(self, tr("msg_error"), tr("err_brush_missing", "Exécutable brush introuvable."))
             return
             
         env = os.environ.copy()
@@ -561,4 +561,4 @@ class BrushTab(QWidget):
             # Lancement détaché
             subprocess.Popen([str(bin_path)], env=env)
         except Exception as e:
-            QMessageBox.critical(self, "Erreur", f"Erreur de lancement : {e}")
+            QMessageBox.critical(self, tr("msg_error"), f"{tr('err_launch', 'Erreur de lancement')}: {e}")

@@ -1,5 +1,6 @@
-PyQt6
-requests
-urllib3
-numpy
-send2trash
+PyQt6>=6.6,<7
+requests>=2.32,<3
+urllib3>=2.0,<3
+numpy>=1.26,<3
+send2trash>=1.8,<2
+pyobjc-framework-Cocoa>=10.0,<11

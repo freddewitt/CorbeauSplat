@@ -57,24 +57,25 @@ def resolve_binary(name):
     # 2. Chercher dans le PATH système
     return shutil.which(name)
 
-def get_device():
-    """Centralized device selection: mps, cuda, or cpu"""
+def get_device() -> str:
+    """Centralized device selection: mps, cuda, or cpu."""
     if is_apple_silicon():
         return "mps"
-    import shutil
     if shutil.which("nvidia-smi") is not None:
         return "cuda"
     return "cpu"
 
-def get_memory_info():
-    """Returns memory info for UMA/caching strategies"""
-    import psutil
-    mem = psutil.virtual_memory()
-    return {
-        "total": mem.total,
-        "available": mem.available,
-        "percent": mem.percent
-    }
+def get_memory_info() -> dict:
+    """Returns memory info for UMA/caching strategies via sysctl (no psutil dependency)."""
+    try:
+        result = subprocess.run(
+            ["sysctl", "-n", "hw.memsize"],
+            capture_output=True, text=True, timeout=2
+        )
+        total = int(result.stdout.strip()) if result.returncode == 0 else 0
+    except (ValueError, subprocess.SubprocessError, OSError):
+        total = 0
+    return {"total": total, "available": 0, "percent": 0.0}
 
 def check_dependencies():
     """Vérifie si les dépendances nécessaires sont installées"""
