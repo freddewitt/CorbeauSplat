@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.99.2] - 2026-04-26
+
+### ✨ New Features
+- **CLI restructured as subcommands**: the flat `--train / --predict / --view` flag system is replaced by discrete subcommands (`colmap`, `brush`, `sharp`, `view`, `upscale`, `4dgs`, `extract360`), each with its own `--help` page. No-argument behaviour is unchanged (launches the GUI).
+- **CLI — `upscale` subcommand**: new command exposing the full upscayl-bin pipeline from the terminal. Supports single images and folders; flags: `--model`, `--scale` (2/3/4), `--format`, `--tile`, `--tta`, `--compression`.
+- **CLI — `4dgs` subcommand**: new command for 4D Gaussian Splatting dataset preparation. Runs frame extraction + Nerfstudio (or COLMAP fallback). `--colmap_only` skips extraction and processes an existing dataset.
+- **CLI — `extract360` subcommand**: new command for 360° video extraction. Full flag parity with the GUI tab: `--interval`, `--resolution`, `--camera_count`, `--layout`, `--ai_mask`, `--ai_skip`, `--adaptive`, `--motion_threshold`.
+- **CLI `brush` — presets**: `--preset fast / std / dense` applies a curated parameter set in one flag. Individual flags (`--iterations`, `--growth_grad_threshold`, etc.) always override the preset when explicitly passed.
+- **CLI `brush` — advanced parameters**: `--start_iter`, `--refine_every`, `--growth_grad_threshold`, `--growth_select_fraction`, `--growth_stop_iter`, `--max_splats`, `--checkpoint_interval`, `--max_resolution`, `--with_viewer`, `--ply_name`, `--custom_args` — full parity with the GUI.
+- **CLI `sharp` — video mode**: `--mode video` processes a video frame by frame, writing one `.ply` per frame. `--skip_frames N` processes 1 frame every N. `--upscale` triggers pre-prediction upscaling via upscayl-bin.
+- **CLI `view` — URL options**: `--no_ui` hides the SuperSplat interface; `--cam_pos X,Y,Z` and `--cam_rot X,Y,Z` set the initial camera state.
+- **CLI `colmap` — advanced parameters**: full parity with the Params tab — `--matcher_type`, `--max_image_size`, `--max_num_features`, `--max_ratio`, `--max_distance`, `--min_model_size`, `--min_num_matches`, `--multiple_models`, `--no_single_camera`, `--no_cross_check`, `--no_domain_size_pooling`, `--estimate_affine_shape`, `--no_refine_focal`, `--refine_principal`, `--no_refine_extra`.
+
+### 🐞 Bug Fixes
+- **`--use_glomap` missing from CLI**: the flag was documented in `CLI.md` but never wired into `get_parser()`. Added to the `colmap` subcommand.
+- **`run_brush` treated engine return value as a process**: `BrushEngine.train()` returns an `int` (return code) after the engine refactor, but the old `run_brush` iterated over `process.stdout`. Fixed to use the return code directly.
+
+### 📖 Documentation
+- **`CLI.md` rewritten**: full reference for all 7 subcommands with flag tables, default values, preset breakdown, and four end-to-end pipeline examples (standard 3DGS, high-quality scan, quick preview, single photo to 3D).
+
 ## [0.99.1] - 2026-04-19
 
 ### ✨ New Features
