@@ -15,6 +15,47 @@ python3 main.py --help              # List all commands
 
 ## Commands
 
+### `pipeline` — Full training in one command
+
+Runs COLMAP reconstruction then Brush training back-to-back. The dataset is created at `<output>/<project_name>/` and passed directly to Brush.
+
+```bash
+# From a video
+python3 main.py pipeline -i video.mp4 -o ~/projects --type video
+
+# From photos, high-quality preset
+python3 main.py pipeline -i ~/photos -o ~/projects --preset dense
+
+# Named project with Glomap
+python3 main.py pipeline -i ~/photos -o ~/projects --project_name my_scene --use_glomap
+
+# Fast preview from video
+python3 main.py pipeline -i video.mp4 -o ~/projects --type video --fps 3 --preset fast
+```
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--input`, `-i` | *(required)* | Source video or images folder |
+| `--output`, `-o` | *(required)* | Parent output folder |
+| `--project_name` | `Untitled` | Project subfolder name |
+| `--type` | `images` | Input type: `images` or `video` |
+| `--fps` | `5` | Frame extraction rate for video |
+| `--camera_model` | `SIMPLE_RADIAL` | COLMAP camera model |
+| `--undistort` | — | Run undistortion after reconstruction |
+| `--use_glomap` | — | Use Glomap mapper |
+| `--matcher_type` | `exhaustive` | Matching strategy: `exhaustive`, `sequential`, `vocab_tree` |
+| `--max_image_size` | `3200` | Max image resolution for COLMAP |
+| `--preset` | `default` | Brush preset: `default`, `fast`, `std`, `dense` |
+| `--iterations` | *(preset)* | Override Brush iteration count |
+| `--sh_degree` | `3` | Spherical Harmonics degree (1–4) |
+| `--device` | `auto` | Brush device: `auto`, `mps`, `cuda`, `cpu` |
+| `--with_viewer` | — | Open interactive Brush viewer after training |
+| `--ply_name` | — | Output PLY filename |
+
+For fine-grained control over either step, run `colmap` and `brush` separately.
+
+---
+
 ### `colmap` — Build a COLMAP dataset
 
 Runs the full pipeline: frame extraction → feature extraction → matching → reconstruction.

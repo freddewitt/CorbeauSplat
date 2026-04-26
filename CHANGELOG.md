@@ -3,6 +3,7 @@
 ## [0.99.2] - 2026-04-26
 
 ### ✨ New Features
+- **CLI `pipeline` subcommand**: single command that chains COLMAP reconstruction and Brush training end-to-end. Accepts all essential COLMAP flags (`--type`, `--fps`, `--camera_model`, `--matcher_type`, `--use_glomap`, `--undistort`) and Brush flags (`--preset`, `--iterations`, `--sh_degree`, `--device`, `--with_viewer`). The dataset path is resolved automatically from `--output / --project_name` and passed directly to Brush.
 - **CLI restructured as subcommands**: the flat `--train / --predict / --view` flag system is replaced by discrete subcommands (`colmap`, `brush`, `sharp`, `view`, `upscale`, `4dgs`, `extract360`), each with its own `--help` page. No-argument behaviour is unchanged (launches the GUI).
 - **CLI — `upscale` subcommand**: new command exposing the full upscayl-bin pipeline from the terminal. Supports single images and folders; flags: `--model`, `--scale` (2/3/4), `--format`, `--tile`, `--tta`, `--compression`.
 - **CLI — `4dgs` subcommand**: new command for 4D Gaussian Splatting dataset preparation. Runs frame extraction + Nerfstudio (or COLMAP fallback). `--colmap_only` skips extraction and processes an existing dataset.

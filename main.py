@@ -92,18 +92,62 @@ def get_parser():
             "Sans argument, l'interface graphique est lancée.\n"
             "Chaque sous-commande a sa propre aide : main.py <commande> --help\n\n"
             "Exemples :\n"
-            "  python3 main.py colmap  -i video.mp4 -o ~/projets\n"
-            "  python3 main.py brush   -i ~/projets/scene -o ~/projets/scene --preset dense\n"
-            "  python3 main.py sharp   -i photo.jpg -o ~/out\n"
-            "  python3 main.py view    -i splat.ply\n"
-            "  python3 main.py upscale -i image.png -o ~/out --scale 4\n"
-            "  python3 main.py 4dgs    -i ~/videos -o ~/out\n"
+            "  python3 main.py pipeline -i video.mp4 -o ~/projets --type video --preset dense\n"
+            "  python3 main.py colmap   -i video.mp4 -o ~/projets\n"
+            "  python3 main.py brush    -i ~/projets/scene -o ~/projets/scene --preset dense\n"
+            "  python3 main.py sharp    -i photo.jpg -o ~/out\n"
+            "  python3 main.py view     -i splat.ply\n"
+            "  python3 main.py upscale  -i image.png -o ~/out --scale 4\n"
+            "  python3 main.py 4dgs     -i ~/videos -o ~/out\n"
             "  python3 main.py extract360 -i 360.mp4 -o ~/out\n"
         ),
     )
     parser.add_argument("--gui", action="store_true", help="Force le lancement de l'interface graphique")
 
     subs = parser.add_subparsers(dest="command", metavar="COMMANDE")
+
+    # ── pipeline ──────────────────────────────────────────────────────────────
+    p = subs.add_parser(
+        "pipeline",
+        help="Pipeline complet : COLMAP → Brush en une seule commande",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Exemples :\n"
+            "  # Depuis une vidéo\n"
+            "  python3 main.py pipeline -i video.mp4 -o ~/projets --type video\n\n"
+            "  # Depuis des photos, preset haute qualité\n"
+            "  python3 main.py pipeline -i ~/photos -o ~/projets --preset dense\n\n"
+            "  # Avec Glomap et un nom de projet\n"
+            "  python3 main.py pipeline -i ~/photos -o ~/projets --project_name scene --use_glomap\n"
+        ),
+    )
+    p.add_argument("--input",  "-i", required=True, help="Vidéo ou dossier d'images source")
+    p.add_argument("--output", "-o", required=True, help="Dossier de sortie parent")
+    p.add_argument("--project_name", default="Untitled", help="Nom du sous-dossier projet (défaut: Untitled)")
+    # COLMAP
+    p.add_argument("--type", choices=["images", "video"], default="images",
+                   help="Type d'entrée (défaut: images)")
+    p.add_argument("--fps",  type=int, default=5,   help="FPS d'extraction vidéo (défaut: 5)")
+    p.add_argument("--camera_model", default="SIMPLE_RADIAL",
+                   choices=["SIMPLE_PINHOLE","PINHOLE","SIMPLE_RADIAL","RADIAL","OPENCV","OPENCV_FISHEYE"],
+                   help="Modèle de caméra COLMAP (défaut: SIMPLE_RADIAL)")
+    p.add_argument("--undistort",  action="store_true", help="Undistortion après reconstruction")
+    p.add_argument("--use_glomap", action="store_true", help="Utiliser Glomap au lieu du mapper COLMAP")
+    p.add_argument("--matcher_type", choices=["exhaustive","sequential","vocab_tree"], default="exhaustive",
+                   help="Stratégie de matching (défaut: exhaustive)")
+    p.add_argument("--max_image_size", type=int, default=3200,
+                   help="Résolution max des images pour COLMAP (défaut: 3200)")
+    # Brush
+    p.add_argument("--preset", choices=["default","fast","std","dense"], default="default",
+                   help="Preset d'entraînement Brush (défaut: default)")
+    p.add_argument("--iterations", type=int,   default=None, metavar="N",
+                   help="Nb total d'itérations Brush (remplace le preset)")
+    p.add_argument("--sh_degree",  type=int,   default=None, choices=range(1,5),
+                   help="Degré Spherical Harmonics 1-4 (défaut: 3)")
+    p.add_argument("--device", default="auto",
+                   choices=["auto","mps","cuda","cpu"], help="Device Brush (défaut: auto)")
+    p.add_argument("--with_viewer", action="store_true", help="Ouvrir le viewer interactif après entraînement")
+    p.add_argument("--ply_name",    default=None,        help="Nom du fichier PLY de sortie")
 
     # ── colmap ────────────────────────────────────────────────────────────────
     p = subs.add_parser("colmap", help="Pipeline COLMAP (vidéo/images → dataset)")
@@ -607,11 +651,104 @@ def run_extract360(args):
         sys.exit(1)
 
 
+def run_pipeline(args):
+    """Pipeline complet COLMAP → Brush."""
+
+    _sep = lambda title: print(f"\n{'─' * 50}\n  {title}\n{'─' * 50}")
+
+    # ── Étape 1 : COLMAP ──────────────────────────────────────────────────────
+    _sep("Étape 1/2 — Reconstruction COLMAP")
+    print(f"  Input       : {args.input}")
+    print(f"  Output      : {args.output}")
+    print(f"  Projet      : {args.project_name}")
+    print(f"  Type        : {args.type}")
+    if args.type == "video":
+        print(f"  FPS         : {args.fps}")
+
+    colmap_params = ColmapParams(
+        camera_model=args.camera_model,
+        matcher_type=args.matcher_type,
+        max_image_size=args.max_image_size,
+        undistort_images=args.undistort,
+        use_glomap=args.use_glomap,
+    )
+
+    colmap_engine = ColmapEngine(
+        colmap_params, args.input, args.output, args.type, args.fps,
+        project_name=args.project_name,
+        logger_callback=print,
+        progress_callback=lambda x: print(f"  Progression : {x}%"),
+    )
+
+    try:
+        success, msg = colmap_engine.run()
+    except KeyboardInterrupt:
+        print(tr("cli_stopping"))
+        colmap_engine.stop()
+        sys.exit(0)
+
+    if not success:
+        print(f"\nErreur COLMAP : {msg}")
+        sys.exit(1)
+
+    dataset_path = _Path(args.output) / args.project_name
+    print(f"\nDataset prêt : {dataset_path}")
+
+    # ── Étape 2 : Brush ───────────────────────────────────────────────────────
+    _sep("Étape 2/2 — Entraînement Brush")
+
+    brush_params = {
+        "total_steps": 30000,
+        "sh_degree": 3,
+        "start_iter": 0,
+        "refine_every": 200,
+        "growth_grad_threshold": 0.003,
+        "growth_select_fraction": 0.2,
+        "growth_stop_iter": 15000,
+        "max_splats": 10_000_000,
+        "checkpoint_interval": 7000,
+        "max_resolution": 0,
+        "with_viewer": False,
+        "refine_mode": False,
+    }
+
+    if args.preset != "default":
+        brush_params.update(BRUSH_PRESETS[args.preset])
+
+    if args.iterations is not None: brush_params["total_steps"] = args.iterations
+    if args.sh_degree is not None:  brush_params["sh_degree"] = args.sh_degree
+    brush_params["device"] = args.device
+    brush_params["with_viewer"] = args.with_viewer
+    if args.ply_name: brush_params["ply_name"] = args.ply_name
+
+    print(f"  Dataset     : {dataset_path}")
+    print(f"  Preset      : {args.preset}")
+    print(f"  Steps       : {brush_params['total_steps']}")
+    print(f"  SH degree   : {brush_params['sh_degree']}")
+    print(f"  Device      : {brush_params['device']}")
+
+    brush_engine = BrushEngine(logger_callback=print)
+
+    try:
+        returncode = brush_engine.train(str(dataset_path), str(dataset_path), params=brush_params)
+    except KeyboardInterrupt:
+        print(tr("cli_stopping"))
+        brush_engine.stop()
+        sys.exit(0)
+
+    if returncode == 0:
+        print(f"\nPipeline terminé. Splat disponible dans : {dataset_path}")
+    else:
+        print(f"\nBrush a retourné une erreur (code {returncode}).")
+        sys.exit(1)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
 DISPATCH = {
+    "pipeline":    run_pipeline,
     "colmap":      run_colmap,
     "brush":       run_brush,
     "sharp":       run_sharp,
