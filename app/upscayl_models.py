@@ -45,7 +45,7 @@ MODELS: list[UpscaylModel] = [
         id="realesrgan-x4plus",
         label="Real-ESRGAN x4+ — General  ⭐",
         scale=4,
-        description="Best all-round model for real-world photos. Recommended starting point.",
+        description="Best all-round model for real-world photos. Included in the binary archive — click Reinstall to extract it.",
         bundled=True,
     ),
     UpscaylModel(
@@ -53,7 +53,9 @@ MODELS: list[UpscaylModel] = [
         label="Real-ESRGAN General — Fast",
         scale=4,
         description="Lighter and faster than x4+. Good for quick batch processing.",
-        bundled=True,
+        bundled=False,
+        url_bin=f"{_CUSTOM}/RealESRGAN_General_x4_v3.bin",
+        url_param=f"{_CUSTOM}/RealESRGAN_General_x4_v3.param",
     ),
     UpscaylModel(
         id="4xLSDIR",

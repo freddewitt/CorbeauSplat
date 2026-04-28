@@ -12,7 +12,7 @@ from PyQt6.QtCore import QTimer
 logger = logging.getLogger(__name__)
 
 class SessionManager:
-    """[AUDIT] SOLID-SRP : Gestion responsable uniquement de la persistance JSON"""
+    """SOLID-SRP : Gestion responsable uniquement de la persistance JSON"""
     def __init__(self, main_window):
         self.mw = main_window
         self._save_timer = QTimer()
@@ -23,7 +23,7 @@ class SessionManager:
         return resolve_project_root() / "config.json"
 
     def save(self, immediate=False):
-        """[AUDIT] Optimisation Perf-IO : Debounce de la sauvegarde JSON pour ne pas geler l'UI"""
+        """Optimisation Perf-IO : Debounce de la sauvegarde JSON pour ne pas geler l'UI"""
         if immediate:
             self._save_timer.stop()
             self._do_save()
@@ -94,7 +94,7 @@ class SessionManager:
 
 
 class AppLifecycle:
-    """[AUDIT] SOLID-SRP : Responsable du redemarrage OS et processus externes"""
+    """SOLID-SRP : Responsable du redemarrage OS et processus externes"""
     @staticmethod
     def restart(save_callback=None):
         if save_callback:

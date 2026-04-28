@@ -39,7 +39,7 @@ class SharpEngine(BaseEngine):
         if which("sharp"):
             return ["sharp"]
             
-        # 3. Fallback: Run module
+        # 4. Fallback: Run module
         return [sys.executable, "-m", "sharp.cli"]
     def is_installed(self):
         """Vérifie si Sharp est disponible (venv_sharp ou local)"""
@@ -95,5 +95,5 @@ class SharpEngine(BaseEngine):
         
         self.log(f"Lancement Sharp: {' '.join(cmd)}")
         
-        # [AUDIT] GoF-Template Method : Délégation au runner 
+        # GoF-Template Method : Délégation au runner 
         return self._execute_command(cmd, env=env)

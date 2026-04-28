@@ -40,7 +40,7 @@ class FourDGSEngine(BaseEngine):
             str(out_p / "%05d.jpg")
         ])
         
-        # [AUDIT] Template Method : Délégation à _execute_command centralisé
+        # Template Method : Délégation à _execute_command centralisé
         return self._execute_command(cmd) == 0
 
     def run_colmap(self, dataset_root):

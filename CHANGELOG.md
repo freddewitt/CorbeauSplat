@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.99.3] - 2026-04-28
+
+### 🐞 Bug Fixes
+- **Batch 1 (critiques)** : `super().stop()` en double supprimé ; `sqlite3.connect()` passe en context manager ; `"ffmpeg"` hardcodé remplacé par `shutil.which` ; nettoyage `frames_dir` déplacé dans `finally`.
+- **Batch 2 (majeurs)** : mutations `input_path`/`input_type` dans `ColmapWorker` remplacées par reconstruction de l'engine ; `SuperSplat.start_supersplat()` utilise `self.runner.start()` au lieu de `subprocess.Popen` brut ; collision de noms dans `_prepare_images` résolue avec compteur ; commentaire `# 3.` en double dans `sharp_engine.py` corrigé ; messages d'erreur techniques (`str(e)`) remplacés par log complet + message générique ; `shell=True` pour l'install Rust remplacé par `urlretrieve` + exécution directe.
+- **Batch 3 (mineurs)** : `universal_newlines` → `text` dans 3 fichiers ; `bufsize=1` redondant supprimé ; `import shutil as _sh` dans une boucle retiré (déjà importé en module) ; double lecture d'image dans `_check_and_normalize_resolution` remplacée par cache ; `cls.__annotations__` → `dataclasses.fields`.
+- **Batch 4 + Legacy** : timeout ajouté aux downloads GitHub (`urlretrieve` → `urlopen` avec timeout 30-120s) ; `# noqa: F401` → `importlib.util.find_spec` ; `unlink(missing_ok=True)` ; dossier `app/weights/` supprimé (2 .pth) ; tags `[AUDIT]` nettoyés dans 6 fichiers.
+
+### 📦 Code Quality
+- **22 correctifs** appliqués dans 15 fichiers, couvrant sécurité, maintenabilité, et performance.
+
 ## [0.99.2] - 2026-04-26
 
 ### ✨ New Features

@@ -45,8 +45,6 @@ class BaseWorker(QThread):
                 text=True,
                 cwd=cwd,
                 env=actual_env,
-                bufsize=1,
-                universal_newlines=True
             )
             
             for line in self.process.stdout:

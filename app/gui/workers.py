@@ -16,7 +16,7 @@ class Extractor360Worker(BaseWorker):
 
     def __init__(self, input_path, output_path, params, engine=None):
         super().__init__()
-        # [AUDIT] DIP : Injection
+        # DIP : Injection
         self.engine = engine or Extractor360Engine(logger_callback=self.log_signal.emit)
         self.input_path = input_path
         self.output_path = output_path
@@ -64,7 +64,7 @@ class ColmapWorker(BaseWorker):
         self.upscale_params = upscale_params
         self.extractor_360_params = extractor_360_params
         self.extractor_engine = None
-        # [AUDIT] DIP : Injection
+        # DIP : Injection
         self.engine = engine or ColmapEngine(
             params, input_path, output_path, input_type, fps, project_name,
             logger_callback=self.log_signal.emit,
@@ -112,8 +112,14 @@ class ColmapWorker(BaseWorker):
                 
             self.log_signal.emit(tr("status_360_colmap", "Extraction 360 terminée. Passage à COLMAP..."))
             
-            self.engine.input_type = "images"
-            self.engine.input_path = images_dir
+            self.engine = ColmapEngine(
+                self.engine.params, images_dir, self.engine.output_path, "images",
+                self.engine.fps, self.engine.project_name,
+                logger_callback=self.log_signal.emit,
+                progress_callback=self.progress_signal.emit,
+                status_callback=self.status_signal.emit,
+                check_cancel_callback=self.isInterruptionRequested
+            )
 
         # 2. Check Upscale 
         if self.upscale_params and self.upscale_params.get("active", False):
@@ -128,7 +134,7 @@ class BrushWorker(BaseWorker):
 
     def __init__(self, input_path, output_path, params, engine=None):
         super().__init__()
-        # [AUDIT] DIP : Injection
+        # DIP : Injection
         self.engine = engine or BrushEngine(logger_callback=self.log_signal.emit)
         self.input_path = input_path
         self.output_path = output_path
@@ -374,7 +380,7 @@ class SharpWorker(BaseWorker):
         super().__init__()
         # On importe ici pour eviter les cycles si besoin, ou juste par proprete
         from app.core.sharp_engine import SharpEngine
-        # [AUDIT] DIP : Injection
+        # DIP : Injection
         self.engine = engine or SharpEngine(logger_callback=self.log_signal.emit)
         self.input_path = input_path
         self.output_path = output_path
@@ -437,7 +443,7 @@ class SharpWorker(BaseWorker):
             # Use refactored predict method
             self.status_signal.emit(tr("status_sharp", "Amélioration avec ML Sharp..."))
             
-            # [AUDIT] Délégation à la Template Method
+            # Délégation à la Template Method
             returncode = self.engine.predict(self.input_path, self.output_path, self.params)
             success = (returncode == 0)
             
@@ -479,8 +485,9 @@ class SharpVideoWorker(BaseWorker):
             skip = max(1, int(self.params.get("skip_frames", 1)))
 
             # 2. Extract frames using ffmpeg
+            ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
             cmd = [
-                "ffmpeg", "-y", "-i", str(video_path),
+                ffmpeg_bin, "-y", "-i", str(video_path),
                 "-vf", f"select=not(mod(n\\,{skip}))",
                 "-vsync", "vfr", "-q:v", "1",
                 str(frames_dir / "frame_%04d.png")
@@ -545,18 +552,18 @@ class SharpVideoWorker(BaseWorker):
                 if frame_out_dir.exists():
                     shutil.rmtree(frame_out_dir)
                     
-            # 5. Cleanup temp frames
-            if frames_dir.exists():
-                shutil.rmtree(frames_dir)
-                
             if success_count > 0:
                 self.finished_signal.emit(True, f"Conversion Video -> PLY terminée. {success_count}/{total_frames} frames traitées avec succès.")
             else:
                 self.finished_signal.emit(False, "Aucune frame n'a pu être traitée par SHARP.")
-                
+
         except Exception as e:
             self.log_signal.emit(f"EXCEPTION: {e}\n{traceback.format_exc()}")
             self.finished_signal.emit(False, str(e))
+        finally:
+            # 5. Cleanup temp frames
+            if 'frames_dir' in locals() and frames_dir.exists():
+                shutil.rmtree(frames_dir)
 
 
 # ---------------------------------------------------------------------
@@ -570,7 +577,7 @@ class FourDGSWorker(BaseWorker):
         self.videos_dir = videos_dir
         self.output_dir = output_dir
         self.fps = fps
-        # [AUDIT] DIP : Injection
+        # DIP : Injection
         self.engine = engine or FourDGSEngine(
             logger_callback=self.log_signal.emit,
             status_callback=self.status_signal.emit
@@ -594,5 +601,4 @@ class FourDGSWorker(BaseWorker):
     def stop(self):
         if self.engine:
             self.engine.stop()
-        super().stop()
         super().stop()

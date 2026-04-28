@@ -65,17 +65,8 @@ class SuperSplatEngine(BaseEngine):
 
         cmd = ["npx", "serve", "dist", "-p", str(port), "--no-clipboard"]
         try:
-            kwargs = {}
-            if sys.platform != "win32":
-                kwargs["preexec_fn"] = os.setsid
-            self.supersplat_process = subprocess.Popen(
-                cmd,
-                cwd=splat_path,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                **kwargs,
-            )
+            self.runner.start(cmd, env=os.environ.copy(), cwd=str(splat_path))
+            self.supersplat_process = getattr(self.runner, '_process', None)
             self.log(f"SuperSplat démarré sur http://localhost:{port}")
             return True, f"SuperSplat démarré sur http://localhost:{port}"
         except Exception as e:

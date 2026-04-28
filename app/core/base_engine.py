@@ -38,12 +38,11 @@ class SubprocessRunner(IProcessRunner):
         base_kwargs = {
             'stdout': subprocess.PIPE,
             'stderr': subprocess.STDOUT,
-            'universal_newlines': True,
-            'bufsize': 1
+            'text': True,
         }
         base_kwargs.update(kwargs)
         
-        # [AUDIT] Sécurisation du process group pour permettre de kill l'arbre process
+        # Sécurisation du process group pour permettre de kill l'arbre process
         if sys.platform != "win32" and 'preexec_fn' not in base_kwargs:
             base_kwargs['preexec_fn'] = os.setsid
             
@@ -93,7 +92,7 @@ class BaseEngine:
         
         self.logger = logging.getLogger(self.name)
         
-        # [AUDIT] SOLID-DIP : Injection abstraite pour tests (mockable)
+        # SOLID-DIP : Injection abstraite pour tests (mockable)
         self.runner = process_runner or SubprocessRunner()
         self.process = None # Retro-compatibilité temporaire
 
@@ -109,7 +108,7 @@ class BaseEngine:
 
     def _execute_command(self, cmd: list, env: dict = None, line_callback=None, **kwargs) -> int:
         """
-        [AUDIT] GoF-Template Method : Exécution générique centralisée de processus
+        GoF-Template Method : Exécution générique centralisée de processus
         Délègue à l'IProcessRunner injecté, gère la boucle standard et l'annulation.
         Retourne le returncode (0 si succès, -1 si annulé ou erreur).
         """

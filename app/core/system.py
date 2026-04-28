@@ -90,9 +90,8 @@ def check_dependencies():
         missing.append('colmap')
 
     # Check send2trash
-    try:
-        import send2trash  # noqa: F401
-    except ImportError:
+    import importlib.util
+    if importlib.util.find_spec("send2trash") is None:
         missing.append('send2trash')
 
     return missing

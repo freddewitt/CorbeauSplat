@@ -37,7 +37,7 @@ class EngineDependency:
         return resolve_project_root()
 
     def is_enabled_in_config(self, config: dict) -> bool:
-        """[AUDIT] SOLID-OCP : Permet au moteur de decider s'il est actif"""
+        """SOLID-OCP : Permet au moteur de decider s'il est actif"""
         return config.get(f"{self.name}_enabled", True)
 
     def is_installed(self) -> bool:
@@ -156,7 +156,7 @@ class DependencyManager:
         missing_engines_startup = False
         
         for name, engine in self.engines.items():
-            # [AUDIT] OCP : Le moteur decide s'il est active
+            # OCP : Le moteur decide s'il est active
             enabled = engine.is_enabled_in_config(config)
             
             # During --check or --startup, we audit everything. During install, we respect enablement.
@@ -375,7 +375,10 @@ class BrushEngineDep(EngineDependency):
 
         archive_path = self.engines_dir / f"brush-app-{platform_suffix}"
         try:
-            urllib.request.urlretrieve(release_url, str(archive_path))
+            req = urllib.request.Request(release_url)
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                with open(str(archive_path), "wb") as f:
+                    f.write(resp.read())
         except Exception as e:
             print(f"⚠️ Download failed: {e}")
             if archive_path.exists():
@@ -722,9 +725,16 @@ def check_xcode_tools():
 
 def install_rust_toolchain():
     print("Installing Rust (cargo)...")
+    import urllib.request
+    import tempfile
     try:
-        # Install rustup non-interactively
-        subprocess.check_call("curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y", shell=True)
+        rustup_path = Path(tempfile.mkstemp(suffix=".sh")[1])
+        req = urllib.request.Request("https://sh.rustup.rs")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            rustup_path.write_bytes(resp.read())
+        rustup_path.chmod(0o755)
+        subprocess.check_call([str(rustup_path), "-y"])
+        rustup_path.unlink()
         
         # Add to current path for this session
         cargo_bin = Path.home() / ".cargo" / "bin"

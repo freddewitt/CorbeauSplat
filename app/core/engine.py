@@ -83,8 +83,10 @@ class ColmapEngine(BaseEngine):
             return pipeline_result, msg
             
         except Exception as e:
+            self.log(f"Erreur lors de l'exécution du pipeline: {e}")
+            self.logger.error("Exception in pipeline", exc_info=True)
             if self.is_cancelled(): return False, "Arrete par l'utilisateur"
-            return False, str(e)
+            return False, "Une erreur est survenue lors du traitement."
 
     def _validate_and_setup_paths(self) -> Optional[Tuple[Path, Path, Path]]:
         """Valide les chemins d'entrée/sortie et prépare la structure des dossiers."""
@@ -159,7 +161,7 @@ class ColmapEngine(BaseEngine):
                         database_path.with_suffix(".db-wal"),
                         database_path.with_suffix(".db-shm")]:
             if db_file.exists():
-                db_file.unlink()
+                db_file.unlink(missing_ok=True)
                 self.log(f"Base de données précédente supprimée : {db_file.name}")
 
         self.progress(25)
@@ -283,7 +285,12 @@ class ColmapEngine(BaseEngine):
                     if self.is_cancelled(): return False
                     target_path = images_dir / file_path.name
                     if target_path.exists():
-                        target_path = images_dir / f"{file_path.parent.name}_{file_path.name}"
+                        counter = 1
+                        while True:
+                            target_path = images_dir / f"{file_path.parent.name}_{counter}_{file_path.name}"
+                            if not target_path.exists():
+                                break
+                            counter += 1
                         
                     shutil.copy2(file_path, target_path)
                     
@@ -307,10 +314,9 @@ class ColmapEngine(BaseEngine):
         """
         import sqlite3
         try:
-            con = sqlite3.connect(str(database_path))
-            con.execute("PRAGMA journal_mode=DELETE")
-            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            con.close()
+            with sqlite3.connect(str(database_path)) as con:
+                con.execute("PRAGMA journal_mode=DELETE")
+                con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             for wal_file in [database_path.parent / (database_path.name + "-wal"),
                              database_path.parent / (database_path.name + "-shm")]:
                 if wal_file.exists():
@@ -391,15 +397,16 @@ class ColmapEngine(BaseEngine):
 
         self.log(f"Analyse de {len(files)} images...")
 
-        sizes = {}
+        cache = {}
         for f in files:
             if self.is_cancelled():
                 return False
-            img = cv2.imread(str(f), cv2.IMREAD_GRAYSCALE)
+            img = cv2.imread(str(f), cv2.IMREAD_UNCHANGED)
             if img is None:
                 self.log(f"⚠️ Lecture impossible: {f.name}")
                 continue
-            h, w = img.shape
+            h, w = img.shape[:2]
+            cache[f] = img
             sizes[f] = (w, h)
 
         if not sizes:
@@ -421,7 +428,7 @@ class ColmapEngine(BaseEngine):
         for i, (f, _) in enumerate(images_to_resize):
             if self.is_cancelled():
                 return False
-            img = cv2.imread(str(f), cv2.IMREAD_UNCHANGED)
+            img = cache.get(f)
             if img is None:
                 self.log(f"⚠️ Lecture impossible: {f.name}")
                 continue

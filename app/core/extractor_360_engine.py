@@ -98,7 +98,7 @@ class Extractor360Engine(BaseEngine):
             cmd_str,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            universal_newlines=True,
+            text=True,
             env=env,
             cwd=self.extractor_dir # Important for relative paths in script if any
         )

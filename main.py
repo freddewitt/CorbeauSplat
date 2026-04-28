@@ -460,19 +460,16 @@ def _run_sharp_video(args, engine, params):
             if returncode == 0:
                 ply_files = list(frame_out.rglob("*.ply"))
                 if ply_files:
-                    import shutil as _sh
-                    _sh.copy2(ply_files[0], output_dir / f"{frame_path.stem}.ply")
+                    shutil.copy2(ply_files[0], output_dir / f"{frame_path.stem}.ply")
                     success_count += 1
             if frame_out.exists():
-                import shutil as _sh
-                _sh.rmtree(frame_out)
+                shutil.rmtree(frame_out)
     except KeyboardInterrupt:
         print(tr("cli_stopping"))
         engine.stop()
     finally:
         if frames_dir.exists():
-            import shutil as _sh
-            _sh.rmtree(frames_dir)
+            shutil.rmtree(frames_dir)
 
     print(f"Terminé : {success_count}/{total} frames converties.")
     if success_count == 0:

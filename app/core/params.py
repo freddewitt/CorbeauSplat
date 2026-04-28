@@ -1,4 +1,4 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, fields
 
 @dataclass
 class ColmapParams:
@@ -30,6 +30,6 @@ class ColmapParams:
     @classmethod
     def from_dict(cls, data):
         # Filtrer les clés inconnues pour éviter les erreurs si le json est vieux
-        valid_keys = cls.__annotations__.keys()
+        valid_keys = {f.name for f in fields(cls)}
         filtered_data = {k: v for k, v in data.items() if k in valid_keys}
         return cls(**filtered_data)
