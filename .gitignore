@@ -1,0 +1,42 @@
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Application - Engines (Downloaded/Compiled locally)
+engines/
+
+# Application - User Config & Logs
+config.json
+*.log
+
+# IDE
+.idea/
+.vscode/
+.claude/
+
+# Project Specific (Cleanup)
+target/
+.venv_sharp/
+.venv_360/
+.venv_upscale/
+
+# upscayl-ncnn (downloaded at runtime, not committed)
+bin/upscayl-bin
+models/upscayl/*.bin
+models/upscayl/*.param
+*.pth

@@ -1,0 +1,66 @@
+{
+  "version": "2026.1",
+  "project": "CorbeauSplat",
+  "started_at": "2026-04-19T09:05:10+02:00",
+  "last_updated": "2026-04-19T18:30:00+02:00",
+  "overall_status": "COMPLETE",
+  "modules_completed": ["A","B","C","D","E","F","G","H"],
+  "files_processed": [
+    "main.py", "app/core/base_engine.py", "app/core/engine.py",
+    "app/core/brush_engine.py", "app/core/superplat_engine.py",
+    "app/core/four_dgs_engine.py", "app/core/extractor_360_engine.py",
+    "app/core/system.py", "app/core/params.py", "app/core/i18n.py",
+    "app/core/sharp_engine.py", "app/core/upscale_engine.py",
+    "app/gui/base_worker.py", "app/gui/managers.py", "app/gui/workers.py",
+    "app/gui/main_window.py", "app/gui/tabs/config_tab.py",
+    "app/gui/tabs/brush_tab.py", "app/gui/tabs/upscale_tab.py",
+    "app/gui/tabs/sharp_tab.py", "app/gui/tabs/four_dgs_tab.py",
+    "app/gui/tabs/logs_tab.py", "app/gui/tabs/extractor_360_tab.py",
+    "app/gui/tabs/superplat_tab.py", "app/gui/tabs/params_tab.py",
+    "app/scripts/setup_dependencies.py",
+    "app/upscayl_manager.py", "app/upscayl_models.py",
+    "requirements.txt", "run.command"
+  ],
+  "files_pending": [],
+  "findings": {
+    "critical": [
+      {"file": "app/core/extractor_360_engine.py", "description": "tr() NameError runtime → CORRIGÉ"},
+      {"file": "app/gui/managers.py", "description": "shell=True + sys.argv injection restart() → CORRIGÉ"},
+      {"file": "app/gui/managers.py", "description": "shell=True + rm -rf reset_factory() → CORRIGÉ"}
+    ],
+    "major": [
+      {"file": "app/gui/workers.py", "description": "FourDGSWorker.stop() sans super() → CORRIGÉ"},
+      {"file": "app/gui/workers.py", "description": "skip ffmpeg non validé → CORRIGÉ"},
+      {"file": "app/gui/main_window.py", "description": "Détection arrêt via string-matching → CORRIGÉ stopped_by_user"},
+      {"file": "app/gui/tabs/four_dgs_tab.py", "description": "Détection arrêt via string-matching → CORRIGÉ stopped_by_user"},
+      {"file": "app/core/system.py", "description": "psutil absent requirements → CORRIGÉ sysctl"},
+      {"file": "app/core/i18n.py", "description": "bare except × 4 + print() → CORRIGÉ"},
+      {"file": "app/gui/managers.py", "description": "bare except + print() → CORRIGÉ"},
+      {"file": "requirements.txt", "description": "0 dépendance épinglée → CORRIGÉ plages >=X,<Y"}
+    ],
+    "minor": [
+      {"file": "app/scripts/setup_dependencies.py", "description": "7 bare except → CORRIGÉ"},
+      {"file": "app/gui/workers.py", "description": "imports internes, bare except, strings non-tr() → CORRIGÉ"},
+      {"file": "app/gui/base_worker.py", "description": "bare except + import traceback interne → CORRIGÉ"},
+      {"file": "app/gui/main_window.py", "description": "imports dans méthodes, code commenté, string hardcodée → CORRIGÉ"},
+      {"file": "app/gui/tabs/upscale_tab.py", "description": "except Exception → TypeError pour disconnect Qt + import subprocess → CORRIGÉ"},
+      {"file": "app/gui/tabs/brush_tab.py", "description": "import subprocess/os + titres QMessageBox hardcodés → CORRIGÉ"},
+      {"file": "app/gui/tabs/sharp_tab.py", "description": "titre QMessageBox hardcodé → CORRIGÉ"},
+      {"file": "app/gui/tabs/four_dgs_tab.py", "description": "fps non validé, strings hardcodées → CORRIGÉ"},
+      {"file": "app/gui/tabs/logs_tab.py", "description": "string hardcodée + except Exception → OSError → CORRIGÉ"},
+      {"file": "app/gui/tabs/config_tab.py", "description": "comparaison texte traduit → tr(btn_cancel) → CORRIGÉ"},
+      {"file": "app/core/system.py", "description": "import shutil redondant → CORRIGÉ"},
+      {"description": "confirm_delete_dataset ajouté dans 9 locales (fr,en,de,es,it,ja,zh,ru,ar) → CORRIGÉ"},
+      {"description": "btn_cancel ajouté dans fr.json et en.json → CORRIGÉ"}
+    ]
+  },
+  "summary": {
+    "total_findings": 24,
+    "total_fixes_applied": 50,
+    "critical_fixed": 3,
+    "major_fixed": 8,
+    "minor_fixed": 13,
+    "health_score": 9,
+    "files_audited": 30
+  }
+}
