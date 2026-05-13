@@ -6,6 +6,7 @@
 - **COLMAP false update prompt**: Homebrew revision suffixes (e.g., `4.0.4_2`) were not stripped before version comparison, causing a "new version available" prompt on every startup even when COLMAP was up to date. Fixed by normalizing the local version string in `ColmapBrewDep`.
 - **Brush binary argument mismatch**: The pre-compiled Brush binary (v0.3.0) renamed `--total-train-iters` to `--total-steps`, causing a crash when using the release build. `BrushEngine.train()` now selects the correct flag based on the configured `build_mode` (`release` vs `source`).
 - **SuperSplat update failures**: Corrupted `.git` directories and npm optional-dependency bugs (#4828) caused silent install failures. Added `_git_is_own_repo()` validation and `_npm_install()` retry logic with `node_modules` + `package-lock.json` cleanup.
+- **Extractor360Worker crash**: `Extractor360Worker()` was instantiated without required arguments (`input_path`, `output_path`, `params`) in `extractor_360_tab.py`, causing a `TypeError` when running standalone 360° extraction. Fixed by passing all required arguments to the constructor.
 
 ### 🛠 Improvements
 - **Startup update policy**: COLMAP, Sharp, SuperSplat, and Extractor 360 now prompt the user before updating (same pattern as Brush and Glomap), preventing silent background upgrades.
