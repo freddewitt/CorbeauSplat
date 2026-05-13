@@ -1,5 +1,6 @@
 
 import os
+import re
 import sys
 import shutil
 import subprocess
@@ -553,7 +554,11 @@ class ColmapBrewDep(EngineDependency):
                 text=True, stderr=subprocess.DEVNULL
             ).strip()
             parts = out.split()
-            return parts[1] if len(parts) >= 2 else ""
+            if len(parts) >= 2:
+                # Strip Homebrew revision suffix (e.g., 4.0.4_2 → 4.0.4)
+                ver = parts[1]
+                return re.split(r'_\d+$', ver)[0]
+            return ""
         except (subprocess.CalledProcessError, OSError):
             return ""
 

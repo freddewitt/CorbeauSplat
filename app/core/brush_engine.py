@@ -53,7 +53,9 @@ class BrushEngine(BaseEngine):
         # Standard Options
         cmd.extend(["--export-path", str(safe_output)])
         if params.get("total_steps"):
-            cmd.extend(["--total-train-iters", str(params["total_steps"])])
+            # Binary v0.3.0 renamed this flag; source build still uses the old name.
+            steps_arg = "--total-steps" if params.get("build_mode") == "release" else "--total-train-iters"
+            cmd.extend([steps_arg, str(params["total_steps"])])
         if params.get("sh_degree"):
             cmd.extend(["--sh-degree", str(params["sh_degree"])])
         if params.get("with_viewer"):
