@@ -91,11 +91,7 @@ class SuperSplatEngine(BaseEngine):
         """
         self.stop_data_server()
 
-        dir_path = Path(directory).resolve()
-        # Prevent path traversal – only allow directories inside the project root.
-        project_root = resolve_project_root().resolve()
-        if not str(dir_path).startswith(str(project_root)):
-            return False, "Dossier de données hors du répertoire du projet"
+        dir_path = Path(directory).expanduser().resolve()
         if not dir_path.is_dir():
             return False, "Dossier de données introuvable"
 
@@ -117,6 +113,7 @@ class SuperSplatEngine(BaseEngine):
             from functools import partial
             handler = partial(CORSRequestHandler, directory=str(dir_path))
             try:
+                socketserver.TCPServer.allow_reuse_address = True
                 self.httpd = socketserver.TCPServer(("127.0.0.1", port), handler)
                 self.httpd.serve_forever()
             except Exception as e:

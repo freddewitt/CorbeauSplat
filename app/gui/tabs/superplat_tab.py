@@ -8,6 +8,7 @@ from PyQt6.QtCore import pyqtSignal, QTimer
 from app.core.i18n import tr, add_language_observer
 from app.core.superplat_engine import SuperSplatEngine
 from app.gui.widgets.dialog_utils import get_open_file_name
+from urllib.parse import quote
 
 class SuperSplatTab(QWidget):
     """Onglet pour SuperSplat"""
@@ -128,6 +129,8 @@ class SuperSplatTab(QWidget):
                 success_data, msg_data = self.engine.start_data_server(str(directory), self.data_port.value())
                 if not success_data:
                     QMessageBox.warning(self, tr("msg_warning"), f"Erreur Serveur Données: {msg_data}")
+                    self.engine.stop_supersplat()
+                    return
 
         self.is_running = True
         self.btn_start.setText(tr("btn_stop_supersplat", "Arrêter SuperSplat"))
@@ -159,7 +162,7 @@ class SuperSplatTab(QWidget):
                 filename = path.name
                 # URL to data server
                 data_url = f"http://localhost:{self.data_port.value()}/{filename}"
-                params.append(f"load={data_url}")
+                params.append(f"load={quote(data_url, safe=':/')}")
             
         # No UI
         if self.chk_no_ui.isChecked():
