@@ -318,7 +318,6 @@ class ColmapEngine(BaseEngine):
         bundled SQLite cannot handle. This converts it back to the classic
         rollback-journal mode before GLOMAP reads the file.
         """
-        import sqlite3
         try:
             with sqlite3.connect(str(database_path)) as con:
                 con.execute("PRAGMA journal_mode=DELETE")
@@ -647,7 +646,7 @@ class ColmapEngine(BaseEngine):
                     "UPDATE sqlite_sequence SET seq = (SELECT MAX(image_id) FROM images) WHERE name = 'images'"
                 )
                 con.execute(
-                    "UPDATE sqlite_sequence SET seq = (SELECT MAX(frame_id) FROM frames) WHERE name = 'frames'"
+                    "UPDATE sqlite_sequence SET seq = COALESCE((SELECT MAX(frame_id) FROM frames), 0) WHERE name = 'frames'"
                 )
                 con.commit()
                 self.log(f"Base COLMAP retriee pour matching sequentiel: {len(rows)} images")
