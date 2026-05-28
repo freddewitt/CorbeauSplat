@@ -1,3 +1,6 @@
+# Syncthing conflict files
+*.sync-conflict-*
+
 # MacOS
 .DS_Store
 .AppleDouble
