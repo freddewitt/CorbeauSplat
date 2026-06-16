@@ -445,6 +445,25 @@ class BrushEngineDep(EngineDependency):
                 print("❌ cargo still not found after Rust install.")
                 return False
 
+        # Ensure rustc is recent enough (brush deps require ≥ 1.95)
+        rustup = shutil.which("rustup")
+        try:
+            rustc_out = subprocess.check_output(["rustc", "--version"], text=True).strip()
+            # e.g. "rustc 1.94.0 (4a4ef493e 2026-03-02)"
+            parts = rustc_out.split()
+            if len(parts) >= 2:
+                ver_parts = parts[1].split(".")
+                major, minor = int(ver_parts[0]), int(ver_parts[1])
+                if (major, minor) < (1, 95):
+                    print(f"⚠️  {rustc_out} — Brush requires rustc ≥ 1.95. Mise à jour via rustup...")
+                    if rustup:
+                        subprocess.check_call([rustup, "update", "stable"])
+                    else:
+                        print("❌ rustup introuvable. Mettez à jour Rust manuellement : https://rustup.rs")
+                        return False
+        except Exception:
+            pass  # non-blocking: let cargo surface a clearer error if it fails
+
         # Build from HEAD (no --tag), try --locked first then without
         base_cmd = [cargo, "install", "--git", self.repo_url, "brush-app", "--root", str(self.engines_dir)]
         env = os.environ.copy()
