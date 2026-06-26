@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Callable, List, Tuple
 
 from .base_engine import BaseEngine
-from .system import resolve_binary
+from .system import resolve_binary, adapt_max_splats, get_thermal_state
 
 class BrushEngine(BaseEngine):
     """Engine for executing the Brush training pipeline.
@@ -129,6 +129,31 @@ class BrushEngine(BaseEngine):
             raise ValueError("Chemins invalides ou non sécurisés détectés.")
         if not self.brush_bin:
             raise RuntimeError("Exécutable 'brush' non trouvé.")
+
+        # --- Memory & thermal adaptation ---
+        eps = params or {}
+        orig_splats = eps.get("max_splats", 10_000_000)
+        adapted = adapt_max_splats(orig_splats)
+        if adapted < orig_splats:
+            reduction_pct = 100 - int(100 * adapted / max(orig_splats, 1))
+            thermal_state = get_thermal_state()
+            self.log(
+                f"⚠️  Mémoire sous pression (pct={self._mem_pressure():.0f}%, "
+                f"thermique={thermal_state}) — "
+                f"max_splats réduit de {reduction_pct}% "
+                f"({orig_splats:,} → {adapted:,})"
+            )
+            if eps is params:
+                params["max_splats"] = adapted
+            else:
+                params = dict(eps, max_splats=adapted)
+
         cmd, env = self.build_command(str(safe_input), str(safe_output), params)
         self.log(f"Lancement Brush: {' '.join(cmd)}")
         return self._execute_command(cmd, env=env)
+
+    @staticmethod
+    def _mem_pressure() -> float:
+        """Return current memory pressure percentage (0-100)."""
+        from .system import get_memory_info
+        return get_memory_info().get("percent", 0.0)

@@ -42,9 +42,22 @@ class SubprocessRunner(IProcessRunner):
         }
         base_kwargs.update(kwargs)
         
-        # Sécurisation du process group pour permettre de kill l'arbre process
-        if sys.platform != "win32" and 'preexec_fn' not in base_kwargs:
-            base_kwargs['preexec_fn'] = os.setsid
+        # Sécurisation du process group + nice value pour tâches compute
+        # os.nice(10) sur macOS donne une priorité "background" au sous-processus :
+        #   - Le scheduler préfère les E-cores aux P-cores
+        #   - Le throttling thermique est plus agressif
+        #   - L'UI reste réactive même pendant COLMAP/Brush/Sharp
+        if sys.platform != "win32":
+            def _preexec_with_nice():
+                """Setup child process: new session group + background priority."""
+                try:
+                    os.setsid()
+                    # nice=10 → background priority (E-core preference on AS)
+                    os.nice(10)
+                except OSError:
+                    pass  # non-critical, continue
+
+            base_kwargs['preexec_fn'] = _preexec_with_nice
             
         self._process = subprocess.Popen(cmd, env=env, **base_kwargs)
         return self._process
@@ -83,18 +96,72 @@ class BaseEngine:
     """
     Base class for all engines to consolidate common logic.
     """
+    _THERMAL_CHECK_INTERVAL = 30  # seconds between thermal state checks
+
     def __init__(self, name, logger_callback=None, process_runner: IProcessRunner = None):
         self.name = name
         self.logger_callback = logger_callback
         self.device = get_device()
         self.project_root = resolve_project_root()
         self.stop_requested = False
-        
+        self._last_thermal_check = 0.0
+
+        # If thermal state is already serious at init time, warn immediately
+        self._check_initial_thermal()
+
         self.logger = logging.getLogger(self.name)
         
         # SOLID-DIP : Injection abstraite pour tests (mockable)
         self.runner = process_runner or SubprocessRunner()
         self.process = None # Retro-compatibilité temporaire
+
+    def _check_initial_thermal(self):
+        """Log a warning if thermal state is already degraded at startup."""
+        try:
+            from .system import get_thermal_state
+            state = get_thermal_state()
+            if state in ("serious", "critical"):
+                self.log(
+                    f"⚠️  État thermique {state.upper()} au démarrage — "
+                    f"les performances seront réduites.",
+                    level=logging.WARNING
+                )
+        except Exception:
+            pass
+
+    def _check_thermal_abort(self) -> bool:
+        """Periodic thermal watchdog — checks state and returns True to abort.
+
+        Called from _execute_command every _THERMAL_CHECK_INTERVAL seconds.
+        If thermal state is critical, sets stop_requested and returns True.
+        """
+        import time
+        now = time.monotonic()
+        if now - self._last_thermal_check < self._THERMAL_CHECK_INTERVAL:
+            return False
+        self._last_thermal_check = now
+
+        try:
+            from .system import get_thermal_state
+            state = get_thermal_state()
+            if state == "critical":
+                self.log(
+                    "🔥 État thermique CRITIQUE — arrêt de la tâche en cours. "
+                    "Laissez l'ordinateur refroidir avant de relancer.",
+                    level=logging.WARNING
+                )
+                self.stop_requested = True
+                self.runner.terminate()
+                return True
+            elif state in ("serious", "fair"):
+                self.log(
+                    f"🌡️  État thermique: {state.upper()} — "
+                    f"sous-processus en cours, attendez le refroidissement.",
+                    level=logging.WARNING
+                )
+        except Exception:
+            pass
+        return False
 
     def log(self, message, level=logging.INFO):
         self.logger.log(level, message)
@@ -111,6 +178,9 @@ class BaseEngine:
         GoF-Template Method : Exécution générique centralisée de processus
         Délègue à l'IProcessRunner injecté, gère la boucle standard et l'annulation.
         Retourne le returncode (0 si succès, -1 si annulé ou erreur).
+        
+        Inclut un watchdog thermique qui interrompt la tâche si l'état
+        thermique Apple Silicon passe à "critical".
         """
         if self.stop_requested: return -1
         
@@ -122,6 +192,10 @@ class BaseEngine:
             for line in self.runner.stdout_iter():
                 if self.stop_requested:
                     self.runner.terminate()
+                    return -1
+                
+                # Thermal watchdog every N seconds
+                if self._check_thermal_abort():
                     return -1
                 
                 stripped = line.strip()

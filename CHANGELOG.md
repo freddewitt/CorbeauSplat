@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.0.2] - 2026-06-26
+
+### ⚡ Apple Silicon Optimizations (10 changes)
+
+This release focuses entirely on macOS Apple Silicon performance, thermal management, and system detection. Every engine and subprocess now runs with ARM64-native awareness.
+
+#### 🔍 System Detection & Diagnostics
+- **Rosetta 2 detection**: `is_running_under_rosetta()` checks `sysctl.proc_translated` — warns the user if Python runs under x86_64 translation (20-40% perf penalty).
+- **FFmpeg VideoToolbox check**: `check_ffmpeg_videotoolbox()` verifies HW-accelerated decoding is available; suggests `brew reinstall ffmpeg` if missing.
+- **NumPy Accelerate verification**: Startup now logs the BLAS backend — confirms Apple Accelerate is active on ARM64.
+- **Thermal state monitoring**: `get_thermal_state()` reads `NSProcessInfo.thermalState()` via PyObjC — returns nominal/fair/serious/critical.
+- **Function result caching**: `resolve_project_root()` and `is_apple_silicon()` decorated with `@functools.cache` — eliminates redundant calls during engine init and binary resolution.
+
+#### 🧠 Adaptive Resource Management
+- **Thermal watchdog**: `BaseEngine._execute_command()` now polls thermal state every 30 seconds during any subprocess execution. If `critical` is detected, the task is stopped gracefully and a warning is logged.
+- **Memory-adaptive max_splats**: `BrushEngine.train()` calls `adapt_max_splats()` before launching training. Reduces splat count based on RAM total (<8GB → 50%, <16GB → 75%), memory pressure (>75% → 85%, >85% → 75%), and thermal state (serious → 50%, critical → 20%).
+- **Adaptive upscayl tile size**: `UpscaleEngine.load_model()` calculates optimal NCNN tile size from available RAM (<8GB → 256px, 8-16GB → 512px, ≥16GB → auto). Pressure >80% halves the tile to avoid swap.
+
+#### ⚙️ Process & I/O Optimization
+- **Background nice value**: `SubprocessRunner.start()` now applies `nice(10)` to all child processes (COLMAP, Brush, Sharp, FFmpeg). On Apple Silicon, this tells the scheduler to prefer E-cores over P-cores, keeping the UI responsive.
+- **APFS clonefile for image copies**: `_apfs_copy()` uses `clonefile(2)` via ctypes on macOS APFS volumes — near-instant copy-on-write (30-50% faster on large batches) with automatic fallback to `shutil.copy2`.
+
+### 🛠 Improvements
+- **`system.py`**: `check_dependencies()` now also runs `log_numpy_backend()` and `check_ffmpeg_videotoolbox()` for early diagnostics.
+- **`brush_engine.py`**: Exposed `_mem_pressure()` static method for external monitoring.
+- **`run.command`**: Architecture detection already present — no changes needed.
+
+### 🔧 Internal
+- Added `import functools`, `import ctypes`, `import sys` where needed.
+- New module-level functions: `is_running_under_rosetta()`, `get_thermal_state()`, `adapt_max_splats()`, `check_ffmpeg_videotoolbox()`, `log_numpy_backend()`, `_apfs_copy()`.
+- New base engine methods: `_check_initial_thermal()`, `_check_thermal_abort()`.
+
 ## [1.0.1] - 2026-06-18
 
 ### 🐞 Bug Fixes

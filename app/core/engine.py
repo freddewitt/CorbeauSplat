@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import send2trash
 import platform
@@ -13,6 +14,49 @@ from .system import is_apple_silicon, get_optimal_threads, resolve_binary
 from .i18n import tr
 
 _IMAGE_EXTS = {'.jpg', '.jpeg', '.png'}
+
+# macOS 10.13+ APFS supports instant file clones via clonefile(2).
+# On APFS volumes, clonefile creates a copy-on-write reflink — near-instant
+# regardless of file size, with no additional disk space until the copy is
+# modified.  Fall back to shutil.copy2 on non-APFS or non-macOS systems.
+_CLONEFILE_SUPPORTED = False
+_CLONEFILE_FUNC = None
+
+if sys.platform == "darwin":
+    try:
+        import ctypes
+        _libc = ctypes.CDLL("libSystem.B.dylib")
+        _clonefile = _libc.clonefile
+        _clonefile.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+        _clonefile.restype = ctypes.c_int
+        # Quick check: call clonefile with a non-existent src to verify
+        # the symbol exists (expected to fail with ENOENT, not ENOSYS)
+        _clonefile(b"/nonexistent/path", b"/tmp/test_clone", 0)
+    except (AttributeError, OSError, ctypes.CDLLError):
+        _clonefile = None
+    else:
+        _CLONEFILE_SUPPORTED = True
+        _CLONEFILE_FUNC = _clonefile
+
+
+def _apfs_copy(src: Path, dst: Path) -> None:
+    """Copy *src* to *dst*, using APFS clonefile when available.
+
+    On macOS APFS volumes, this is near-instant (copy-on-write reflink).
+    Falls back to :func:`shutil.copy2` on other filesystems or platforms.
+    Preserves metadata (timestamps, permissions) in both paths.
+    """
+    if _CLONEFILE_FUNC is not None:
+        try:
+            _CLONEFILE_FUNC(str(src).encode(), str(dst).encode(), 0)
+            # clonefile does not preserve metadata by itself
+            shutil.copystat(str(src), str(dst))
+            return
+        except OSError:
+            # clonefile may fail cross-device, on non-APFS volumes, or for
+            # other kernel-level reasons — fall through to copy2 silently.
+            pass
+    shutil.copy2(str(src), str(dst))
 
 
 def _first_available_model() -> str:
@@ -298,7 +342,7 @@ class ColmapEngine(BaseEngine):
                                 break
                             counter += 1
                         
-                    shutil.copy2(file_path, target_path)
+                    _apfs_copy(file_path, target_path)
                     
                     if i % 10 == 0 or i == total_files - 1:
                         p = 5 + int((i / total_files) * 15)

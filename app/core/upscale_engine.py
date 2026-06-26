@@ -32,6 +32,13 @@ class UpscaleEngine(BaseEngine):
                    compression=0) -> dict | None:
         """Returns a params dict used by upscale_image/upscale_folder.
         Adjusts the model_id to match the requested scale when possible.
+
+        If *tile* is 0 (auto-detect), the tile size is adapted to available
+        system memory to avoid swapping on low-RAM Apple Silicon systems:
+          - < 8 GB total  → tile=256 (conservative)
+          - 8-16 GB total  → tile=512 (balanced)
+          - ≥ 16 GB total  → tile=0   (let upscayl-bin decide)
+        Memory pressure > 80% reduces tile by one step.
         """
         if not self.is_installed():
             self.log("upscayl-bin not found.")
@@ -44,6 +51,37 @@ class UpscaleEngine(BaseEngine):
             # The actual model may not exist; we keep the original if the candidate
             # is not found later by upscayl-bin, but we prefer the adjusted one.
             model_id = candidate
+
+        # --- Adaptive tile size based on available RAM ---
+        if tile == 0:
+            from .system import get_memory_info, is_apple_silicon
+            mem = get_memory_info()
+            total_gb = mem.get("total", 0) / (1024 ** 3)
+            pressure = mem.get("percent", 0.0)
+
+            if total_gb < 8:
+                tile = 256
+            elif total_gb < 16:
+                tile = 512
+            else:
+                tile = 0  # plenty of RAM — let upscayl-bin decide
+
+            # Under high memory pressure, reduce tile to avoid swap
+            if tile > 0 and pressure > 80:
+                tile = max(128, tile // 2)
+                self.log(
+                    f"⚠️ Mémoire sous pression ({pressure}%) — "
+                    f"tile réduit à {tile}px pour éviter le swap."
+                )
+
+            if tile > 0:
+                self.log(
+                    f"🧠 {total_gb:.0f} Go RAM — tile adaptatif : {tile}px "
+                    f"(pression mémoire: {pressure}%)"
+                )
+            else:
+                self.log(f"🧠 {total_gb:.0f} Go RAM — tile laissé en auto (0)")
+
         return {
             "model_id": model_id, "scale": scale,
             "output_format": output_format, "tile": tile,
