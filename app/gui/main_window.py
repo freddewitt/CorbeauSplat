@@ -169,7 +169,9 @@ class ColmapGUI(QMainWindow):
             params.ba_refine_extra_params = False
             params.ba_refine_principal_point = False
             params.multiple_models = True
-            params.filter_blurry = True
+            # NB: robust mode only pre-ticks the blur filter (see config_tab
+            # _on_robust_toggled); it does NOT force it, so unchecking the blur
+            # filter is respected.
         return params
 
     def get_upscale_config(self):
