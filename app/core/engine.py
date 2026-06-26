@@ -5,6 +5,7 @@ import platform
 import shutil
 import sqlite3
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -400,30 +401,39 @@ class ColmapEngine(BaseEngine):
             return
 
         total = len(files)
-        self.log(f"Analyse de la netteté de {total} images...")
-        scores = {}
-        for i, f in enumerate(files):
-            if self.is_cancelled():
-                return
+        self.log(f"Analyse de la netteté de {total} images sur {self.num_threads} threads...")
+
+        def _score_one(f):
+            # cv2 releases the GIL during imread/resize/Laplacian, so threading
+            # scales well. Downscaling to ≤640px preserves the relative ranking.
             img = cv2.imread(str(f), cv2.IMREAD_GRAYSCALE)
             if img is None:
-                continue
-            # Downscale large images before the Laplacian — the relative sharpness
-            # ranking is preserved and this is ~10x faster on full-res frames.
+                return f, None
             h, w = img.shape[:2]
             longest = max(h, w)
             if longest > 640:
                 s = 640.0 / longest
                 img = cv2.resize(img, (max(1, int(w * s)), max(1, int(h * s))),
                                  interpolation=cv2.INTER_AREA)
-            scores[f] = float(cv2.Laplacian(img, cv2.CV_64F).var())
+            return f, float(cv2.Laplacian(img, cv2.CV_64F).var())
 
-            done = i + 1
-            if done % 100 == 0 or done == total:
-                self.status(f"Analyse netteté : {done}/{total}")
-                self.progress(int(done / total * 100))
-                if done % 500 == 0 or done == total:
-                    self.log(f"  netteté analysée : {done}/{total}")
+        scores = {}
+        done = 0
+        with ThreadPoolExecutor(max_workers=max(2, self.num_threads)) as ex:
+            futures = [ex.submit(_score_one, f) for f in files]
+            for fut in as_completed(futures):
+                if self.is_cancelled():
+                    ex.shutdown(cancel_futures=True)
+                    return
+                f, sc = fut.result()
+                if sc is not None:
+                    scores[f] = sc
+                done += 1
+                if done % 200 == 0 or done == total:
+                    self.status(f"Analyse netteté : {done}/{total}")
+                    self.progress(int(done / total * 100))
+                    if done % 1000 == 0 or done == total:
+                        self.log(f"  netteté analysée : {done}/{total}")
 
         rejected, threshold = select_blurry_files(scores, factor)
         if not rejected:
