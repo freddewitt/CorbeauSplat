@@ -289,7 +289,20 @@ class ColmapEngine(BaseEngine):
                 self.log(f"{total_files} images trouvées.")
 
                 if total_files == 0:
-                    return True
+                    # Allow re-runs where the working folder is already populated.
+                    already_present = images_dir.exists() and any(
+                        f.is_file() and f.suffix.lower() in _IMAGE_EXTS
+                        for f in images_dir.iterdir()
+                    )
+                    if already_present:
+                        self.log("Aucune nouvelle image à copier — images déjà présentes, on continue.")
+                        return True
+                    self.log(
+                        f"❌ Aucune image trouvée dans l'entrée : {self.input_path}\n"
+                        f"   Sélectionnez un dossier contenant des images (.jpg/.jpeg/.png), "
+                        f"ou choisissez le mode Vidéo si l'entrée est une vidéo."
+                    )
+                    return False
 
                 for i, file_path in enumerate(src_files):
                     if self.is_cancelled(): return False
@@ -566,8 +579,10 @@ class ColmapEngine(BaseEngine):
             '--SiftExtraction.max_num_features', str(self.params.max_num_features),
             '--SiftExtraction.estimate_affine_shape', '1' if self.params.estimate_affine_shape else '0',
             '--SiftExtraction.domain_size_pooling', '1' if self.params.domain_size_pooling else '0',
-            '--SiftExtraction.use_gpu', '1' if self.has_cuda else '0',
         ]
+        # NOTE: a CUDA-enabled COLMAP uses the GPU for SIFT by default. We don't
+        # pass --SiftExtraction.use_gpu because some COLMAP builds (e.g. 4.x)
+        # reject that option name; the GPU is still used automatically.
         if image_list_path:
             cmd.extend(['--image_list_path', str(image_list_path)])
         return self.run_command(cmd, "Extraction des features", status_prefix="Analyse")
@@ -690,7 +705,6 @@ class ColmapEngine(BaseEngine):
                 '--SiftMatching.max_distance', str(self.params.max_distance),
                 '--SiftMatching.cross_check', '1' if self.params.cross_check else '0',
                 '--FeatureMatching.guided_matching', '1' if self.params.guided_matching else '0',
-                '--SiftMatching.use_gpu', '1' if self.has_cuda else '0',
                 '--SequentialMatching.overlap', str(self.params.sequential_overlap),
                 '--SequentialMatching.quadratic_overlap', '1',
             ]
@@ -704,7 +718,6 @@ class ColmapEngine(BaseEngine):
                 '--SiftMatching.max_distance', str(self.params.max_distance),
                 '--SiftMatching.cross_check', '1' if self.params.cross_check else '0',
                 '--FeatureMatching.guided_matching', '1' if self.params.guided_matching else '0',
-                '--SiftMatching.use_gpu', '1' if self.has_cuda else '0',
             ]
             description = "Matching Exhaustif"
 
