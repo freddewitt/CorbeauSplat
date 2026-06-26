@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """CLI command handlers for CorbeauSplat."""
-import sys
 import os
+import sys
 import time
 from pathlib import Path as _Path
 
+from app.core.brush_engine import BrushEngine
+from app.core.engine import ColmapEngine
 from app.core.i18n import tr
 from app.core.params import ColmapParams
-from app.core.engine import ColmapEngine
-from app.core.brush_engine import BrushEngine
 from app.core.superplat_engine import SuperSplatEngine
 from app.core.system import get_brush_build_mode
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Brush defaults and presets
@@ -31,6 +30,9 @@ BRUSH_DEFAULTS = {
     "with_viewer": False,
     "refine_mode": False,
 }
+
+_BLUR_FACTORS = {"light": 0.5, "medium": 0.7, "strong": 0.85}
+
 
 BRUSH_PRESETS = {
     "fast": {
@@ -75,6 +77,8 @@ def run_colmap(args):
         matcher_type=args.matcher_type,
         undistort_images=args.undistort,
         use_glomap=args.use_glomap,
+        filter_blurry=args.filter_blur,
+        blur_factor=_BLUR_FACTORS.get(args.blur_strength, 0.7),
     )
 
     print(tr("cli_start_colmap"))
@@ -335,6 +339,8 @@ def run_pipeline(args):
         max_image_size=args.max_image_size,
         undistort_images=args.undistort,
         use_glomap=args.use_glomap,
+        filter_blurry=args.filter_blur,
+        blur_factor=_BLUR_FACTORS.get(args.blur_strength, 0.7),
     )
 
     colmap_engine = ColmapEngine(

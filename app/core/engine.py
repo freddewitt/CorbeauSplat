@@ -26,6 +26,29 @@ def _first_available_model() -> str:
     except Exception:
         return ""
 
+
+def select_blurry_files(scores: dict, factor: float, max_remove_frac: float = 0.5):
+    """Selects which files to discard as too blurry.
+
+    A file is blurry if its sharpness score (variance of Laplacian) is below
+    ``factor × median(scores)``. To avoid gutting the dataset, never removes
+    more than ``max_remove_frac`` of the files (keeps the sharpest of the
+    candidates if the cap is exceeded).
+
+    Returns (rejected_files: list, threshold: float).
+    """
+    import statistics
+    if not scores or factor <= 0:
+        return [], 0.0
+    median = statistics.median(scores.values())
+    threshold = median * factor
+    rejected = [f for f, s in scores.items() if s < threshold]
+    cap = int(len(scores) * max_remove_frac)
+    if len(rejected) > cap:
+        rejected = sorted(rejected, key=lambda f: scores[f])[:cap]
+    return rejected, threshold
+
+
 class ColmapEngine(BaseEngine):
     """Moteur d'exécution COLMAP indépendant de l'interface graphique"""
 
@@ -142,6 +165,12 @@ class ColmapEngine(BaseEngine):
         self.status(tr("status_prep_images", "Préparation des visuels..."))
         if not self._prepare_images(images_dir):
             return False
+
+        # Discard blurry frames before reconstruction (best on the raw frames,
+        # i.e. before upscaling). Optional and never fatal.
+        if getattr(self.params, 'filter_blurry', False):
+            self.status(tr("status_blur_filter", "Filtrage des images floues..."))
+            self._filter_blurry_images(images_dir, getattr(self.params, 'blur_factor', 0.7))
 
         upscale_conf = getattr(self, 'upscale_config', None)
         if upscale_conf and upscale_conf.get("active", False):
@@ -346,6 +375,57 @@ class ColmapEngine(BaseEngine):
             self.log("Base de données convertie (WAL → DELETE) pour compatibilité GLOMAP.")
         except Exception as e:
             self.log(f"Avertissement : conversion journal mode échouée : {e}")
+
+    def _filter_blurry_images(self, images_dir: Path, factor: float) -> None:
+        """Move blurry frames out of images_dir (sharpness = variance of Laplacian).
+
+        Rejected frames are moved to a sibling ``images_blurry`` folder rather
+        than deleted, so they can be inspected/restored. Never fatal.
+        """
+        self.log(f"\n{'='*60}\nFiltrage des images floues\n{'='*60}")
+        try:
+            import cv2
+        except ImportError:
+            self.log("⚠️ OpenCV non disponible — filtrage du flou ignoré "
+                     "(installez opencv-python-headless pour l'activer).")
+            return
+
+        files = sorted(
+            f for f in images_dir.iterdir()
+            if f.is_file() and f.suffix.lower() in _IMAGE_EXTS
+            and not f.name.lower().endswith('.mask.png')
+        )
+        if len(files) < 10:
+            self.log(f"Trop peu d'images ({len(files)}) — filtrage du flou ignoré.")
+            return
+
+        scores = {}
+        for f in files:
+            if self.is_cancelled():
+                return
+            img = cv2.imread(str(f), cv2.IMREAD_GRAYSCALE)
+            if img is None:
+                continue
+            scores[f] = float(cv2.Laplacian(img, cv2.CV_64F).var())
+
+        rejected, threshold = select_blurry_files(scores, factor)
+        if not rejected:
+            self.log(f"Aucune image floue détectée (seuil de netteté ≈ {threshold:.0f}).")
+            return
+
+        rejected_dir = images_dir.parent / "images_blurry"
+        rejected_dir.mkdir(parents=True, exist_ok=True)
+        moved = 0
+        for f in rejected:
+            try:
+                shutil.move(str(f), str(rejected_dir / f.name))
+                moved += 1
+            except OSError as e:
+                self.log(f"⚠️ Impossible de déplacer {f.name}: {e}")
+        self.log(
+            f"🔪 Filtre flou : {moved}/{len(files)} images écartées vers "
+            f"'images_blurry' (seuil de netteté ≈ {threshold:.0f})."
+        )
 
     def _run_upscale(self, project_dir: Path, images_dir: Path) -> bool:
         """Gère l'upscaling via upscayl-bin."""

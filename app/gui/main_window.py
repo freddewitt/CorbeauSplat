@@ -1,30 +1,25 @@
-import os
-import sys
-import json
 from pathlib import Path
-from app.gui.managers import SessionManager, AppLifecycle
-from app.core.system import resolve_project_root
-from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, QFileDialog, QApplication, QLabel
-)
-from PyQt6.QtGui import QColor
-from PyQt6.QtCore import Qt
-from app.core.params import ColmapParams
-from app.core.engine import ColmapEngine
-from app.core.i18n import tr, add_language_observer
 
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QTabWidget, QVBoxLayout, QWidget
+
+from app import VERSION
+from app.core.engine import ColmapEngine
+from app.core.i18n import add_language_observer, tr
+from app.gui.managers import AppLifecycle, SessionManager
 from app.gui.styles import set_dark_theme
-from app.gui.tabs.config_tab import ConfigTab
-from app.gui.tabs.params_tab import ParamsTab
-from app.gui.tabs.logs_tab import LogsTab
 from app.gui.tabs.brush_tab import BrushTab
+from app.gui.tabs.config_tab import ConfigTab
+from app.gui.tabs.export_tab import ExportTab
+from app.gui.tabs.extractor_360_tab import Extractor360Tab
+from app.gui.tabs.four_dgs_tab import FourDGSTab
+from app.gui.tabs.logs_tab import LogsTab
+from app.gui.tabs.params_tab import ParamsTab
 from app.gui.tabs.superplat_tab import SuperSplatTab
 from app.gui.tabs.upscale_tab import UpscaleTab
-from app.gui.tabs.four_dgs_tab import FourDGSTab
-from app.gui.tabs.extractor_360_tab import Extractor360Tab
-from app.gui.tabs.export_tab import ExportTab
-from app.gui.workers import ColmapWorker, BrushWorker, FourDGSWorker
-from app import VERSION
+from app.gui.workers import BrushWorker, ColmapWorker, FourDGSWorker
+
 
 class ColmapGUI(QMainWindow):
     def __init__(self):
@@ -33,26 +28,26 @@ class ColmapGUI(QMainWindow):
         self.brush_worker = None
 
         self.session_manager = SessionManager(self)
-        
+
         self.init_ui()
         set_dark_theme(QApplication.instance())
         add_language_observer(self.retranslate_ui)
         self.session_manager.load()
-        
+
 
 
     def init_ui(self):
         """Initialise l'interface"""
         self.setWindowTitle(tr("app_title"))
         self.setGeometry(100, 100, 1000, 800)
-        
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        
+
         self.tabs = QTabWidget()
         main_layout.addWidget(self.tabs)
-        
+
         # Init Tabs — order: Entraînement, Brush, SuperSplat, ML Sharp,
         #                    4DGS, 360 Extractor, Upscale, Params COLMAP, Logs
         self.config_tab = ConfigTab()
@@ -81,13 +76,13 @@ class ColmapGUI(QMainWindow):
 
         self.logs_tab = LogsTab()
         self.tabs.addTab(self.logs_tab, tr("tab_logs"))
-        
+
         # Discreet Version Label (Status Bar)
         version_label = QLabel(f"v{VERSION}")
         version_label.setStyleSheet("color: #666666; font-size: 10px; padding: 2px;")
         self.statusBar().addPermanentWidget(version_label)
         self.statusBar().setStyleSheet("background-color: transparent;")
-        
+
         # Connect signals
         self.config_tab.processRequested.connect(self.process)
         self.config_tab.stopRequested.connect(self.stop_process)
@@ -95,7 +90,7 @@ class ColmapGUI(QMainWindow):
         self.config_tab.quitRequested.connect(self.close)
         self.config_tab.relaunchRequested.connect(self.restart_application)
         self.config_tab.resetRequested.connect(self.reset_factory)
-        
+
         self.brush_tab.trainRequested.connect(self.train_brush)
         self.brush_tab.stopRequested.connect(self.stop_brush)
         self.brush_tab.restartRequested.connect(self.restart_application)
@@ -108,7 +103,7 @@ class ColmapGUI(QMainWindow):
     def retranslate_ui(self):
         """Update window title and tab names when language changes"""
         self.setWindowTitle(tr("app_title"))
-        
+
         # Tabs are identified by index, but we can match them with our members
         tab_names = {
             self.config_tab: tr("tab_config"),
@@ -121,12 +116,12 @@ class ColmapGUI(QMainWindow):
             self.extractor_360_tab: tr("tab_360"),
             self.logs_tab: tr("tab_logs")
         }
-        
+
         for i in range(self.tabs.count()):
             widget = self.tabs.widget(i)
             if widget in tab_names:
                 self.tabs.setTabText(i, tab_names[widget])
-        
+
         # Re-apply styling (colors etc) as setTabText might reset them in some Qt versions
         self.apply_tab_styling()
 
@@ -140,11 +135,11 @@ class ColmapGUI(QMainWindow):
             self.extractor_360_tab,
             self.logs_tab
         ]
-        
+
         tab_bar = self.tabs.tabBar()
         # Light gray text for secondary/option tabs
-        secondary_color = QColor("#aaaaaa") 
-        
+        secondary_color = QColor("#aaaaaa")
+
         for i in range(self.tabs.count()):
             widget = self.tabs.widget(i)
             if widget in secondary_tabs:
@@ -152,11 +147,13 @@ class ColmapGUI(QMainWindow):
             else:
                 # Keep main tabs (Params, Brush, SuperSplat) in bright white
                 tab_bar.setTabTextColor(i, Qt.GlobalColor.white)
-        
+
     def get_current_params(self):
         """Récupère les paramètres actuels de l'onglet params et ajoute ceux de config"""
         params = self.params_tab.get_params()
         params.undistort_images = self.config_tab.get_undistort()
+        params.filter_blurry = self.config_tab.get_blur_filter()
+        params.blur_factor = self.config_tab.get_blur_factor()
         return params
 
     def get_upscale_config(self):
@@ -170,20 +167,20 @@ class ColmapGUI(QMainWindow):
         params = self.extractor_360_tab.get_params()
         params["enabled"] = (self.config_tab.get_training_mode() == "360")
         return params
-        
+
     def process(self):
         """Lance le traitement en fonction du mode sélectionné"""
         input_path = self.config_tab.get_input_path()
         output_path = self.config_tab.get_output_path()
-        
+
         if not input_path or not output_path:
             QMessageBox.critical(self, tr("msg_error"), tr("err_no_paths"))
             return
-            
+
         mode = self.config_tab.get_training_mode()
         self.config_tab.set_processing_state(True)
         self.logs_tab.clear_log()
-        
+
         if mode == "gsplat":
             self.logs_tab.append_log(tr("msg_processing") + " (Gsplat)")
             self.worker = ColmapWorker(
@@ -199,12 +196,12 @@ class ColmapGUI(QMainWindow):
             self.worker.status_signal.connect(self.config_tab.lbl_status.setText)
             self.worker.finished_signal.connect(self.on_finished)
             self.worker.start()
-            
+
         elif mode == "360":
             self.logs_tab.append_log(tr("msg_processing") + " (360 Extractor)")
             ext_params = self.extractor_360_tab.get_params()
             ext_params["enabled"] = True
-            
+
             self.worker = ColmapWorker(
                 self.get_current_params(),
                 input_path, output_path, "video",
@@ -218,7 +215,7 @@ class ColmapGUI(QMainWindow):
             self.worker.status_signal.connect(self.config_tab.lbl_status.setText)
             self.worker.finished_signal.connect(self.on_finished)
             self.worker.start()
-            
+
         elif mode == "4dgs":
             self.logs_tab.append_log(tr("msg_processing") + " (4DGS)")
             self.fourdgs_worker = FourDGSWorker(input_path, output_path, self.config_tab.get_fps())
@@ -227,26 +224,26 @@ class ColmapGUI(QMainWindow):
             self.fourdgs_worker.status_signal.connect(self.config_tab.lbl_status.setText)
             self.fourdgs_worker.finished_signal.connect(self.on_finished)
             self.fourdgs_worker.start()
-            
+
     def stop_process(self):
         """Arrête le processus en cours"""
         if (self.worker and self.worker.isRunning()) or \
            (hasattr(self, 'fourdgs_worker') and self.fourdgs_worker and self.fourdgs_worker.isRunning()):
-            
+
             reply = QMessageBox.question(
                 self, tr("msg_warning"), tr("confirm_stop"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
-            
+
             if reply == QMessageBox.StandardButton.Yes:
                 self.logs_tab.append_log(tr("msg_stopping"))
                 if self.worker and self.worker.isRunning(): self.worker.stop()
                 if hasattr(self, 'fourdgs_worker') and self.fourdgs_worker and self.fourdgs_worker.isRunning(): self.fourdgs_worker.stop()
-        
+
     def on_finished(self, success, message):
         """Fin du traitement"""
         self.config_tab.set_processing_state(False)
-        
+
         if success:
             self.logs_tab.append_log(tr("msg_success"))
             if self.config_tab.get_auto_brush():
@@ -258,26 +255,26 @@ class ColmapGUI(QMainWindow):
         else:
             if not (self.worker and self.worker.stopped_by_user):
                 QMessageBox.warning(self, tr("msg_error"), f"{tr('msg_error')}:\n{message}")
-            
+
     def delete_dataset(self):
         """Supprime le contenu d'un dataset existant"""
         output_dir_str = self.config_tab.get_output_path()
         project_name = self.config_tab.get_project_name()
-        
+
         if not output_dir_str:
             QMessageBox.warning(self, tr("msg_warning"), tr("err_no_paths"))
             return
-        
+
         output_dir = Path(output_dir_str)
         # 1. Target: output_dir/project_name
         target_path = output_dir / project_name
-        
+
         # 2. Fallback: output_dir (if user pointed directly to it)
         # We check if it looks like a dataset
         if not target_path.exists():
             if (output_dir / "database.db").exists() or (output_dir / "sparse").exists():
                 target_path = output_dir
-        
+
         if not target_path.exists():
             QMessageBox.information(self, "Info", tr("err_path_not_exists"))
             return
@@ -288,7 +285,7 @@ class ColmapGUI(QMainWindow):
             (target_path / "sparse").exists() or
             (target_path / "images").exists()
         )
-        
+
         if not has_dataset:
             reply = QMessageBox.question(
                 self, tr("msg_warning"),
@@ -301,7 +298,7 @@ class ColmapGUI(QMainWindow):
                 tr("confirm_delete_dataset", str(target_path)),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
-            
+
         if reply == QMessageBox.StandardButton.Yes:
             try:
                 success, msg = ColmapEngine.delete_project_content(target_path)
@@ -312,20 +309,20 @@ class ColmapGUI(QMainWindow):
                     QMessageBox.critical(self, tr("msg_error"), f"Erreur: {msg}")
             except Exception as e:
                 QMessageBox.critical(self, tr("msg_error"), f"Impossible de supprimer le dataset:\n{str(e)}")
-                
+
     def train_brush(self, force_auto=False):
         """Lance l'entrainement Brush"""
         brush_params = self.brush_tab.get_params()
         project_name = self.config_tab.get_project_name()
-        
+
         if not force_auto and brush_params.get("independent"):
             # Mode Indépendant
             input_path_str = brush_params.get("input_path")
-            
+
             if not input_path_str:
                  QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier Dataset valide.")
                  return
-                 
+
             input_path = Path(input_path_str)
             if not input_path.exists():
                  QMessageBox.critical(self, tr("msg_error"), "Veuillez selectionner un dossier Dataset valide.")
@@ -338,50 +335,50 @@ class ColmapGUI(QMainWindow):
             else:
                 output_path = input_path / "checkpoints"
             output_path.mkdir(parents=True, exist_ok=True)
-            
+
         else:
             # Mode Automatique (via Colmap output)
             colmap_out_root_str = self.config_tab.get_output_path()
-            
+
             if not colmap_out_root_str:
                  QMessageBox.critical(self, tr("msg_error"), "Le dossier de sortie racine n'existe pas.")
                  return
-            
+
             colmap_out_root = Path(colmap_out_root_str)
             if not colmap_out_root.exists():
                  QMessageBox.critical(self, tr("msg_error"), "Le dossier de sortie racine n'existe pas.")
                  return
-                 
+
             # Le dataset est dans root/project_name
             dataset_path = colmap_out_root / project_name
-            
+
             if not dataset_path.exists():
                 QMessageBox.critical(self, tr("msg_error"), f"Le dossier du projet n'existe pas:\n{dataset_path}\nAvez-vous lancé la création du dataset ?")
                 return
-                
+
             input_path = dataset_path
             output_path = dataset_path / "checkpoints"
             output_path.mkdir(parents=True, exist_ok=True)
-        
+
         self.brush_tab.set_processing_state(True)
         self.logs_tab.append_log(tr("msg_brush_start", str(input_path)))
         self.logs_tab.append_log(tr("msg_brush_out", str(output_path)))
-        
+
         self.brush_worker = BrushWorker(
             input_path,
             output_path,
             brush_params,
             project_name=project_name,
         )
-        
+
         self.brush_worker.log_signal.connect(self.logs_tab.append_log)
         self.brush_worker.finished_signal.connect(self.on_brush_finished)
-        
+
         self.brush_worker.start()
-        
+
         # Focus logs tab
         self.tabs.setCurrentWidget(self.logs_tab)
-        
+
     def stop_brush(self):
         """Arrête Brush"""
         if hasattr(self, 'brush_worker') and self.brush_worker and self.brush_worker.isRunning():

@@ -298,6 +298,24 @@ class ConfigTab(QWidget):
         self.chk_upscale.setChecked(False)
         options_layout.addWidget(self.chk_upscale)
 
+        # Blur filtering (discard out-of-focus / motion-blurred frames)
+        blur_layout = QHBoxLayout()
+        self.chk_blur_filter = QCheckBox(tr("blur_filter_check", "Filtrer les images floues"))
+        self.chk_blur_filter.setChecked(False)
+        blur_layout.addWidget(self.chk_blur_filter)
+        self.combo_blur_strength = QComboBox()
+        # (label, blur_factor) — higher factor = more aggressive removal
+        self.combo_blur_strength.addItem(tr("blur_light", "Léger"), 0.5)
+        self.combo_blur_strength.addItem(tr("blur_medium", "Moyen"), 0.7)
+        self.combo_blur_strength.addItem(tr("blur_strong", "Fort"), 0.85)
+        self.combo_blur_strength.setCurrentIndex(1)
+        self.combo_blur_strength.setMinimumWidth(110)
+        blur_layout.addWidget(self.combo_blur_strength)
+        blur_layout.addStretch()
+        options_layout.addLayout(blur_layout)
+        self.chk_blur_filter.toggled.connect(self.combo_blur_strength.setEnabled)
+        self.combo_blur_strength.setEnabled(False)
+
         options_layout.addStretch()
         self.options_group.setLayout(options_layout)
         layout.addWidget(self.options_group)
@@ -408,6 +426,11 @@ class ConfigTab(QWidget):
         # Upscale check for gsplat, 360
         self.chk_upscale.setVisible(mode in ["gsplat", "360"])
 
+        # Blur filter applies to any mode that produces image frames
+        blur_visible = mode in ["gsplat", "360", "4dgs"]
+        self.chk_blur_filter.setVisible(blur_visible)
+        self.combo_blur_strength.setVisible(blur_visible)
+
     def browse_input(self):
         """Parcourir l'entrée en fonction du mode sélectionné"""
         mode = self.get_training_mode()
@@ -507,6 +530,15 @@ class ConfigTab(QWidget):
     def get_upscale(self): return self.chk_upscale.isChecked()
     def set_upscale(self, val): self.chk_upscale.setChecked(val)
 
+    def get_blur_filter(self): return self.chk_blur_filter.isChecked()
+    def set_blur_filter(self, val): self.chk_blur_filter.setChecked(bool(val))
+
+    def get_blur_factor(self): return float(self.combo_blur_strength.currentData())
+    def set_blur_factor(self, val):
+        idx = self.combo_blur_strength.findData(float(val))
+        if idx >= 0:
+            self.combo_blur_strength.setCurrentIndex(idx)
+
 
 
     def set_processing_state(self, processing=True):
@@ -553,6 +585,8 @@ class ConfigTab(QWidget):
             "undistort": self.get_undistort(),
             "auto_brush": self.get_auto_brush(),
             "upscale": self.get_upscale(),
+            "blur_filter": self.get_blur_filter(),
+            "blur_factor": self.get_blur_factor(),
             "lang": self.combo_lang.currentData()
         }
 
@@ -568,6 +602,8 @@ class ConfigTab(QWidget):
         if "undistort" in state: self.set_undistort(state["undistort"])
         if "auto_brush" in state: self.set_auto_brush(state["auto_brush"])
         if "upscale" in state: self.set_upscale(state["upscale"])
+        if "blur_filter" in state: self.set_blur_filter(state["blur_filter"])
+        if "blur_factor" in state: self.set_blur_factor(state["blur_factor"])
 
         # Lang is special, might require restart if changed, so we just set combo if it matches
         # or we let the main app handle valid lang loading.
@@ -607,6 +643,10 @@ class ConfigTab(QWidget):
 
         self.options_group.setTitle(tr("group_options"))
         self.undistort_check.setText(tr("check_undistort"))
+        self.chk_blur_filter.setText(tr("blur_filter_check", "Filtrer les images floues"))
+        self.combo_blur_strength.setItemText(0, tr("blur_light", "Léger"))
+        self.combo_blur_strength.setItemText(1, tr("blur_medium", "Moyen"))
+        self.combo_blur_strength.setItemText(2, tr("blur_strong", "Fort"))
 
         self.btn_process.setText(tr("btn_process") if self.btn_process.isEnabled() else tr("btn_stop"))
         self.btn_stop.setText(tr("btn_stop"))

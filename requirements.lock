@@ -6,6 +6,7 @@ PyQt6==6.11.0
 PyQt6-Qt6==6.11.0
 PyQt6_sip==13.11.1
 numpy==2.4.4
+opencv-python-headless==4.11.0.86
 Pillow==11.3.0
 plyfile==0.9
 requests==2.33.1

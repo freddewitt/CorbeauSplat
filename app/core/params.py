@@ -1,4 +1,5 @@
-from dataclasses import dataclass, asdict, fields
+from dataclasses import asdict, dataclass, fields
+
 
 @dataclass
 class ColmapParams:
@@ -24,10 +25,14 @@ class ColmapParams:
     sequential_overlap: int = 30
     undistort_images: bool = False
     use_glomap: bool = False
-    
+    # Blur filtering: discard frames whose sharpness (variance of Laplacian) falls
+    # below blur_factor × the median sharpness. 0 (or filter_blurry=False) disables.
+    filter_blurry: bool = False
+    blur_factor: float = 0.7
+
     def to_dict(self):
         return asdict(self)
-    
+
     @classmethod
     def from_dict(cls, data):
         # Filtrer les clés inconnues pour éviter les erreurs si le json est vieux

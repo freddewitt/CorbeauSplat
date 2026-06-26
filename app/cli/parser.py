@@ -69,6 +69,9 @@ def get_parser():
     p.add_argument("--max_resolution", type=int, default=None,
                    help="Résolution max entraînement 0=auto (défaut: 0)")
     p.add_argument("--ply_name",    default=None,        help="Nom du fichier PLY de sortie")
+    p.add_argument("--filter_blur", action="store_true", help="Écarter les images floues avant COLMAP")
+    p.add_argument("--blur_strength", choices=["light", "medium", "strong"], default="medium",
+                   help="Sévérité du filtre de flou (défaut: medium)")
 
     # ── colmap ────────────────────────────────────────────────────────────────
     p = subs.add_parser("colmap", help="Pipeline COLMAP (vidéo/images → dataset)")
@@ -102,6 +105,10 @@ def get_parser():
     p.add_argument("--no_refine_focal",   action="store_true",  help="Ne pas affiner la focale")
     p.add_argument("--refine_principal",  action="store_true",  help="Affiner le point principal")
     p.add_argument("--no_refine_extra",   action="store_true",  help="Ne pas affiner les params extra")
+    # Blur filtering
+    p.add_argument("--filter_blur", action="store_true", help="Écarter les images floues avant COLMAP")
+    p.add_argument("--blur_strength", choices=["light", "medium", "strong"], default="medium",
+                   help="Sévérité du filtre de flou (défaut: medium)")
 
     # ── brush ─────────────────────────────────────────────────────────────────
     p = subs.add_parser("brush", help="Entraînement Gaussian Splat (Brush)")

@@ -5,3 +5,4 @@ numpy>=1.26,<3
 send2trash>=1.8,<2
 Pillow>=10.0,<12
 plyfile>=0.7,<1
+opencv-python-headless>=4.8,<5
