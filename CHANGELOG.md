@@ -5,6 +5,7 @@
 ### 🪟 Platform port — macOS/Apple Silicon → Windows/NVIDIA CUDA
 - **Device detection** (`app/core/system.py`): replaced Apple Silicon/MPS detection with CUDA detection via `nvidia-smi` (`get_device()` → `cuda`/`cpu`). Added Windows memory probing (`GlobalMemoryStatusEx`) and `.exe`/`COLMAP.bat` binary resolution, incl. auto-detection of `C:\COLMAP`.
 - **GPU acceleration**: FFmpeg frame extraction now uses `-hwaccel cuda` (NVDEC); COLMAP SIFT extraction & matching pass `--SiftExtraction.use_gpu` / `--SiftMatching.use_gpu` when CUDA is present; Brush runs on wgpu with `WGPU_BACKEND=dx12`.
+- **Zero-touch engine install**: COLMAP (CUDA) and FFmpeg now auto-install on first launch — `ColmapEngineDep` downloads the `colmap-x64-windows-cuda.zip` release into `engines/colmap`, and `FfmpegEngineDep` installs FFmpeg (winget, else a static build into `engines/ffmpeg`). `resolve_binary` finds them and `run_command` adds COLMAP's `bin`/`lib` to PATH so bundled DLLs load. No GPU → non-CUDA COLMAP build is selected automatically.
 - **Windows launcher**: new `run.bat` replaces the macOS `run.command`.
 - **Installers**: dropped Homebrew/Xcode; system dependencies (FFmpeg) install via `winget`, COLMAP CUDA build is detected/guided, Node/CMake/Ninja via winget, Rust via `rustup-init.exe`. Removed the macOS-only `pyobjc` dependency.
 - **upscayl-bin**: Windows asset selection and `upscayl-bin.exe` discovery.

@@ -5,7 +5,7 @@ from app.scripts.installers.base import (
     DependencyManager,
 )
 from app.scripts.installers.brush import BrushEngineDep
-from app.scripts.installers.mapping import ColmapEngineDep, GlomapEngineDep
+from app.scripts.installers.mapping import ColmapEngineDep, FfmpegEngineDep, GlomapEngineDep
 from app.scripts.installers.supersplat import SuperSplatEngineDep
 from app.scripts.installers.extractor_360 import Extractor360EngineDep
 from app.scripts.installers.upscayl import UpscaylEngineDep
@@ -33,6 +33,7 @@ __all__ = [
     # Engine dependencies
     "BrushEngineDep",
     "ColmapEngineDep",
+    "FfmpegEngineDep",
     "GlomapEngineDep",
     "SuperSplatEngineDep",
     "Extractor360EngineDep",

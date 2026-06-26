@@ -352,5 +352,39 @@ class TestPipEngine:
             assert engine.is_installed() is True
 
 
-# Import subprocess for xcode test
+class TestColmapAssetSelection:
+    """Tests pour mapping.find_colmap_windows_asset()."""
+
+    def test_prefers_cuda_build(self):
+        from app.scripts.installers.mapping import find_colmap_windows_asset
+        assets = [
+            {"name": "colmap-x64-windows-nocuda.zip"},
+            {"name": "colmap-x64-windows-cuda.zip"},
+            {"name": "colmap-x64-linux.zip"},
+        ]
+        result = find_colmap_windows_asset(assets, prefer_cuda=True)
+        assert result is not None
+        assert result["name"] == "colmap-x64-windows-cuda.zip"
+
+    def test_never_picks_nocuda_as_cuda(self):
+        """nocuda must not be mistaken for a CUDA build."""
+        from app.scripts.installers.mapping import find_colmap_windows_asset
+        assets = [{"name": "colmap-x64-windows-nocuda.zip"}]
+        # prefer_cuda=True finds no cuda build, falls back to any windows zip
+        result = find_colmap_windows_asset(assets, prefer_cuda=True)
+        assert result["name"] == "colmap-x64-windows-nocuda.zip"  # fallback, not CUDA match
+
+    def test_fallback_any_windows_zip(self):
+        from app.scripts.installers.mapping import find_colmap_windows_asset
+        assets = [{"name": "colmap-x64-windows-nocuda.zip"}, {"name": "src.tar.gz"}]
+        result = find_colmap_windows_asset(assets, prefer_cuda=False)
+        assert result["name"] == "colmap-x64-windows-nocuda.zip"
+
+    def test_no_windows_asset(self):
+        from app.scripts.installers.mapping import find_colmap_windows_asset
+        assets = [{"name": "colmap-x64-linux.zip"}, {"name": "src.tar.gz"}]
+        assert find_colmap_windows_asset(assets) is None
+
+
+# Import subprocess for legacy tests
 import subprocess

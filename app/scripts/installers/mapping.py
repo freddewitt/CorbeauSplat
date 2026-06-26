@@ -1,25 +1,58 @@
-"""COLMAP and Glomap engine dependency installers (Windows/CUDA)."""
+"""COLMAP, FFmpeg and Glomap engine dependency installers (Windows/CUDA)."""
+import json
 import os
 import shutil
 import subprocess
+import urllib.request
 
+from app.core.system import has_cuda
 from app.scripts.installers.base import EngineDependency
-from app.scripts.installers.tools import check_cmake_ninja, install_build_tools
+from app.scripts.installers.tools import (
+    check_cmake_ninja,
+    download_and_extract_zip,
+    install_build_tools,
+)
 
 GLOMAP_REPO = "https://github.com/colmap/glomap.git"
+COLMAP_RELEASES_API = "https://api.github.com/repos/colmap/colmap/releases/latest"
+# Static "latest release essentials" build — stable URL, contains bin/ffmpeg.exe
+FFMPEG_ZIP_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+
+
+def find_colmap_windows_asset(assets: list, prefer_cuda: bool = True) -> dict | None:
+    """Selects the Windows COLMAP release asset.
+
+    Prefers the CUDA build (`*-windows-cuda.zip`) and explicitly avoids the
+    `nocuda` build. Falls back to any Windows .zip.
+    """
+    def is_zip(a):
+        return a.get("name", "").lower().endswith(".zip")
+
+    if prefer_cuda:
+        for a in assets:
+            name = a.get("name", "").lower()
+            if "windows" in name and "cuda" in name and "nocuda" not in name and is_zip(a):
+                return a
+    # Fallback: any windows zip (nocuda or generic)
+    for a in assets:
+        name = a.get("name", "").lower()
+        if "windows" in name and is_zip(a):
+            return a
+    return None
 
 
 class ColmapEngineDep(EngineDependency):
-    """COLMAP on Windows — detected on PATH or in a known install folder.
+    """COLMAP on Windows — auto-downloads the pre-built CUDA release into engines/.
 
-    CUDA-enabled COLMAP is distributed as a pre-built zip on GitHub releases
-    (colmap-x64-windows-cuda.zip). We don't auto-install it (no winget package),
-    but we detect it and guide the user when it is missing.
+    The CUDA build (`colmap-x64-windows-cuda.zip`) is fetched from GitHub
+    releases and extracted into ``engines/colmap``. ``resolve_binary("colmap")``
+    then finds ``colmap.exe`` anywhere in that subtree.
     """
     ask_before_update = False
 
     def __init__(self):
         super().__init__("colmap")
+        self.target_dir = self.engines_dir / "colmap"
 
     def is_installed(self) -> bool:
         from app.core.system import resolve_binary
@@ -28,29 +61,107 @@ class ColmapEngineDep(EngineDependency):
     def is_enabled_in_config(self, config: dict) -> bool:
         return True  # COLMAP is required by the core pipeline
 
-    def get_local_version(self) -> str:
-        from app.core.system import resolve_binary
-        colmap = resolve_binary("colmap")
-        if not colmap:
-            return ""
+    def _fetch_latest(self) -> dict | None:
         try:
-            out = subprocess.check_output(
-                [colmap, "--version"], text=True, stderr=subprocess.STDOUT, timeout=10
-            ).strip()
-            return out.splitlines()[0] if out else ""
-        except (subprocess.SubprocessError, OSError):
-            return ""
+            req = urllib.request.Request(
+                COLMAP_RELEASES_API,
+                headers={"Accept": "application/vnd.github+json", "User-Agent": "CorbeauSplat"},
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read())
+        except Exception as e:
+            print(f"⚠️ Could not fetch COLMAP release info: {e}")
+            return None
 
     def get_remote_version(self) -> str:
-        return ""  # No auto-update for the manually installed CUDA build
+        data = self._fetch_latest()
+        return data.get("tag_name", "") if data else ""
+
+    def install(self):
+        if self.is_installed() and self.get_local_version():
+            return
+
+        data = self._fetch_latest()
+        if not data:
+            print("❌ Impossible de contacter GitHub pour télécharger COLMAP.")
+            return
+
+        asset = find_colmap_windows_asset(data.get("assets", []), prefer_cuda=has_cuda())
+        if not asset:
+            print("❌ Aucun binaire COLMAP Windows trouvé dans la dernière release.")
+            print("   Téléchargez-le manuellement : https://github.com/colmap/colmap/releases")
+            return
+
+        tag = data.get("tag_name", "")
+        print(f">>> Installation automatique de COLMAP {tag} ({asset['name']})...")
+
+        # Clean any previous extraction so updates don't accumulate
+        if self.target_dir.exists():
+            shutil.rmtree(str(self.target_dir), ignore_errors=True)
+
+        if not download_and_extract_zip(asset["browser_download_url"], self.target_dir):
+            print("❌ Échec du téléchargement/extraction de COLMAP.")
+            return
+
+        if self.is_installed():
+            self.save_local_version(tag)
+            print(f"✅ COLMAP {tag} installé dans {self.target_dir}.")
+        else:
+            print("⚠️ COLMAP extrait mais colmap.exe introuvable dans l'archive.")
+
+
+class FfmpegEngineDep(EngineDependency):
+    """FFmpeg on Windows — auto-downloads a static build into engines/ffmpeg.
+
+    Tries `winget` first (if available) for a system-wide install, then falls
+    back to extracting a static "essentials" build into ``engines/ffmpeg``.
+    """
+    ask_before_update = False
+
+    def __init__(self):
+        super().__init__("ffmpeg")
+        self.target_dir = self.engines_dir / "ffmpeg"
+
+    def is_installed(self) -> bool:
+        from app.core.system import resolve_binary
+        return resolve_binary("ffmpeg") is not None
+
+    def is_enabled_in_config(self, config: dict) -> bool:
+        return True  # FFmpeg is required for video input
+
+    def get_remote_version(self) -> str:
+        return ""  # No version tracking for the static build
 
     def install(self):
         if self.is_installed():
             return
-        print("❌ COLMAP introuvable.")
-        print("   Téléchargez la build CUDA : https://github.com/colmap/colmap/releases")
-        print("   (colmap-x64-windows-cuda.zip), extrayez-la et ajoutez le dossier")
-        print("   contenant COLMAP.bat à votre PATH, puis relancez.")
+
+        # 1. Prefer a system install via winget when present
+        if shutil.which("winget"):
+            try:
+                subprocess.check_call([
+                    "winget", "install", "-e", "--id", "Gyan.FFmpeg",
+                    "--accept-source-agreements", "--accept-package-agreements",
+                ])
+            except (subprocess.CalledProcessError, OSError) as e:
+                print(f"⚠️ winget FFmpeg install failed ({e}); falling back to local download.")
+            if self.is_installed():
+                print("✅ FFmpeg installé via winget.")
+                return
+
+        # 2. Fallback: download a static build into engines/ffmpeg
+        print(">>> Installation automatique de FFmpeg (build statique)...")
+        if self.target_dir.exists():
+            shutil.rmtree(str(self.target_dir), ignore_errors=True)
+        if not download_and_extract_zip(FFMPEG_ZIP_URL, self.target_dir):
+            print("❌ Échec du téléchargement de FFmpeg. Installez-le manuellement et ajoutez-le au PATH.")
+            return
+
+        if self.is_installed():
+            self.save_local_version("essentials")
+            print(f"✅ FFmpeg installé dans {self.target_dir}.")
+        else:
+            print("⚠️ FFmpeg extrait mais ffmpeg.exe introuvable dans l'archive.")
 
 
 class GlomapEngineDep(EngineDependency):

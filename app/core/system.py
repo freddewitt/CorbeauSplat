@@ -41,10 +41,22 @@ def _windows_exe_candidates(name: str):
         yield name + ext
 
 
+def _search_subtree(base: Path, exe_names):
+    """Returns the first matching executable found anywhere under `base`."""
+    if not base.exists():
+        return None
+    for exe in exe_names:
+        for found in base.rglob(exe):
+            if found.is_file():
+                return str(found)
+    return None
+
+
 def resolve_binary(name):
     """
-    Resolves the path of a binary, prioritising the local 'engines' folder,
-    then well-known Windows install locations, then the system PATH.
+    Resolves the path of a binary, prioritising the local 'engines' folder
+    (including auto-extracted COLMAP/ffmpeg subtrees), then well-known Windows
+    install locations, then the system PATH.
 
     Returns the absolute path (str) or None if not found.
     """
@@ -59,18 +71,30 @@ def resolve_binary(name):
         if local_path.exists() and os.access(local_path, os.X_OK):
             return str(local_path)
 
-    # 2. COLMAP often lives in a versioned folder with a bin/ subdir on Windows
-    if name == "colmap" and is_windows():
-        for hint in _WINDOWS_COLMAP_HINTS:
-            base = Path(hint)
-            if not base.exists():
-                continue
-            for exe in ("COLMAP.bat", "colmap.exe"):
-                for found in base.rglob(exe):
-                    if found.exists():
-                        return str(found)
+    # 2. Auto-installed engines extracted into a dedicated subfolder.
+    #    COLMAP: prefer colmap.exe — COLMAP.bat cannot be launched directly via
+    #    subprocess without a shell. The bundled DLLs are made discoverable
+    #    separately (see ColmapEngine.run_command).
+    if name == "colmap":
+        found = _search_subtree(engines_dir / "colmap", ("colmap.exe", "colmap"))
+        if found:
+            return found
+        if is_windows():
+            for hint in _WINDOWS_COLMAP_HINTS:
+                found = _search_subtree(Path(hint), ("colmap.exe",))
+                if found:
+                    return found
+    elif name == "ffmpeg":
+        found = _search_subtree(engines_dir / "ffmpeg", ("ffmpeg.exe", "ffmpeg"))
+        if found:
+            return found
 
-    # 3. System PATH (shutil.which handles PATHEXT on Windows)
+    # 3. System PATH. On Windows prefer the .exe so the result is always
+    #    launchable via subprocess without a shell.
+    if is_windows() and not name.lower().endswith((".exe", ".bat", ".cmd")):
+        which_exe = shutil.which(name + ".exe")
+        if which_exe:
+            return which_exe
     return shutil.which(name)
 
 

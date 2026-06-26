@@ -30,19 +30,23 @@ Includes full localization for **French, English, German, Italian, Spanish, Arab
 - **NVIDIA GPU** with up-to-date drivers (for CUDA acceleration; CPU fallback works but is slow)
 - **Python 3.11+** ([python.org](https://www.python.org/downloads/) — tick *"Add Python to PATH"*)
 - **Git** (optional, for updates and source builds)
-- **COLMAP (CUDA build)** — see below
-- **FFmpeg** — installed automatically via `winget`, or [download manually](https://www.gyan.dev/ffmpeg/builds/)
 
-### COLMAP (CUDA)
-COLMAP's CUDA build is not on `winget`, so install it once manually:
-1.  Download `colmap-x64-windows-cuda.zip` from the [COLMAP releases](https://github.com/colmap/colmap/releases).
-2.  Extract it anywhere (e.g. `C:\COLMAP`).
-3.  Add the extracted folder (the one containing `COLMAP.bat`) to your **PATH**, or drop it under `C:\COLMAP` — CorbeauSplat auto-detects that location.
+That's it — **COLMAP (CUDA) and FFmpeg are installed automatically** on first launch (see below). No manual download/PATH setup required.
 
 ### Installation
 1.  Clone or download this repository.
 2.  Double-click **`run.bat`** (or run it from a terminal).
-    *It creates a virtual environment, installs Python dependencies, downloads/builds the engines (Brush, SuperSplat, upscayl) and launches the app.*
+
+    On first launch it automatically:
+    - creates a Python virtual environment and installs the Python dependencies;
+    - **downloads the CUDA COLMAP build** (`colmap-x64-windows-cuda.zip`) from GitHub releases into `engines\colmap\`;
+    - **installs FFmpeg** (via `winget` if available, otherwise a static build into `engines\ffmpeg\`);
+    - downloads/builds the other engines (Brush, SuperSplat, upscayl);
+    - launches the app.
+
+> All auto-downloaded engines live under `engines\` (git-ignored). To re-download everything cleanly, run `run.bat --clean`.
+>
+> If you already have COLMAP installed system-wide, CorbeauSplat will use that instead (it checks PATH and `C:\COLMAP`). No GPU? It falls back to the non-CUDA COLMAP build and CPU execution automatically.
 
 Optional flags:
 ```bat

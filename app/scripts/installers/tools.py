@@ -143,15 +143,58 @@ def install_rust_toolchain():
     return False
 
 
+def _safe_extract_zip(archive_path: Path, dest_dir: Path):
+    """Extracts a zip into dest_dir, rejecting path-traversal members."""
+    import zipfile
+    dest_resolved = dest_dir.resolve()
+    with zipfile.ZipFile(archive_path, "r") as zf:
+        for member in zf.infolist():
+            target = (dest_dir / member.filename).resolve()
+            try:
+                target.relative_to(dest_resolved)
+            except ValueError:
+                print(f"  ⚠️ Rejected unsafe archive member: {member.filename}")
+                continue
+            zf.extract(member, dest_dir)
+
+
+def download_and_extract_zip(url: str, dest_dir: Path, log=print) -> bool:
+    """Downloads a .zip from `url` and extracts it into `dest_dir`.
+
+    Returns True on success. dest_dir is created if needed.
+    """
+    import tempfile
+    import urllib.request
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    tmp = Path(tempfile.mkstemp(suffix=".zip")[1])
+    try:
+        log(f"Downloading {url} ...")
+        req = urllib.request.Request(url, headers={"User-Agent": "CorbeauSplat"})
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            tmp.write_bytes(resp.read())
+        log(f"Extracting into {dest_dir} ...")
+        _safe_extract_zip(tmp, dest_dir)
+        return True
+    except Exception as e:
+        log(f"⚠️ Download/extract failed: {e}")
+        return False
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def install_system_dependencies(check_only=False):
-    """Ensures ffmpeg and a CUDA-enabled COLMAP are available on Windows."""
+    """Reports presence of ffmpeg and COLMAP.
+
+    Actual installation is handled by the engine dependencies
+    (FfmpegEngineDep / ColmapEngineDep), which auto-download into engines/.
+    """
     from app.core.system import resolve_binary
 
     print("--- System Dependency Check (Windows) ---")
     missing = []
-    if shutil.which("ffmpeg") is None:
+    if resolve_binary("ffmpeg") is None:
         missing.append("ffmpeg")
-    # COLMAP may live in a versioned install dir, not just PATH
     if resolve_binary("colmap") is None:
         missing.append("colmap")
 
@@ -159,23 +202,5 @@ def install_system_dependencies(check_only=False):
         print("✅ System dependencies present (ffmpeg, COLMAP).")
         return True
 
-    print(f"Missing: {', '.join(missing)}")
-    if check_only:
-        print("ℹ️ Audit mode: automatic installation skipped.")
-        if "colmap" in missing:
-            print("    → COLMAP (CUDA): https://github.com/colmap/colmap/releases "
-                  "(choose colmap-x64-windows-cuda.zip) and add its folder to PATH.")
-        return False
-
-    ok = True
-    if "ffmpeg" in missing:
-        if not _winget_install("Gyan.FFmpeg", "FFmpeg"):
-            ok = False
-    if "colmap" in missing:
-        # COLMAP CUDA builds are not on winget; guide the user to the release zip.
-        print("⚠️  COLMAP must be installed manually for CUDA support:")
-        print("    https://github.com/colmap/colmap/releases → colmap-x64-windows-cuda.zip")
-        print("    Extract it and add the folder (containing COLMAP.bat) to your PATH.")
-        ok = False
-
-    return ok
+    print(f"Missing: {', '.join(missing)} — will be auto-installed into engines/.")
+    return False

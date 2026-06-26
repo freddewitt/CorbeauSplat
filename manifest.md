@@ -108,9 +108,9 @@ main.py                         ← Entry: CLI parser or GUI launcher
 
 **Python** (requirements.txt): PyQt6, requests, urllib3, numpy, send2trash, Pillow, plyfile
 
-**System**: FFmpeg (NVDEC), COLMAP (CUDA build), NVIDIA driver. Optional: winget (Node.js/CMake/Ninja), Git, Rust (Brush source builds)
+**System**: NVIDIA driver (for CUDA). COLMAP (CUDA) and FFmpeg auto-install on first launch. Optional: winget (FFmpeg/Node.js/CMake/Ninja), Git, Rust (Brush source builds)
 
-**Run-time downloaded**: brush.exe + upscayl-bin.exe (auto-install from GitHub releases), upscayl models
+**Run-time downloaded**: COLMAP CUDA build + FFmpeg (into `engines/`), brush.exe + upscayl-bin.exe (from GitHub releases), upscayl models
 
 ## Security
 
@@ -177,7 +177,8 @@ Each has `--help`. No subcommand = GUI mode.
 ## Platform Notes (Windows/CUDA)
 
 - Device selection: `app/core/system.py:get_device()` → `cuda` when `nvidia-smi` is on PATH, else `cpu`.
-- COLMAP resolution checks `engines/`, then `C:\COLMAP` (and `Program Files`), then PATH (incl. `COLMAP.bat`/`colmap.exe`).
+- COLMAP/FFmpeg auto-install: `ColmapEngineDep`/`FfmpegEngineDep` download into `engines/colmap` and `engines/ffmpeg` on first launch (COLMAP CUDA build chosen when a GPU is present, non-CUDA otherwise).
+- COLMAP resolution: `resolve_binary("colmap")` searches `engines/colmap/**` for `colmap.exe`, then `C:\COLMAP`/`Program Files`, then PATH. `run_command` adds the COLMAP `bin`/`lib` dirs to `PATH` so bundled DLLs load.
 - FFmpeg uses `-hwaccel cuda` (NVDEC) when a GPU is present.
 - COLMAP SIFT extraction/matching pass `--SiftExtraction.use_gpu`/`--SiftMatching.use_gpu` when CUDA is available.
 - Brush runs on wgpu with `WGPU_BACKEND=dx12` for the discrete NVIDIA adapter.
