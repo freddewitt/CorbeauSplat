@@ -40,6 +40,7 @@ class SessionManager:
             "colmap_params": self.mw.params_tab,
             "brush_params": self.mw.brush_tab,
             "sharp_params": self.mw.sharp_tab,
+            "cleaner_params": self.mw.cleaner_tab,
             "upscale_params": self.mw.upscale_tab,
             "extractor_360_params": self.mw.extractor_360_tab,
             "four_dgs_params": self.mw.four_dgs_tab,
@@ -74,6 +75,7 @@ class SessionManager:
                 "colmap_params": self.mw.params_tab,
                 "brush_params": self.mw.brush_tab,
                 "sharp_params": self.mw.sharp_tab,
+                "cleaner_params": self.mw.cleaner_tab,
                 "upscale_params": self.mw.upscale_tab,
                 "extractor_360_params": self.mw.extractor_360_tab,
                 "four_dgs_params": self.mw.four_dgs_tab,
@@ -114,12 +116,16 @@ class AppLifecycle:
             logger.info("Reinstall detected: running setup before relaunch...")
             # Build safe argv: whitelist known flags only
             safe_argv = [a for a in sys.argv[1:] if a in ("--gui", "--debug", "--reset")]
-            cmd = [
-                "bash", "-c",
-                f'sleep 1 && "{python}" -m app.scripts.setup_dependencies --startup'
-                f' && "{python}" "{main_py}"'
-            ] + safe_argv
-            subprocess.Popen(cmd, cwd=str(root_dir), start_new_session=True)
+            # FIX(AUDIT): use direct subprocess calls instead of bash -c
+            # to prevent command injection via f-string interpolation.
+            subprocess.run(
+                [python, "-m", "app.scripts.setup_dependencies", "--startup"],
+                cwd=str(root_dir)
+            )
+            subprocess.Popen(
+                [python, str(main_py)] + safe_argv,
+                cwd=str(root_dir), start_new_session=True
+            )
             QApplication.quit()
             sys.exit(0)
 

@@ -173,7 +173,8 @@ class BaseEngine:
         self.runner.terminate()
         self._kill_process(self.process) # Legacy cleanup
 
-    def _execute_command(self, cmd: list, env: dict = None, line_callback=None, **kwargs) -> int:
+    def _execute_command(self, cmd: list, env: dict = None, line_callback=None,
+                         timeout: float = 3600, **kwargs) -> int:
         """
         GoF-Template Method : Exécution générique centralisée de processus
         Délègue à l'IProcessRunner injecté, gère la boucle standard et l'annulation.
@@ -181,6 +182,9 @@ class BaseEngine:
         
         Inclut un watchdog thermique qui interrompt la tâche si l'état
         thermique Apple Silicon passe à "critical".
+        
+        FIX(AUDIT): ``timeout`` (default 3600s) prevents indefinite blocking
+        if an external binary freezes.
         """
         if self.stop_requested: return -1
         
@@ -205,7 +209,11 @@ class BaseEngine:
                     else:
                         self.log(stripped)
                         
-            return self.runner.wait()
+            return self.runner.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self.log(f"Timeout after {timeout}s — forcing termination", level=logging.WARNING)
+            self.runner.terminate()
+            return -1
         except Exception as e:
             self.logger.error("Exception in _execute_command", exc_info=True)
             self.log(f"Exception: {e}", level=logging.ERROR)
@@ -226,12 +234,21 @@ class BaseEngine:
         process.wait()
 
     def validate_path(self, path):
-        """Resolves and validates a path to prevent traversal using resolved containment"""
+        """Resolves and validates a path to prevent traversal using resolved containment.
+        
+        FIX(AUDIT): restricted from full $HOME to project_root + public user dirs
+        (Desktop, Documents) to reduce risk of accessing sensitive files.
+        """
         if not path:
             return None
         try:
             p = Path(path).resolve()
-            allowed_bases = [self.project_root.resolve(), Path.home().resolve()]
+            home = Path.home().resolve()
+            allowed_bases = [
+                self.project_root.resolve(),
+                home / "Desktop",
+                home / "Documents",
+            ]
             for base in allowed_bases:
                 try:
                     p.relative_to(base)

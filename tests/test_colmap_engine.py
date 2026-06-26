@@ -528,3 +528,38 @@ class TestColmapUtils:
         config = json.loads(config_file.read_text())
         assert config["dataset_type"] == "colmap"
         assert config["parameters"]["test"] is True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Blur filtering selection logic
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSelectBlurryFiles:
+    """Tests pour engine.select_blurry_files()."""
+
+    def test_discards_below_factor_of_median(self):
+        from app.core.engine import select_blurry_files
+        # median of [10,100,100,100,100] = 100; factor 0.7 -> threshold 70
+        scores = {"a": 10.0, "b": 100.0, "c": 100.0, "d": 100.0, "e": 100.0}
+        rejected, threshold = select_blurry_files(scores, 0.7)
+        assert threshold == 70.0
+        assert rejected == ["a"]
+
+    def test_disabled_when_factor_zero(self):
+        from app.core.engine import select_blurry_files
+        scores = {"a": 1.0, "b": 100.0}
+        rejected, _ = select_blurry_files(scores, 0.0)
+        assert rejected == []
+
+    def test_empty_scores(self):
+        from app.core.engine import select_blurry_files
+        assert select_blurry_files({}, 0.7) == ([], 0.0)
+
+    def test_cap_limits_removals_to_blurriest(self):
+        from app.core.engine import select_blurry_files
+        # 3 blurry (score 1) + 7 sharp (score 100); median 100, threshold 70 -> 3 below.
+        # With a 10% cap on 10 files, only the single blurriest may be removed.
+        scores = {"a": 1.0, "b": 2.0, "c": 3.0}
+        scores.update({f"s{i}": 100.0 for i in range(7)})
+        rejected, _ = select_blurry_files(scores, 0.7, max_remove_frac=0.1)
+        assert rejected == ["a"]  # cap = int(10 * 0.1) = 1, blurriest kept

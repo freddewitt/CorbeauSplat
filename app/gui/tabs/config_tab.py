@@ -293,7 +293,30 @@ class ConfigTab(QWidget):
         self.chk_upscale = QCheckBox(tr("upscale_check_colmap", "Enable Upscale (upscayl-ncnn)"))
         self.chk_upscale.setChecked(False)
         options_layout.addWidget(self.chk_upscale)
-        
+
+        self.chk_filter_blur = QCheckBox(tr("check_filter_blur", "Supprimer les images floues avant reconstruction"))
+        self.chk_filter_blur.setChecked(False)
+        self.chk_filter_blur.toggled.connect(self._on_blur_toggled)
+        options_layout.addWidget(self.chk_filter_blur)
+
+        blur_layout = QHBoxLayout()
+        self.lbl_blur_strength = QLabel(tr("blur_strength", "Sensibilité :"))
+        self.lbl_blur_strength.setVisible(False)
+        self.combo_blur_strength = QComboBox()
+        self.combo_blur_strength.addItem(tr("blur_light", "Léger (tolérant)"), "light")
+        self.combo_blur_strength.addItem(tr("blur_medium", "Moyen (standard)"), "medium")
+        self.combo_blur_strength.addItem(tr("blur_strong", "Fort (strict)"), "strong")
+        self.combo_blur_strength.setVisible(False)
+        blur_layout.addWidget(self.lbl_blur_strength)
+        blur_layout.addWidget(self.combo_blur_strength)
+        blur_layout.addStretch()
+        options_layout.addLayout(blur_layout)
+
+        self.chk_robust = QCheckBox(tr("check_robust", "Mode stabilisé (grandes scènes, anti-plantage)"))
+        self.chk_robust.setChecked(False)
+        self.chk_robust.toggled.connect(self._on_robust_toggled)
+        options_layout.addWidget(self.chk_robust)
+
         options_layout.addStretch()
         self.options_group.setLayout(options_layout)
         layout.addWidget(self.options_group)
@@ -531,8 +554,26 @@ class ConfigTab(QWidget):
     def get_upscale(self): return self.chk_upscale.isChecked()
     def set_upscale(self, val): self.chk_upscale.setChecked(val)
 
+    def get_filter_blur(self): return self.chk_filter_blur.isChecked()
+    def set_filter_blur(self, val): self.chk_filter_blur.setChecked(val)
 
-    
+    def get_blur_strength(self): return self.combo_blur_strength.currentData()
+    def set_blur_strength(self, val):
+        idx = self.combo_blur_strength.findData(val)
+        if idx >= 0:
+            self.combo_blur_strength.setCurrentIndex(idx)
+
+    def get_robust(self): return self.chk_robust.isChecked()
+    def set_robust(self, val): self.chk_robust.setChecked(val)
+
+    def _on_blur_toggled(self, checked):
+        self.lbl_blur_strength.setVisible(checked)
+        self.combo_blur_strength.setVisible(checked)
+
+    def _on_robust_toggled(self, checked):
+        if checked:
+            self.chk_filter_blur.setChecked(True)
+
     def set_processing_state(self, processing=True):
         """Bloque ou débloque les composants UI pendant l'entrainement"""
         # Disable/Enable inputs
@@ -577,13 +618,16 @@ class ConfigTab(QWidget):
             "undistort": self.get_undistort(),
             "auto_brush": self.get_auto_brush(),
             "upscale": self.get_upscale(),
+            "filter_blur": self.get_filter_blur(),
+            "blur_strength": self.get_blur_strength(),
+            "robust": self.get_robust(),
             "lang": self.combo_lang.currentData()
         }
 
     def set_state(self, state):
         """Restaure l'état depuis le dictionnaire"""
         if not state: return
-        
+
         if "project_name" in state: self.set_project_name(state["project_name"])
         if "training_mode" in state: self.set_training_mode(state["training_mode"])
         if "input_path" in state: self.set_input_path(state["input_path"])
@@ -592,13 +636,16 @@ class ConfigTab(QWidget):
         if "undistort" in state: self.set_undistort(state["undistort"])
         if "auto_brush" in state: self.set_auto_brush(state["auto_brush"])
         if "upscale" in state: self.set_upscale(state["upscale"])
-        
+        if "filter_blur" in state: self.set_filter_blur(state["filter_blur"])
+        if "blur_strength" in state: self.set_blur_strength(state["blur_strength"])
+        if "robust" in state: self.set_robust(state["robust"])
+
         # Lang is special, might require restart if changed, so we just set combo if it matches
         # or we let the main app handle valid lang loading.
         if "lang" in state:
             idx = self.combo_lang.findData(state["lang"])
             if idx >= 0: self.combo_lang.setCurrentIndex(idx)
-            
+
         self.update_ui_state()
 
     def on_reset_clicked(self):
@@ -634,7 +681,13 @@ class ConfigTab(QWidget):
         
         self.options_group.setTitle(tr("group_options"))
         self.undistort_check.setText(tr("check_undistort"))
-        
+        self.chk_filter_blur.setText(tr("check_filter_blur", "Supprimer les images floues avant reconstruction"))
+        self.lbl_blur_strength.setText(tr("blur_strength", "Sensibilité :"))
+        self.combo_blur_strength.setItemText(0, tr("blur_light", "Léger (tolérant)"))
+        self.combo_blur_strength.setItemText(1, tr("blur_medium", "Moyen (standard)"))
+        self.combo_blur_strength.setItemText(2, tr("blur_strong", "Fort (strict)"))
+        self.chk_robust.setText(tr("check_robust", "Mode stabilisé (grandes scènes, anti-plantage)"))
+
         self.btn_process.setText(tr("btn_process") if self.btn_process.isEnabled() else tr("btn_stop"))
         self.btn_stop.setText(tr("btn_stop"))
         self.btn_quit.setText(tr("btn_quit"))

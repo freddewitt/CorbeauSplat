@@ -24,7 +24,11 @@ class ColmapParams:
     sequential_overlap: int = 30
     undistort_images: bool = False
     use_glomap: bool = False
-    
+    # Blur filtering: discard frames whose sharpness (variance of Laplacian) falls
+    # below blur_factor x the median sharpness. 0 (or filter_blurry=False) disables.
+    filter_blurry: bool = False
+    blur_factor: float = 0.7
+
     def to_dict(self):
         return asdict(self)
     

@@ -485,3 +485,28 @@ class TestPipelineRun:
 
         mock_colmap.run.assert_called_once()
         mock_brush.train.assert_called_once()
+
+
+class TestRobustMode:
+    """Tests pour le mode robuste (anti-crash COLMAP)."""
+
+    def test_apply_robust_sets_stable_params(self):
+        from app.cli.commands import _apply_robust
+        from app.core.params import ColmapParams
+        p = _apply_robust(ColmapParams(camera_model="SIMPLE_RADIAL"))
+        assert p.camera_model == "PINHOLE"
+        assert p.ba_refine_extra_params is False
+        assert p.ba_refine_principal_point is False
+        assert p.multiple_models is True
+        assert p.filter_blurry is True
+
+    def test_robust_flag_parses(self):
+        from app.cli.parser import get_parser
+        args = get_parser().parse_args(["colmap", "-i", "x", "-o", "y", "--robust"])
+        assert args.robust is True
+
+    def test_blur_flag_parses(self):
+        from app.cli.parser import get_parser
+        args = get_parser().parse_args(["colmap", "-i", "x", "-o", "y", "--filter_blur", "--blur_strength", "strong"])
+        assert args.filter_blur is True
+        assert args.blur_strength == "strong"

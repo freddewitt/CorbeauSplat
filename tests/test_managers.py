@@ -228,7 +228,7 @@ class TestSessionManager:
 
         # Mock tabs with get_state returning serializable dicts
         for tab_name in ["config_tab", "params_tab", "brush_tab", "sharp_tab",
-                         "upscale_tab", "extractor_360_tab", "four_dgs_tab", "superplat_tab"]:
+                         "cleaner_tab", "upscale_tab", "extractor_360_tab", "four_dgs_tab", "superplat_tab"]:
             tab = MagicMock()
             tab.get_state = MagicMock(return_value={"param1": "value1"})
             setattr(main_window, tab_name, tab)
@@ -258,7 +258,7 @@ class TestSessionManager:
         session_manager.load()
 
         # Verify set_state was called
-        for tab_name in ["config_tab", "params_tab", "brush_tab", "sharp_tab"]:
+        for tab_name in ["config_tab", "params_tab", "brush_tab", "sharp_tab", "cleaner_tab"]:
             tab = getattr(session_manager.mw, tab_name)
             tab.set_state.assert_called_with({"param1": "value1"})
 

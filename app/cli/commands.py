@@ -12,6 +12,7 @@ from app.core.brush_engine import BrushEngine
 from app.core.sharp_engine import SharpEngine
 from app.core.superplat_engine import SuperSplatEngine
 from app.core.system import get_brush_build_mode
+from app.core.ply_cleaner import clean_ply
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -56,6 +57,20 @@ BRUSH_PRESETS = {
 # Run functions
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _apply_robust(params: ColmapParams) -> ColmapParams:
+    """Applique les paramètres du mode robuste (anti-crash sur grandes scènes)."""
+    params.camera_model = "PINHOLE"
+    params.ba_refine_extra_params = False
+    params.ba_refine_principal_point = False
+    params.multiple_models = True
+    params.filter_blurry = True
+    return params
+
+
+def _blur_factor_from_strength(strength: str) -> float:
+    return {"light": 0.5, "medium": 0.7, "strong": 0.9}.get(strength, 0.7)
+
+
 def run_colmap(args):
     params = ColmapParams(
         camera_model=args.camera_model,
@@ -76,7 +91,11 @@ def run_colmap(args):
         matcher_type=args.matcher_type,
         undistort_images=args.undistort,
         use_glomap=args.use_glomap,
+        filter_blurry=args.filter_blur,
+        blur_factor=_blur_factor_from_strength(args.blur_strength),
     )
+    if getattr(args, "robust", False):
+        params = _apply_robust(params)
 
     print(tr("cli_start_colmap"))
     print(tr("cli_input", args.input))
@@ -331,6 +350,32 @@ def run_4dgs(args):
         sys.exit(1)
 
 
+def run_clean(args):
+    """Nettoie un fichier .ply Gaussian Splat."""
+    overrides = {}
+    if args.opacity_min is not None:
+        overrides["opacity_min"] = args.opacity_min
+    if args.scale_pct is not None:
+        overrides["scale_pct"] = args.scale_pct
+    if args.outlier_pct is not None:
+        overrides["outlier_pct"] = args.outlier_pct
+
+    print(f"Nettoyage PLY : {args.input} → {args.output}")
+    print(f"  Sévérité : {args.strength}")
+    if overrides:
+        print(f"  Surcharges : {overrides}")
+
+    try:
+        stats = clean_ply(args.input, args.output, strength=args.strength, overrides=overrides or None, log=print)
+        print(f"Terminé : {stats['kept']}/{stats['total']} splats conservés ({stats['removed']} retirés)")
+    except ValueError as e:
+        print(f"Erreur : {e}")
+        sys.exit(1)
+    except FileNotFoundError as e:
+        print(f"Erreur : {e}")
+        sys.exit(1)
+
+
 def run_extract360(args):
     from app.core.extractor_360_engine import Extractor360Engine
 
@@ -396,7 +441,11 @@ def run_pipeline(args):
         max_image_size=args.max_image_size,
         undistort_images=args.undistort,
         use_glomap=args.use_glomap,
+        filter_blurry=getattr(args, "filter_blur", False),
+        blur_factor=_blur_factor_from_strength(getattr(args, "blur_strength", "medium")),
     )
+    if getattr(args, "robust", False):
+        colmap_params = _apply_robust(colmap_params)
 
     colmap_engine = ColmapEngine(
         colmap_params, args.input, args.output, args.type, args.fps,
@@ -472,4 +521,5 @@ DISPATCH = {
     "upscale":     run_upscale,
     "4dgs":        run_4dgs,
     "extract360":  run_extract360,
+    "clean":       run_clean,
 }

@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.0.3] - 2026-06-26
+
+### ✨ New Features
+- **Onglet Cleaner** : nouvel onglet dédié au nettoyage des fichiers .ply Gaussian Splat — retire les artefacts (splats transparents, surdimensionnés, outliers) sans altérer les survivants.
+  - **Charger un fichier .ply** : sélection via boîte de dialogue native (`QFileDialog`)
+  - **Combo Sévérité** (Léger / Moyen / Fort) : trois presets prédéfinis (`light`/`medium`/`strong`) avec seuils opacité + percentiles échelle/distance
+  - **Réglages fins** : override manuel de l'opacité minimale (0–1), taille max en % (90–100), distance outlier en % (90–100)
+  - **CLI** : nouvelle sous-commande `clean-ply` avec les mêmes options (`--strength`, `--opacity`, `--scale`, `--outlier`) dans `app/cli/commands.py`
+  - Worker Qt dédié : `CleanerWorker` dans `app/gui/workers.py` avec barre de progression et affichage des statistiques
+- **Filtrage d'images floues** : la fonction `select_blurry_files()` et ses paramètres (`filter_blurry`, `blur_factor`) sont désormais branchés au pipeline COLMAP complet (GUI + CLI).
+  - **Combo Force** (Léger / Moyen / Fort) : mapping `light=0.5`, `medium=0.7`, `strong=0.9` pour `blur_factor` dans `ConfigTab` et CLI `--blur-strength`
+  - **Mode robuste (grandes scènes)** : nouveau paramètre `--robust` dans le CLI COLMAP/pipeline + case à cocher dans `ConfigTab` — applique des paramètres stables (camera model, matching) pour éviter les crashs sur les grands datasets
+
+### 🔒 Security
+- **Commande injection in `restart()`** : remplacement de `bash -c` avec f-string par deux appels `subprocess.run()`/`subprocess.Popen()` directs dans `AppLifecycle.restart()`. Élimine le risque d'injection shell via chemins contenant des guillemets ou espaces.
+- **`validate_path()` restreint** : la validation des chemins dans `BaseEngine` ne couvre plus `$HOME` entier, mais seulement `project_root` + `Desktop` et `Documents`. Réduction de la surface d'attaque pour les chemins sensibles.
+
+### 🐞 Bug Fixes
+- **Export SPZ plante au runtime** : `import math` manquant dans `export_engine.py` — `math.sqrt()` utilisé sans import. L'export SPZ est désormais fonctionnel.
+- **Filtrage d'images floues inactif** : la feature `filter_blurry`/`blur_factor` et la fonction `select_blurry_files()` étaient définies et testées mais jamais appelées dans le pipeline. Désormais branchée dans `_process_input()` via une nouvelle méthode `_filter_blurry_images()`.
+
+### 🛠 Improvements
+- **Timeout dans `_execute_command()`** : ajout d'un paramètre `timeout=3600s` (1h) sur l'exécution des binaires externes (COLMAP, Brush, ffmpeg). `TimeoutExpired` tue le processus et retourne -1, empêchant le blocage indéfini.
+- **Code mort supprimé** : bloc orphelin `_parse_ply_manual` (~120 lignes, dupliqué avec `ply_utils.parse_ply_manual()`) retiré de `export_engine.py`.
+- **Test adapté** : `test_valid_path_inside_home` remplacé par `test_valid_path_inside_desktop` et `test_valid_path_inside_documents` pour refléter la nouvelle politique de chemins.
+- **CleanerWorker intégré** dans `main_window.py` avec signaux `cleanRequested`/`stopRequested`, bascule vers l'onglet Logs, barre de progression indéterminée
+- **CleanerTab branché** à `SessionManager` pour la persistance des paramètres entre sessions
+- **CLI `clean-ply`** ajoutée dans `parser.py` et `commands.py` — support de `--strength`, `--opacity`, `--scale`, `--outlier`
+- **`_blur_factor_from_strength()`** : fonction utilitaire dans `commands.py` pour convertir le nom du preset en valeur float
+
+### 🧪 Testing
+- **224/224 tests passent** (stable, 0 flaky).
+
 ## [1.0.2] - 2026-06-26
 
 ### ⚡ Apple Silicon Optimizations (10 changes)

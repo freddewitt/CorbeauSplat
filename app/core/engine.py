@@ -59,6 +59,28 @@ def _apfs_copy(src: Path, dst: Path) -> None:
     shutil.copy2(str(src), str(dst))
 
 
+def select_blurry_files(scores: dict, factor: float, max_remove_frac: float = 0.5):
+    """Sélectionne les fichiers à rejeter comme trop flous.
+
+    Un fichier est considéré flou si son score de netteté (variance du Laplacien)
+    est inférieur à ``factor x median(scores)``. Pour éviter de vider le dataset,
+    on ne supprime jamais plus de ``max_remove_frac`` des fichiers (on garde
+    les plus nets des candidats si la limite est dépassée).
+
+    Retourne (rejected_files: list, threshold: float).
+    """
+    import statistics
+    if not scores or factor <= 0:
+        return [], 0.0
+    median = statistics.median(scores.values())
+    threshold = median * factor
+    rejected = [f for f, s in scores.items() if s < threshold]
+    cap = int(len(scores) * max_remove_frac)
+    if len(rejected) > cap:
+        rejected = sorted(rejected, key=lambda f: scores[f])[:cap]
+    return rejected, threshold
+
+
 def _first_available_model() -> str:
     try:
         from app.upscayl_models import get_downloaded_models
@@ -182,7 +204,13 @@ class ColmapEngine(BaseEngine):
         self.status(tr("status_prep_images", "Préparation des visuels..."))
         if not self._prepare_images(images_dir):
             return False
-        
+
+        # FIX(AUDIT): branch blurry image filtering (was defined but never called)
+        if (getattr(self.params, 'filter_blurry', False)
+                and getattr(self.params, 'blur_factor', 0.0) > 0
+                and getattr(self, '_cv2_loaded', False)):
+            self._filter_blurry_images(images_dir)
+
         upscale_conf = getattr(self, 'upscale_config', None)
         if upscale_conf and upscale_conf.get("active", False):
             self.status(tr("status_upscaling", "Upscaling des images..."))
@@ -193,6 +221,49 @@ class ColmapEngine(BaseEngine):
             return False
             
         return True
+
+    def _filter_blurry_images(self, images_dir: Path) -> None:
+        """Compute Laplacian variance per image and discard blurry ones."""
+        import cv2
+        files = sorted([
+            f for f in images_dir.iterdir()
+            if f.is_file() and f.suffix.lower() in _IMAGE_EXTS
+        ])
+        if len(files) < 2:
+            return
+
+        self.log("Analyse de netteté des images (filtrage flou)...")
+        scores: dict[str, float] = {}
+        for f in files:
+            if self.is_cancelled():
+                return
+            img = cv2.imread(str(f), cv2.IMREAD_GRAYSCALE)
+            if img is None:
+                continue
+            scores[str(f)] = cv2.Laplacian(img, cv2.CV_64F).var()
+
+        if not scores:
+            return
+
+        rejected, threshold = select_blurry_files(
+            scores, self.params.blur_factor
+        )
+        if not rejected:
+            self.log(f"✅ Aucune image floue détectée (seuil={threshold:.2f})")
+            return
+
+        blur_dir = images_dir.parent / "images_blur"
+        blur_dir.mkdir(exist_ok=True)
+        for path_str in rejected:
+            p = Path(path_str)
+            try:
+                shutil.move(str(p), str(blur_dir / p.name))
+            except OSError:
+                self.log(f"⚠️ Impossible de déplacer {p.name}")
+        self.log(
+            f"🚫 {len(rejected)}/{len(files)} images écartées (flou, seuil={threshold:.2f}) "
+            f"→ {blur_dir}"
+        )
 
     def _run_reconstruction_pipeline(self, project_dir: Path, images_dir: Path) -> Tuple[bool, str]:
         """Exécute les étapes de reconstruction COLMAP."""

@@ -23,15 +23,27 @@ class TestValidatePath:
         assert result is not None
         assert result == target.resolve()
 
-    def test_valid_path_inside_home(self, engine):
-        home_target = Path.home() / "some_corbeausplat_test_file_check.txt"
+    def test_valid_path_inside_desktop(self, engine):
+        desktop_target = Path.home() / "Desktop" / "some_corbeausplat_test_file_check.txt"
+        desktop_target.parent.mkdir(parents=True, exist_ok=True)
         try:
-            home_target.touch()
-            result = engine.validate_path(str(home_target))
+            desktop_target.touch()
+            result = engine.validate_path(str(desktop_target))
             assert result is not None
-            assert result == home_target.resolve()
+            assert result == desktop_target.resolve()
         finally:
-            home_target.unlink(missing_ok=True)
+            desktop_target.unlink(missing_ok=True)
+
+    def test_valid_path_inside_documents(self, engine):
+        doc_target = Path.home() / "Documents" / "some_corbeausplat_test_file_check.txt"
+        doc_target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            doc_target.touch()
+            result = engine.validate_path(str(doc_target))
+            assert result is not None
+            assert result == doc_target.resolve()
+        finally:
+            doc_target.unlink(missing_ok=True)
 
     def test_traversal_attempt_blocked(self, engine, tmp_path):
         malicious = tmp_path / ".." / ".." / ".." / "etc" / "passwd"

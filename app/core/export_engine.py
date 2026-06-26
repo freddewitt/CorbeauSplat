@@ -1,3 +1,5 @@
+# FIX(AUDIT): add missing math import used by _export_spz
+import math
 import os
 import shutil
 import subprocess
@@ -493,129 +495,8 @@ class ExportEngine(BaseEngine):
             self.log(f"Erreur export SPZ: {e}")
             return False
 
-    # _compress_scale, _compress_rotation, _compress_alpha, _parse_ply_manual
-    # moved to app.core.ply_utils as standalone functions.
-        """Parse PLY file manually without plyfile dependency."""
-        positions = []
-        colors = []
-        scales = []
-        rotations = []
-        alphas = []
-
-        with open(input_file, 'rb') as f:
-            # Read header
-            header_lines = []
-            while True:
-                line = f.readline().decode('ascii').strip()
-                header_lines.append(line)
-                if line == "end_header":
-                    break
-
-            # Parse header to find properties
-            has_colors = any("property" in line and "red" in line for line in header_lines)
-            has_scales = any("property" in line and "scale_0" in line for line in header_lines)
-            has_rots = any("property" in line and "rot_0" in line for line in header_lines)
-            has_alpha = any("property" in line and "opacity" in line for line in header_lines)
-
-            # Read binary data
-            import numpy as np
-
-            # Try to determine format
-            format_line = [l for l in header_lines if l.startswith("format")]
-            is_binary = len(format_line) > 0 and "binary" in format_line[0]
-
-            if is_binary:
-                # Count vertex properties
-                vertex_props = []
-                in_element = False
-                for line in header_lines:
-                    if line.startswith("element vertex"):
-                        in_element = True
-                        num_vertices = int(line.split()[2])
-                    elif in_element and line.startswith("property"):
-                        parts = line.split()
-                        dtype = parts[1]
-                        name = parts[2]
-                        vertex_props.append((dtype, name))
-                    elif in_element and line.startswith("element"):
-                        break
-
-                # Read vertex data
-                dtype_map = {
-                    'float': '<f4', 'float32': '<f4', 'float64': '<f8',
-                    'uchar': '<u1', 'uint8': '<u1',
-                    'char': '<i1', 'int8': '<i1',
-                    'ushort': '<u2', 'uint16': '<u2',
-                    'short': '<i2', 'int16': '<i2',
-                    'uint': '<u4', 'uint32': '<u4',
-                    'int': '<i4', 'int32': '<i4'
-                }
-
-                # Create dtype for structured array
-                np_dtypes = []
-                for dtype, name in vertex_props:
-                    base_type = dtype.split('_')[0] if '_' in dtype else dtype
-                    np_dtype = dtype_map.get(base_type, '<f4')
-                    np_dtypes.append((name, np_dtype))
-
-                if np_dtypes:
-                    data = np.fromfile(f, dtype=np_dtypes, count=num_vertices)
-
-                    for i in range(num_vertices):
-                        row = data[i]
-                        # Positions
-                        positions.extend([float(row['x']), float(row['y']), float(row['z'])])
-
-                        # Colors
-                        if has_colors:
-                            colors.extend([int(row['red']), int(row['green']), int(row['blue']), 255])
-                        else:
-                            colors.extend([128, 128, 128, 255])
-
-                        # Scales
-                        if has_scales:
-                            s0 = max(0.001, float(row['scale_0']))
-                            s1 = max(0.001, float(row['scale_1']))
-                            s2 = max(0.001, float(row['scale_2']))
-                            scales.extend(self._compress_scale(s0, s1, s2))
-                        else:
-                            scales.extend([0, 0, 0])
-
-                        # Rotations
-                        if has_rots:
-                            r0 = float(row['rot_0'])
-                            r1 = float(row['rot_1'])
-                            r2 = float(row['rot_2'])
-                            r3 = float(row['rot_3'])
-                            norm = math.sqrt(r0*r0 + r1*r1 + r2*r2 + r3*r3)
-                            if norm > 0:
-                                r0, r1, r2, r3 = r0/norm, r1/norm, r2/norm, r3/norm
-                            rotations.extend(self._compress_rotation(r0, r1, r2, r3))
-                        else:
-                            rotations.extend([127, 127, 127])
-
-                        # Alphas
-                        if has_alpha:
-                            alphas.append(self._compress_alpha(float(row['opacity'])))
-                        else:
-                            alphas.append(255)
-            else:
-                # ASCII format - read line by line
-                for line in f:
-                    parts = line.decode('ascii').strip().split()
-                    if len(parts) >= 3:
-                        positions.extend([float(parts[0]), float(parts[1]), float(parts[2])])
-
-                        if has_colors and len(parts) >= 6:
-                            colors.extend([int(parts[3]), int(parts[4]), int(parts[5]), 255])
-                        else:
-                            colors.extend([128, 128, 128, 255])
-
-                        scales.extend([0, 0, 0])
-                        rotations.extend([127, 127, 127])
-                        alphas.append(255)
-
-        return positions, colors, scales, rotations, alphas
+    # FIX(AUDIT): removed orphaned _parse_ply_manual block (l.496-618),
+    # now handled by ply_utils.parse_ply_manual() imported at top.
 
     def _convert_obj_to_glb(self, obj_file: Path, glb_file: Path) -> bool:
         """Convert OBJ to GLB using assimp or blender."""

@@ -7,6 +7,7 @@ from .commands import (
     run_colmap,
     run_brush,
     run_sharp,
+    run_clean,
     run_supersplat,
     run_upscale,
     run_4dgs,

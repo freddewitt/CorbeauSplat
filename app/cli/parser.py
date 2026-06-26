@@ -70,6 +70,10 @@ def get_parser():
     p.add_argument("--max_resolution", type=int, default=None,
                    help="Résolution max entraînement 0=auto (défaut: 0)")
     p.add_argument("--ply_name",    default=None,        help="Nom du fichier PLY de sortie")
+    p.add_argument("--filter_blur",  action="store_true", help="Filtrer les images floues avant COLMAP")
+    p.add_argument("--blur_strength", choices=["light","medium","strong"], default="medium",
+                   help="Force du filtre flou (défaut: medium)")
+    p.add_argument("--robust",       action="store_true", help="Mode robuste pour grandes scènes (anti-crash COLMAP)")
 
     # ── colmap ────────────────────────────────────────────────────────────────
     p = subs.add_parser("colmap", help="Pipeline COLMAP (vidéo/images → dataset)")
@@ -103,6 +107,10 @@ def get_parser():
     p.add_argument("--no_refine_focal",   action="store_true",  help="Ne pas affiner la focale")
     p.add_argument("--refine_principal",  action="store_true",  help="Affiner le point principal")
     p.add_argument("--no_refine_extra",   action="store_true",  help="Ne pas affiner les params extra")
+    p.add_argument("--filter_blur",  action="store_true", help="Filtrer les images floues avant COLMAP")
+    p.add_argument("--blur_strength", choices=["light","medium","strong"], default="medium",
+                   help="Force du filtre flou (défaut: medium)")
+    p.add_argument("--robust",       action="store_true", help="Mode robuste pour grandes scènes (anti-crash COLMAP)")
 
     # ── brush ─────────────────────────────────────────────────────────────────
     p = subs.add_parser("brush", help="Entraînement Gaussian Splat (Brush)")
@@ -178,6 +186,19 @@ def get_parser():
     p.add_argument("--fps",    type=int, default=5,  help="FPS d'extraction vidéo (défaut: 5)")
     p.add_argument("--colmap_only", action="store_true",
                    help="Lancer uniquement COLMAP sur un dataset déjà extrait")
+
+    # ── clean ─────────────────────────────────────────────────────────────────
+    p = subs.add_parser("clean", help="Nettoyer un fichier .ply Gaussian Splat (supprime le bruit, les floaters)")
+    p.add_argument("--input",  "-i", required=True, help="Fichier .ply d'entrée")
+    p.add_argument("--output", "-o", required=True, help="Fichier .ply de sortie")
+    p.add_argument("--strength", choices=["light", "medium", "strong"], default="medium",
+                   help="Sévérité du nettoyage (défaut: medium)")
+    p.add_argument("--opacity_min", type=float, default=None,
+                   help="Opacité minimale (0-1, surcharge le preset)")
+    p.add_argument("--scale_pct", type=float, default=None,
+                   help="Percentile d'échelle max (90-100, surcharge le preset)")
+    p.add_argument("--outlier_pct", type=float, default=None,
+                   help="Percentile de distance max (90-100, surcharge le preset)")
 
     # ── extract360 ────────────────────────────────────────────────────────────
     p = subs.add_parser("extract360", help="Extraction vidéo 360° en multi-caméras COLMAP-ready")

@@ -23,9 +23,10 @@ from app.gui.tabs.superplat_tab import SuperSplatTab
 from app.gui.tabs.upscale_tab import UpscaleTab
 from app.gui.tabs.four_dgs_tab import FourDGSTab
 from app.gui.tabs.extractor_360_tab import Extractor360Tab
+from app.gui.tabs.cleaner_tab import CleanerTab
 from app.gui.tabs.export_tab import ExportTab
 from app.gui.workers import ColmapWorker, BrushWorker, SharpWorker, FourDGSWorker
-from app.gui.workers import SharpVideoWorker
+from app.gui.workers import SharpVideoWorker, CleanerWorker
 from app import VERSION
 
 class ColmapGUI(QMainWindow):
@@ -34,6 +35,7 @@ class ColmapGUI(QMainWindow):
         self.worker = None
         self.brush_worker = None
         self.sharp_worker = None
+        self.cleaner_worker = None
         
         self.session_manager = SessionManager(self)
         
@@ -66,6 +68,9 @@ class ColmapGUI(QMainWindow):
 
         self.superplat_tab = SuperSplatTab()
         self.tabs.addTab(self.superplat_tab, tr("tab_supersplat"))
+
+        self.cleaner_tab = CleanerTab()
+        self.tabs.addTab(self.cleaner_tab, tr("tab_cleaner"))
 
         self.sharp_tab = SharpTab()
         self.tabs.addTab(self.sharp_tab, tr("tab_sharp"))
@@ -111,6 +116,9 @@ class ColmapGUI(QMainWindow):
         self.sharp_tab.predictRequested.connect(self.run_sharp)
         self.sharp_tab.stopRequested.connect(self.stop_sharp)
 
+        self.cleaner_tab.cleanRequested.connect(self.run_cleaner)
+        self.cleaner_tab.stopRequested.connect(self.stop_cleaner)
+
         self.upscale_tab.log_signal.connect(self.logs_tab.append_log)
 
         # Apply visual hierarchy to utility tabs
@@ -126,6 +134,7 @@ class ColmapGUI(QMainWindow):
             self.params_tab: tr("tab_params"),
             self.brush_tab: tr("tab_brush"),
             self.superplat_tab: tr("tab_supersplat"),
+            self.cleaner_tab: tr("tab_cleaner"),
             self.upscale_tab: tr("tab_upscale"),
             self.export_tab: tr("tab_export"),
             self.sharp_tab: tr("tab_sharp"),
@@ -146,6 +155,7 @@ class ColmapGUI(QMainWindow):
         """Applies a slightly lighter/muted gray color to secondary/utility tabs"""
         secondary_tabs = [
             self.config_tab,
+            self.cleaner_tab,
             self.upscale_tab,
             self.export_tab,
             self.sharp_tab,
@@ -170,6 +180,13 @@ class ColmapGUI(QMainWindow):
         """Récupère les paramètres actuels de l'onglet params et ajoute ceux de config"""
         params = self.params_tab.get_params()
         params.undistort_images = self.config_tab.get_undistort()
+        params.filter_blurry = self.config_tab.get_filter_blur()
+        params.blur_factor = {"light": 0.5, "medium": 0.7, "strong": 0.9}.get(
+            self.config_tab.get_blur_strength(), 0.7
+        )
+        if self.config_tab.get_robust():
+            from app.cli.commands import _apply_robust
+            params = _apply_robust(params)
         return params
 
     def get_upscale_config(self):
@@ -538,6 +555,38 @@ class ColmapGUI(QMainWindow):
             QMessageBox.information(self, tr("sharp_done_title"), tr("sharp_done_body"))
         else:
             QMessageBox.warning(self, tr("sharp_error_title"), tr("sharp_error_body"))
+
+    def run_cleaner(self, input_path, output_path, params):
+        """Lance le nettoyage PLY dans un thread."""
+        self.cleaner_tab.progress_bar.setVisible(True)
+        self.cleaner_tab.progress_bar.setRange(0, 0)  # Indéterminé
+        self.cleaner_tab.lbl_results.setVisible(False)
+        self.cleaner_tab.btn_clean.setEnabled(False)
+        self.logs_tab.append_log(f"Nettoyage PLY : {input_path} → {output_path}")
+
+        self.cleaner_worker = CleanerWorker(input_path, output_path, params)
+        self.cleaner_worker.log_signal.connect(self.logs_tab.append_log)
+        self.cleaner_worker.finished_signal.connect(self.on_cleaner_finished)
+        self.cleaner_worker.start()
+        self.tabs.setCurrentWidget(self.logs_tab)
+
+    def stop_cleaner(self):
+        """Arrête le nettoyage PLY."""
+        if self.cleaner_worker and self.cleaner_worker.isRunning():
+            self.cleaner_worker.stop()
+            self.logs_tab.append_log("Arrêt du nettoyage demandé...")
+
+    def on_cleaner_finished(self, success, message):
+        """Fin du nettoyage PLY."""
+        self.cleaner_tab.progress_bar.setVisible(False)
+        self.cleaner_tab.btn_clean.setEnabled(True)
+        self.logs_tab.append_log(message)
+        self.cleaner_tab.lbl_results.setText(message)
+        self.cleaner_tab.lbl_results.setVisible(True)
+        if success:
+            QMessageBox.information(self, "Nettoyage terminé", message)
+        else:
+            QMessageBox.warning(self, "Erreur de nettoyage", message)
 
     def restart_application(self):
         """Redémarre l'application."""

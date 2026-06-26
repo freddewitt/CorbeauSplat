@@ -10,6 +10,7 @@ from app.core.brush_engine import BrushEngine
 from app.core.i18n import tr
 from app.gui.base_worker import BaseWorker
 from app.core.extractor_360_engine import Extractor360Engine
+from app.core.ply_cleaner import clean_ply
 
 class Extractor360Worker(BaseWorker):
     """Thread worker pour exécuter 360Extractor"""
@@ -485,6 +486,33 @@ class SharpVideoWorker(BaseWorker):
 
         except Exception as e:
             self.log_signal.emit(f"EXCEPTION: {e}\n{traceback.format_exc()}")
+            self.finished_signal.emit(False, str(e))
+
+
+class CleanerWorker(BaseWorker):
+    """Thread worker pour nettoyer un fichier .ply (Gaussian Splat)."""
+
+    def __init__(self, input_path, output_path, params):
+        super().__init__()
+        self.input_path = input_path
+        self.output_path = output_path
+        self.params = params
+
+    def run(self):
+        try:
+            self.log_signal.emit("--- Démarrage du nettoyage PLY ---")
+            stats = clean_ply(
+                self.input_path, self.output_path,
+                log=self.log_signal.emit,
+                overrides=self.params,
+            )
+            msg = (
+                f"Nettoyage terminé : {stats['kept']}/{stats['total']} splats conservés "
+                f"({stats['removed']} retirés)"
+            )
+            self.finished_signal.emit(True, msg)
+        except Exception as e:
+            self.log_signal.emit(f"ERREUR nettoyage PLY : {e}")
             self.finished_signal.emit(False, str(e))
 
 
