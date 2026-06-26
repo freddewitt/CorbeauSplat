@@ -93,7 +93,8 @@ def get_parser():
     p.add_argument("--max_image_size",    type=int,   default=3200, help="Résolution max des images (défaut: 3200)")
     p.add_argument("--max_num_features",  type=int,   default=8192, help="Nb max de features par image (défaut: 8192)")
     p.add_argument("--estimate_affine_shape", action="store_true", help="Estimer la forme affine des features")
-    p.add_argument("--no_domain_size_pooling", action="store_true", help="Désactiver le domain size pooling")
+    p.add_argument("--domain_size_pooling", action="store_true",
+                   help="Activer le domain size pooling (force le SIFT sur CPU — désactivé par défaut)")
     # Feature matching
     p.add_argument("--matcher_type", choices=["exhaustive","sequential","vocab_tree"], default="exhaustive",
                    help="Stratégie de matching (défaut: exhaustive)")

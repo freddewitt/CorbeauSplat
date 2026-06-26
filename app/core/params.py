@@ -10,7 +10,9 @@ class ColmapParams:
     max_num_features: int = 8192
     force_cpu: bool = False
     estimate_affine_shape: bool = False
-    domain_size_pooling: bool = True
+    # OFF by default: domain-size-pooling (and affine shape) disable COLMAP's
+    # GPU SIFT, falling back to slow CPU extraction. Keep off to use the CUDA GPU.
+    domain_size_pooling: bool = False
     max_ratio: float = 0.8
     max_distance: float = 0.7
     cross_check: bool = True

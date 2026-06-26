@@ -74,7 +74,7 @@ def run_colmap(args):
         max_image_size=args.max_image_size,
         max_num_features=args.max_num_features,
         estimate_affine_shape=args.estimate_affine_shape,
-        domain_size_pooling=not args.no_domain_size_pooling,
+        domain_size_pooling=args.domain_size_pooling,
         max_ratio=args.max_ratio,
         max_distance=args.max_distance,
         cross_check=not args.no_cross_check,

@@ -730,6 +730,19 @@ class ColmapEngine(BaseEngine):
     def feature_extraction(self, database_path: str, images_dir: str) -> bool:
         """Exécute l'extraction des features SIFT."""
         image_list_path = self._write_sorted_image_list(images_dir)
+
+        # COLMAP's GPU SIFT is disabled when affine-shape or domain-size-pooling
+        # is on (it falls back to slow CPU extraction). Tell the user which path
+        # will run so a misconfiguration that loses the GPU is obvious.
+        cpu_only_opts = self.params.estimate_affine_shape or self.params.domain_size_pooling
+        if self.has_cuda and not cpu_only_opts:
+            self.log("SIFT : GPU (CUDA) ✅")
+        elif self.has_cuda and cpu_only_opts:
+            self.log("⚠️ SIFT sur CPU : 'Affine Shape' ou 'Domain Pooling' est activé "
+                     "→ désactivez-les pour utiliser le GPU.")
+        else:
+            self.log("SIFT : CPU (pas de GPU CUDA détecté)")
+
         cmd = [
             self.colmap_bin, 'feature_extractor',
             '--database_path', database_path,

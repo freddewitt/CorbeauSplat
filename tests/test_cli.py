@@ -313,7 +313,7 @@ class TestRunFunctions:
         args.max_image_size = 3200
         args.max_num_features = 8192
         args.estimate_affine_shape = False
-        args.no_domain_size_pooling = False
+        args.domain_size_pooling = False
         args.max_ratio = 0.8
         args.max_distance = 0.7
         args.no_cross_check = False
