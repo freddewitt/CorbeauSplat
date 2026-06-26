@@ -298,14 +298,14 @@ class TestDownloadBinary:
         mock_fetch_release.return_value = {
             "assets": [
                 {
-                    "name": "upscayl-macos-arm64.tar.gz",
+                    "name": "upscayl-windows-x86_64.zip",
                     "size": 5 * 1024 * 1024,
-                    "browser_download_url": "https://example.com/upscayl.tar.gz",
+                    "browser_download_url": "https://example.com/upscayl.zip",
                 }
             ]
         }
         mock_verify.return_value = True
-        mock_load_checksums.return_value = {"darwin_upscayl": "aa" * 32}
+        mock_load_checksums.return_value = {"windows_upscayl": "aa" * 32}
 
         # Mock HTTP download with context manager
         mock_resp = MagicMock()
@@ -326,15 +326,15 @@ class TestDownloadBinary:
         assert mock_urlopen.call_count >= 1
 
     @patch("app.upscayl_manager._fetch_release")
-    def test_no_macos_asset(self, mock_fetch_release):
-        """Aucun asset macOS → RuntimeError."""
+    def test_no_windows_asset(self, mock_fetch_release):
+        """Aucun asset Windows → RuntimeError."""
         mock_fetch_release.return_value = {
             "assets": [{"name": "upscayl-linux-x86_64.tar.gz"}]
         }
 
         from app.upscayl_manager import download_binary
 
-        with pytest.raises(RuntimeError, match="No macOS release asset"):
+        with pytest.raises(RuntimeError, match="No Windows release asset"):
             download_binary()
 
     @patch("app.upscayl_manager._fetch_release")
@@ -350,9 +350,9 @@ class TestDownloadBinary:
         mock_fetch_release.return_value = {
             "assets": [
                 {
-                    "name": "upscayl-macos-arm64.tar.gz",
+                    "name": "upscayl-windows-x86_64.zip",
                     "size": 5 * 1024 * 1024,
-                    "browser_download_url": "https://example.com/upscayl.tar.gz",
+                    "browser_download_url": "https://example.com/upscayl.zip",
                 }
             ]
         }
@@ -427,38 +427,38 @@ class TestUpscaylRun:
 class TestUpscaylHelpers:
     """Tests pour les fonctions helper du module upscayl_manager."""
 
-    def test_find_macos_asset(self):
-        """_find_macos_asset trouve le bon asset."""
-        from app.upscayl_manager import _find_macos_asset
+    def test_find_windows_asset(self):
+        """_find_windows_asset trouve le bon asset."""
+        from app.upscayl_manager import _find_windows_asset
 
         assets = [
             {"name": "upscayl-linux-x86_64.tar.gz"},
             {"name": "upscayl-macos-arm64.tar.gz"},
             {"name": "upscayl-windows-x86_64.zip"},
         ]
-        result = _find_macos_asset(assets)
+        result = _find_windows_asset(assets)
         assert result is not None
-        assert "macos" in result["name"]
+        assert "windows" in result["name"]
 
-    def test_find_macos_asset_fallback(self):
-        """_find_macos_asset utilise le fallback 'mac' si arm64 manquant."""
-        from app.upscayl_manager import _find_macos_asset
+    def test_find_windows_asset_fallback(self):
+        """_find_windows_asset utilise le fallback 'win' si nécessaire."""
+        from app.upscayl_manager import _find_windows_asset
 
         assets = [
-            {"name": "upscayl-macos-universal.tar.gz"},
+            {"name": "upscayl-win64.zip"},
         ]
-        result = _find_macos_asset(assets)
+        result = _find_windows_asset(assets)
         assert result is not None
 
-    def test_find_macos_asset_none(self):
-        """_find_macos_asset retourne None si aucun asset macOS."""
-        from app.upscayl_manager import _find_macos_asset
+    def test_find_windows_asset_none(self):
+        """_find_windows_asset retourne None si aucun asset Windows."""
+        from app.upscayl_manager import _find_windows_asset
 
         assets = [
             {"name": "upscayl-linux-x86_64.tar.gz"},
-            {"name": "upscayl-windows-x86_64.zip"},
+            {"name": "upscayl-macos-arm64.tar.gz"},
         ]
-        result = _find_macos_asset(assets)
+        result = _find_windows_asset(assets)
         assert result is None
 
     def test_get_bin_dir(self, tmp_path):

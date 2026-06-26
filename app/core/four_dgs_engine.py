@@ -4,7 +4,7 @@ import shutil
 import sys
 from pathlib import Path
 from .base_engine import BaseEngine
-from .system import resolve_binary, is_apple_silicon, get_optimal_threads, resolve_project_root
+from .system import resolve_binary, has_cuda, get_optimal_threads, resolve_project_root
 
 # Path to the dedicated nerfstudio venv
 _VENV_4DGS = resolve_project_root() / ".venv_4dgs"
@@ -53,9 +53,9 @@ class FourDGSEngine(BaseEngine):
         out_p.mkdir(parents=True, exist_ok=True)
 
         cmd = [self.ffmpeg]
-        if is_apple_silicon():
-            cmd.extend(["-hwaccel", "videotoolbox"])
-            
+        if has_cuda():
+            cmd.extend(["-hwaccel", "cuda"])
+
         cmd.extend([
             "-i", str(video_path),
             "-vf", f"fps={fps}",

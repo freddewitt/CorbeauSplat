@@ -57,19 +57,6 @@
     "show_details": false,
     "build_mode": "release"
   },
-  "sharp_params": {
-    "mode": "image",
-    "enabled": true,
-    "input_path": "",
-    "output_path": "",
-    "video_path": "",
-    "video_output_path": "",
-    "skip_frames": 1,
-    "checkpoint": "",
-    "device": "default",
-    "verbose": false,
-    "upscale": false
-  },
   "upscale_params": {
     "model_id": "realesrgan-x4plus",
     "scale": 4,

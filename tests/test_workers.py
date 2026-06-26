@@ -10,8 +10,7 @@ import pytest
 try:
     from app.gui.base_worker import BaseWorker
     from app.gui.workers import (
-        ColmapWorker, BrushWorker, SharpWorker,
-        SharpVideoWorker, Extractor360Worker,
+        ColmapWorker, BrushWorker, Extractor360Worker,
     )
     WORKERS_AVAILABLE = True
 except (ImportError, AttributeError, ModuleNotFoundError) as e:
@@ -270,109 +269,6 @@ class TestBrushWorker:
             worker._rename_checkpoints_with_project_name()
             assert (output_dir / "test_scene_iteration_1000.ply").exists()
             assert (output_dir / "test_scene_iteration_2000.ply").exists()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SharpWorker tests
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestSharpWorker:
-    """Tests pour SharpWorker."""
-
-    def test_run_success(self):
-        """SharpWorker.run() avec moteur mocké."""
-        if not WORKERS_AVAILABLE:
-            pytest.skip(WORKERS_REASON)
-        engine = MagicMock()
-        engine.predict.return_value = 0
-
-        worker = SharpWorker.__new__(SharpWorker)
-        with patch.object(worker, 'log_signal', MagicMock()):
-            with patch.object(worker, 'status_signal', MagicMock()):
-                with patch.object(worker, 'finished_signal', MagicMock()):
-                    with patch.object(worker, 'isInterruptionRequested', return_value=False):
-                        worker.engine = engine
-                        worker.input_path = "/in.jpg"
-                        worker.output_path = "/out"
-                        worker.params = {}
-
-                        worker.run()
-                        engine.predict.assert_called_once()
-
-    def test_run_failure(self):
-        """SharpWorker.run() en échec."""
-        if not WORKERS_AVAILABLE:
-            pytest.skip(WORKERS_REASON)
-        engine = MagicMock()
-        engine.predict.return_value = 1
-
-        worker = SharpWorker.__new__(SharpWorker)
-        with patch.object(worker, 'log_signal', MagicMock()):
-            with patch.object(worker, 'status_signal', MagicMock()):
-                with patch.object(worker, 'finished_signal', MagicMock()):
-                    with patch.object(worker, 'isInterruptionRequested', return_value=False):
-                        worker.engine = engine
-                        worker.input_path = "/in.jpg"
-                        worker.output_path = "/out"
-                        worker.params = {}
-
-                        worker.run()
-                        args, _ = worker.finished_signal.emit.call_args
-                        assert args[0] is False
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# SharpVideoWorker tests
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestSharpVideoWorker:
-    """Tests pour SharpVideoWorker."""
-
-    def test_run_success(self):
-        """SharpVideoWorker.run() avec moteur mocké."""
-        if not WORKERS_AVAILABLE:
-            pytest.skip(WORKERS_REASON)
-        engine = MagicMock()
-        engine.process_video_frames.return_value = 5
-
-        worker = SharpVideoWorker.__new__(SharpVideoWorker)
-        with patch.object(worker, 'log_signal', MagicMock()):
-            with patch.object(worker, 'status_signal', MagicMock()):
-                with patch.object(worker, 'progress_signal', MagicMock()):
-                    with patch.object(worker, 'finished_signal', MagicMock()):
-                        with patch.object(worker, 'isInterruptionRequested', return_value=False):
-                            worker.engine = engine
-                            worker.video_path = "/in.mp4"
-                            worker.output_path = "/out"
-                            worker.params = {}
-
-                            worker.run()
-                            engine.process_video_frames.assert_called_once()
-                            args, _ = worker.finished_signal.emit.call_args
-                            assert args[0] is True
-
-    def test_run_no_frames(self):
-        """SharpVideoWorker.run() sans frames traitées."""
-        if not WORKERS_AVAILABLE:
-            pytest.skip(WORKERS_REASON)
-        engine = MagicMock()
-        engine.process_video_frames.return_value = 0
-
-        worker = SharpVideoWorker.__new__(SharpVideoWorker)
-        with patch.object(worker, 'log_signal', MagicMock()):
-            with patch.object(worker, 'status_signal', MagicMock()):
-                with patch.object(worker, 'progress_signal', MagicMock()):
-                    with patch.object(worker, 'finished_signal', MagicMock()):
-                        with patch.object(worker, 'isInterruptionRequested', return_value=False):
-                            worker.engine = engine
-                            worker.video_path = "/in.mp4"
-                            worker.output_path = "/out"
-                            worker.params = {}
-
-                            worker.run()
-                            args, _ = worker.finished_signal.emit.call_args
-                            assert args[0] is False
-                            assert "Aucune frame" in args[1]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

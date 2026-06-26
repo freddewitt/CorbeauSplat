@@ -1,15 +1,11 @@
-"""Utility functions for dependency management — installers, checkers, helpers."""
+"""Utility functions for dependency management — installers, checkers, helpers (Windows)."""
+import json
 import os
-import re
-import sys
 import shutil
 import subprocess
-import json
 from pathlib import Path
 
-from app.core.system import resolve_project_root
 from app.scripts.checksum_verifier import load_expected_checksums, verify_download
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Config and requirements helpers
@@ -27,7 +23,7 @@ def load_config():
 
 def relax_requirements(src, dst):
     """Refactor utils: Relax strict torch deps"""
-    with open(src, 'r') as f_in, open(dst, 'w') as f_out:
+    with open(src) as f_in, open(dst, 'w') as f_out:
         for line in f_in:
             if line.strip().startswith('torch==') or line.strip().startswith('torchvision=='):
                 line = line.replace('==', '>=')
@@ -75,8 +71,9 @@ def check_cargo():
     return shutil.which("cargo") is not None
 
 
-def check_brew():
-    return shutil.which("brew") is not None
+def check_winget():
+    """Returns True if the Windows Package Manager (winget) is available."""
+    return shutil.which("winget") is not None
 
 
 def check_node():
@@ -87,60 +84,98 @@ def check_cmake_ninja():
     return shutil.which("cmake") is not None and shutil.which("ninja") is not None
 
 
-def check_xcode_tools():
-    """Checks if Xcode Command Line Tools are installed (macOS only)"""
-    if sys.platform != "darwin": return True
-    try:
-        # xcode-select -p prints the path if installed, or exits with error
-        subprocess.check_call(["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
-    except (subprocess.CalledProcessError, OSError):
-        return False
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Installers helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def install_node_js():
-    print("Installing Node.js via Homebrew...")
+def refresh_windows_path():
+    """Reload PATH from the registry so tools installed this session (via winget)
+    become visible to the current process. No-op on non-Windows.
+
+    Windows updates the persistent PATH in the registry but does not propagate it
+    to already-running processes, so a freshly winget-installed cmake/node/etc. is
+    invisible to subprocess calls until the shell is restarted — unless we refresh.
+    """
+    if os.name != "nt":
+        return
     try:
-        subprocess.check_call(["brew", "install", "node"])
+        import winreg
+        parts = []
+        for root, sub in (
+            (winreg.HKEY_LOCAL_MACHINE,
+             r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"),
+            (winreg.HKEY_CURRENT_USER, "Environment"),
+        ):
+            try:
+                with winreg.OpenKey(root, sub) as key:
+                    val, _ = winreg.QueryValueEx(key, "Path")
+                    if val:
+                        parts.append(os.path.expandvars(val))
+            except OSError:
+                continue
+        if parts:
+            merged = os.pathsep.join(parts)
+            current = os.environ.get("PATH", "")
+            seen = set()
+            ordered = []
+            for entry in (merged + os.pathsep + current).split(os.pathsep):
+                key = entry.lower().rstrip("\\")
+                if entry and key not in seen:
+                    seen.add(key)
+                    ordered.append(entry)
+            os.environ["PATH"] = os.pathsep.join(ordered)
+    except Exception as e:
+        print(f"⚠️ Could not refresh PATH from registry: {e}")
+
+
+def _winget_install(package_id: str, friendly_name: str) -> bool:
+    """Installs a package via winget. Returns True on success."""
+    if not check_winget():
+        print(f"⚠️  winget introuvable — installez {friendly_name} manuellement.")
+        return False
+    print(f"Installing {friendly_name} via winget ({package_id})...")
+    try:
+        subprocess.check_call([
+            "winget", "install", "-e", "--id", package_id,
+            "--accept-source-agreements", "--accept-package-agreements",
+        ])
+        # Make the newly-installed binaries visible to this process immediately.
+        refresh_windows_path()
         return True
     except (subprocess.CalledProcessError, OSError) as e:
-        print(f"Error installing Node.js: {e}")
+        print(f"Error installing {friendly_name}: {e}")
         return False
+
+
+def install_node_js():
+    return _winget_install("OpenJS.NodeJS", "Node.js")
 
 
 def install_build_tools():
-    print("Installing CMake & Ninja via Homebrew...")
-    try:
-        subprocess.check_call(["brew", "install", "cmake", "ninja"])
-        return True
-    except (subprocess.CalledProcessError, OSError) as e:
-        print(f"Error installing build tools: {e}")
-        return False
+    ok_cmake = _winget_install("Kitware.CMake", "CMake")
+    ok_ninja = _winget_install("Ninja-build.Ninja", "Ninja")
+    return ok_cmake and ok_ninja
 
 
 def install_rust_toolchain():
-    print("Installing Rust (cargo)...")
-    import urllib.request
+    print("Installing Rust (cargo) via rustup-init.exe...")
     import tempfile
+    import urllib.request
     try:
-        rustup_path = Path(tempfile.mkstemp(suffix=".sh")[1])
-        req = urllib.request.Request("https://sh.rustup.rs")
+        _fd, _rustup_name = tempfile.mkstemp(suffix=".exe")
+        os.close(_fd)  # release the handle so Windows can run/delete the file
+        rustup_path = Path(_rustup_name)
+        req = urllib.request.Request("https://win.rustup.rs/x86_64")
         with urllib.request.urlopen(req, timeout=30) as resp:
             rustup_path.write_bytes(resp.read())
 
         checksums = load_expected_checksums()
-        checksum_key = "darwin_rustup" if sys.platform == "darwin" else "linux_rustup"
-        if not verify_download(rustup_path, checksums.get(checksum_key, "")):
-            print(f"⚠️ rustup installer SHA256 mismatch (checksum key: {checksum_key}). Continuing anyway.")
+        if not verify_download(rustup_path, checksums.get("windows_rustup", "")):
+            print("⚠️ rustup installer SHA256 mismatch (checksum key: windows_rustup). Continuing anyway.")
 
-        rustup_path.chmod(0o755)
-        subprocess.check_call([str(rustup_path), "-y"])
-        rustup_path.unlink()
-        
+        subprocess.check_call([str(rustup_path), "-y", "--default-toolchain", "stable"])
+        rustup_path.unlink(missing_ok=True)
+
         # Add to current path for this session
         cargo_bin = Path.home() / ".cargo" / "bin"
         if cargo_bin.exists():
@@ -152,42 +187,68 @@ def install_rust_toolchain():
     return False
 
 
+def _safe_extract_zip(archive_path: Path, dest_dir: Path):
+    """Extracts a zip into dest_dir, rejecting path-traversal members."""
+    import zipfile
+    dest_resolved = dest_dir.resolve()
+    with zipfile.ZipFile(archive_path, "r") as zf:
+        for member in zf.infolist():
+            target = (dest_dir / member.filename).resolve()
+            try:
+                target.relative_to(dest_resolved)
+            except ValueError:
+                print(f"  ⚠️ Rejected unsafe archive member: {member.filename}")
+                continue
+            zf.extract(member, dest_dir)
+
+
+def download_and_extract_zip(url: str, dest_dir: Path, log=print) -> bool:
+    """Downloads a .zip from `url` and extracts it into `dest_dir`.
+
+    Returns True on success. dest_dir is created if needed.
+    """
+    import tempfile
+    import urllib.request
+
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    # NOTE: close the fd mkstemp opens, otherwise Windows holds an exclusive lock
+    # on the temp file and ZipFile can't read it (WinError 32 sharing violation).
+    fd, tmp_name = tempfile.mkstemp(suffix=".zip")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        log(f"Downloading {url} ...")
+        req = urllib.request.Request(url, headers={"User-Agent": "CorbeauSplat"})
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            tmp.write_bytes(resp.read())
+        log(f"Extracting into {dest_dir} ...")
+        _safe_extract_zip(tmp, dest_dir)
+        return True
+    except Exception as e:
+        log(f"⚠️ Download/extract failed: {e}")
+        return False
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def install_system_dependencies(check_only=False):
-    print("--- System Dependency Check (Homebrew) ---")
+    """Reports presence of ffmpeg and COLMAP.
+
+    Actual installation is handled by the engine dependencies
+    (FfmpegEngineDep / ColmapEngineDep), which auto-download into engines/.
+    """
+    from app.core.system import resolve_binary
+
+    print("--- System Dependency Check (Windows) ---")
     missing = []
-    for cmd in ["colmap", "ffmpeg"]:
-        if shutil.which(cmd) is None: missing.append(cmd)
-        
-    if sys.platform == "darwin":
-        try:
-             # Check for libomp and freeimage
-             if subprocess.run(["brew", "list", "libomp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
-                 missing.append("libomp")
-             if subprocess.run(["brew", "list", "freeimage"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
-                 missing.append("freeimage")
-        except (subprocess.CalledProcessError, OSError):
-            print("⚠️ Could not check brew packages (libomp/freeimage).")
+    if resolve_binary("ffmpeg") is None:
+        missing.append("ffmpeg")
+    if resolve_binary("colmap") is None:
+        missing.append("colmap")
 
     if not missing:
-        print("✅ System dependencies present.")
+        print("✅ System dependencies present (ffmpeg, COLMAP).")
         return True
-        
-    print(f"Missing: {', '.join(missing)}")
-    if check_only:
-        print("ℹ️ Audit mode: automatic installation skipped.")
-        return False
 
-    if shutil.which("brew") is None:
-        print("ERROR: Homebrew required.")
-        return False
-        
-    print("Installing via Homebrew...")
-    try:
-        if "colmap" in missing: subprocess.check_call(["brew", "install", "colmap"])
-        if "ffmpeg" in missing: subprocess.check_call(["brew", "install", "ffmpeg"])
-        if "libomp" in missing: subprocess.check_call(["brew", "install", "libomp"])
-        if "freeimage" in missing: subprocess.check_call(["brew", "install", "freeimage"])
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"System installation failed: {e}")
-        return False
+    print(f"Missing: {', '.join(missing)} — will be auto-installed into engines/.")
+    return False

@@ -1,9 +1,9 @@
 """Base classes for engine dependency management."""
-import os
-import sys
 import json
+import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from app.core.system import resolve_project_root
@@ -13,6 +13,8 @@ class EngineDependency:
     """Represents an external engine (Colmap, Glomap, Brush, etc.)"""
     auto_update_default = False  # Subclasses can override to enable auto-update by default
     ask_before_update = False    # If True, prompt user at startup before updating
+    install_on_startup = True    # If False, only auto-installs when enabled in config
+                                 # (for heavy/optional engines built from source)
 
     def on_startup_ready(self):
         """Called at startup when the engine is installed and up to date."""
@@ -101,13 +103,13 @@ class PipEngine(EngineDependency):
         if not self.venv_dir.exists():
             print(f"Creating venv: {self.venv_dir}")
             subprocess.check_call([python_cmd, "-m", "venv", str(self.venv_dir)])
-        
+
         # Ensure pip is present (sometimes venv is created --without-pip on some systems)
         try:
             subprocess.check_call([str(self.python_bin), "-m", "ensurepip", "--upgrade"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError:
             pass
-            
+
         # Upgrade pip
         try:
             subprocess.check_call([str(self.python_bin), "-m", "pip", "install", "--upgrade", "pip", "--no-input"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -149,16 +151,22 @@ class DependencyManager:
 
         print("--- System Dependency Check ---")
         install_system_dependencies(check_only=check_only or startup)
-        
+
         config = self.get_config()
         missing_engines_startup = False
-        
+
         for name, engine in self.engines.items():
             # OCP : Le moteur decide s'il est active
             enabled = engine.is_enabled_in_config(config)
-            
+
             # During --check or --startup, we audit everything. During install, we respect enablement.
             if not enabled and not (check_only or startup):
+                continue
+
+            # Heavy/optional engines (e.g. source-built Glomap, 360 Extractor) must
+            # not auto-install at startup unless the user has enabled them. They
+            # install lazily when their feature is turned on.
+            if startup and not enabled and not engine.install_on_startup:
                 continue
 
             remote = engine.get_remote_version()
@@ -180,12 +188,11 @@ class DependencyManager:
                 else:
                     print(f">>> Auto-installing missing engine [{name}]...")
                     engine.install()
-                        
+
                 # Report status for check/startup
                 if not engine.is_installed():
                     status = f"  ❌ {name.capitalize()}: Missing"
-                    if startup: print(status)
-                    elif check_only: print(status)
+                    if startup or check_only: print(status)
                     missing_engines_startup = True
 
             elif remote and local and remote != local_clean:
@@ -198,7 +205,7 @@ class DependencyManager:
                 if startup and engine.ask_before_update:
                     print(f"\n>>> Mise à jour disponible pour {name.capitalize()} ({local_clean} → {remote})")
                     try:
-                        answer = input(f"    Mettre à jour maintenant ? (o/n) : ").strip().lower()
+                        answer = input("    Mettre à jour maintenant ? (o/n) : ").strip().lower()
                     except EOFError:
                         answer = "n"
                     if answer in ("o", "y", "oui", "yes"):

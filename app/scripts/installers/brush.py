@@ -1,15 +1,14 @@
 """Brush engine dependency installer."""
-import os
-import sys
 import json
+import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from app.scripts.checksum_verifier import load_expected_checksums, verify_download
 from app.scripts.installers.base import EngineDependency
 from app.scripts.installers.tools import install_rust_toolchain
-
 
 BRUSH_REPO = "https://github.com/ArthurBrussee/brush.git"
 
@@ -19,6 +18,9 @@ class BrushEngineDep(EngineDependency):
 
     def __init__(self):
         super().__init__("brush", BRUSH_REPO)
+        # On Windows the binary must keep its .exe extension to be launchable.
+        if sys.platform == "win32":
+            self.bin_path = self.engines_dir / "brush.exe"
 
     def is_enabled_in_config(self, config: dict) -> bool:
         return config.get("brush_params", {}).get("enabled", False) or config.get("brush_enabled", False)
@@ -35,8 +37,8 @@ class BrushEngineDep(EngineDependency):
         if build_mode == "source":
             return self._get_head_commit()
 
-        import urllib.request
         import json as _json
+        import urllib.request
         try:
             req = urllib.request.Request(
                 "https://api.github.com/repos/ArthurBrussee/brush/releases/latest",
@@ -116,8 +118,8 @@ class BrushEngineDep(EngineDependency):
 
     def _install_from_release(self, version: str) -> bool:
         import platform
-        import urllib.request
         import tarfile
+        import urllib.request
         import zipfile
 
         system = platform.system()
@@ -141,9 +143,8 @@ class BrushEngineDep(EngineDependency):
         archive_path = self.engines_dir / f"brush-app-{platform_suffix}"
         try:
             req = urllib.request.Request(release_url)
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                with open(str(archive_path), "wb") as f:
-                    f.write(resp.read())
+            with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as f:
+                f.write(resp.read())
         except Exception as e:
             print(f"⚠️ Download failed: {e}")
             if archive_path.exists():
@@ -151,7 +152,10 @@ class BrushEngineDep(EngineDependency):
             return False
 
         checksums = load_expected_checksums()
-        checksum_key = "darwin_brush" if system == "Darwin" else "linux_brush"
+        checksum_key = {
+            "Windows": "windows_brush",
+            "Darwin": "darwin_brush",
+        }.get(system, "linux_brush")
         if not verify_download(archive_path, checksums.get(checksum_key, "")):
             print(f"⚠️ Brush archive SHA256 mismatch (checksum key: {checksum_key}). Continuing anyway.")
 
@@ -201,7 +205,9 @@ class BrushEngineDep(EngineDependency):
             shutil.rmtree(str(extract_dir), ignore_errors=True)
             return False
 
-        dest = self.engines_dir / "brush"
+        dest = self.bin_path
+        if dest.exists():
+            dest.unlink()
         shutil.move(str(extracted_bin), str(dest))
         shutil.rmtree(str(extract_dir), ignore_errors=True)
 
@@ -272,7 +278,9 @@ class BrushEngineDep(EngineDependency):
         for name in ["brush-app", "brush_app", "brush", "brush-app.exe", "brush_app.exe"]:
             src = bin_dir / name
             if src.exists():
-                shutil.move(str(src), str(self.engines_dir / "brush"))
+                if self.bin_path.exists():
+                    self.bin_path.unlink()
+                shutil.move(str(src), str(self.bin_path))
                 moved = True
                 break
         shutil.rmtree(str(bin_dir), ignore_errors=True)

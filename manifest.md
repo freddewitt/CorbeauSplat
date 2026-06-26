@@ -1,15 +1,14 @@
 # CorbeauSplat — Project Manifest
 
-> Version 1.0.0 — macOS Apple Silicon Gaussian Splatting Pipeline
+> Windows / CUDA — Gaussian Splatting Pipeline (video → frames → COLMAP → Brush)
 
 ## Identity
 
-- **Purpose**: All-in-one GUI + CLI tool for Gaussian Splatting 3D reconstruction on macOS
-- **Author**: Frederick (freddewitt) — github.com/freddewitt/CorbeauSplat
+- **Purpose**: All-in-one GUI + CLI tool for Gaussian Splatting 3D reconstruction on Windows with NVIDIA CUDA
 - **License**: MIT
-- **Python**: 3.13+ (main), 3.11 (ML Sharp venv)
-- **Stack**: PyQt6, COLMAP, Brush (Rust/WGPU), Apple ML Sharp, upscayl-ncnn
-- **File count**: ~30 Python files, ~10,500 LOC first-party
+- **Python**: 3.11+
+- **Stack**: PyQt6, COLMAP (CUDA), Brush (Rust/wgpu, DX12/Vulkan), upscayl-ncnn, FFmpeg (NVDEC)
+- **GPU**: NVIDIA CUDA (detected via `nvidia-smi`); CPU fallback supported
 
 ## Quickstart
 
@@ -36,9 +35,8 @@ main.py                         ← Entry: CLI parser or GUI launcher
 │   │
 │   ├── core/                   ← Business logic (engine layer)
 │   │   ├── base_engine.py      ← BaseEngine + IProcessRunner (Template Method)
-│   │   ├── engine.py           ← ColmapEngine — SfM pipeline
-│   │   ├── brush_engine.py     ← BrushEngine — Gaussian Splat trainer
-│   │   ├── sharp_engine.py     ← SharpEngine — Apple ML Sharp
+│   │   ├── engine.py           ← ColmapEngine — SfM pipeline (CUDA SIFT)
+│   │   ├── brush_engine.py     ← BrushEngine — Gaussian Splat trainer (wgpu DX12/Vulkan)
 │   │   ├── upscale_engine.py   ← UpscaleEngine — upscayl-ncnn wrapper
 │   │   ├── superplat_engine.py ← SuperSplatEngine — web viewer
 │   │   ├── four_dgs_engine.py  ← 4DGS data preparation
@@ -98,10 +96,9 @@ main.py                         ← Entry: CLI parser or GUI launcher
 
 | Engine | Input | Output | Binary |
 |--------|-------|--------|--------|
-| **ColmapEngine** | Video/images | COLMAP dataset (sparse + dense) | `colmap` / `glomap` |
-| **BrushEngine** | COLMAP dataset | Gaussian Splat `.ply` | `brush` (Rust) |
-| **SharpEngine** | Image/video | `.ply` splat | `sharp` (Apple ML) |
-| **UpscaleEngine** | Image/folder | Upscaled images | `upscayl-bin` (NCNN) |
+| **ColmapEngine** | Video/images | COLMAP dataset (sparse + dense) | `colmap.exe` / `glomap.exe` (CUDA) |
+| **BrushEngine** | COLMAP dataset | Gaussian Splat `.ply` | `brush.exe` (Rust/wgpu) |
+| **UpscaleEngine** | Image/folder | Upscaled images | `upscayl-bin.exe` (NCNN) |
 | **SuperSplatEngine** | `.ply` file | Web viewer | `npx serve` |
 | **FourDGSEngine** | Multi-cam videos | Nerfstudio dataset | COLMAP + ns-process-data |
 | **Extractor360Engine** | 360° video | Planar images | 360Extractor venv |
@@ -109,11 +106,11 @@ main.py                         ← Entry: CLI parser or GUI launcher
 
 ## Dependencies
 
-**Python** (requirements.txt): PyQt6, requests, urllib3, numpy, send2trash, pyobjc-framework-Cocoa, Pillow, plyfile
+**Python** (requirements.txt): PyQt6, requests, urllib3, numpy, send2trash, Pillow, plyfile
 
-**System**: FFmpeg, COLMAP, Homebrew, Xcode CLT
+**System**: NVIDIA driver (for CUDA). COLMAP (CUDA) and FFmpeg auto-install on first launch. Optional: winget (FFmpeg/Node.js/CMake/Ninja), Git, Rust (Brush source builds)
 
-**Run-time downloaded**: upscayl-bin (auto-install from GitHub releases), upscayl models (6 custom models)
+**Run-time downloaded**: COLMAP CUDA build + FFmpeg (into `engines/`), brush.exe + upscayl-bin.exe (from GitHub releases), upscayl models
 
 ## Security
 
@@ -165,14 +162,23 @@ Input (Video/Images)
 
 9 languages via `assets/locales/{lang}.json`. `LanguageManager` singleton with Observer pattern. Fallback chain: selected → `en.json` → `fr.json` → empty dict.
 
-## Dual-Venv Setup
+## Virtual Environments
 
-- **`.venv/`**: Main app (Python 3.13+ with PyQt6, etc.)
-- **`.venv_sharp/`**: ML Sharp (Python 3.11 — required by Apple's fork)
+- **`.venv/`**: Main app (Python 3.11+ with PyQt6, etc.) — `Scripts\python.exe`
 - **`.venv_360/`**: 360Extractor (isolated environment)
+- **`.venv_4dgs/`**: Nerfstudio for 4DGS prep (isolated environment)
 
 ## CLI Subcommands
 
-`pipeline`, `colmap`, `brush`, `sharp`, `view`, `upscale`, `4dgs`, `extract360`
+`pipeline`, `colmap`, `brush`, `view`, `upscale`, `4dgs`, `extract360`
 
 Each has `--help`. No subcommand = GUI mode.
+
+## Platform Notes (Windows/CUDA)
+
+- Device selection: `app/core/system.py:get_device()` → `cuda` when `nvidia-smi` is on PATH, else `cpu`.
+- COLMAP/FFmpeg auto-install: `ColmapEngineDep`/`FfmpegEngineDep` download into `engines/colmap` and `engines/ffmpeg` on first launch (COLMAP CUDA build chosen when a GPU is present, non-CUDA otherwise).
+- COLMAP resolution: `resolve_binary("colmap")` searches `engines/colmap/**` for `colmap.exe`, then `C:\COLMAP`/`Program Files`, then PATH. `run_command` adds the COLMAP `bin`/`lib` dirs to `PATH` so bundled DLLs load.
+- FFmpeg uses `-hwaccel cuda` (NVDEC) when a GPU is present.
+- COLMAP SIFT extraction/matching pass `--SiftExtraction.use_gpu`/`--SiftMatching.use_gpu` when CUDA is available.
+- Brush runs on wgpu with `WGPU_BACKEND=dx12` for the discrete NVIDIA adapter.

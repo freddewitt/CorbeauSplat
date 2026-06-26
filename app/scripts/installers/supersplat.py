@@ -1,4 +1,5 @@
 """SuperSplat engine dependency installer."""
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -6,8 +7,15 @@ from pathlib import Path
 from app.scripts.installers.base import EngineDependency
 from app.scripts.installers.tools import install_node_js
 
-
 SUPERPLAT_REPO = "https://github.com/playcanvas/supersplat.git"
+
+
+def _npm(args):
+    """Build an npm command. On Windows npm is a .cmd shim that CreateProcess
+    cannot launch directly, so route it through cmd.exe."""
+    if os.name == "nt":
+        return ["cmd", "/c", "npm", *args]
+    return ["npm", *args]
 
 
 class SuperSplatEngineDep(EngineDependency):
@@ -28,7 +36,7 @@ class SuperSplatEngineDep(EngineDependency):
 
     def _npm_install(self):
         target = str(self.target_dir)
-        result = subprocess.run(["npm", "install"], cwd=target)
+        result = subprocess.run(_npm(["install"]), cwd=target)
         if result.returncode == 0:
             return
         # npm bug #4828: optional deps fail silently, leaving native modules missing.
@@ -38,7 +46,7 @@ class SuperSplatEngineDep(EngineDependency):
         lock = self.target_dir / "package-lock.json"
         if lock.exists():
             lock.unlink()
-        subprocess.check_call(["npm", "install"], cwd=target)
+        subprocess.check_call(_npm(["install"]), cwd=target)
 
     def install(self):
         if not shutil.which("node"):
@@ -59,5 +67,5 @@ class SuperSplatEngineDep(EngineDependency):
             self.update_git()
 
         self._npm_install()
-        subprocess.check_call(["npm", "run", "build"], cwd=str(self.target_dir))
+        subprocess.check_call(_npm(["run", "build"]), cwd=str(self.target_dir))
         self.save_local_version(self.get_remote_version())

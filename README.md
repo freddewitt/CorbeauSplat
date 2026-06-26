@@ -1,115 +1,88 @@
-# CorbeauSplat v1.0.0
+# CorbeauSplat — Windows / CUDA Edition
 
-**CorbeauSplat** is an all-in-one Gaussian Splatting automation tool designed specifically for **macOS Silicon**. It streamlines the entire workflow from raw video/images to a fully trained and viewable 3D scene (Gaussian Splat).
+**CorbeauSplat** is an all-in-one Gaussian Splatting automation tool for **Windows with NVIDIA CUDA GPUs**. It streamlines the whole workflow from raw video/images to a fully trained and viewable 3D scene (Gaussian Splat).
 
-> 🎉 **v1.0.0 — First Stable Release**  
-> After extensive security hardening, architectural refactoring, and 200+ unit tests.
-
-<div align="center">
-
-[![Buy Me A Coffee](https://www.buymeacoffee.com/assets/img/custom_images/yellow_img.png)](https://www.buymeacoffee.com/freddewitt)
-
-</div>
+> 🪟 **Windows/CUDA fork** of the original macOS project. The pipeline is focused on
+> **video → frames → COLMAP → Brush splat training → view**, accelerated by your NVIDIA GPU.
 
 ![CorbeauSplat Interface](assets/interface.webp)
 
 ## 🚀 What it does
 
-This application provides a unified Graphical User Interface (GUI) to orchestrate the following steps:
-1.  **Project Management**: Automatically organizes your outputs into structured project folders with images, sparse data, and checkpoints.
-2.  **Sparse Reconstruction**: Automates **COLMAP** feature extraction, matching, and mapping. Supports **Glomap** as a modern alternative mapper.
-3.  **Undistortion**: Automatically undistorts images for optimal training quality.
-4.  **AI Upscaling**: Optionally enhances input images before reconstruction using **upscayl-ncnn** — a fast NCNN-based upscaler with 6 curated models (Real-ESRGAN x4+, 4xLSDIR, 4xNomos8kSC, and more). Installed automatically at first launch.
-5.  **Training**: Integrates **Brush** to train Gaussian Splats directly on your Mac.
-6.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
-7.  **ML Sharp (Image/Video to 3D)**: Uses **Apple ML Sharp** to generate a 3D model from a single image or a sequence of 3D models directly from a video.
-8.  **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
-9.  **360 Extractor (Experimental)**: Converts equirectangular 360° videos into optimal planar image sets (Cube Map, Ring, etc.) for photogrammetry, with AI operator masking.
+A unified GUI (and CLI) to orchestrate:
+1.  **Project Management**: Organises outputs into structured project folders (images, sparse data, checkpoints).
+2.  **Frame Extraction**: Pulls frames from a video with **FFmpeg**, using **NVIDIA NVDEC (`-hwaccel cuda`)** when a GPU is present.
+3.  **Sparse Reconstruction**: Automates **COLMAP** feature extraction, matching and mapping with **GPU-accelerated SIFT** (`--SiftExtraction.use_gpu` / `--SiftMatching.use_gpu`). Supports **Glomap** as an alternative mapper.
+4.  **Undistortion**: Optionally undistorts images for optimal training quality.
+5.  **AI Upscaling** *(optional)*: Enhances input images with **upscayl-ncnn** before reconstruction.
+6.  **Training**: Integrates **Brush** (Rust/wgpu, DirectX 12 / Vulkan) to train Gaussian Splats on your GPU.
+7.  **Visualization**: Built-in **SuperSplat** tab for immediate local viewing/editing of `.ply` files.
+8.  **Splat Cleanup**: A **Nettoyage / Cleaner** tab that loads a `.ply` and automatically removes sky, "floaters", near-transparent and isolated splats (variance/opacity/scale + outlier filtering), with a SuperSplat preview before saving. Also available via `python main.py clean -i in.ply -o out.ply`.
+8.  **4DGS Preparation (Experimental)**: Prepares 4D Gaussian Splatting datasets (multi-camera video → Nerfstudio format).
+9.  **360 Extractor (Experimental)**: Converts equirectangular 360° videos into planar image sets.
 
-It is designed to be "click-and-run", handling dependency checks, process management, and **session persistence** for you.
-It also includes built-in full localization support for **French, English, German, Italian, Spanish, Arabic, Russian, Chinese, and Japanese**.
-
-## ✍️ A Note from the Author
-
-> This program was realized through **"vibecoding"** with the help of **Gemini 3 Pro**.
->
-> It was originally created to facilitate the technical workflow for a documentary film titled **"Le Corbeau"**. I am not a professional developer; I simply needed to automate a complex process by gathering the tools I use daily: COLMAP, the Brush app, and SuperSplat. 
->
-> I share this code in all humility. I didn't originally plan to release it, but I thought that perhaps someone, somewhere on this earth, might find it useful.
->
-> As this software was built via "vibecoding" (AI-assisted coding), it is provided "as is" with no guarantees.
+It is designed to be "click-and-run", with dependency checks, process management and session persistence.
+Includes full localization for **French, English, German, Italian, Spanish, Arabic, Russian, Chinese and Japanese**.
 
 ## 🛠 Prerequisites & Installation
 
 ### Requirements
-- **macOS** (Apple Silicon recommended)
-- **Python 3.13+** (Recommended for JIT/Performance) or Python 3.11 (Supported)
-- **Xcode Command Line Tools** (Required for compiling custom engines like Glomap or Brush)
-- **Homebrew** (for installing system dependencies like COLMAP and FFmpeg)
-- **Git**
+- **Windows 10/11 (x64)**
+- **NVIDIA GPU** with up-to-date drivers (for CUDA acceleration; CPU fallback works but is slow)
+- **Python 3.11+** ([python.org](https://www.python.org/downloads/) — tick *"Add Python to PATH"*)
+- **Git** (optional, for updates and source builds)
+
+That's it — **COLMAP (CUDA) and FFmpeg are installed automatically** on first launch (see below). No manual download/PATH setup required.
 
 ### Installation
-1.  Clone this repository:
-    ```bash
-    git clone https://github.com/freddewitt/CorbeauSplat.git
-    cd CorbeauSplat
-    ```
+1.  Clone or download this repository.
+2.  Double-click **`run.bat`** (or run it from a terminal).
 
-2.  Run the launcher:
-    ```bash
-    ./run.command
-    ```
-    *The script will automatically detect missing dependencies (Python packages, Brush, SuperSplat, Rust, Node.js, etc.) and attempt to install them for you.*
+    On first launch it automatically:
+    - creates a Python virtual environment and installs the Python dependencies;
+    - **downloads the CUDA COLMAP build** (`colmap-x64-windows-cuda.zip`) from GitHub releases into `engines\colmap\`;
+    - **installs FFmpeg** (via `winget` if available, otherwise a static build into `engines\ffmpeg\`);
+    - downloads/builds the other engines (Brush, SuperSplat, upscayl);
+    - launches the app.
+
+> All auto-downloaded engines live under `engines\` (git-ignored). To re-download everything cleanly, run `run.bat --clean`.
+>
+> If you already have COLMAP installed system-wide, CorbeauSplat will use that instead (it checks PATH and `C:\COLMAP`). No GPU? It falls back to the non-CUDA COLMAP build and CPU execution automatically.
+
+Optional flags:
+```bat
+run.bat --clean      :: wipe venvs + engines + config and start fresh
+```
 
 ## 📖 How to Use
 
-1.  **Configuration Tab**: 
-    -   Select your input (Video or Folder of images).
-    -   Define a **Project Name** (your files will be saved in `[Output Folder]/[Project Name]`).
-    -   Click **"Create COLMAP Dataset"**.
-2.  **Params Tab**: (Optional) Tweak advanced COLMAP settings or enable **Glomap**.
-3.  **Upscale Tab**: (Optional)
-    -   Enable **"Enable Upscale"** in the Training tab to apply upscaling during dataset creation.
-    -   `upscayl-bin` is automatically downloaded and installed on first launch — no manual setup required.
-    -   Choose a model (e.g., Real-ESRGAN x4+ for photos, 4xLSDIR for ultra fidelity) and configure scale, format, and tile size.
-    -   Download additional models directly from the tab (4xLSDIR, 4xNomos8kSC, NMKD-Siax).
-4.  **Brush Tab**: 
-    -   **Auto-Refine**: Choose "Refine" mode to resume training from the latest checkpoint.
-    -   **Presets**: Use specific densification strategies (e.g., "Aggressive Densification").
-    -   Click **"Start Brush Training"**.
-5.  **SuperSplat Tab**: 
-    -   Load your trained `.ply` file.
-    -   Click **"Start Servers"** to launch the viewer locally.
-6.  **4DGS Tab (Experimental)**:
-    -   Check **"Activate"** to install the required dependencies (Nerfstudio).
-    -   Select a folder containing your synced camera videos.
-    -   Click **"Start Process"** to generate a dataset ready for 4DGS training.
-7.  **360 Extractor Tab (Experimental)**:
-    -   **Activate**: Install the dedicated environment (PySide6, YOLOv8).
-    -   **Convert**: Extract images from 360° videos with advanced layouts (Ring, Cube Map, Fibonacci).
-    -   **AI Masking**: Automatically mask the operator.
-8. **Apple Sharp Tab (Bonus)**:
-    -   Select a single source image or a **Video**.
-    -   Click **"Predict 3D Model"** or **"Start Conversion"** to generate a mesh sequence using machine learning.
+1.  **Configuration Tab**: choose your input (a video or a folder of images), set a **Project Name**, then click **"Create COLMAP Dataset"**.
+2.  **Params Tab**: *(optional)* tweak COLMAP settings or enable **Glomap**.
+3.  **Upscale Tab**: *(optional)* enable upscaling and pick a model.
+4.  **Brush Tab**: choose a preset (e.g. "Aggressive Densification"), set **Device** to `cuda`, then **"Start Brush Training"**.
+5.  **SuperSplat Tab**: load your `.ply` and **"Start Servers"** to view it locally.
 
 ### ⌨️ Command Line Interface (CLI)
 
-CorbeauSplat exposes all its features via the command line.
+```bat
+python main.py pipeline -i video.mp4 -o C:\projects --type video --preset dense
+python main.py colmap   -i C:\photos  -o C:\projects
+python main.py brush    -i C:\projects\scene -o C:\projects\scene --device cuda --preset dense
+python main.py view     -i scene.ply
+python main.py upscale  -i image.png -o C:\out --scale 4
+```
 
-� **[See CLI.md for full command line documentation](CLI.md)**
+Run `python main.py <command> --help` for per-command options. No arguments launches the GUI.
 
 ## 👏 Acknowledgments & Credits
 
-This project stands on the shoulders of giants. A huge thank you to the creators of the core technologies used here:
-
 *   **COLMAP**: Structure-from-Motion and Multi-View Stereo. [GitHub](https://github.com/colmap/colmap)
-*   **Brush**: An efficient Gaussian Splatting trainer for macOS. [GitHub](https://github.com/ArthurBrussee/brush)
-*   **SuperSplat**: An amazing web-based Splat editor by PlayCanvas. [GitHub](https://github.com/playcanvas/supersplat)
-*   **360Extractor**: Advanced 360° video extraction tool. [GitHub](https://github.com/nicolasdiolez/360Extractor)
-*   **Apple ML Sharp**: Machine Learning tools for Swift. [GitHub](https://github.com/apple/ml-sharp)
-*   **Nerfstudio**: The modular NeRF and Splatting framework (used for 4DGS data prep). [GitHub](https://github.com/nerfstudio-project/nerfstudio)
-*   **upscayl-ncnn**: High-performance AI image upscaling using NCNN. Powers the Upscale tab. [GitHub](https://github.com/upscayl/upscayl-ncnn)
+*   **Brush**: An efficient cross-platform Gaussian Splatting trainer (Rust/wgpu). [GitHub](https://github.com/ArthurBrussee/brush)
+*   **SuperSplat**: Web-based Splat editor by PlayCanvas. [GitHub](https://github.com/playcanvas/supersplat)
+*   **Glomap**: Global Structure-from-Motion. [GitHub](https://github.com/colmap/glomap)
+*   **Nerfstudio**: NeRF and Splatting framework (used for 4DGS data prep). [GitHub](https://github.com/nerfstudio-project/nerfstudio)
+*   **upscayl-ncnn**: High-performance AI image upscaling (NCNN). [GitHub](https://github.com/upscayl/upscayl-ncnn)
 
 ## 📄 License
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details. This is the most permissive open-source license, allowing you to use, modify, and distribute this software freely.
+MIT — see [LICENSE](LICENSE). Originally created for the documentary *"Le Corbeau"*; ported to Windows/CUDA.

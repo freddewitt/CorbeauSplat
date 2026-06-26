@@ -89,7 +89,7 @@ class BrushTab(QWidget):
         
         # Device
         self.device_combo = QComboBox()
-        self.device_combo.addItems(["mps", "cuda", "cpu", "auto"])
+        self.device_combo.addItems(["cuda", "cpu", "auto"])
         self.device_combo.setMinimumWidth(150)
         self.lbl_device = QLabel(tr("brush_device"))
         param_layout.addRow(self.lbl_device, self.device_combo)

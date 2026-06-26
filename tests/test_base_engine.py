@@ -38,9 +38,10 @@ class TestValidatePath:
         result = engine.validate_path(str(malicious))
         assert result is None
 
-    def test_absolute_path_outside_allowed(self, engine):
-        result = engine.validate_path("/opt/corbeausplat_secret")
-        assert result is None
+    def test_absolute_path_outside_project_allowed(self, engine):
+        # Desktop tool: user-chosen absolute paths (any drive/folder) are allowed.
+        result = engine.validate_path("/opt/corbeausplat_output")
+        assert result == Path("/opt/corbeausplat_output").resolve()
 
     def test_empty_path_returns_none(self, engine):
         assert engine.validate_path("") is None

@@ -1,10 +1,9 @@
 """
-upscayl_manager.py — Finds, installs and manages the upscayl-bin binary.
+upscayl_manager.py — Finds, installs and manages the upscayl-bin binary (Windows).
 
 Priority order for binary discovery:
-  1. ./bin/upscayl-bin        (embedded, downloaded at runtime)
-  2. /Applications/Upscayl.app (user has Upscayl installed)
-  3. which upscayl-bin         (Homebrew or PATH)
+  1. ./bin/upscayl-bin.exe     (embedded, downloaded at runtime)
+  2. which upscayl-bin         (on PATH)
 """
 import json
 import os
@@ -20,6 +19,15 @@ from app.core.system import resolve_project_root
 from app.scripts.checksum_verifier import load_expected_checksums, verify_download
 
 GITHUB_API = "https://api.github.com/repos/upscayl/upscayl-ncnn/releases/latest"
+
+
+def _is_windows() -> bool:
+    return os.name == "nt" or platform.system() == "Windows"
+
+
+def bin_filename() -> str:
+    """Executable file name for the current platform."""
+    return "upscayl-bin.exe" if _is_windows() else "upscayl-bin"
 
 
 def get_bin_dir() -> Path:
@@ -64,20 +72,15 @@ def get_effective_models_dir() -> Path | None:
 
 def is_using_local_binary() -> bool:
     """True if we downloaded our own binary (not using system/app install)."""
-    local = get_bin_dir() / "upscayl-bin"
+    local = get_bin_dir() / bin_filename()
     return local.exists() and os.access(local, os.X_OK)
 
 
 def find_binary() -> Path | None:
     """Returns the first usable upscayl-bin, or None."""
-    candidates = [
-        get_bin_dir() / "upscayl-bin",
-        Path("/Applications/Upscayl.app/Contents/MacOS/upscayl-bin"),
-        Path("/Applications/Upscayl.app/Contents/Resources/bin/upscayl-bin"),
-    ]
-    for p in candidates:
-        if p.exists() and os.access(p, os.X_OK):
-            return p
+    local = get_bin_dir() / bin_filename()
+    if local.exists() and os.access(local, os.X_OK):
+        return local
 
     which = shutil.which("upscayl-bin")
     if which:
@@ -108,24 +111,24 @@ def _fetch_release() -> dict:
         return json.loads(resp.read())
 
 
-def _find_macos_asset(assets: list) -> dict | None:
-    """Finds the macOS arm64 release asset."""
+def _find_windows_asset(assets: list) -> dict | None:
+    """Finds the Windows release asset."""
     for a in assets:
         name = a["name"].lower()
-        if ("macos" in name or "darwin" in name or "mac" in name) and \
-                ("arm64" in name or "aarch64" in name):
+        if ("windows" in name or "win64" in name or "win32" in name or "win" in name) and \
+                name.endswith((".zip", ".7z")):
             return a
-    # Fallback: any macOS asset
+    # Fallback: any windows-named asset
     for a in assets:
         name = a["name"].lower()
-        if "macos" in name or "darwin" in name or "mac" in name:
+        if "windows" in name or "win" in name:
             return a
     return None
 
 
 def download_binary(log_callback=None) -> Path:
     """
-    Downloads the latest upscayl-bin release for macOS arm64.
+    Downloads the latest upscayl-bin release for Windows.
     Extracts binary to ./bin/ and bundled models to ./models/upscayl/.
     Returns the installed binary path.
     Raises RuntimeError on failure.
@@ -137,9 +140,9 @@ def download_binary(log_callback=None) -> Path:
 
     log("Fetching latest upscayl-ncnn release info...")
     release = _fetch_release()
-    asset = _find_macos_asset(release.get("assets", []))
+    asset = _find_windows_asset(release.get("assets", []))
     if not asset:
-        raise RuntimeError("No macOS release asset found on GitHub.")
+        raise RuntimeError("No Windows release asset found on GitHub.")
 
     size_mb = asset["size"] // 1024 // 1024
     log(f"Downloading {asset['name']} ({size_mb} MB)...")
@@ -149,12 +152,11 @@ def download_binary(log_callback=None) -> Path:
     archive_path = bin_dir / asset["name"]
 
     req = urllib.request.Request(asset["browser_download_url"])
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        with open(str(archive_path), "wb") as f:
-            f.write(resp.read())
+    with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as f:
+        f.write(resp.read())
 
     checksums = load_expected_checksums()
-    checksum_key = "darwin_upscayl" if platform.system() == "Darwin" else "linux_upscayl"
+    checksum_key = "windows_upscayl" if _is_windows() else "linux_upscayl"
     if not verify_download(archive_path, checksums.get(checksum_key, "")):
         log(f"⚠️ upscayl archive SHA256 mismatch (checksum key: {checksum_key}). Continuing anyway.")
 
@@ -164,12 +166,13 @@ def download_binary(log_callback=None) -> Path:
     _extract_archive(archive_path, bin_dir, models_dir, log)
     archive_path.unlink(missing_ok=True)
 
-    dest = bin_dir / "upscayl-bin"
+    dest = bin_dir / bin_filename()
     if not dest.exists():
-        raise RuntimeError("upscayl-bin not found after extraction.")
+        raise RuntimeError(f"{bin_filename()} not found after extraction.")
 
-    os.chmod(dest, 0o755)
-    log(f"✅ upscayl-bin installed: {dest}")
+    if not _is_windows():
+        os.chmod(dest, 0o755)
+    log(f"✅ {bin_filename()} installed: {dest}")
     return dest
 
 
@@ -188,13 +191,15 @@ def _extract_archive(archive: Path, bin_dest: Path, models_dest: Path, log):
                 continue
         return False
 
+    target_bin = bin_filename()
+
     def handle_member(name: str, read_fn):
         fname = Path(name).name
-        if fname == "upscayl-bin":
+        if fname in ("upscayl-bin", "upscayl-bin.exe"):
             if not is_safe_extraction(name, [bin_dest_resolved]):
                 log(f"  ⚠️ Rejected unsafe member: {name}")
                 return
-            out = bin_dest / "upscayl-bin"
+            out = bin_dest / target_bin
             out.write_bytes(read_fn())
             log(f"  → {out}")
         elif fname.endswith(".bin") or fname.endswith(".param"):

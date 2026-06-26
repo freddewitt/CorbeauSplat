@@ -113,12 +113,12 @@ class TestFourDGSEngine:
                 assert result is True
                 assert output_dir.exists()
 
-    def test_extract_frames_apple_silicon(self, tmp_path):
-        """extract_frames ajoute -hwaccel videotoolbox sur Apple Silicon."""
+    def test_extract_frames_cuda(self, tmp_path):
+        """extract_frames ajoute -hwaccel cuda quand un GPU NVIDIA est présent."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
-                with patch("app.core.four_dgs_engine.is_apple_silicon", return_value=True):
+                with patch("app.core.four_dgs_engine.has_cuda", return_value=True):
 
                     from app.core.four_dgs_engine import FourDGSEngine
 

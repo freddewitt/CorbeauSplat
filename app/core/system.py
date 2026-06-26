@@ -1,144 +1,161 @@
-import platform
 import os
+import platform
 import shutil
-import subprocess
 from pathlib import Path
+
+# Common install locations for COLMAP on Windows. The official pre-built
+# packages ship a `COLMAP.bat` shim alongside `colmap.exe` in a `bin/` folder.
+_WINDOWS_COLMAP_HINTS = (
+    r"C:\COLMAP",
+    r"C:\Program Files\COLMAP",
+    r"C:\Program Files\colmap",
+)
+
 
 def resolve_project_root() -> Path:
     """Finds project root relative to this script (app/core/system.py)"""
     return Path(__file__).resolve().parent.parent.parent
 
-def is_apple_silicon():
-    """Détecte si on est sur Apple Silicon"""
-    return platform.system() == 'Darwin' and platform.machine() == 'arm64'
+
+def is_windows() -> bool:
+    return os.name == "nt" or platform.system() == "Windows"
 
 
-def get_optimal_threads():
-    """Retourne le nombre optimal de threads pour Apple Silicon (P-cores) ou autres plateformes"""
-    if is_apple_silicon():
-        # Apple Silicon has heterogeneous P-cores (performance) + E-cores (efficiency).
-        # For compute-heavy tasks (COLMAP, ffmpeg), we prefer P-cores only.
-        # Try multiple sysctl keys in order of preference, as not all keys exist
-        # on every macOS version or chip generation.
-        for key in (
-            "hw.perflevel0.logicalcpu",       # P-core logical count (primary)
-            "hw.perflevel0.logicalcpu_max",   # P-core logical max (macOS 14+)
-            "hw.perflevel0.physicalcpu",      # P-core physical count
-            "hw.physicalcpu",                 # total physical cores (P+E)
-        ):
-            try:
-                result = subprocess.run(
-                    ["sysctl", "-n", key],
-                    capture_output=True, text=True, timeout=2
-                )
-                if result.returncode == 0:
-                    cores = int(result.stdout.strip())
-                    if cores > 0:
-                        # hw.physicalcpu includes E-cores; approximate P-only
-                        if key == "hw.physicalcpu":
-                            cores = max(1, cores // 2)
-                        return cores
-            except (ValueError, subprocess.SubprocessError, OSError):
-                continue
-        # Absolute fallback: os.cpu_count() includes both P and E logical cores;
-        # divide by 2 as a conservative P-core estimate (M1: 8→4✓, M1Pro: 10→5≈,
-        # M1Max: 10→5≈, M2Pro: 12→6≈, M3Max: 16→8≈, M4Max: 16→8≈).
-        cpu_count = os.cpu_count() or 8
-        return max(1, cpu_count // 2)
+def has_cuda() -> bool:
+    """Detects an NVIDIA CUDA GPU via the `nvidia-smi` utility."""
+    return shutil.which("nvidia-smi") is not None
+
+
+def get_optimal_threads() -> int:
+    """Returns a sensible thread count for compute-heavy work (COLMAP, ffmpeg)."""
     return os.cpu_count() or 4
+
+
+def _windows_exe_candidates(name: str):
+    """Yields plausible executable file names for `name` on Windows."""
+    lowered = name.lower()
+    if lowered.endswith((".exe", ".bat", ".cmd")):
+        yield name
+        return
+    for ext in (".exe", ".bat", ".cmd"):
+        yield name + ext
+
+
+def _search_subtree(base: Path, exe_names):
+    """Returns the first matching executable found anywhere under `base`."""
+    if not base.exists():
+        return None
+    for exe in exe_names:
+        for found in base.rglob(exe):
+            if found.is_file():
+                return str(found)
+    return None
+
 
 def resolve_binary(name):
     """
-    Résoud le chemin d'un binaire en priorisant le dossier 'engines' local.
-    Retourne le chemin absolu ou le nom si trouvé dans le PATH, sinon None.
+    Resolves the path of a binary, prioritising the local 'engines' folder
+    (including auto-extracted COLMAP/ffmpeg subtrees), then well-known Windows
+    install locations, then the system PATH.
+
+    Returns the absolute path (str) or None if not found.
     """
-    # 1. Chercher dans le dossier engines à la racine du projet
     engines_dir = resolve_project_root() / "engines"
-    
-    local_path = engines_dir / name
-    
-    # Cas binaire direct
-    if local_path.exists() and os.access(local_path, os.X_OK):
-        return str(local_path)
-        
-    # Cas macOS .app bundle pour COLMAP
+
+    # 1. Local engines/ folder — accept bare name and Windows extensions
+    candidate_names = [name]
+    if is_windows():
+        candidate_names = list(_windows_exe_candidates(name))
+    for cand in candidate_names:
+        local_path = engines_dir / cand
+        if local_path.exists() and os.access(local_path, os.X_OK):
+            return str(local_path)
+
+    # 2. Auto-installed engines extracted into a dedicated subfolder.
+    #    COLMAP: prefer colmap.exe — COLMAP.bat cannot be launched directly via
+    #    subprocess without a shell. The bundled DLLs are made discoverable
+    #    separately (see ColmapEngine.run_command).
     if name == "colmap":
-        colmap_app = engines_dir / "COLMAP.app" / "Contents" / "MacOS" / "colmap"
-        if colmap_app.exists() and os.access(colmap_app, os.X_OK):
-            return str(colmap_app)
-            
-    # 2. Chercher dans le PATH système
+        found = _search_subtree(engines_dir / "colmap", ("colmap.exe", "colmap"))
+        if found:
+            return found
+        if is_windows():
+            for hint in _WINDOWS_COLMAP_HINTS:
+                found = _search_subtree(Path(hint), ("colmap.exe",))
+                if found:
+                    return found
+    elif name == "ffmpeg":
+        found = _search_subtree(engines_dir / "ffmpeg", ("ffmpeg.exe", "ffmpeg"))
+        if found:
+            return found
+
+    # 3. System PATH. On Windows prefer the .exe so the result is always
+    #    launchable via subprocess without a shell.
+    if is_windows() and not name.lower().endswith((".exe", ".bat", ".cmd")):
+        which_exe = shutil.which(name + ".exe")
+        if which_exe:
+            return which_exe
     return shutil.which(name)
 
+
 def get_device() -> str:
-    """Centralized device selection: mps, cuda, or cpu."""
-    if is_apple_silicon():
-        return "mps"
-    if shutil.which("nvidia-smi") is not None:
+    """Centralized device selection: cuda when an NVIDIA GPU is present, else cpu."""
+    if has_cuda():
         return "cuda"
     return "cpu"
 
-def get_memory_info() -> dict:
-    """Returns memory info for UMA/caching strategies via sysctl + vm_stat.
 
-    On Apple Silicon (UMA), memory_pressure is the most reliable indicator
-    since GPU and CPU share the same pool.
+def get_memory_info() -> dict:
+    """Returns total/available/percent memory using OS-native probes.
+
+    On Windows this uses GlobalMemoryStatusEx via ctypes. Falls back to a
+    best-effort estimate when the probe is unavailable.
     """
     total = 0
     available = 0
     percent = 0.0
 
-    # Total physical memory
-    try:
-        result = subprocess.run(
-            ["sysctl", "-n", "hw.memsize"],
-            capture_output=True, text=True, timeout=2
-        )
-        total = int(result.stdout.strip()) if result.returncode == 0 else 0
-    except (ValueError, subprocess.SubprocessError, OSError):
-        pass
-
-    # Available memory: use vm_stat to get free + inactive + speculative pages.
-    # On Apple Silicon UMA, compressed/inactive pages are effectively "available"
-    # since the memory compressor frees them on demand.
-    if total > 0:
+    if is_windows():
         try:
-            result = subprocess.run(
-                ["vm_stat"],
-                capture_output=True, text=True, timeout=2
-            )
-            if result.returncode == 0:
-                page_size = 16384  # Apple Silicon default page size
-                pages = {}
-                for line in result.stdout.splitlines():
-                    if ":" in line:
-                        key, val = line.split(":", 1)
-                        key = key.strip().strip('"')
-                        try:
-                            pages[key] = int(val.strip().rstrip("."))
-                        except ValueError:
-                            pass
-                # Page size detection
-                if "page size of" in result.stdout:
-                    for token in result.stdout.split():
-                        try:
-                            page_size = int(token)
-                            break
-                        except ValueError:
-                            pass
-                free_pages = pages.get("Pages free", 0)
-                inactive_pages = pages.get("Pages inactive", 0)
-                speculative_pages = pages.get("Pages speculative", 0)
-                available_pages = free_pages + inactive_pages + speculative_pages
-                available_bytes = available_pages * page_size
-                # Clamp to total (vm_stat can report more than hw.memsize
-                # if compression reclaims pages from other categories)
-                available = min(available_bytes, total)
+            import ctypes
+
+            class MEMORYSTATUSEX(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            stat = MEMORYSTATUSEX()
+            stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+                total = int(stat.ullTotalPhys)
+                available = int(stat.ullAvailPhys)
+                percent = float(stat.dwMemoryLoad)
+        except (OSError, AttributeError, ValueError):
+            pass
+
+    # Cross-platform fallback (also covers non-Windows dev/CI environments)
+    if total == 0:
+        try:
+            page_size = os.sysconf("SC_PAGE_SIZE")
+            phys_pages = os.sysconf("SC_PHYS_PAGES")
+            avail_pages = os.sysconf("SC_AVPHYS_PAGES")
+            total = page_size * phys_pages
+            available = page_size * avail_pages
+            if total > 0:
                 percent = round(100.0 * (total - available) / total, 1)
-        except (ValueError, subprocess.SubprocessError, OSError):
+        except (ValueError, OSError, AttributeError):
             pass
 
     return {"total": total, "available": available, "percent": percent}
+
 
 def get_brush_build_mode() -> str:
     """Detect Brush build mode from engines/brush.version.
@@ -154,51 +171,14 @@ def get_brush_build_mode() -> str:
     return "release"
 
 
-def is_amx_available() -> bool:
-    """Detect whether the Apple Matrix coprocessor (AMX) is available.
-
-    AMX is present on all Apple Silicon chips (M1 and later) and is used
-    automatically by Accelerate.framework for BLAS/LAPACK operations.
-    No user-space configuration is needed — this is purely informational
-    for feature gating and logging.
-    """
-    if not is_apple_silicon():
-        return False
-    # All Apple Silicon chips have AMX blocks.  The AMX instruction set
-    # is accessed exclusively through Accelerate.framework (not directly
-    # by user code), so there is no sysctl key to query.  We return True
-    # for any arm64 Darwin system.
-    return True
-
-
-def has_neural_engine() -> bool:
-    """Detect whether the Apple Neural Engine (ANE) is available.
-
-    The Neural Engine is present on M1 and later Apple Silicon chips,
-    as well as A12 Bionic and later iPhone/iPad SoCs.  It is used
-    transparently by CoreML when the model and compute unit selection
-    allow it (`.appleNeuralEngine`).
-
-    On macOS, there is no official sysctl key to query ANE presence,
-    so we check for Apple Silicon as a proxy (all M-series chips have one).
-    """
-    if not is_apple_silicon():
-        return False
-    # M1 and later all include a Neural Engine. The exact core count
-    # varies (M1: 16-core, M2: 16-core, M3: 16-core, M4: 16-core,
-    # M1 Pro/Max: 16-core, M2 Pro/Max: 16-core, M3 Pro/Max: 16-core,
-    # M4 Pro/Max: 16-core). No user-space API exposes the count.
-    return True
-
-
 def check_dependencies():
     """Vérifie si les dépendances nécessaires sont installées"""
     missing = []
-    
+
     # Check ffmpeg
     if resolve_binary('ffmpeg') is None:
         missing.append('ffmpeg')
-        
+
     # Check colmap
     if resolve_binary('colmap') is None:
         missing.append('colmap')

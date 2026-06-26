@@ -63,11 +63,11 @@ class BrushEngine(BaseEngine):
             cmd.append("--with-viewer")
         env = os.environ.copy()
         device = params.get("device", self.device)
-        if device == "mps":
-            env["WGPU_BACKEND"] = "metal"
-            env["WGPU_POWER_PREF"] = "high_performance"
-        elif device == "cuda":
-            env["WGPU_BACKEND"] = "vulkan"
+        # Brush runs on wgpu; on Windows/NVIDIA the DX12 and Vulkan backends both
+        # target CUDA-class GPUs. We pin DX12 (most reliable on Windows) and let
+        # wgpu pick the high-performance (discrete) adapter.
+        if device in ("cuda", "auto"):
+            env["WGPU_BACKEND"] = "dx12"
             env["WGPU_POWER_PREF"] = "high_performance"
 
         for param_name, flag in [

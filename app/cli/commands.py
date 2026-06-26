@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """CLI command handlers for CorbeauSplat."""
-import sys
 import os
+import sys
 import time
 from pathlib import Path as _Path
 
+from app.core.brush_engine import BrushEngine
+from app.core.engine import ColmapEngine
 from app.core.i18n import tr
 from app.core.params import ColmapParams
-from app.core.engine import ColmapEngine
-from app.core.brush_engine import BrushEngine
-from app.core.sharp_engine import SharpEngine
 from app.core.superplat_engine import SuperSplatEngine
 from app.core.system import get_brush_build_mode
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Brush defaults and presets
@@ -32,6 +30,19 @@ BRUSH_DEFAULTS = {
     "with_viewer": False,
     "refine_mode": False,
 }
+
+_BLUR_FACTORS = {"light": 0.5, "medium": 0.7, "strong": 0.85}
+
+
+def _apply_robust(params):
+    """Stabilise COLMAP bundle adjustment on large scenes (anti-crash)."""
+    params.camera_model = "PINHOLE"
+    params.ba_refine_extra_params = False
+    params.ba_refine_principal_point = False
+    params.multiple_models = True
+    params.filter_blurry = True
+    return params
+
 
 BRUSH_PRESETS = {
     "fast": {
@@ -76,7 +87,11 @@ def run_colmap(args):
         matcher_type=args.matcher_type,
         undistort_images=args.undistort,
         use_glomap=args.use_glomap,
+        filter_blurry=args.filter_blur,
+        blur_factor=_BLUR_FACTORS.get(args.blur_strength, 0.7),
     )
+    if getattr(args, "robust", False):
+        _apply_robust(params)
 
     print(tr("cli_start_colmap"))
     print(tr("cli_input", args.input))
@@ -146,64 +161,18 @@ def run_brush(args):
         engine.stop()
 
 
-def run_sharp(args):
-    engine = SharpEngine(logger_callback=print)
+def run_clean(args):
+    from app.core.ply_cleaner import clean_ply
 
-    params = {
-        "checkpoint": args.checkpoint,
-        "device": args.device,
-        "verbose": args.verbose,
-    }
-
-    if args.mode == "image":
-        print(tr("cli_start_sharp"))
-        print(tr("cli_input", args.input))
-        print(tr("cli_output", args.output))
-
-        try:
-            returncode = engine.predict(args.input, args.output, params=params)
-            if returncode == 0:
-                print(tr("msg_success"))
-            else:
-                print(tr("msg_error"))
-                sys.exit(1)
-        except KeyboardInterrupt:
-            print(tr("cli_stopping"))
-            engine.stop()
-
-    else:  # video mode
-        _run_sharp_video(args, engine, params)
-
-
-def _run_sharp_video(args, engine, params):
-    """CLI handler for Sharp video mode — delegates to shared SharpEngine.process_video_frames()."""
-    video_path = _Path(args.input)
-    output_dir = _Path(args.output)
-    skip = max(1, args.skip_frames)
-
-    print(f"Sharp vidéo : {video_path.name} (1 frame / {skip})")
-    print(tr("cli_output", args.output))
-
-    params["skip_frames"] = skip
-
+    print(f"Nettoyage du splat : {args.input}  (sévérité: {args.strength})")
     try:
-        success_count = engine.process_video_frames(
-            video_path=str(video_path),
-            output_dir=str(output_dir),
-            params=params,
-            log_callback=print,
-            status_callback=lambda s: print(f"  {s}"),
-            progress_callback=None,
-            cancel_check=None,
-        )
-    except KeyboardInterrupt:
-        print(tr("cli_stopping"))
-        engine.stop()
+        stats = clean_ply(args.input, args.output, strength=args.strength, log=print)
+    except Exception as e:
+        print(f"{tr('msg_error')}: {e}")
         sys.exit(1)
 
-    print(f"Terminé : {success_count} frames converties.")
-    if success_count == 0:
-        sys.exit(1)
+    print(f"✅ {stats['kept']}/{stats['total']} splats conservés "
+          f"({stats['removed']} retirés) → {args.output}")
 
 
 def run_supersplat(args):
@@ -396,7 +365,11 @@ def run_pipeline(args):
         max_image_size=args.max_image_size,
         undistort_images=args.undistort,
         use_glomap=args.use_glomap,
+        filter_blurry=args.filter_blur,
+        blur_factor=_BLUR_FACTORS.get(args.blur_strength, 0.7),
     )
+    if getattr(args, "robust", False):
+        _apply_robust(colmap_params)
 
     colmap_engine = ColmapEngine(
         colmap_params, args.input, args.output, args.type, args.fps,
@@ -467,7 +440,7 @@ DISPATCH = {
     "pipeline":    run_pipeline,
     "colmap":      run_colmap,
     "brush":       run_brush,
-    "sharp":       run_sharp,
+    "clean":       run_clean,
     "view":        run_supersplat,
     "upscale":     run_upscale,
     "4dgs":        run_4dgs,

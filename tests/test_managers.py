@@ -23,16 +23,16 @@ class TestAppLifecycleResetFactory:
     @patch("shutil.rmtree")
     @patch("app.gui.managers.resolve_project_root")
     def test_reset_factory_light(self, mock_root, mock_rmtree, mock_popen, tmp_path):
-        """reset_factory(deep=False) supprime .venv, .venv_sharp, .venv_360."""
+        """reset_factory(deep=False) supprime .venv, .venv_360, .venv_4dgs."""
         mock_root.return_value = tmp_path
 
         # Create the venv dirs
         (tmp_path / ".venv").mkdir()
-        (tmp_path / ".venv_sharp").mkdir()
         (tmp_path / ".venv_360").mkdir()
-        # Create run.command for relaunch
-        run_cmd = tmp_path / "run.command"
-        run_cmd.write_text("#!/bin/bash\necho run")
+        (tmp_path / ".venv_4dgs").mkdir()
+        # Create run.bat for relaunch
+        run_cmd = tmp_path / "run.bat"
+        run_cmd.write_text("@echo off\necho run")
 
         from app.gui.managers import AppLifecycle
 
@@ -55,12 +55,12 @@ class TestAppLifecycleResetFactory:
 
         # Create dirs
         (tmp_path / ".venv").mkdir()
-        (tmp_path / ".venv_sharp").mkdir()
         (tmp_path / ".venv_360").mkdir()
+        (tmp_path / ".venv_4dgs").mkdir()
         (tmp_path / "engines").mkdir()
         (tmp_path / "config.json").write_text("{}")
-        run_cmd = tmp_path / "run.command"
-        run_cmd.write_text("#!/bin/bash")
+        run_cmd = tmp_path / "run.bat"
+        run_cmd.write_text("@echo off")
 
         from app.gui.managers import AppLifecycle
 
@@ -78,13 +78,13 @@ class TestAppLifecycleResetFactory:
 
         # Create a symlink that points outside (simulate)
         (tmp_path / ".venv").mkdir()
-        (tmp_path / ".venv_sharp").mkdir()
+        (tmp_path / ".venv_360").mkdir()
 
         from app.gui.managers import AppLifecycle
 
         with patch.object(sys, "exit") as mock_exit:
             AppLifecycle.reset_factory(deep=False)
-            # Should only try to remove .venv and .venv_sharp (within project_root)
+            # Should only try to remove .venv and .venv_360 (within project_root)
             # Not calling rmtree on paths outside root
             assert mock_rmtree.call_count >= 2
 
@@ -122,19 +122,19 @@ class TestAppLifecycleResetFactory:
     @patch("shutil.rmtree")
     @patch("app.gui.managers.resolve_project_root")
     def test_reset_factory_relaunch_via_run_command(self, mock_root, mock_rmtree, mock_popen, tmp_path):
-        """reset_factory relance via run.command."""
+        """reset_factory relance via run.bat."""
         mock_root.return_value = tmp_path
-        run_cmd = tmp_path / "run.command"
-        run_cmd.write_text("#!/bin/bash")
+        run_cmd = tmp_path / "run.bat"
+        run_cmd.write_text("@echo off")
 
         from app.gui.managers import AppLifecycle
 
         with patch.object(sys, "exit") as mock_exit:
             AppLifecycle.reset_factory(deep=False)
-            # Should use "open" for run.command
+            # Should use cmd/start to launch run.bat
             popen_args = mock_popen.call_args[0][0]
-            assert "open" in popen_args
-            assert str(run_cmd) in popen_args or "run.command" in str(popen_args)
+            assert "cmd" in popen_args
+            assert str(run_cmd) in popen_args or "run.bat" in str(popen_args)
 
     @patch("app.gui.managers.subprocess.Popen")
     @patch("shutil.rmtree")
@@ -227,7 +227,7 @@ class TestSessionManager:
         main_window = MagicMock()
 
         # Mock tabs with get_state returning serializable dicts
-        for tab_name in ["config_tab", "params_tab", "brush_tab", "sharp_tab",
+        for tab_name in ["config_tab", "params_tab", "brush_tab",
                          "upscale_tab", "extractor_360_tab", "four_dgs_tab", "superplat_tab"]:
             tab = MagicMock()
             tab.get_state = MagicMock(return_value={"param1": "value1"})
@@ -258,7 +258,7 @@ class TestSessionManager:
         session_manager.load()
 
         # Verify set_state was called
-        for tab_name in ["config_tab", "params_tab", "brush_tab", "sharp_tab"]:
+        for tab_name in ["config_tab", "params_tab", "brush_tab"]:
             tab = getattr(session_manager.mw, tab_name)
             tab.set_state.assert_called_with({"param1": "value1"})
 

@@ -1,15 +1,14 @@
 # requirements.lock — Pinned versions for reproducible builds
-# Generated 2026-06-17 from .venv/ (Python 3.13)
+# Generated from .venv/ (Python 3.11+, Windows)
 # Install with: pip install -r requirements.lock
 
 PyQt6==6.11.0
 PyQt6-Qt6==6.11.0
 PyQt6_sip==13.11.1
 numpy==2.4.4
+opencv-python-headless==4.11.0.86
 Pillow==11.3.0
 plyfile==0.9
-pyobjc-core==12.1
-pyobjc-framework-Cocoa==10.3.2
 requests==2.33.1
 Send2Trash==1.8.3
 urllib3==2.6.3

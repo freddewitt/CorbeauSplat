@@ -103,16 +103,16 @@ class TestBuildCommandParams:
 
 
 class TestBuildCommandEnv:
-    def test_mps_device_sets_metal(self, engine):
-        params = {"device": "mps"}
-        cmd, env = engine.build_command("/input", "/output", params)
-        assert env["WGPU_BACKEND"] == "metal"
-        assert env["WGPU_POWER_PREF"] == "high_performance"
-
-    def test_cuda_device_sets_vulkan(self, engine):
+    def test_cuda_device_sets_dx12(self, engine):
         params = {"device": "cuda"}
         cmd, env = engine.build_command("/input", "/output", params)
-        assert env["WGPU_BACKEND"] == "vulkan"
+        assert env["WGPU_BACKEND"] == "dx12"
+        assert env["WGPU_POWER_PREF"] == "high_performance"
+
+    def test_auto_device_sets_dx12(self, engine):
+        params = {"device": "auto"}
+        cmd, env = engine.build_command("/input", "/output", params)
+        assert env["WGPU_BACKEND"] == "dx12"
         assert env["WGPU_POWER_PREF"] == "high_performance"
 
     def test_cpu_device_no_wgpu_override(self, engine):

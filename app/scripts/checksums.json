@@ -1,11 +1,7 @@
 {
-  "_instructions": "Calculated via: shasum -a 256 <binary>. Update after each binary upgrade. For rustup, download the script first: curl -fsSL https://sh.rustup.rs -o rustup-init.sh && shasum -a 256 rustup-init.sh",
-  "darwin_brush": "7742e8ac44ef4bdcc299e3e79dba7ac5d05b3f45f68a66dc1054029c23a281dc",
-  "linux_brush": "",
-  "darwin_upscayl": "b7f54f362fc10d5f334e587fb90917e95a5557ec1cfefbddce78657dd3fee055",
-  "linux_upscayl": "",
-  "darwin_glomap": "23c7983ee6e1d62dd96d43cec40803e457b1325424b2c28d13aed22901414aba",
-  "linux_glomap": "",
-  "darwin_rustup": "6c30b75a75b28a96fd913a037c8581b580080b6ee9b8169a3c0feb1af7fe8caf",
-  "linux_rustup": "6c30b75a75b28a96fd913a037c8581b580080b6ee9b8169a3c0feb1af7fe8caf"
+  "_instructions": "Calculated via: certutil -hashfile <binary> SHA256 (Windows) or shasum -a 256 <binary>. Update after each binary upgrade. For rustup, download https://win.rustup.rs/x86_64 first then hash it.",
+  "windows_brush": "",
+  "windows_upscayl": "",
+  "windows_glomap": "",
+  "windows_rustup": ""
 }

@@ -15,7 +15,6 @@ def get_parser():
             "  python3 main.py pipeline -i video.mp4 -o ~/projets --type video --preset dense\n"
             "  python3 main.py colmap   -i video.mp4 -o ~/projets\n"
             "  python3 main.py brush    -i ~/projets/scene -o ~/projets/scene --preset dense\n"
-            "  python3 main.py sharp    -i photo.jpg -o ~/out\n"
             "  python3 main.py view     -i splat.ply\n"
             "  python3 main.py upscale  -i image.png -o ~/out --scale 4\n"
             "  python3 main.py 4dgs     -i ~/videos -o ~/out\n"
@@ -65,11 +64,16 @@ def get_parser():
     p.add_argument("--sh_degree",  type=int,   default=None, choices=range(1,5),
                    help="Degré Spherical Harmonics 1-4 (défaut: 3)")
     p.add_argument("--device", default="auto",
-                   choices=["auto","mps","cuda","cpu"], help="Device Brush (défaut: auto)")
+                   choices=["auto","cuda","cpu"], help="Device Brush (défaut: auto)")
     p.add_argument("--with_viewer", action="store_true", help="Ouvrir le viewer interactif après entraînement")
     p.add_argument("--max_resolution", type=int, default=None,
                    help="Résolution max entraînement 0=auto (défaut: 0)")
     p.add_argument("--ply_name",    default=None,        help="Nom du fichier PLY de sortie")
+    p.add_argument("--filter_blur", action="store_true", help="Écarter les images floues avant COLMAP")
+    p.add_argument("--blur_strength", choices=["light", "medium", "strong"], default="medium",
+                   help="Sévérité du filtre de flou (défaut: medium)")
+    p.add_argument("--robust", action="store_true",
+                   help="Mode robuste grandes scènes (PINHOLE, anti-crash BA, filtre flou)")
 
     # ── colmap ────────────────────────────────────────────────────────────────
     p = subs.add_parser("colmap", help="Pipeline COLMAP (vidéo/images → dataset)")
@@ -103,6 +107,12 @@ def get_parser():
     p.add_argument("--no_refine_focal",   action="store_true",  help="Ne pas affiner la focale")
     p.add_argument("--refine_principal",  action="store_true",  help="Affiner le point principal")
     p.add_argument("--no_refine_extra",   action="store_true",  help="Ne pas affiner les params extra")
+    # Blur filtering
+    p.add_argument("--filter_blur", action="store_true", help="Écarter les images floues avant COLMAP")
+    p.add_argument("--blur_strength", choices=["light", "medium", "strong"], default="medium",
+                   help="Sévérité du filtre de flou (défaut: medium)")
+    p.add_argument("--robust", action="store_true",
+                   help="Mode robuste grandes scènes (PINHOLE, anti-crash BA, filtre flou)")
 
     # ── brush ─────────────────────────────────────────────────────────────────
     p = subs.add_parser("brush", help="Entraînement Gaussian Splat (Brush)")
@@ -115,7 +125,7 @@ def get_parser():
     p.add_argument("--sh_degree",  type=int,   default=None, choices=range(1,5),
                    help="Degré Spherical Harmonics 1-4 (défaut: 3)")
     p.add_argument("--device",     default="auto",
-                   choices=["auto","mps","cuda","cpu"], help="Device (défaut: auto)")
+                   choices=["auto","cuda","cpu"], help="Device (défaut: auto)")
     p.add_argument("--refine_mode", action="store_true", help="Mode Refine (reprend depuis dernier checkpoint)")
     p.add_argument("--with_viewer", action="store_true", help="Ouvrir le viewer interactif")
     p.add_argument("--ply_name",   default=None,      help="Nom du fichier PLY de sortie")
@@ -129,21 +139,6 @@ def get_parser():
     p.add_argument("--max_splats",              type=int,   default=None, help="Nb max de gaussiennes (défaut: 10 000 000)")
     p.add_argument("--checkpoint_interval",     type=int,   default=None, help="Sauvegarder tous les N iters (défaut: 7000)")
     p.add_argument("--max_resolution",          type=int,   default=None, help="Résolution max entraînement 0=auto (défaut: 0)")
-
-    # ── sharp ─────────────────────────────────────────────────────────────────
-    p = subs.add_parser("sharp", help="Single Image/Vidéo → 3D Splat (ML-Sharp)")
-    p.add_argument("--input",  "-i", required=True, help="Image, dossier d'images ou vidéo")
-    p.add_argument("--output", "-o", required=True, help="Dossier de sortie")
-    p.add_argument("--mode",   choices=["image","video"], default="image",
-                   help="Mode : image unique ou vidéo (défaut: image)")
-    p.add_argument("--checkpoint", "-c", default=None, help="Chemin vers un checkpoint .pt")
-    p.add_argument("--device", default="default",
-                   choices=["default","mps","cpu","cuda"], help="Device (défaut: default)")
-    p.add_argument("--skip_frames", type=int, default=1,
-                   help="[mode vidéo] Traiter 1 frame sur N (défaut: 1)")
-    p.add_argument("--upscale", action="store_true",
-                   help="Upscaler les images avant prédiction (requiert upscayl-bin)")
-    p.add_argument("--verbose", action="store_true", help="Afficher la sortie détaillée de Sharp")
 
     # ── view ──────────────────────────────────────────────────────────────────
     p = subs.add_parser("view", help="Visualiser un .ply dans SuperSplat")
@@ -169,6 +164,13 @@ def get_parser():
     p.add_argument("--tta",         action="store_true", help="Activer le Test-Time Augmentation")
     p.add_argument("--compression", type=int, default=0,
                    help="Niveau de compression sortie 0-9 (défaut: 0)")
+
+    # ── clean ─────────────────────────────────────────────────────────────────
+    p = subs.add_parser("clean", help="Nettoyer un splat .ply (ciel/floaters/bruit)")
+    p.add_argument("--input",  "-i", required=True, help="Fichier .ply à nettoyer")
+    p.add_argument("--output", "-o", required=True, help="Fichier .ply de sortie")
+    p.add_argument("--strength", choices=["light", "medium", "strong"], default="medium",
+                   help="Sévérité du nettoyage (défaut: medium)")
 
     # ── 4dgs ──────────────────────────────────────────────────────────────────
     p = subs.add_parser("4dgs", help="Préparation dataset 4D Gaussian Splatting (Nerfstudio)")

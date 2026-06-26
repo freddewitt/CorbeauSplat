@@ -1,16 +1,16 @@
-import os
-import subprocess
-import sys
-import threading
 import http.server
-import socketserver
 import logging
+import os
+import socketserver
+import subprocess
+import threading
+from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlparse
-from typing import Tuple, Optional, Callable
 
 from .base_engine import BaseEngine
 from .system import resolve_project_root
+
 
 class SuperSplatEngine(BaseEngine):
     """Engine to manage the SuperSplat viewer and its accompanying data server.
@@ -21,7 +21,7 @@ class SuperSplatEngine(BaseEngine):
     from :class:`BaseEngine`.
     """
 
-    def __init__(self, logger_callback: Optional[Callable] = None) -> None:
+    def __init__(self, logger_callback: Callable | None = None) -> None:
         """Create a new ``SuperSplatEngine`` instance.
 
         Parameters
@@ -30,9 +30,9 @@ class SuperSplatEngine(BaseEngine):
             Callback used by the base class to forward log messages to the UI.
         """
         super().__init__("SuperSplat", logger_callback)
-        self.data_server_process: Optional[subprocess.Popen] = None
-        self.data_server_thread: Optional[threading.Thread] = None
-        self.httpd: Optional[socketserver.TCPServer] = None
+        self.data_server_process: subprocess.Popen | None = None
+        self.data_server_thread: threading.Thread | None = None
+        self.httpd: socketserver.TCPServer | None = None
 
     def get_supersplat_path(self) -> Path:
         """Return the absolute path to the bundled SuperSplat distribution."""
@@ -41,7 +41,7 @@ class SuperSplatEngine(BaseEngine):
     # ---------------------------------------------------------------------
     # SuperSplat viewer management
     # ---------------------------------------------------------------------
-    def start_supersplat(self, port: int = 3000) -> Tuple[bool, str]:
+    def start_supersplat(self, port: int = 3000) -> tuple[bool, str]:
         """Launch the SuperSplat viewer using ``npx serve``.
 
         Parameters
@@ -62,7 +62,9 @@ class SuperSplatEngine(BaseEngine):
         # Ensure any previous instance is stopped before starting a new one.
         self.stop_supersplat()
 
-        cmd = ["npx", "serve", "dist", "-p", str(port), "--no-clipboard"]
+        # On Windows npx is a .cmd shim; route through cmd.exe so it is launchable.
+        npx = ["cmd", "/c", "npx"] if os.name == "nt" else ["npx"]
+        cmd = [*npx, "serve", "dist", "-p", str(port), "--no-clipboard"]
         try:
             self.runner.start(cmd, env=os.environ.copy(), cwd=str(splat_path))
 
@@ -87,7 +89,7 @@ class SuperSplatEngine(BaseEngine):
     # ---------------------------------------------------------------------
     # Data server (CORS‑enabled) management
     # ---------------------------------------------------------------------
-    def start_data_server(self, directory: str, port: int = 8000) -> Tuple[bool, str]:
+    def start_data_server(self, directory: str, port: int = 8000) -> tuple[bool, str]:
         """Start a lightweight HTTP server that serves files from *directory*.
 
         The server binds only to ``127.0.0.1`` and adds a permissive CORS header so

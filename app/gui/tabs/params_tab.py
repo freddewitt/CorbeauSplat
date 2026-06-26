@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QComboBox, QCheckBox, QSpinBox, QDoubleSpinBox
 )
 from app.core.params import ColmapParams
-from app.core.system import is_apple_silicon, get_optimal_threads
+from app.core.system import has_cuda, get_optimal_threads
 from app.core.i18n import tr, add_language_observer
 
 class ParamsTab(QWidget):
@@ -17,11 +17,8 @@ class ParamsTab(QWidget):
     def init_ui(self):
         layout = QVBoxLayout(self)
         
-        if is_apple_silicon():
-            self.info_label = QLabel(tr("info_cpu", get_optimal_threads()))
-            layout.addWidget(self.info_label)
-        else:
-            self.info_label = None
+        self.info_label = QLabel(tr("info_cpu", get_optimal_threads()))
+        layout.addWidget(self.info_label)
         
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)

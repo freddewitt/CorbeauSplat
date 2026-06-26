@@ -125,7 +125,7 @@ class TestBuildCommand:
     """Tests pour la construction des commandes COLMAP."""
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_feature_extraction_command(self, mock_silicon, mock_resolve_binary, tmp_path):
         """feature_extraction construit la bonne commande COLMAP."""
         mock_silicon.return_value = False
@@ -161,7 +161,7 @@ class TestBuildCommand:
                 assert "--SiftExtraction.max_num_features" in cmd
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_sequential_matcher_command(self, mock_silicon, mock_resolve_binary, tmp_path):
         """sequential_matcher est utilisé quand matcher_type='sequential'."""
         mock_silicon.return_value = False
@@ -190,7 +190,7 @@ class TestBuildCommand:
             assert "--SequentialMatching.overlap" in cmd
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_exhaustive_matcher_command(self, mock_silicon, mock_resolve_binary, tmp_path):
         """exhaustive_matcher est utilisé quand matcher_type='exhaustive'."""
         mock_silicon.return_value = False
@@ -217,7 +217,7 @@ class TestBuildCommand:
             assert "sequential_matcher" not in cmd
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_mapper_colmap_command(self, mock_silicon, mock_resolve_binary, tmp_path):
         """Mapper utilise COLMAP par défaut."""
         mock_silicon.return_value = False
@@ -248,7 +248,7 @@ class TestBuildCommand:
             assert "glomap" not in cmd
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_mapper_glomap_command(self, mock_silicon, mock_resolve_binary, tmp_path):
         """Mapper utilise GLOMAP quand use_glomap=True."""
         mock_silicon.return_value = False
@@ -271,7 +271,7 @@ class TestBuildCommand:
             assert "mapper" in cmd
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_image_undistorter_command(self, mock_silicon, mock_resolve_binary, tmp_path):
         """image_undistorter construit la bonne commande."""
         mock_silicon.return_value = False
@@ -294,10 +294,10 @@ class TestBuildCommand:
             assert "--output_type" in cmd
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
-    def test_feature_extraction_hwaccel_apple_silicon(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """Test que Apple Silicon active l'accélération matérielle via videotoolbox dans extract_frames."""
-        mock_silicon.return_value = True
+    @patch("app.core.engine.has_cuda")
+    def test_feature_extraction_hwaccel_cuda(self, mock_cuda, mock_resolve_binary, tmp_path):
+        """Test qu'un GPU CUDA active l'accélération matérielle (-hwaccel cuda) dans extract_frames."""
+        mock_cuda.return_value = True
         mock_resolve_binary.side_effect = lambda x: x
 
         from app.core.engine import ColmapEngine
@@ -316,8 +316,8 @@ class TestBuildCommand:
             "video", 5, logger_callback=print
         )
 
-        # Check that is_silicon flag is set
-        assert engine.is_silicon is True
+        # Check that has_cuda flag is set
+        assert engine.has_cuda is True
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -328,7 +328,7 @@ class TestCheckAndNormalizeResolution:
     """Tests pour _check_and_normalize_resolution()."""
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_cv2_not_loaded_returns_true(self, mock_silicon, mock_resolve_binary, tmp_path):
         """cv2 non chargé → retourne True immédiatement."""
         mock_silicon.return_value = False
@@ -347,7 +347,7 @@ class TestCheckAndNormalizeResolution:
         assert result is True
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_uniform_resolution(self, mock_silicon, mock_resolve_binary, tmp_path):
         """Toutes les images ont la même résolution → True."""
         mock_silicon.return_value = False
@@ -377,7 +377,7 @@ class TestCheckAndNormalizeResolution:
             assert result is True
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_fewer_than_2_images_returns_true(self, mock_silicon, mock_resolve_binary, tmp_path):
         """Moins de 2 images → True (pas besoin de normaliser)."""
         mock_silicon.return_value = False
@@ -408,7 +408,7 @@ class TestColmapUtils:
     """Tests pour les méthodes utilitaires de ColmapEngine."""
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_project_path_property(self, mock_silicon, mock_resolve_binary, tmp_path):
         """project_path retourne le output_path."""
         mock_silicon.return_value = False
@@ -424,7 +424,7 @@ class TestColmapUtils:
         assert engine.project_path == engine.output_path
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_validate_and_setup_paths_success(self, mock_silicon, mock_resolve_binary, tmp_path):
         """_validate_and_setup_paths crée la structure de dossiers."""
         mock_silicon.return_value = False
@@ -453,7 +453,7 @@ class TestColmapUtils:
         assert checkpoints_dir.exists()
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_validate_project_name_with_dots_blocked(self, mock_silicon, mock_resolve_binary, tmp_path):
         """Nom de projet avec '..' → None."""
         mock_silicon.return_value = False
@@ -475,7 +475,7 @@ class TestColmapUtils:
         assert result is None
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_convert_db_journal_mode(self, mock_silicon, mock_resolve_binary, tmp_path):
         """_convert_db_journal_mode s'exécute sans erreur."""
         mock_silicon.return_value = False
@@ -495,7 +495,7 @@ class TestColmapUtils:
         # No exception means success
 
     @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
+    @patch("app.core.engine.has_cuda")
     def test_create_brush_config(self, mock_silicon, mock_resolve_binary, tmp_path):
         """create_brush_config génère le fichier JSON."""
         mock_silicon.return_value = False
@@ -528,3 +528,38 @@ class TestColmapUtils:
         config = json.loads(config_file.read_text())
         assert config["dataset_type"] == "colmap"
         assert config["parameters"]["test"] is True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Blur filtering selection logic
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSelectBlurryFiles:
+    """Tests pour engine.select_blurry_files()."""
+
+    def test_discards_below_factor_of_median(self):
+        from app.core.engine import select_blurry_files
+        # median of [10,100,100,100,100] = 100; factor 0.7 -> threshold 70
+        scores = {"a": 10.0, "b": 100.0, "c": 100.0, "d": 100.0, "e": 100.0}
+        rejected, threshold = select_blurry_files(scores, 0.7)
+        assert threshold == 70.0
+        assert rejected == ["a"]
+
+    def test_disabled_when_factor_zero(self):
+        from app.core.engine import select_blurry_files
+        scores = {"a": 1.0, "b": 100.0}
+        rejected, _ = select_blurry_files(scores, 0.0)
+        assert rejected == []
+
+    def test_empty_scores(self):
+        from app.core.engine import select_blurry_files
+        assert select_blurry_files({}, 0.7) == ([], 0.0)
+
+    def test_cap_limits_removals_to_blurriest(self):
+        from app.core.engine import select_blurry_files
+        # 3 blurry (score 1) + 7 sharp (score 100); median 100, threshold 70 -> 3 below.
+        # With a 10% cap on 10 files, only the single blurriest may be removed.
+        scores = {"a": 1.0, "b": 2.0, "c": 3.0}
+        scores.update({f"s{i}": 100.0 for i in range(7)})
+        rejected, _ = select_blurry_files(scores, 0.7, max_remove_frac=0.1)
+        assert rejected == ["a"]  # cap = int(10 * 0.1) = 1, blurriest kept
