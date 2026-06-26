@@ -28,13 +28,14 @@ def _first_available_model() -> str:
         return ""
 
 
-def select_blurry_files(scores: dict, factor: float, max_remove_frac: float = 0.5):
+def select_blurry_files(scores: dict, factor: float, max_remove_frac: float = 0.2):
     """Selects which files to discard as too blurry.
 
     A file is blurry if its sharpness score (variance of Laplacian) is below
     ``factor × median(scores)``. To avoid gutting the dataset, never removes
-    more than ``max_remove_frac`` of the files (keeps the sharpest of the
-    candidates if the cap is exceeded).
+    more than ``max_remove_frac`` of the files (only the blurriest are kept as
+    candidates if the cap is exceeded). Default cap is 20% — on shaky video a
+    lower-than-median threshold can otherwise flag a large fraction of frames.
 
     Returns (rejected_files: list, threshold: float).
     """
@@ -451,7 +452,8 @@ class ColmapEngine(BaseEngine):
                 self.log(f"⚠️ Impossible de déplacer {f.name}: {e}")
         self.log(
             f"🔪 Filtre flou : {moved}/{len(files)} images écartées vers "
-            f"'images_blurry' (seuil de netteté ≈ {threshold:.0f})."
+            f"'images_blurry' (seuil ≈ {threshold:.0f}). Pour les réutiliser, "
+            f"remettez-les dans 'images' (ou désactivez le filtre)."
         )
 
     def _run_upscale(self, project_dir: Path, images_dir: Path) -> bool:
