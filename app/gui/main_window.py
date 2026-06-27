@@ -36,6 +36,12 @@ class ColmapGUI(QMainWindow):
         add_language_observer(self.retranslate_ui)
         self.session_manager.load()
 
+        # Persist settings whenever the user navigates between tabs (debounced),
+        # so a choice like the COLMAP matcher is saved as soon as they move on —
+        # not only on a clean close. Connected after load() to avoid saving the
+        # defaults over the just-loaded session during startup.
+        self.tabs.currentChanged.connect(lambda _idx: self.session_manager.save())
+
 
 
     def init_ui(self):

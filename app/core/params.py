@@ -22,13 +22,16 @@ class ColmapParams:
     ba_refine_focal_length: bool = True
     ba_refine_principal_point: bool = False
     ba_refine_extra_params: bool = True
-    # GPU-accelerated bundle adjustment (COLMAP 4.1.0 "Caspar" solver). OFF by
-    # default — only passed to the mapper when the installed COLMAP supports
-    # --Mapper.ba_use_gpu, otherwise it is silently skipped (no crash).
-    ba_use_gpu: bool = False
+    # GPU-accelerated bundle adjustment (COLMAP 4.1.0 "Caspar" solver). ON by
+    # default for speed — only passed to the mapper when the installed COLMAP
+    # supports --Mapper.ba_use_gpu, otherwise it is silently skipped (no crash).
+    # COLMAP auto-falls back to CPU for small scenes, so it's safe as a default.
+    ba_use_gpu: bool = True
     ba_gpu_index: int = -1
     min_num_matches: int = 15
-    matcher_type: str = 'exhaustive' # exhaustive, sequential, vocab_tree
+    # Sequential is the fast + correct default for video frames (ordered input):
+    # O(n) instead of exhaustive's O(n²). The whole pipeline is video → frames.
+    matcher_type: str = 'sequential' # exhaustive, sequential, vocab_tree
     sequential_overlap: int = 30
     undistort_images: bool = False
     use_glomap: bool = False

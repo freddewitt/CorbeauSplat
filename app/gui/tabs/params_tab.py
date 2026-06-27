@@ -101,7 +101,8 @@ class ParamsTab(QWidget):
 
         self.matcher_type_combo = QComboBox()
         self.matcher_type_combo.addItems(['exhaustive', 'sequential', 'vocab_tree'])
-        self.matcher_type_combo.setCurrentText('exhaustive')
+        # Sequential by default: fast + correct for ordered video frames.
+        self.matcher_type_combo.setCurrentText('sequential')
         self.matcher_type_combo.setMinimumWidth(150)
         self.lbl_match_type = QLabel(tr("lbl_match_type"))
         match_layout.addRow(self.lbl_match_type, self.matcher_type_combo)
@@ -179,6 +180,7 @@ class ParamsTab(QWidget):
         # GPU bundle adjustment (COLMAP 4.1.0 "Caspar"). Runs the bundle
         # adjustment on the GPU — fixes "Linear solver failure" on big scenes.
         self.ba_use_gpu_check = QCheckBox()
+        self.ba_use_gpu_check.setChecked(True)  # GPU BA on by default (fast, auto-fallback)
         self.ba_use_gpu_check.setToolTip(
             "Bundle adjustment sur GPU (CUDA). Corrige les 'Linear solver failure' "
             "sur les grandes scènes. Requiert COLMAP ≥ 4.1.0 (ignoré sinon)."
