@@ -7,6 +7,11 @@ for backward compatibility. External code that imports from
 import sys
 from pathlib import Path
 
+# Used at module level by get_venv_360_python() AND re-exported for external
+# importers (e.g. app.core.extractor_360_engine). Do not remove — ruff's
+# unused-import autofix previously stripped this and broke GUI startup.
+from app.core.system import resolve_project_root
+
 # ── Re-export all classes and functions for backward compatibility ──────────
 from app.scripts.installers.base import (
     DependencyManager,
@@ -41,9 +46,6 @@ def get_venv_360_python():
     if sys.platform == "win32":
         return root / ".venv_360" / "Scripts" / "python.exe"
     return root / ".venv_360" / "bin" / "python"  # pragma: no cover (non-Windows fallback)
-
-
-# resolve_project_root is imported from app.core.system
 
 
 # ── Main entry point ──────────────────────────────────────────────────────
