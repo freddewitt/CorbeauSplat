@@ -808,6 +808,15 @@ class ColmapEngine(BaseEngine):
 
         def _colmap_parser(line_str: str):
             self.log(line_str)
+            # "Linear solver failure" is a non-fatal bundle-adjustment warning:
+            # one optimisation step failed, the solver retries and the mapper
+            # keeps registering images. Annotate it once so it doesn't look like
+            # a crash to the user.
+            if "Linear solver failure" in line_str and not getattr(self, "_ba_warn_noted", False):
+                self._ba_warn_noted = True
+                self.log("ℹ️ (info) « Linear solver failure » est un avertissement NON bloquant : "
+                         "une étape d'optimisation a échoué, COLMAP réessaie automatiquement et "
+                         "continue. Tant que les images continuent de s'enregistrer, tout va bien.")
             if status_prefix:
                 if "Processed file" in line_str:
                     parts = line_str.split("Processed file")
