@@ -40,6 +40,8 @@ class SubprocessRunner(IProcessRunner):
             'stdout': subprocess.PIPE,
             'stderr': subprocess.STDOUT,
             'text': True,
+            'bufsize': 1,  # line-buffered: flush COLMAP/bundle-adjustment progress
+                           # promptly so the long global-BA phase doesn't look frozen
         }
         base_kwargs.update(kwargs)
 

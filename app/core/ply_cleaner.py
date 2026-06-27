@@ -9,8 +9,11 @@ Removes the common junk produced by photogrammetry-based splatting:
 The geometry/colour of the kept splats is preserved exactly — we only drop
 whole splats, never alter the survivors. The original file is never modified
 in place; callers pass an explicit output path.
+
+numpy is imported lazily inside the compute functions (not at module load): this
+module is pulled in at GUI startup via cleaner_tab → resolve_params, which needs
+no numpy, so we keep numpy's ~100ms cold import off the time-to-window path.
 """
-import numpy as np
 
 # Severity presets → (opacity_min on activated alpha, scale percentile, outlier percentile)
 # Higher percentile = keep more (gentler); lower = remove more (stronger).
@@ -22,6 +25,7 @@ PRESETS = {
 
 
 def _sigmoid(x):
+    import numpy as np
     return 1.0 / (1.0 + np.exp(-x))
 
 
@@ -33,6 +37,7 @@ def compute_keep_mask(x, y, z, opacity, s0, s1, s2,
     logit (pre-sigmoid) and `s0..s2` are log-scales, matching the 3DGS/Brush PLY
     convention. Returns (keep_mask, stats_dict).
     """
+    import numpy as np
     x = np.asarray(x, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)
     z = np.asarray(z, dtype=np.float64)

@@ -228,7 +228,7 @@ class TestCLIDispatch:
 
     def test_main_pipeline_dispatch(self):
         """main() avec pipeline → run_pipeline est appelé."""
-        with patch("app.cli.DISPATCH", new_callable=dict) as mock_dispatch:
+        with patch("app.cli.commands.DISPATCH", new_callable=dict) as mock_dispatch:
             handler = MagicMock()
             mock_dispatch["pipeline"] = handler
 
@@ -240,7 +240,7 @@ class TestCLIDispatch:
 
     def test_main_colmap_dispatch(self):
         """main() avec colmap → run_colmap est appelé."""
-        with patch("app.cli.DISPATCH", new_callable=dict) as mock_dispatch:
+        with patch("app.cli.commands.DISPATCH", new_callable=dict) as mock_dispatch:
             handler = MagicMock()
             mock_dispatch["colmap"] = handler
 
@@ -253,7 +253,7 @@ class TestCLIDispatch:
     def test_main_unknown_command_shows_help(self):
         """Commande inconnue → print_help() est appelé."""
         with patch("app.cli.get_parser") as mock_get_parser:
-            with patch("app.cli.DISPATCH", new_callable=dict) as mock_dispatch:
+            with patch("app.cli.commands.DISPATCH", new_callable=dict) as mock_dispatch:
                 mock_parser = MagicMock()
                 mock_get_parser.return_value = mock_parser
                 mock_args = MagicMock()
@@ -269,7 +269,7 @@ class TestCLIDispatch:
 
     def test_main_colmap_dispatch(self):
         """main() avec colmap → le handler est appelé."""
-        with patch("app.cli.DISPATCH", new_callable=dict) as mock_dispatch:
+        with patch("app.cli.commands.DISPATCH", new_callable=dict) as mock_dispatch:
             handler = MagicMock()
             mock_dispatch["colmap"] = handler
 
@@ -281,7 +281,7 @@ class TestCLIDispatch:
 
     def test_main_dependencies_missing(self):
         """Dépendances manquantes → message affiché (avec sous-commande)."""
-        with patch("app.cli.DISPATCH", new_callable=dict) as mock_dispatch:
+        with patch("app.cli.commands.DISPATCH", new_callable=dict) as mock_dispatch:
             handler = MagicMock()
             mock_dispatch["pipeline"] = handler
             with patch("app.cli.check_dependencies", return_value=["ffmpeg", "colmap"]):

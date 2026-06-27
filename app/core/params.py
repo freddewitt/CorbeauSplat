@@ -28,6 +28,16 @@ class ColmapParams:
     # COLMAP auto-falls back to CPU for small scenes, so it's safe as a default.
     ba_use_gpu: bool = True
     ba_gpu_index: int = -1
+    # Bundle-adjustment cost bounds (faster than COLMAP defaults, still safe for a
+    # 3DGS target which tolerates sub-pixel pose error). The global BA is the
+    # dominant mapper cost on large scenes; these cap its iterations and how often
+    # it re-runs. Tunable via config.json if a specific scene needs the slower,
+    # higher-accuracy COLMAP defaults (50 / 0.0 / 1.1 / 1.1 / 25).
+    ba_global_max_num_iterations: int = 30      # COLMAP default 50
+    ba_global_function_tolerance: float = 1e-6  # COLMAP default 0.0 (run all iters)
+    ba_global_images_ratio: float = 1.2         # COLMAP default 1.1 (run global BA less often)
+    ba_global_points_ratio: float = 1.2         # COLMAP default 1.1
+    ba_local_max_num_iterations: int = 20       # COLMAP default 25
     min_num_matches: int = 15
     # Sequential is the fast + correct default for video frames (ordered input):
     # O(n) instead of exhaustive's O(n²). The whole pipeline is video → frames.

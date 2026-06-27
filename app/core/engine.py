@@ -10,13 +10,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-import send2trash
-
 from .base_engine import BaseEngine
 from .i18n import tr
 from .system import get_optimal_threads, has_cuda, resolve_binary
 
 _IMAGE_EXTS = {'.jpg', '.jpeg', '.png'}
+_VIDEO_EXTS = {'.mp4', '.mov', '.avi', '.mkv'}
 
 
 def _imread_unicode(path, flags):
@@ -461,9 +460,28 @@ class ColmapEngine(BaseEngine):
         except OSError:
             pass
         try:
-            if a.stat().st_size != b.stat().st_size:
+            sa, sb = a.stat(), b.stat()
+            if sa.st_size != sb.st_size:
                 return False
+            # shutil.copy2 preserves mtime, so same size + same mtime ⇒ identical
+            # content on a re-run — skip the full byte compare (near-zero I/O).
+            # Only fall back to filecmp when sizes match but mtimes differ.
+            if sa.st_mtime_ns == sb.st_mtime_ns:
+                return True
             return filecmp.cmp(str(a), str(b), shallow=False)
+        except OSError:
+            return False
+
+    def _is_single_video_input(self) -> bool:
+        """True when the input is exactly one video file (not a dir, not a
+        '|'-joined list). Frames from one ffmpeg run share one resolution, so
+        callers can take resolution/format fast paths. Conservative: a folder of
+        videos returns False."""
+        raw = str(self.input_path)
+        if "|" in raw:
+            return False
+        try:
+            return self.input_path.is_file() and self.input_path.suffix.lower() in _VIDEO_EXTS
         except OSError:
             return False
 
@@ -669,10 +687,23 @@ class ColmapEngine(BaseEngine):
         if len(files) < 2:
             return True
 
+        from PIL import Image
+
+        # Fast path: all frames from a single ffmpeg extraction share one
+        # resolution by construction. Sampling the first frame turns an O(n)
+        # header scan into O(1). Multi-video / image-folder inputs (which may mix
+        # resolutions) keep the full scan below.
+        if self._is_single_video_input():
+            try:
+                with Image.open(files[0]) as im:
+                    w, h = im.size
+                self.log(f"✅ Source vidéo unique — résolution uniforme {w}×{h} px (échantillon, scan complet ignoré)")
+                return True
+            except Exception:
+                pass  # fall through to the full scan on any read error
+
         total = len(files)
         self.log(f"Lecture des dimensions de {total} images (en-tête seulement, {self.num_threads} threads)...")
-
-        from PIL import Image
 
         def _size_one(f):
             try:
@@ -718,22 +749,32 @@ class ColmapEngine(BaseEngine):
         self.log(f"⚠️ {len(unique_sizes)} résolutions différentes détectées.")
         self.log(f"Redimensionnement de {len(to_resize)} images → {min_w}×{min_h} px")
 
-        for i, f in enumerate(to_resize):
-            if self.is_cancelled():
-                return False
+        def _resize_one(f):
             img = _imread_unicode(f, cv2.IMREAD_UNCHANGED)
             if img is None:
-                self.log(f"⚠️ Re-lecture impossible: {f.name}")
-                continue
+                return f, None
             resized = cv2.resize(img, (min_w, min_h), interpolation=cv2.INTER_AREA)
-            if not _imwrite_unicode(f, resized):
-                self.log(f"⚠️ Écriture impossible: {f.name}")
-            del img, resized
-            if (i + 1) % 10 == 0 or (i + 1) == len(to_resize):
-                self.log(f"Redimensionnement: {i+1}/{len(to_resize)}")
-                self.status(f"Ajustement taille : {i+1} / {len(to_resize)}")
+            return f, _imwrite_unicode(f, resized)
 
-        self.log(f"✅ {len(to_resize)} images redimensionnées vers {min_w}×{min_h} px")
+        # cv2 decode/resize/encode release the GIL → resize in parallel.
+        n = len(to_resize)
+        done = 0
+        with ThreadPoolExecutor(max_workers=max(2, self.num_threads)) as ex:
+            futures = [ex.submit(_resize_one, f) for f in to_resize]
+            for fut in as_completed(futures):
+                if self.is_cancelled():
+                    ex.shutdown(cancel_futures=True)
+                    return False
+                f, ok = fut.result()
+                if ok is None:
+                    self.log(f"⚠️ Re-lecture impossible: {f.name}")
+                elif not ok:
+                    self.log(f"⚠️ Écriture impossible: {f.name}")
+                done += 1
+                if done % 10 == 0 or done == n:
+                    self.status(f"Ajustement taille : {done} / {n}")
+
+        self.log(f"✅ {n} images redimensionnées vers {min_w}×{min_h} px")
         return True
 
     def extract_frames_from_video(self, video_path: str, images_dir: Path, prefix: str | None = None) -> bool | None:
@@ -794,8 +835,14 @@ class ColmapEngine(BaseEngine):
         self.log(f"\n{'='*60}\n{description}\n{'='*60}")
 
         env = os.environ.copy()
-        env['OMP_NUM_THREADS'] = str(self.num_threads)
-        env['OPENBLAS_NUM_THREADS'] = str(self.num_threads)
+        # Pin the inner BLAS/OpenMP pools to 1 thread. COLMAP already parallelizes
+        # at the task level via --*.num_threads (Ceres bundle-adjustment threads);
+        # letting BLAS *also* spawn N threads gives N×N oversubscription, which
+        # thrashes the CPU and worsens the "Linear solver failure" retries during
+        # global BA on large scenes. One source of parallelism, not nested.
+        env['OMP_NUM_THREADS'] = '1'
+        env['OPENBLAS_NUM_THREADS'] = '1'
+        env['MKL_NUM_THREADS'] = '1'
 
         # Windows: the bundled colmap.exe loads DLLs from its own folder and a
         # sibling lib/ directory. Make both discoverable on PATH so we can call
@@ -1065,6 +1112,13 @@ class ColmapEngine(BaseEngine):
                 '--Mapper.ba_refine_principal_point', '1' if self.params.ba_refine_principal_point else '0',
                 '--Mapper.ba_refine_extra_params', '1' if self.params.ba_refine_extra_params else '0',
                 '--Mapper.min_num_matches', str(self.params.min_num_matches),
+                # Bound bundle-adjustment cost (the dominant mapper time on large
+                # scenes) — faster than COLMAP defaults, safe for a 3DGS target.
+                '--Mapper.ba_global_max_num_iterations', str(self.params.ba_global_max_num_iterations),
+                '--Mapper.ba_global_function_tolerance', str(self.params.ba_global_function_tolerance),
+                '--Mapper.ba_global_images_ratio', str(self.params.ba_global_images_ratio),
+                '--Mapper.ba_global_points_ratio', str(self.params.ba_global_points_ratio),
+                '--Mapper.ba_local_max_num_iterations', str(self.params.ba_local_max_num_iterations),
             ]
             # GPU bundle adjustment (COLMAP 4.1.0 "Caspar"). Only add the flag if
             # the installed COLMAP actually supports it — otherwise an older
@@ -1176,6 +1230,7 @@ class ColmapEngine(BaseEngine):
         if not target_path.exists():
             return False, "Le dossier n'existe pas"
 
+        import send2trash  # lazy: only the trash-delete path needs it, never startup
         try:
             for item in target_path.iterdir():
                 if item.name == "images":

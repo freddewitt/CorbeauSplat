@@ -29,7 +29,7 @@ class TestDeleteProjectContent:
         subdir.mkdir()
 
         with patch("app.core.system.resolve_project_root", return_value=tmp_path):
-            with patch("app.core.engine.send2trash.send2trash") as mock_trash:
+            with patch("send2trash.send2trash") as mock_trash:
                 result, msg = ColmapEngine.delete_project_content(subdir)
                 assert result is True
                 assert "corbeille" in msg
@@ -43,7 +43,7 @@ class TestDeleteProjectContent:
 
         try:
             with patch("app.core.system.resolve_project_root", return_value=Path("/tmp/fake_project")):
-                with patch("app.core.engine.send2trash.send2trash") as mock_trash:
+                with patch("send2trash.send2trash") as mock_trash:
                     result, msg = ColmapEngine.delete_project_content(home_subdir)
                     assert result is False
                     assert "bloquée" in msg
@@ -110,7 +110,7 @@ class TestDeleteProjectContent:
         other_dir.mkdir()
 
         with patch("app.core.system.resolve_project_root", return_value=tmp_path):
-            with patch("app.core.engine.send2trash.send2trash") as mock_trash:
+            with patch("send2trash.send2trash") as mock_trash:
                 result, msg = ColmapEngine.delete_project_content(project)
                 assert result is True
                 # other should be trashed, images should NOT be trashed
