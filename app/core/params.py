@@ -38,6 +38,13 @@ class ColmapParams:
     ba_global_images_ratio: float = 1.2         # COLMAP default 1.1 (run global BA less often)
     ba_global_points_ratio: float = 1.2         # COLMAP default 1.1
     ba_local_max_num_iterations: int = 20       # COLMAP default 25
+    # Refinement passes: each global-BA trigger re-runs BA+filtering up to
+    # max_refinements times. This is the dominant cost of the "Retriangulation
+    # and Global bundle adjustment" step — capping it is the single biggest
+    # in-mapper speed lever. Local BA runs after every image, so its aggregate
+    # cost matters too.
+    ba_global_max_refinements: int = 3          # COLMAP default 5
+    ba_local_max_refinements: int = 1           # COLMAP default 2
     min_num_matches: int = 15
     # Sequential is the fast + correct default for video frames (ordered input):
     # O(n) instead of exhaustive's O(n²). The whole pipeline is video → frames.

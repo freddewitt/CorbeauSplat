@@ -1350,6 +1350,15 @@ class ColmapEngine(BaseEngine):
             ba_bounds = [
                 ('ba_global_max_num_iterations', self.params.ba_global_max_num_iterations),
                 ('ba_global_function_tolerance', self.params.ba_global_function_tolerance),
+                # Refinement caps — the biggest in-mapper lever on the global-BA step.
+                ('ba_global_max_refinements', self.params.ba_global_max_refinements),
+                ('ba_local_max_refinements', self.params.ba_local_max_refinements),
+                # How often global BA runs. COLMAP 4.1.0 RENAMED images_ratio →
+                # frames_ratio (rig/frame terminology); pass both — only the name
+                # the build advertises is used, so frequency control works on both
+                # 4.1.0 (frames) and 3.x (images). Without this it was silently
+                # dropped on 4.1.0, leaving global BA at the slow default cadence.
+                ('ba_global_frames_ratio', self.params.ba_global_images_ratio),
                 ('ba_global_images_ratio', self.params.ba_global_images_ratio),
                 ('ba_global_points_ratio', self.params.ba_global_points_ratio),
                 ('ba_local_max_num_iterations', self.params.ba_local_max_num_iterations),
@@ -1361,7 +1370,7 @@ class ColmapEngine(BaseEngine):
                 else:
                     skipped.append(name)
             if skipped:
-                self.log(f"(info) Options BA non reconnues par ce COLMAP, ignorées : {', '.join(skipped)}")
+                self.log(f"(info) Options BA non disponibles sur ce COLMAP, ignorées : {', '.join(skipped)}")
             # GPU bundle adjustment (COLMAP 4.1.0 "Caspar"). Only add the flag if
             # the installed COLMAP actually supports it — otherwise an older
             # build would abort with "unrecognized option". This is exactly the
