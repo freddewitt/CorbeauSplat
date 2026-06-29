@@ -68,9 +68,10 @@ class BrushEngine(BaseEngine):
         # target CUDA-class GPUs. We pin DX12 (most reliable on Windows) and let
         # wgpu pick the high-performance (discrete) adapter.
         if device in ("cuda", "auto"):
-            # DX12 is the most reliable default on Windows/NVIDIA; Vulkan is the
-            # automatic fallback when Brush hits the burn-fusion panic (see train).
-            env["WGPU_BACKEND"] = backend_override or params.get("wgpu_backend") or "dx12"
+            # Vulkan is the default on NVIDIA: the DX12 backend reports a compute
+            # workgroup limit (768) below what Brush's reduce kernels need (1024),
+            # which crashes it. DX12 stays as the automatic fallback (see train).
+            env["WGPU_BACKEND"] = backend_override or params.get("wgpu_backend") or "vulkan"
             env["WGPU_POWER_PREF"] = "high_performance"
 
         for param_name, flag in [
@@ -135,14 +136,14 @@ class BrushEngine(BaseEngine):
 
         params = params or {}
         device = params.get("device", self.device)
-        # Brush is built on burn-fusion, which can panic ("Ordering is bigger than
-        # operations" / tensor-handle assertions) on certain GPU/driver paths.
-        # There is no runtime flag to disable fusion, but switching the wgpu
-        # backend (DX12 ↔ Vulkan) reschedules the op stream and usually dodges it.
-        # So on a fusion panic we retry once on the alternate backend.
+        # Brush (wgpu + burn-fusion) can crash on a backend that reports compute
+        # limits below what its kernels need (DX12 caps workgroup invocations at
+        # 768 < the 1024 Brush wants → wgpu Validation Error → burn-fusion panic).
+        # Switching the wgpu backend dodges it, so we try Vulkan first on NVIDIA
+        # and fall back to DX12 if that attempt crashes.
         if device in ("cuda", "auto"):
-            primary = params.get("wgpu_backend") or "dx12"
-            backends = [primary, "vulkan" if primary != "vulkan" else "dx12"]
+            primary = params.get("wgpu_backend") or "vulkan"
+            backends = [primary, "dx12" if primary != "dx12" else "vulkan"]
         else:
             backends = [None]
 
@@ -160,7 +161,10 @@ class BrushEngine(BaseEngine):
 
             def _capture(line, _p=panic):
                 low = line.lower()
-                if "panicked" in low or "ordering is bigger than operations" in low:
+                # burn-fusion panic, or the underlying wgpu compute-limit error
+                # that triggers it — both mean "retry on the other backend".
+                if ("panicked" in low or "ordering is bigger than operations" in low
+                        or "wgpu error" in low or "validation error" in low):
                     _p["hit"] = True
                 self.log(line)
 

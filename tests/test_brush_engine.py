@@ -103,17 +103,23 @@ class TestBuildCommandParams:
 
 
 class TestBuildCommandEnv:
-    def test_cuda_device_sets_dx12(self, engine):
+    def test_cuda_device_sets_vulkan_default(self, engine):
         params = {"device": "cuda"}
         cmd, env = engine.build_command("/input", "/output", params)
-        assert env["WGPU_BACKEND"] == "dx12"
+        assert env["WGPU_BACKEND"] == "vulkan"
         assert env["WGPU_POWER_PREF"] == "high_performance"
 
-    def test_auto_device_sets_dx12(self, engine):
+    def test_auto_device_sets_vulkan_default(self, engine):
         params = {"device": "auto"}
         cmd, env = engine.build_command("/input", "/output", params)
-        assert env["WGPU_BACKEND"] == "dx12"
+        assert env["WGPU_BACKEND"] == "vulkan"
         assert env["WGPU_POWER_PREF"] == "high_performance"
+
+    def test_wgpu_backend_override(self, engine):
+        cmd, env = engine.build_command("/input", "/output", {"device": "cuda"}, backend_override="dx12")
+        assert env["WGPU_BACKEND"] == "dx12"
+        cmd, env = engine.build_command("/input", "/output", {"device": "cuda", "wgpu_backend": "dx12"})
+        assert env["WGPU_BACKEND"] == "dx12"
 
     def test_cpu_device_no_wgpu_override(self, engine):
         params = {"device": "cpu"}
