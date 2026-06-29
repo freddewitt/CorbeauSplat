@@ -20,7 +20,21 @@ from app.scripts.installers.brush import BrushEngineDep
 from app.scripts.installers.extractor_360 import Extractor360EngineDep
 from app.scripts.installers.mapping import ColmapEngineDep, FfmpegEngineDep, GlomapEngineDep
 from app.scripts.installers.supersplat import SuperSplatEngineDep
+from app.scripts.installers.tools import relax_requirements
 from app.scripts.installers.upscayl import UpscaylEngineDep
+
+# These names are re-exported for backward compatibility (external code imports
+# them from here). Listing them in __all__ marks them as intentional re-exports
+# so `ruff --fix` never strips them — a stripped re-export previously broke GUI
+# startup (resolve_project_root).
+__all__ = [
+    "DependencyManager", "BrushEngineDep", "Extractor360EngineDep",
+    "ColmapEngineDep", "FfmpegEngineDep", "GlomapEngineDep",
+    "SuperSplatEngineDep", "UpscaylEngineDep", "relax_requirements",
+    "resolve_project_root",
+    "uninstall_upscale", "install_upscale", "uninstall_extractor_360",
+    "install_extractor_360", "get_venv_360_python",
+]
 
 # ── Compatibility wrappers (used by external modules) ──────────────────────
 

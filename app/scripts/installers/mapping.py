@@ -182,7 +182,20 @@ class GlomapEngineDep(EngineDependency):
 
     def is_installed(self) -> bool:
         from app.core.system import resolve_binary
-        return resolve_binary("glomap") is not None
+        if resolve_binary("glomap") is not None:
+            return True
+        # COLMAP 4.0+ ships a built-in `global_mapper` (GLOMAP merged into COLMAP),
+        # so no separate glomap build is needed when colmap advertises it.
+        colmap = resolve_binary("colmap")
+        if colmap:
+            try:
+                out = subprocess.run([colmap, "help"], capture_output=True,
+                                     text=True, timeout=15)
+                if "global_mapper" in (out.stdout + out.stderr):
+                    return True
+            except (OSError, subprocess.SubprocessError):
+                pass
+        return False
 
     def install(self):
         if not check_cmake_ninja():

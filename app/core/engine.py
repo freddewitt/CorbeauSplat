@@ -1332,76 +1332,123 @@ class ColmapEngine(BaseEngine):
 
         return self.run_command(cmd, description, status_prefix="Comparaison")
 
+    def _colmap_has_command(self, name: str) -> bool:
+        """True if the installed colmap exposes the subcommand `name` (probed via
+        `colmap help`, cached). Lets us use COLMAP 4.0+'s built-in global_mapper
+        without assuming it exists on older builds."""
+        cached = getattr(self, "_colmap_help_cmds", None)
+        if cached is None:
+            cached = ""
+            try:
+                import subprocess
+                out = subprocess.run([self.colmap_bin, 'help'],
+                                     capture_output=True, text=True, timeout=15)
+                cached = out.stdout + out.stderr
+            except (OSError, subprocess.SubprocessError):
+                cached = ""
+            self._colmap_help_cmds = cached
+        return name in cached
+
+    def _global_mapper(self, database_path: str, images_dir: str, sparse_dir: Path) -> bool:
+        """Global SfM (a single global bundle adjustment instead of the repeated
+        per-image one) — much faster on large scenes. Prefers COLMAP 4.0+'s
+        built-in `global_mapper` (no extra install); falls back to a standalone
+        glomap binary, then to the incremental mapper."""
+        if self._colmap_has_command('global_mapper'):
+            # Calibrating focal lengths from the view graph first markedly
+            # improves global-mapper quality (it relies on decent intrinsics).
+            if self._colmap_has_command('view_graph_calibrator'):
+                self.status("Calibrage du view-graph...")
+                self.run_command(
+                    [self.colmap_bin, 'view_graph_calibrator', '--database_path', database_path],
+                    "Calibrage des intrinsèques (view-graph)", status_prefix="Calibrage")
+            self.log("Reconstruction GLOBALE (colmap global_mapper) : un seul bundle "
+                     "adjustment global au lieu du BA incrémental répété → bien plus rapide.")
+            cmd = [self.colmap_bin, 'global_mapper',
+                   '--database_path', database_path,
+                   '--image_path', images_dir,
+                   '--output_path', str(sparse_dir)]
+            return self.run_command(cmd, "Reconstruction 3D (globale)", status_prefix="Reconstruction globale")
+
+        if resolve_binary('glomap'):
+            self.log("Utilisation de GLOMAP (binaire séparé) pour la reconstruction globale...")
+            cmd = [self.glomap_bin, 'mapper',
+                   '--database_path', database_path,
+                   '--image_path', images_dir,
+                   '--output_path', str(sparse_dir)]
+            return self.run_command(cmd, "Reconstruction 3D (GLOMAP)", status_prefix="Reconstruction GLOMAP")
+
+        self.log("⚠️ Reconstruction globale demandée mais indisponible (ce COLMAP n'a pas "
+                 "'global_mapper' et glomap n'est pas installé) → bascule sur le mapper "
+                 "incrémental classique.")
+        return self._incremental_mapper(database_path, images_dir, sparse_dir)
+
     def mapper(self, database_path: str, images_dir: str, sparse_dir: Path) -> bool:
         """Exécute la reconstruction 3D (Mapper)."""
         if self.params.use_glomap:
-            self.log("Utilisation de GLOMAP pour la reconstruction...")
-            cmd = [
-                self.glomap_bin, 'mapper',
-                '--database_path', database_path,
-                '--image_path', images_dir,
-                '--output_path', str(sparse_dir)
-            ]
-            return self.run_command(cmd, "Reconstruction 3D (GLOMAP)", status_prefix="Reconstruction GLOMAP")
-        else:
-            cmd = [
-                self.colmap_bin, 'mapper',
-                '--database_path', database_path,
-                '--image_path', images_dir,
-                '--output_path', str(sparse_dir),
-                '--Mapper.num_threads', str(self.num_threads),
-                '--Mapper.min_model_size', str(self.params.min_model_size),
-                '--Mapper.multiple_models', '1' if self.params.multiple_models else '0',
-                '--Mapper.ba_refine_focal_length', '1' if self.params.ba_refine_focal_length else '0',
-                '--Mapper.ba_refine_principal_point', '1' if self.params.ba_refine_principal_point else '0',
-                '--Mapper.ba_refine_extra_params', '1' if self.params.ba_refine_extra_params else '0',
-                '--Mapper.min_num_matches', str(self.params.min_num_matches),
-            ]
-            # Bound bundle-adjustment cost (the dominant mapper time on large
-            # scenes) — faster than COLMAP defaults, safe for a 3DGS target. Each
-            # flag is gated on the installed COLMAP actually advertising it: COLMAP
-            # 4.1.0 renamed/removed some of these (e.g. ba_global_*_ratio), and an
-            # unrecognized option makes the whole mapper abort.
-            ba_bounds = [
-                ('ba_global_max_num_iterations', self.params.ba_global_max_num_iterations),
-                ('ba_global_function_tolerance', self.params.ba_global_function_tolerance),
-                # Refinement caps — the biggest in-mapper lever on the global-BA step.
-                ('ba_global_max_refinements', self.params.ba_global_max_refinements),
-                ('ba_local_max_refinements', self.params.ba_local_max_refinements),
-                # How often global BA runs. COLMAP 4.1.0 RENAMED images_ratio →
-                # frames_ratio (rig/frame terminology); pass both — only the name
-                # the build advertises is used, so frequency control works on both
-                # 4.1.0 (frames) and 3.x (images). Without this it was silently
-                # dropped on 4.1.0, leaving global BA at the slow default cadence.
-                ('ba_global_frames_ratio', self.params.ba_global_images_ratio),
-                ('ba_global_images_ratio', self.params.ba_global_images_ratio),
-                ('ba_global_points_ratio', self.params.ba_global_points_ratio),
-                ('ba_local_max_num_iterations', self.params.ba_local_max_num_iterations),
-            ]
-            skipped = []
-            for name, val in ba_bounds:
-                if self._mapper_supports(name):
-                    cmd += [f'--Mapper.{name}', str(val)]
-                else:
-                    skipped.append(name)
-            if skipped:
-                self.log(f"(info) Options BA non disponibles sur ce COLMAP, ignorées : {', '.join(skipped)}")
-            # GPU bundle adjustment (COLMAP 4.1.0 "Caspar"). Only add the flag if
-            # the installed COLMAP actually supports it — otherwise an older
-            # build would abort with "unrecognized option". This is exactly the
-            # step that throws "Linear solver failure" on the CPU for big scenes.
-            if self.params.ba_use_gpu:
-                if self._mapper_supports_gpu_ba():
-                    cmd += ['--Mapper.ba_use_gpu', '1']
-                    if self.params.ba_gpu_index is not None and self.params.ba_gpu_index >= 0:
-                        cmd += ['--Mapper.ba_gpu_index', str(self.params.ba_gpu_index)]
-                    self.log("Bundle adjustment GPU demandé (--ba_use_gpu) — effectif seulement "
-                             "si ce build de COLMAP a Ceres compilé avec CUDA/cuDSS (vérifié au runtime).")
-                else:
-                    self.log("⚠️ GPU bundle adjustment demandé mais ce COLMAP ne le "
-                             "supporte pas (requiert COLMAP ≥ 4.1.0) → fallback CPU. "
-                             "Supprimez engines\\colmap et relancez run.bat pour mettre à jour.")
-            return self.run_command(cmd, "Reconstruction 3D (COLMAP)", status_prefix="Reconstruction 3D")
+            return self._global_mapper(database_path, images_dir, sparse_dir)
+        return self._incremental_mapper(database_path, images_dir, sparse_dir)
+
+    def _incremental_mapper(self, database_path: str, images_dir: str, sparse_dir: Path) -> bool:
+        """COLMAP incremental SfM."""
+        cmd = [
+            self.colmap_bin, 'mapper',
+            '--database_path', database_path,
+            '--image_path', images_dir,
+            '--output_path', str(sparse_dir),
+            '--Mapper.num_threads', str(self.num_threads),
+            '--Mapper.min_model_size', str(self.params.min_model_size),
+            '--Mapper.multiple_models', '1' if self.params.multiple_models else '0',
+            '--Mapper.ba_refine_focal_length', '1' if self.params.ba_refine_focal_length else '0',
+            '--Mapper.ba_refine_principal_point', '1' if self.params.ba_refine_principal_point else '0',
+            '--Mapper.ba_refine_extra_params', '1' if self.params.ba_refine_extra_params else '0',
+            '--Mapper.min_num_matches', str(self.params.min_num_matches),
+        ]
+        # Bound bundle-adjustment cost (the dominant mapper time on large
+        # scenes) — faster than COLMAP defaults, safe for a 3DGS target. Each
+        # flag is gated on the installed COLMAP actually advertising it: COLMAP
+        # 4.1.0 renamed/removed some of these (e.g. ba_global_*_ratio), and an
+        # unrecognized option makes the whole mapper abort.
+        ba_bounds = [
+            ('ba_global_max_num_iterations', self.params.ba_global_max_num_iterations),
+            ('ba_global_function_tolerance', self.params.ba_global_function_tolerance),
+            # Refinement caps — the biggest in-mapper lever on the global-BA step.
+            ('ba_global_max_refinements', self.params.ba_global_max_refinements),
+            ('ba_local_max_refinements', self.params.ba_local_max_refinements),
+            # How often global BA runs. COLMAP 4.1.0 RENAMED images_ratio →
+            # frames_ratio (rig/frame terminology); pass both — only the name
+            # the build advertises is used, so frequency control works on both
+            # 4.1.0 (frames) and 3.x (images). Without this it was silently
+            # dropped on 4.1.0, leaving global BA at the slow default cadence.
+            ('ba_global_frames_ratio', self.params.ba_global_images_ratio),
+            ('ba_global_images_ratio', self.params.ba_global_images_ratio),
+            ('ba_global_points_ratio', self.params.ba_global_points_ratio),
+            ('ba_local_max_num_iterations', self.params.ba_local_max_num_iterations),
+        ]
+        skipped = []
+        for name, val in ba_bounds:
+            if self._mapper_supports(name):
+                cmd += [f'--Mapper.{name}', str(val)]
+            else:
+                skipped.append(name)
+        if skipped:
+            self.log(f"(info) Options BA non disponibles sur ce COLMAP, ignorées : {', '.join(skipped)}")
+        # GPU bundle adjustment (COLMAP 4.1.0 "Caspar"). Only add the flag if
+        # the installed COLMAP actually supports it — otherwise an older
+        # build would abort with "unrecognized option". This is exactly the
+        # step that throws "Linear solver failure" on the CPU for big scenes.
+        if self.params.ba_use_gpu:
+            if self._mapper_supports_gpu_ba():
+                cmd += ['--Mapper.ba_use_gpu', '1']
+                if self.params.ba_gpu_index is not None and self.params.ba_gpu_index >= 0:
+                    cmd += ['--Mapper.ba_gpu_index', str(self.params.ba_gpu_index)]
+                self.log("Bundle adjustment GPU demandé (--ba_use_gpu) — effectif seulement "
+                         "si ce build de COLMAP a Ceres compilé avec CUDA/cuDSS (vérifié au runtime).")
+            else:
+                self.log("⚠️ GPU bundle adjustment demandé mais ce COLMAP ne le "
+                         "supporte pas (requiert COLMAP ≥ 4.1.0) → fallback CPU. "
+                         "Supprimez engines\\colmap et relancez run.bat pour mettre à jour.")
+        return self.run_command(cmd, "Reconstruction 3D (COLMAP)", status_prefix="Reconstruction 3D")
 
     def _mapper_help_text(self) -> str:
         """`colmap mapper -h` output, fetched once and cached (empty on failure).
