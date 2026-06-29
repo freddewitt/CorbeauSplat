@@ -28,7 +28,7 @@
     "confirm_reset": "⚠️ 完全恢复出厂设置\n\n此操作将:\n1. 删除虚拟环境 (.venv, .venv_sharp).\n2. 清理临时文件.\n3. 重新启动安装.\n\n建议遇到依赖问题时使用。",
     "opt_jit_enabled": "已启用 JIT (Python 3.13+)",
     "opt_jit_disabled": "JIT 已禁用",
-    "info_cpu": "检测到 Apple Silicon - 已优化 {} 个线程",
+    "info_cpu": "CPU：检测到 {} 个线程",
     "group_extract": "特征提取",
     "lbl_camera_model": "相机型号:",
     "check_single_cam": "单相机:",

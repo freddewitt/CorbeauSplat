@@ -28,7 +28,7 @@
     "confirm_reset": "⚠️ Ripristino di Fabbrica Completo\n\nQuesta azione:\n1. Eliminerà gli ambienti virtuali (.venv, .venv_sharp).\n2. Pulirà i file temporanei.\n3. Riavvierà l'installazione (Ottimizzata per Apple Silicon).\n\nConsigliato in caso di problemi con le dipendenze (es. Numpy/Pytorch).",
     "opt_jit_enabled": "JIT Abilitato (Python 3.13+)",
     "opt_jit_disabled": "JIT Non Attivo (Consigliato: Python 3.13)",
-    "info_cpu": "Apple Silicon rilevato - {} thread ottimizzati",
+    "info_cpu": "CPU: {} thread rilevati",
     "group_extract": "Estrazione Feature",
     "lbl_camera_model": "Modello Fotocamera:",
     "check_single_cam": "Singola Fotocamera:",

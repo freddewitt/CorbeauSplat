@@ -28,7 +28,7 @@
     "confirm_reset": "⚠️ 完全なリセット\n\nこのアクションは:\n1. 仮想環境(.venv)を削除します。\n2. 一時ファイルをクリアします。\n3. インストールを再開します。\n\n依存関係の問題がある場合に推奨。",
     "opt_jit_enabled": "JIT有効 (Python 3.13+)",
     "opt_jit_disabled": "JIT無効",
-    "info_cpu": "Apple Siliconを検出 - {}スレッド最適化",
+    "info_cpu": "CPU: {} スレッド検出",
     "group_extract": "特徴抽出",
     "lbl_camera_model": "カメラモデル:",
     "check_single_cam": "シングルカメラ:",
