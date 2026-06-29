@@ -413,6 +413,24 @@ class ColmapEngine(BaseEngine):
 
         return False, "Arrete par l'utilisateur"
 
+    def _import_manifest_path(self, images_dir: Path) -> Path:
+        return images_dir.parent / "import_manifest.json"
+
+    def _load_import_manifest(self, images_dir: Path) -> dict:
+        """Maps absolute source path → imported target filename (resize-proof)."""
+        try:
+            data = json.loads(self._import_manifest_path(images_dir).read_text(encoding='utf-8'))
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _save_import_manifest(self, images_dir: Path, manifest: dict) -> None:
+        try:
+            self._import_manifest_path(images_dir).write_text(
+                json.dumps(manifest), encoding='utf-8')
+        except OSError:
+            pass
+
     def _prepare_images(self, images_dir: Path) -> bool:
         """Gère l'extraction vidéo ou la copie d'images."""
         if self.input_type == "video":
@@ -499,35 +517,37 @@ class ColmapEngine(BaseEngine):
                     )
                     return False
 
+                # Map each source to a deterministic target by its absolute path
+                # (a manifest), so a source that was already imported — even after
+                # it was resized in place — is recognised and never re-imported
+                # under a "<folder>_1_<name>" alias. Source content is NOT compared
+                # (the in-place resize changes it); provenance is the source path.
+                manifest = self._load_import_manifest(images_dir)
+                src_files = sorted(src_files, key=lambda p: (p.name.lower(), str(p)))
+                new_manifest = {}
+                used = set()          # target names claimed this run
                 linked = skipped = 0
                 logged_mode = False
                 for i, file_path in enumerate(src_files):
                     if self.is_cancelled(): return False
-                    target_path = images_dir / file_path.name
-                    if target_path.exists():
-                        # Already present and identical (same inode via hardlink,
-                        # or same content) → skip, never duplicate on re-runs.
-                        if self._same_image(file_path, target_path):
-                            skipped += 1
-                            target_path = None
-                        else:
-                            # Different image that happens to share a name →
-                            # disambiguate, but still skip if a prior run already
-                            # placed this exact image under the renamed path.
-                            counter = 1
-                            while True:
-                                cand = images_dir / f"{file_path.parent.name}_{counter}_{file_path.name}"
-                                if not cand.exists():
-                                    target_path = cand
-                                    break
-                                if self._same_image(file_path, cand):
-                                    skipped += 1
-                                    target_path = None
-                                    break
-                                counter += 1
-
-                    if target_path is not None:
-                        mode = self._link_or_copy(file_path, target_path)
+                    key = str(file_path.resolve())
+                    # Prefer the name a prior run gave this source; else its
+                    # basename. Disambiguate only against names claimed THIS run
+                    # (two genuinely different sources sharing a basename).
+                    target_name = manifest.get(key) or file_path.name
+                    if target_name in used:
+                        counter = 1
+                        while True:
+                            cand = f"{file_path.parent.name}_{counter}_{file_path.name}"
+                            if cand not in used:
+                                target_name = cand
+                                break
+                            counter += 1
+                    target = images_dir / target_name
+                    if target.exists():
+                        skipped += 1           # already imported (possibly resized) → adopt
+                    else:
+                        mode = self._link_or_copy(file_path, target)
                         linked += 1
                         if not logged_mode:
                             self.log(
@@ -536,16 +556,38 @@ class ColmapEngine(BaseEngine):
                                 "Images copiées (entrée sur un autre volume — duplication inévitable)."
                             )
                             logged_mode = True
+                    new_manifest[key] = target_name
+                    used.add(target_name)
 
                     if i % 10 == 0 or i == total_files - 1:
                         p = 5 + int((i / total_files) * 15)
                         self.progress(p)
                         self.status(f"Préparation des images : {i+1} / {total_files}")
 
+                # Self-heal: drop stale top-level images no current source claims
+                # (e.g. "<folder>_1_<name>" duplicates from earlier buggy runs, or
+                # frames of a source that was removed). Subfolders (images_src,
+                # blurry, …) and mask files are left untouched.
+                removed = 0
+                claimed = set(new_manifest.values())
+                for f in images_dir.iterdir():
+                    if (f.is_file() and f.suffix.lower() in _IMAGE_EXTS
+                            and not f.name.lower().endswith('.mask.png')
+                            and f.name not in claimed):
+                        try:
+                            f.unlink()
+                            removed += 1
+                        except OSError:
+                            pass
+
+                self._save_import_manifest(images_dir, new_manifest)
+
+                msg = f"✅ {linked} images préparées"
                 if skipped:
-                    self.log(f"✅ {linked} images préparées, {skipped} déjà présentes (ignorées, pas de doublon).")
-                else:
-                    self.log(f"✅ {total_files} images préparées dans {images_dir}")
+                    msg += f", {skipped} déjà présentes"
+                if removed:
+                    msg += f", {removed} doublons/obsolètes supprimés"
+                self.log(msg + ".")
                 return True
             except Exception as e:
                 self.log(f"Erreur copie images: {e}")
@@ -565,33 +607,6 @@ class ColmapEngine(BaseEngine):
         except (OSError, NotImplementedError):
             shutil.copy2(str(src), str(dst))
             return "copy"
-
-    def _same_image(self, a: Path, b: Path) -> bool:
-        """True if ``b`` already holds the same image as ``a``.
-
-        Used to skip re-linking on re-runs so the project's images/ folder never
-        accumulates duplicates. Matches either the same inode (a hardlink made on
-        a previous run) or byte-identical content (the copy fallback case). Size
-        is checked first so identical content is only read when sizes match.
-        """
-        import filecmp
-        try:
-            if os.path.samefile(str(a), str(b)):
-                return True
-        except OSError:
-            pass
-        try:
-            sa, sb = a.stat(), b.stat()
-            if sa.st_size != sb.st_size:
-                return False
-            # shutil.copy2 preserves mtime, so same size + same mtime ⇒ identical
-            # content on a re-run — skip the full byte compare (near-zero I/O).
-            # Only fall back to filecmp when sizes match but mtimes differ.
-            if sa.st_mtime_ns == sb.st_mtime_ns:
-                return True
-            return filecmp.cmp(str(a), str(b), shallow=False)
-        except OSError:
-            return False
 
     def _is_single_video_input(self) -> bool:
         """True when the input is exactly one video file (not a dir, not a
