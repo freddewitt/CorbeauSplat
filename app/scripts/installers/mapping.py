@@ -239,4 +239,12 @@ class GlomapEngineDep(EngineDependency):
         if built_bin:
             dest = self.engines_dir / ("glomap.exe" if built_bin.suffix == ".exe" else "glomap")
             shutil.copy2(str(built_bin), str(dest))
-            self.save_local_version(self.get_remote_version())
+            # Only record success if the copy actually landed — otherwise a failed
+            # copy would be marked "installed" and skip rebuilds forever.
+            if dest.exists() and dest.stat().st_size > 0:
+                self.save_local_version(self.get_remote_version())
+                print(f"✅ Glomap installé : {dest}")
+            else:
+                print("⚠️ Glomap compilé mais la copie du binaire a échoué.")
+        else:
+            print("⚠️ Glomap compilé mais binaire introuvable dans le dossier build.")

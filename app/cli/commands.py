@@ -85,6 +85,8 @@ def run_colmap(args):
         ba_refine_extra_params=not args.no_refine_extra,
         min_num_matches=args.min_num_matches,
         matcher_type=args.matcher_type,
+        sequential_overlap=args.sequential_overlap,
+        loop_detection=not args.no_loop_detection,
         undistort_images=args.undistort,
         use_glomap=args.use_glomap,
         filter_blurry=args.filter_blur,
@@ -362,6 +364,8 @@ def run_pipeline(args):
     colmap_params = ColmapParams(
         camera_model=args.camera_model,
         matcher_type=args.matcher_type,
+        sequential_overlap=args.sequential_overlap,
+        loop_detection=not args.no_loop_detection,
         max_image_size=args.max_image_size,
         undistort_images=args.undistort,
         use_glomap=args.use_glomap,

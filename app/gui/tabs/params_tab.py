@@ -132,6 +132,19 @@ class ParamsTab(QWidget):
         self.lbl_cross = QLabel(tr("check_cross"))
         match_layout.addRow(self.lbl_cross, self.cross_check_check)
 
+        # Loop-closure detection (sequential matcher): recognises revisited places
+        # so the same location isn't reconstructed twice ("ghost"/duplicate
+        # buildings). On by default; uses an auto-downloaded FAISS vocab tree.
+        self.loop_detection_check = QCheckBox()
+        self.loop_detection_check.setChecked(True)
+        self.loop_detection_check.setToolTip(
+            "Détecte les lieux revisités (matching séquentiel) pour éviter les "
+            "duplications géométriques. Télécharge un petit vocabulaire FAISS au "
+            "premier usage. Recommandé pour les vidéos qui repassent au même endroit."
+        )
+        self.lbl_loop_detection = QLabel("Détection de boucles")
+        match_layout.addRow(self.lbl_loop_detection, self.loop_detection_check)
+
         self.guided_match_check = QCheckBox()
         self.guided_match_check.setEnabled(False)
         self.lbl_guided = QLabel(tr("check_guided"))
@@ -236,6 +249,7 @@ class ParamsTab(QWidget):
             ba_use_gpu=self.ba_use_gpu_check.isChecked(),
             min_num_matches=self.min_matches_spin.value(),
             matcher_type=self.matcher_type_combo.currentText(),
+            loop_detection=self.loop_detection_check.isChecked(),
             use_glomap=self.use_glomap_check.isChecked(),
             undistort_images=False, # Géré par ConfigTab pour l'instant, ou on peut le passer ici si on veut
         )
@@ -260,6 +274,7 @@ class ParamsTab(QWidget):
         self.ba_use_gpu_check.setChecked(params.ba_use_gpu)
         self.min_matches_spin.setValue(params.min_num_matches)
         self.matcher_type_combo.setCurrentText(params.matcher_type)
+        self.loop_detection_check.setChecked(getattr(params, 'loop_detection', True))
         self.use_glomap_check.setChecked(params.use_glomap)
         # Keep the 360 convenience checkbox consistent with the loaded model.
         self._sync_native_360_check(params.camera_model)

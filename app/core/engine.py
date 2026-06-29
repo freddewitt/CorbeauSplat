@@ -635,9 +635,16 @@ class ColmapEngine(BaseEngine):
         rollback-journal mode before GLOMAP reads the file.
         """
         try:
-            with sqlite3.connect(str(database_path)) as con:
-                con.execute("PRAGMA journal_mode=DELETE")
+            con = sqlite3.connect(str(database_path))
+            try:
                 con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                con.execute("PRAGMA journal_mode=DELETE")
+                con.commit()
+            finally:
+                # sqlite3's context manager commits but does NOT close — leaving the
+                # connection open keeps the -wal/-shm files locked on Windows, so the
+                # unlink below would fail. Close explicitly before deleting them.
+                con.close()
             for wal_file in [database_path.parent / (database_path.name + "-wal"),
                              database_path.parent / (database_path.name + "-shm")]:
                 if wal_file.exists():
@@ -884,18 +891,25 @@ class ColmapEngine(BaseEngine):
             return True
         import cv2
 
-        min_w = min(s[0] for s in unique_sizes)
-        min_h = min(s[1] for s in unique_sizes)
-        to_resize = [f for f, s in sizes.items() if s != (min_w, min_h)]
+        # Unify to the LARGEST resolution: the sharpest cameras keep their full
+        # detail. Downscaling everything to the smallest (previous behaviour)
+        # permanently threw away detail from the best images, hurting photorealism.
+        target_w = max(s[0] for s in unique_sizes)
+        target_h = max(s[1] for s in unique_sizes)
+        to_resize = [f for f, s in sizes.items() if s != (target_w, target_h)]
 
         self.log(f"⚠️ {len(unique_sizes)} résolutions différentes détectées.")
-        self.log(f"Redimensionnement de {len(to_resize)} images → {min_w}×{min_h} px")
+        self.log(f"Redimensionnement de {len(to_resize)} images → {target_w}×{target_h} px")
 
         def _resize_one(f):
             img = _imread_unicode(f, cv2.IMREAD_UNCHANGED)
             if img is None:
                 return f, None
-            resized = cv2.resize(img, (min_w, min_h), interpolation=cv2.INTER_AREA)
+            h, w = img.shape[:2]
+            # INTER_AREA is best when shrinking, INTER_CUBIC when enlarging.
+            shrinking = w >= target_w and h >= target_h
+            interp = cv2.INTER_AREA if shrinking else cv2.INTER_CUBIC
+            resized = cv2.resize(img, (target_w, target_h), interpolation=interp)
             return f, _imwrite_unicode(f, resized)
 
         # cv2 decode/resize/encode release the GIL → resize in parallel.
@@ -916,7 +930,7 @@ class ColmapEngine(BaseEngine):
                 if done % 10 == 0 or done == n:
                     self.status(f"Ajustement taille : {done} / {n}")
 
-        self.log(f"✅ {n} images redimensionnées vers {min_w}×{min_h} px")
+        self.log(f"✅ {n} images redimensionnées vers {target_w}×{target_h} px")
         return True
 
     def extract_frames_from_video(self, video_path: str, images_dir: Path, prefix: str | None = None) -> bool | None:
@@ -948,7 +962,7 @@ class ColmapEngine(BaseEngine):
                 '-i', video_path,
                 '-an',                            # no audio → faster, cleaner
                 '-vf', f'fps={self.fps}',
-                '-qscale:v', '2',
+                '-qscale:v', '1',                 # best JPEG quality (1=highest, 2≈95%)
                 str(output_pattern),
             ])
             return c

@@ -148,6 +148,12 @@ class BaseEngine:
         except Exception as e:
             self.logger.error("Exception in _execute_command", exc_info=True)
             self.log(f"Exception: {e}", level=logging.ERROR)
+            # Never leave the child running if streaming/parsing threw — otherwise a
+            # COLMAP/Brush process would be orphaned (zombie holding the GPU/port).
+            try:
+                self.runner.terminate()
+            except Exception:
+                self.logger.debug("terminate() after exception failed", exc_info=True)
             return -1
 
     def _kill_process(self, process):

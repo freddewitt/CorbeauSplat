@@ -52,8 +52,12 @@ def get_parser():
                    help="Modèle de caméra COLMAP (défaut: SIMPLE_RADIAL)")
     p.add_argument("--undistort",  action="store_true", help="Undistortion après reconstruction")
     p.add_argument("--use_glomap", action="store_true", help="Utiliser Glomap au lieu du mapper COLMAP")
-    p.add_argument("--matcher_type", choices=["exhaustive","sequential","vocab_tree"], default="exhaustive",
-                   help="Stratégie de matching (défaut: exhaustive)")
+    p.add_argument("--matcher_type", choices=["exhaustive","sequential","vocab_tree"], default="sequential",
+                   help="Stratégie de matching (défaut: sequential — rapide et correct pour vidéos)")
+    p.add_argument("--sequential_overlap", type=int, default=30,
+                   help="Nb d'images voisines comparées en matching séquentiel (défaut: 30)")
+    p.add_argument("--no_loop_detection", action="store_true",
+                   help="Désactiver la détection de boucles (anti-duplication des lieux revisités)")
     p.add_argument("--max_image_size", type=int, default=3200,
                    help="Résolution max des images pour COLMAP (défaut: 3200)")
     # Brush
@@ -96,8 +100,12 @@ def get_parser():
     p.add_argument("--domain_size_pooling", action="store_true",
                    help="Activer le domain size pooling (force le SIFT sur CPU — désactivé par défaut)")
     # Feature matching
-    p.add_argument("--matcher_type", choices=["exhaustive","sequential","vocab_tree"], default="exhaustive",
-                   help="Stratégie de matching (défaut: exhaustive)")
+    p.add_argument("--matcher_type", choices=["exhaustive","sequential","vocab_tree"], default="sequential",
+                   help="Stratégie de matching (défaut: sequential — rapide et correct pour vidéos)")
+    p.add_argument("--sequential_overlap", type=int, default=30,
+                   help="Nb d'images voisines comparées en matching séquentiel (défaut: 30)")
+    p.add_argument("--no_loop_detection", action="store_true",
+                   help="Désactiver la détection de boucles (anti-duplication des lieux revisités)")
     p.add_argument("--max_ratio",    type=float, default=0.8,  help="Ratio max Lowe (défaut: 0.8)")
     p.add_argument("--max_distance", type=float, default=0.7,  help="Distance max (défaut: 0.7)")
     p.add_argument("--no_cross_check", action="store_true", help="Désactiver le cross-check")
