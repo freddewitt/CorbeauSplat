@@ -50,6 +50,11 @@ class ColmapParams:
     # O(n) instead of exhaustive's O(n²). The whole pipeline is video → frames.
     matcher_type: str = 'sequential' # exhaustive, sequential, vocab_tree
     sequential_overlap: int = 30
+    # Loop-closure detection for sequential matching: recognises when the camera
+    # REVISITS a place (common in video) and matches those frames, so the same
+    # location isn't reconstructed twice ("ghost"/duplicate buildings). Needs a
+    # vocabulary tree (auto-downloaded); harmless when off.
+    loop_detection: bool = True
     undistort_images: bool = False
     use_glomap: bool = False
     # Blur filtering: discard frames whose sharpness (variance of Laplacian) falls

@@ -235,7 +235,7 @@ class ColmapEngine(BaseEngine):
         'camera_model', 'single_camera', 'max_image_size', 'max_num_features',
         'estimate_affine_shape', 'domain_size_pooling',
         'matcher_type', 'max_ratio', 'max_distance', 'cross_check',
-        'guided_matching', 'sequential_overlap',
+        'guided_matching', 'sequential_overlap', 'loop_detection',
     )
 
     def _db_sig_path(self, database_path: Path) -> Path:
@@ -1303,6 +1303,50 @@ class ColmapEngine(BaseEngine):
         except Exception as e:
             self.log(f"Avertissement: tri de la base COLMAP echoue: {e}")
 
+    def _colmap_cmd_help(self, cmd_name: str) -> str:
+        """`colmap <cmd_name> -h` output, cached per command (empty on failure).
+        Used to gate optional flags so we never pass an option a build rejects."""
+        cache = getattr(self, "_cmd_help_cache", None)
+        if cache is None:
+            cache = {}
+            self._cmd_help_cache = cache
+        if cmd_name not in cache:
+            text = ""
+            try:
+                import subprocess
+                out = subprocess.run([self.colmap_bin, cmd_name, '-h'],
+                                     capture_output=True, text=True, timeout=15)
+                text = out.stdout + out.stderr
+            except (OSError, subprocess.SubprocessError):
+                text = ""
+            cache[cmd_name] = text
+        return cache[cmd_name]
+
+    def _ensure_vocab_tree(self) -> Path | None:
+        """Path to a COLMAP vocabulary tree (for loop-closure detection),
+        downloading it once into engines/ if needed. Returns None on failure so
+        matching can proceed without loop detection."""
+        dest = self.project_root / "engines" / "vocab_tree_flickr100K_words32K.bin"
+        if dest.exists() and dest.stat().st_size > 1_000_000:
+            return dest
+        url = "https://demuc.de/colmap/vocab_tree_flickr100K_words32K.bin"
+        try:
+            import shutil
+            import urllib.request
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            self.log("Téléchargement du vocabulaire COLMAP (détection de boucles, "
+                     "~100 Mo, une seule fois)...")
+            req = urllib.request.Request(url, headers={"User-Agent": "CorbeauSplat"})
+            tmp = dest.with_suffix(".part")
+            with urllib.request.urlopen(req, timeout=180) as resp, open(tmp, "wb") as f:
+                shutil.copyfileobj(resp, f)
+            tmp.replace(dest)
+            return dest
+        except OSError as e:  # URLError/HTTPError/timeouts all derive from OSError
+            self.log(f"(info) Vocabulaire COLMAP indisponible ({e}) — matching sans "
+                     "détection de boucles.")
+            return None
+
     def feature_matching(self, database_path: str) -> bool:
         """Exécute le matching des features."""
         if self.params.matcher_type == 'sequential':
@@ -1317,6 +1361,15 @@ class ColmapEngine(BaseEngine):
                 '--SequentialMatching.overlap', str(self.params.sequential_overlap),
                 '--SequentialMatching.quadratic_overlap', '1',
             ]
+            # Loop closure: detect revisited places so the same location isn't
+            # reconstructed twice. Needs a vocab tree; gated on the option existing.
+            if getattr(self.params, 'loop_detection', True) \
+                    and 'loop_detection' in self._colmap_cmd_help('sequential_matcher'):
+                vocab = self._ensure_vocab_tree()
+                if vocab:
+                    cmd += ['--SequentialMatching.loop_detection', '1',
+                            '--SequentialMatching.vocab_tree_path', str(vocab)]
+                    self.log("Détection de boucles activée (anti-duplication des lieux revisités).")
             description = "Matching Sequentiel"
         else:
             cmd = [
