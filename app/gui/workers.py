@@ -19,6 +19,7 @@ class Extractor360Worker(BaseWorker):
         super().__init__()
         # DIP : Injection
         self.engine = engine or Extractor360Engine(logger_callback=self.log_signal.emit)
+        self.engine.gui_trusted = True
         self.input_path = input_path
         self.output_path = output_path
         self.params = params
@@ -73,6 +74,7 @@ class ColmapWorker(BaseWorker):
             status_callback=self.status_signal.emit,
             check_cancel_callback=self.isInterruptionRequested
         )
+        self.engine.gui_trusted = True
         
     def stop(self):
         if self.extractor_engine:
@@ -85,6 +87,7 @@ class ColmapWorker(BaseWorker):
         if self.extractor_360_params and self.extractor_360_params.get("enabled", False):
             from app.core.extractor_360_engine import Extractor360Engine
             self.extractor_engine = Extractor360Engine()
+            self.extractor_engine.gui_trusted = True
             
             if not self.extractor_engine.is_installed():
                 self.log_signal.emit(tr("err_360_not_installed_colmap", "ERREUR: 360 Extractor activé mais non installé."))
@@ -121,6 +124,7 @@ class ColmapWorker(BaseWorker):
                 status_callback=self.status_signal.emit,
                 check_cancel_callback=self.isInterruptionRequested
             )
+            self.engine.gui_trusted = True
 
         # 2. Check Upscale 
         if self.upscale_params and self.upscale_params.get("active", False):
@@ -137,6 +141,7 @@ class BrushWorker(BaseWorker):
         super().__init__()
         # DIP : Injection
         self.engine = engine or BrushEngine(logger_callback=self.log_signal.emit)
+        self.engine.gui_trusted = True
         self.input_path = input_path
         self.output_path = output_path
         self.params = params
@@ -379,6 +384,7 @@ class SharpWorker(BaseWorker):
         from app.core.sharp_engine import SharpEngine
         # DIP : Injection
         self.engine = engine or SharpEngine(logger_callback=self.log_signal.emit)
+        self.engine.gui_trusted = True
         self.input_path = input_path
         self.output_path = output_path
         self.params = params
@@ -455,6 +461,7 @@ class SharpVideoWorker(BaseWorker):
         super().__init__()
         from app.core.sharp_engine import SharpEngine
         self.engine = engine or SharpEngine(logger_callback=self.log_signal.emit)
+        self.engine.gui_trusted = True
         self.video_path = video_path
         self.output_path = output_path
         self.params = params
@@ -532,6 +539,7 @@ class FourDGSWorker(BaseWorker):
             logger_callback=self.log_signal.emit,
             status_callback=self.status_signal.emit
         )
+        self.engine.gui_trusted = True
 
     def run(self):
         self.log_signal.emit("--- Démarrage 4DGS ---")

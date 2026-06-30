@@ -243,6 +243,9 @@ class BaseEngine:
             return None
         try:
             p = Path(path).resolve()
+            # GUI-trusted paths (selected via QFileDialog) skip containment check
+            if getattr(self, 'gui_trusted', False):
+                return p
             home = Path.home().resolve()
             allowed_bases = [
                 self.project_root.resolve(),

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.4] - 2026-06-30
+
+### 🛠 Improvements
+- **Validation de chemins relâchée pour la GUI (Option B)** : les chemins sélectionnés via QFileDialog/NSOpenPanel (bouton Parcourir) ne sont plus soumis au containment check `project_root`/`Desktop`/`Documents`. La validation stricte est conservée pour la CLI et la saisie manuelle. Résout le blocage des dossiers utilisateur légitimes situés hors des 3 répertoires autorisés.
+
+### 🔒 Security
+- **`validate_path()` avec `gui_trusted`** : les chemins GUI sont désormais marqués comme de confiance via l'attribut `engine.gui_trusted = True` dans les Workers, court-circuitant la vérification de containment. La CLI reste protégée.
+
 ## [1.0.3] - 2026-06-26
 
 ### ✨ New Features
