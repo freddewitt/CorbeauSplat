@@ -395,5 +395,15 @@
     "blur_light": "Léger (tolérant)",
     "blur_medium": "Moyen (standard)",
     "blur_strong": "Fort (strict)",
-    "check_robust": "Mode stabilisé (grandes scènes, anti-plantage)"
+    "check_robust": "Mode stabilisé (grandes scènes, anti-plantage)",
+    "status_upscale_colmap": "Upscaling COLMAP...",
+    "err_upscale_folder": "Erreur dossier upscale",
+    "err_brush_missing": "Moteur Brush manquant",
+    "err_brush_no_input": "Aucun dossier d'entrée Brush",
+    "err_brush_no_output": "Aucun dossier de sortie Brush",
+    "err_launch": "Erreur au lancement",
+    "four_dgs_install_ok": "Installation 4DGS réussie",
+    "logs_saved": "Logs sauvegardés",
+    "err_save_log": "Erreur sauvegarde logs",
+    "upscale_bundled_warning": "Attention : upscale intégré"
 }
