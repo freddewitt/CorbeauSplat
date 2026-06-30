@@ -1,3 +1,4 @@
+import math
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -450,19 +451,22 @@ class ExportEngine(BaseEngine):
 
                     # Scales (may not be present, default to small)
                     if 'scale_0' in data.dtype.names:
-                        s0 = max(0.001, float(data.get('scale_0', -2.0)))
-                        s1 = max(0.001, float(data.get('scale_1', -2.0)))
-                        s2 = max(0.001, float(data.get('scale_2', -2.0)))
+                        # `data` is a numpy.void (structured scalar) — index by
+                        # field name, it has no dict-style .get(). The guard above
+                        # already guarantees the fields exist.
+                        s0 = max(0.001, float(data['scale_0']))
+                        s1 = max(0.001, float(data['scale_1']))
+                        s2 = max(0.001, float(data['scale_2']))
                         scales.extend(compress_scale(s0, s1, s2))
                     else:
                         scales.extend([0, 0, 0])
 
                     # Rotations (quaternions) - may not be present
                     if 'rot_0' in data.dtype.names:
-                        r0 = float(data.get('rot_0', 1.0))
-                        r1 = float(data.get('rot_1', 0.0))
-                        r2 = float(data.get('rot_2', 0.0))
-                        r3 = float(data.get('rot_3', 0.0))
+                        r0 = float(data['rot_0'])
+                        r1 = float(data['rot_1'])
+                        r2 = float(data['rot_2'])
+                        r3 = float(data['rot_3'])
                         # Normalize quaternion
                         norm = math.sqrt(r0*r0 + r1*r1 + r2*r2 + r3*r3)
                         if norm > 0:

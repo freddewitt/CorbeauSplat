@@ -5,7 +5,7 @@ import sys
 import time
 from pathlib import Path as _Path
 
-from app.core.brush_engine import BrushEngine
+from app.core.brush_engine import BrushEngine, rename_latest_ply
 from app.core.engine import ColmapEngine
 from app.core.i18n import tr
 from app.core.params import ColmapParams
@@ -154,6 +154,8 @@ def run_brush(args):
     try:
         returncode = engine.train(args.input, args.output, params=params)
         if returncode == 0:
+            # CLI parity with the GUI: honour --ply_name on the exported splat.
+            rename_latest_ply(args.output, params.get("ply_name"), log=print)
             print(tr("msg_success"))
         else:
             print(tr("msg_error"))
@@ -430,6 +432,7 @@ def run_pipeline(args):
         sys.exit(0)
 
     if returncode == 0:
+        rename_latest_ply(str(dataset_path), brush_params.get("ply_name"), log=print)
         print(f"\nPipeline terminé. Splat disponible dans : {dataset_path}")
     else:
         print(f"\nBrush a retourné une erreur (code {returncode}).")

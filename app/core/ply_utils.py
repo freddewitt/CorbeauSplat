@@ -176,17 +176,21 @@ def parse_ply_manual(input_file: Path) -> tuple:
                     else:
                         alphas.append(255)
         else:
-            # ASCII PLY
-            in_header = True
-            for line in header_lines:
-                if in_header:
-                    if line.strip().startswith("end_header"):
-                        in_header = False
+            # ASCII PLY — the header was already consumed above, so the vertex
+            # rows must be read from the remaining file body. Iterating
+            # header_lines (the previous behaviour) yielded nothing past
+            # end_header, so the parser silently returned zero points.
+            for raw in f:
+                try:
+                    line = raw.decode('ascii')
+                except UnicodeDecodeError:
                     continue
-
                 parts = line.strip().split()
                 if len(parts) >= 3:
-                    positions.extend([float(parts[0]), float(parts[1]), float(parts[2])])
+                    try:
+                        positions.extend([float(parts[0]), float(parts[1]), float(parts[2])])
+                    except ValueError:
+                        continue  # skip malformed/non-numeric rows
                     if has_colors and len(parts) >= 6:
                         colors.extend([int(parts[3]), int(parts[4]), int(parts[5]), 255])
                     else:

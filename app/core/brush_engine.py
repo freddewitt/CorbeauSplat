@@ -176,3 +176,42 @@ class BrushEngine(BaseEngine):
                 return rc  # a non-fusion failure → don't blindly retry
             # fusion panic → loop to the alternate backend
         return last_rc
+
+
+def rename_latest_ply(output_path: str, ply_name: str | None,
+                      log: Callable | None = None) -> bool:
+    """Rename Brush's freshly exported .ply to the user-chosen name.
+
+    Brush always writes its own export filename; the GUI worker renames it
+    afterwards, but the CLI used to ignore --ply_name entirely. This gives the
+    CLI the same behaviour: find the most recently written .ply under
+    output_path and move it to <ply_name>. Best-effort and never fatal.
+    """
+    if not ply_name:
+        return False
+    import shutil
+    from pathlib import Path
+
+    out = Path(output_path)
+    name = Path(ply_name).name           # strip any directory component
+    if not name.endswith(".ply"):
+        name += ".ply"
+
+    candidates = [p for p in out.rglob("*.ply")
+                  if p.is_file() and p.name != name]
+    if not candidates:
+        if log:
+            log("Attention : aucun fichier PLY trouvé à renommer.")
+        return False
+
+    newest = max(candidates, key=lambda p: p.stat().st_mtime)
+    dest = out / name
+    try:
+        shutil.move(str(newest), str(dest))
+        if log:
+            log(f"Fichier PLY renommé en : {name}")
+        return True
+    except OSError as e:
+        if log:
+            log(f"Erreur renommage PLY : {e}")
+        return False

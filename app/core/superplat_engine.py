@@ -118,17 +118,35 @@ class SuperSplatEngine(BaseEngine):
         class _ReuseAddrTCPServer(socketserver.TCPServer):
             allow_reuse_address = True
 
+        bind_event = threading.Event()
+        bind_error: dict = {"e": None}
+
         def run_server():  # pragma: no cover – runs in a background thread
             from functools import partial
             handler = partial(CORSRequestHandler, directory=str(dir_path))
             try:
                 self.httpd = _ReuseAddrTCPServer(("127.0.0.1", port), handler)
+            except Exception as e:
+                # Bind failed (port busy, permission). Report it to the caller
+                # instead of claiming success on a server that never started.
+                bind_error["e"] = e
+                self.log(f"Erreur Data Server: {e}", level=logging.ERROR)
+                bind_event.set()
+                return
+            bind_event.set()
+            try:
                 self.httpd.serve_forever()
             except Exception as e:
                 self.log(f"Erreur Data Server: {e}", level=logging.ERROR)
 
         self.data_server_thread = threading.Thread(target=run_server, daemon=True)
         self.data_server_thread.start()
+        # Wait for the bind attempt so we never report success on a dead server.
+        if not bind_event.wait(timeout=3.0):
+            return False, "Délai de démarrage du serveur de données dépassé"
+        if bind_error["e"] is not None:
+            return False, (f"Le serveur de données n'a pas pu démarrer "
+                           f"(port {port} occupé ?) : {bind_error['e']}")
         self.log(f"Serveur de données démarré sur http://localhost:{port}")
         return True, f"Serveur de données démarré sur http://localhost:{port}"
 

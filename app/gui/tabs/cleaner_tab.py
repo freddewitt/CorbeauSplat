@@ -216,7 +216,11 @@ class CleanerTab(QWidget):
         if not ok:
             QMessageBox.critical(self, tr("msg_error"), f"SuperSplat: {msg}")
             return
-        self.preview_engine.start_data_server(str(self.cleaned_path.parent), data_port)
+        ok_data, msg_data = self.preview_engine.start_data_server(str(self.cleaned_path.parent), data_port)
+        if not ok_data:
+            QMessageBox.critical(self, tr("msg_error"), f"Data Server: {msg_data}")
+            self.preview_engine.stop_all()
+            return
         data_url = f"http://localhost:{data_port}/{self.cleaned_path.name}"
         url = f"http://localhost:{port}?load={quote(data_url, safe=':/')}"
         QTimer.singleShot(1500, lambda: webbrowser.open(url))
