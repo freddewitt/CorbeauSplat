@@ -12,11 +12,23 @@ class BrushEngine(BaseEngine):
     Provides path validation, secure command construction, and structured logging.
     """
 
+    # Custom-args whitelist — every entry verified against the real Brush v0.3.0
+    # CLI (clap). A flag Brush doesn't know makes it ABORT with "unexpected
+    # argument", so phantom flags here are booby traps: --refine-pose,
+    # --test-split, --save-iterations and --log-level do NOT exist in any Brush
+    # release (eval split is --eval-split-every; logging is the RUST_LOG env).
     ALLOWED_FLAGS = {
-        "--save-iterations", "--log-level", "--test-split",
         "--start-iter", "--refine-every", "--growth-grad-threshold",
         "--growth-select-fraction", "--growth-stop-iter", "--max-splats",
-        "--eval-every", "--export-every", "--max-resolution", "--refine-pose"
+        "--eval-every", "--eval-split-every", "--eval-save-to-disk",
+        "--export-every", "--export-name", "--max-resolution",
+        "--max-frames", "--subsample-frames", "--subsample-points", "--seed",
+        # quality levers (photorealism): perceptual + structural loss weights,
+        # opacity/scale regularisation, and the main learning rates
+        "--ssim-weight", "--lpips-loss-weight", "--opac-loss-weight",
+        "--scale-loss-weight", "--match-alpha-weight", "--mean-noise-weight",
+        "--lr-mean", "--lr-mean-end", "--lr-coeffs-dc", "--lr-coeffs-sh-scale",
+        "--lr-opac", "--lr-scale", "--lr-scale-end", "--lr-rotation",
     }
 
     def __init__(self, logger_callback: Callable | None = None) -> None:

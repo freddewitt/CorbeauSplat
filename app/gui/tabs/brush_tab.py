@@ -112,7 +112,9 @@ class BrushTab(QWidget):
 
         # Custom Args
         self.custom_args_edit = QLineEdit()
-        self.custom_args_edit.setPlaceholderText("--refine_pose ...")
+        # NB: only real Brush v0.3.0 flags — an unknown flag makes Brush abort
+        # (--refine-pose, previously suggested here, does not exist in Brush).
+        self.custom_args_edit.setPlaceholderText("--ssim-weight 0.3 --lpips-loss-weight 0.05 ...")
         self.lbl_args = QLabel(tr("brush_args"))
         param_layout.addRow(self.lbl_args, self.custom_args_edit)
 

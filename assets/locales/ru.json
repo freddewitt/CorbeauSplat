@@ -71,7 +71,7 @@
     "brush_sh_degree": "Степень SH:",
     "brush_device": "Устройство:",
     "brush_lbl_res": "Макс. разрешение:",
-    "brush_res_warn": "0 = разрешение по умолчанию (1080)",
+    "brush_res_warn": "0 = разрешение по умолчанию (1920)",
     "brush_res_default": "0",
     "brush_group_densify": "Уплотнение и расширенные настройки",
     "brush_lbl_build_mode": "Версия Brush:",

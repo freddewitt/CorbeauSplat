@@ -172,6 +172,16 @@ class ColmapGUI(QMainWindow):
         # Robust mode: stabilise COLMAP's bundle adjustment on large scenes to
         # avoid "Linear solver failure" crashes. Uses only known COLMAP options.
         if self.config_tab.get_robust_mode():
+            if params.camera_model != "PINHOLE":
+                # Surface the override — it silently replaced the user's chosen
+                # model before. PINHOLE models NO lens distortion: on real-lens
+                # photos, enable undistortion (or disable robust mode) to avoid
+                # blur at the frame edges.
+                self.logs_tab.append_log(
+                    f"ℹ️ Mode robuste : modèle caméra {params.camera_model} → PINHOLE "
+                    "(aucune distorsion modélisée). Sur des photos avec distorsion "
+                    "optique, activez « images non-distordues » ou décochez le mode "
+                    "robuste pour garder un modèle avec distorsion.")
             params.camera_model = "PINHOLE"
             params.ba_refine_extra_params = False
             params.ba_refine_principal_point = False
@@ -388,6 +398,16 @@ class ColmapGUI(QMainWindow):
                 return
 
             input_path = dataset_path
+            # If undistortion produced a dense/ dataset (images + sparse), train
+            # on IT — otherwise the undistort step is dead weight: Brush would
+            # read the original distorted images/ + sparse/0 from the project
+            # root and the lens-corrected copies would never be used.
+            dense_dir = dataset_path / "dense"
+            if (dense_dir / "images").is_dir() and (dense_dir / "sparse").is_dir():
+                input_path = dense_dir
+                self.logs_tab.append_log(
+                    "Images non-distordues détectées : entraînement sur dense/ "
+                    "(images corrigées de la distorsion optique).")
             output_path = dataset_path / "checkpoints"
             output_path.mkdir(parents=True, exist_ok=True)
 

@@ -396,6 +396,13 @@ def run_pipeline(args):
         sys.exit(1)
 
     dataset_path = _Path(args.output) / args.project_name
+    # Train on the undistorted dense/ dataset when it exists — otherwise the
+    # --undistort step would be dead weight (Brush would silently read the
+    # original distorted images/ + sparse/0 from the project root).
+    dense_dir = dataset_path / "dense"
+    if args.undistort and (dense_dir / "images").is_dir() and (dense_dir / "sparse").is_dir():
+        dataset_path = dense_dir
+        print("Images non-distordues détectées : entraînement sur dense/.")
     print(f"\nDataset prêt : {dataset_path}")
 
     # ── Étape 2 : Brush ───────────────────────────────────────────────────────

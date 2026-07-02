@@ -129,10 +129,10 @@ class TestBuildCommandEnv:
 
 class TestBuildCommandCustomArgs:
     def test_allowed_flag_included(self, engine):
-        params = {"custom_args": "--log-level debug"}
+        params = {"custom_args": "--ssim-weight 0.3"}
         cmd, env = engine.build_command("/input", "/output", params)
-        assert "--log-level" in cmd
-        assert "debug" in cmd
+        assert "--ssim-weight" in cmd
+        assert "0.3" in cmd
 
     def test_disallowed_flag_filtered(self, engine):
         params = {"custom_args": "--malicious-flag value"}
@@ -140,8 +140,17 @@ class TestBuildCommandCustomArgs:
         assert "--malicious-flag" not in cmd
 
     def test_mixed_allowed_and_disallowed(self, engine):
-        params = {"custom_args": "--log-level info --evil-flag payload --test-split 0.1"}
+        params = {"custom_args": "--lpips-loss-weight 0.05 --evil-flag payload --eval-split-every 8"}
         cmd, env = engine.build_command("/input", "/output", params)
-        assert "--log-level" in cmd
-        assert "--test-split" in cmd
+        assert "--lpips-loss-weight" in cmd
+        assert "--eval-split-every" in cmd
         assert "--evil-flag" not in cmd
+
+    def test_phantom_brush_flags_rejected(self, engine):
+        # These flags do NOT exist in Brush v0.3.0 — passing them makes Brush
+        # abort with a clap "unexpected argument" error, so the whitelist must
+        # filter them out (they used to be wrongly whitelisted).
+        params = {"custom_args": "--refine-pose --test-split 0.1 --log-level debug --save-iterations 5000"}
+        cmd, env = engine.build_command("/input", "/output", params)
+        for phantom in ("--refine-pose", "--test-split", "--log-level", "--save-iterations"):
+            assert phantom not in cmd

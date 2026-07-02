@@ -357,9 +357,13 @@ class ColmapEngine(BaseEngine):
             self.status(tr("status_feature_extraction", "Analyse des images en cours..."))
             if not self.feature_extraction(str(database_path), str(images_dir)):
                 return False, "Échec extraction features"
-            if self.params.matcher_type == 'sequential':
+            # Sort for sequential AND vocab_tree: the vocab-tree pass is followed
+            # by a sequential top-up pass (see feature_matching), whose adjacency
+            # relies on image IDs following temporal/filename order. The sort
+            # wipes matches, so it must happen before ANY matching.
+            if self.params.matcher_type in ('sequential', 'vocab_tree'):
                 self.log("Tri de la base de données COLMAP (ordre temporel des images)...")
-                self.status("Préparation du matching séquentiel...")
+                self.status("Préparation du matching...")
                 self._sort_colmap_database_images(database_path)
                 self.log("Base triée. Démarrage du matching.")
 
@@ -408,6 +412,7 @@ class ColmapEngine(BaseEngine):
             self.status(tr("status_undistorting", "Correction optique des images..."))
             if not self.image_undistorter(str(images_dir), str(sparse_dir), str(dense_dir)):
                 return False, "Echec undistortion"
+            self._normalize_dense_sparse_layout(dense_dir)
 
         self.progress(95)
 
@@ -1079,8 +1084,16 @@ class ColmapEngine(BaseEngine):
         self._cuvid_decoders = decoders
         return decoders
 
-    def run_command(self, cmd: list, description: str, status_prefix: str | None = None) -> bool:
-        """Exécute une commande système avec logging et callback de statut."""
+    def run_command(self, cmd: list, description: str, status_prefix: str | None = None,
+                    omp_threads: int = 1) -> bool:
+        """Exécute une commande système avec logging et callback de statut.
+
+        omp_threads: value for OMP_NUM_THREADS. Defaults to 1 (see below) —
+        commands whose ONLY parallelism source is OpenMP (e.g. global_mapper /
+        GLOMAP, which has no --num_threads flag and derives its thread count
+        from OMP_NUM_THREADS) must pass omp_threads=self.num_threads, otherwise
+        they run essentially single-threaded.
+        """
         self.log(f"\n{'='*60}\n{description}\n{'='*60}")
 
         env = os.environ.copy()
@@ -1089,7 +1102,7 @@ class ColmapEngine(BaseEngine):
         # letting BLAS *also* spawn N threads gives N×N oversubscription, which
         # thrashes the CPU and worsens the "Linear solver failure" retries during
         # global BA on large scenes. One source of parallelism, not nested.
-        env['OMP_NUM_THREADS'] = '1'
+        env['OMP_NUM_THREADS'] = str(max(1, omp_threads))
         env['OPENBLAS_NUM_THREADS'] = '1'
         env['MKL_NUM_THREADS'] = '1'
 
@@ -1242,11 +1255,17 @@ class ColmapEngine(BaseEngine):
             ("pose_priors", "corr_data_id"),
         }
 
+        def _natural_key(name: str):
+            # frame_999.jpg must sort before frame_1000.jpg: split digit runs and
+            # compare them numerically. Plain SQL ORDER BY (lexicographic) breaks
+            # temporal adjacency past 9999 frames or with unpadded numbers.
+            return [int(tok) if tok.isdigit() else tok
+                    for tok in re.split(r'(\d+)', name)]
+
         try:
             with sqlite3.connect(str(database_path)) as con:
-                rows = con.execute(
-                    "SELECT image_id, name FROM images ORDER BY name"
-                ).fetchall()
+                rows = con.execute("SELECT image_id, name FROM images").fetchall()
+                rows.sort(key=lambda r: _natural_key(r[1]))
                 id_map = {old_id: new_id for new_id, (old_id, _) in enumerate(rows, start=1)}
                 if all(old_id == new_id for old_id, new_id in id_map.items()):
                     self.log("Ordre des images COLMAP deja trie.")
@@ -1433,7 +1452,30 @@ class ColmapEngine(BaseEngine):
                     *common,
                     '--VocabTreeMatching.vocab_tree_path', str(vocab),
                 ]
+                # Retrieval breadth: the COLMAP default only matches each image
+                # against its 100 most-similar retrievals — on 2000+ image scenes
+                # weakly-covered views fall below that cutoff and never connect.
+                vt_help = self._colmap_cmd_help('vocab_tree_matcher')
+                if 'VocabTreeMatching.num_images' in vt_help:
+                    cmd += ['--VocabTreeMatching.num_images', '150']
+                if 'VocabTreeMatching.num_nearest_neighbors' in vt_help:
+                    cmd += ['--VocabTreeMatching.num_nearest_neighbors', '8']
                 if self.run_command(cmd, "Matching Vocab-Tree", status_prefix="Comparaison"):
+                    # Top-up pass: video frames are temporally ordered, so a cheap
+                    # sequential pass connects the neighbours the vocab-tree
+                    # retrieval missed (matches ACCUMULATE in the same database).
+                    # Best-effort — its failure never fails the matching stage.
+                    seq_cmd = [
+                        self.colmap_bin, 'sequential_matcher',
+                        '--database_path', database_path,
+                        *common,
+                        '--SequentialMatching.overlap', str(self.params.sequential_overlap),
+                        '--SequentialMatching.quadratic_overlap', '1',
+                    ]
+                    if not self.run_command(seq_cmd, "Matching Séquentiel (complément)",
+                                            status_prefix="Comparaison"):
+                        self.log("(info) Passe séquentielle complémentaire échouée — "
+                                 "les matchs vocab-tree suffisent, on continue.")
                     return True
                 self.log("(repli) Matching vocab-tree échoué (arbre incompatible ?) "
                          "— bascule sur le matching exhaustif.")
@@ -1465,6 +1507,88 @@ class ColmapEngine(BaseEngine):
             self._colmap_help_cmds = cached
         return name in cached
 
+    def _normalize_dense_sparse_layout(self, dense_dir: Path) -> None:
+        """Mirror the standard COLMAP layout inside dense/.
+
+        `colmap image_undistorter` writes the model files directly into
+        dense/sparse/ (no /0 sub-model dir), but downstream tools — Brush's
+        COLMAP loader included — expect sparse/0. Move the model files into
+        dense/sparse/0 so dense/ can be used as a drop-in training root.
+        Best-effort: on failure the original layout is kept."""
+        sparse = dense_dir / "sparse"
+        zero = sparse / "0"
+        try:
+            if not sparse.is_dir() or zero.exists():
+                return
+            model_files = [f for f in sparse.iterdir() if f.is_file()]
+            if not model_files:
+                return
+            zero.mkdir()
+            for f in model_files:
+                f.rename(zero / f.name)
+            self.log("Modèle non-distordu réorganisé en dense/sparse/0 (layout standard).")
+        except OSError as e:
+            self.log(f"(info) Réorganisation dense/sparse impossible : {e}")
+
+    def _binary_cmd_help(self, binary: str, cmd_name: str) -> str:
+        """`<binary> <cmd_name> -h` output, cached (empty on failure). Same idea
+        as _colmap_cmd_help but for a non-colmap binary (e.g. standalone glomap)."""
+        cache = getattr(self, "_bin_help_cache", None)
+        if cache is None:
+            cache = {}
+            self._bin_help_cache = cache
+        key = (str(binary), cmd_name)
+        if key not in cache:
+            text = ""
+            try:
+                import subprocess
+                out = subprocess.run([binary, cmd_name, '-h'],
+                                     capture_output=True, text=True, timeout=15)
+                text = out.stdout + out.stderr
+            except (OSError, subprocess.SubprocessError):
+                text = ""
+            cache[key] = text
+        return cache[key]
+
+    def _global_mapper_opts(self, help_txt: str, ran_calibration: bool = False) -> list:
+        """Probe-gated quality options for global_mapper/GLOMAP.
+
+        Unlike the incremental path, GLOMAP previously received ZERO options, so
+        the user's GUI settings (GPU BA, intrinsics refinement) were silently
+        dropped. Every flag is gated on the build's -h output so an unsupported
+        option is skipped instead of aborting. NB: we deliberately do NOT map
+        ba_global_max_num_iterations here — it is tuned low (30) for the
+        *repeated* incremental BA; the single global BA deserves GLOMAP's own
+        default iteration budget.
+        """
+        opts: list = []
+
+        def add(flag: str, value) -> None:
+            if flag.lstrip('-') in help_txt:
+                opts.extend([flag, str(value)])
+
+        if self.params.ba_use_gpu:
+            # Ceres falls back to CPU with a warning if built without CUDA —
+            # harmless, and honours the user's setting on capable builds.
+            add('--BundleAdjustment.use_gpu', 1)
+            add('--GlobalPositioning.use_gpu', 1)
+            try:
+                gpu_index = int(getattr(self.params, 'ba_gpu_index', -1))
+            except (TypeError, ValueError):
+                gpu_index = -1
+            if gpu_index >= 0:
+                add('--BundleAdjustment.gpu_index', gpu_index)
+                add('--GlobalPositioning.gpu_index', gpu_index)
+        add('--BundleAdjustment.optimize_intrinsics',
+            1 if self.params.ba_refine_focal_length else 0)
+        add('--BundleAdjustment.optimize_principal_point',
+            1 if self.params.ba_refine_principal_point else 0)
+        if ran_calibration:
+            # We already ran view_graph_calibrator as a separate step — don't
+            # pay for it twice inside global_mapper.
+            add('--skip_view_graph_calibration', 1)
+        return opts
+
     def _global_mapper(self, database_path: str, images_dir: str, sparse_dir: Path) -> bool:
         """Global SfM (a single global bundle adjustment instead of the repeated
         per-image one) — much faster on large scenes. Prefers COLMAP 4.0+'s
@@ -1473,18 +1597,26 @@ class ColmapEngine(BaseEngine):
         if self._colmap_has_command('global_mapper'):
             # Calibrating focal lengths from the view graph first markedly
             # improves global-mapper quality (it relies on decent intrinsics).
-            if self._colmap_has_command('view_graph_calibrator'):
+            ran_vgc = self._colmap_has_command('view_graph_calibrator')
+            if ran_vgc:
                 self.status("Calibrage du view-graph...")
                 self.run_command(
                     [self.colmap_bin, 'view_graph_calibrator', '--database_path', database_path],
-                    "Calibrage des intrinsèques (view-graph)", status_prefix="Calibrage")
+                    "Calibrage des intrinsèques (view-graph)", status_prefix="Calibrage",
+                    omp_threads=self.num_threads)
             self.log("Reconstruction GLOBALE (colmap global_mapper) : un seul bundle "
                      "adjustment global au lieu du BA incrémental répété → bien plus rapide.")
             cmd = [self.colmap_bin, 'global_mapper',
                    '--database_path', database_path,
                    '--image_path', images_dir,
                    '--output_path', str(sparse_dir)]
-            return self.run_command(cmd, "Reconstruction 3D (globale)", status_prefix="Reconstruction globale")
+            cmd += self._global_mapper_opts(self._colmap_cmd_help('global_mapper'),
+                                            ran_calibration=ran_vgc)
+            # global_mapper has NO --num_threads flag: its thread count comes from
+            # OMP_NUM_THREADS, so it must NOT get the default 1-thread pinning.
+            return self.run_command(cmd, "Reconstruction 3D (globale)",
+                                    status_prefix="Reconstruction globale",
+                                    omp_threads=self.num_threads)
 
         if resolve_binary('glomap'):
             self.log("Utilisation de GLOMAP (binaire séparé) pour la reconstruction globale...")
@@ -1492,7 +1624,10 @@ class ColmapEngine(BaseEngine):
                    '--database_path', database_path,
                    '--image_path', images_dir,
                    '--output_path', str(sparse_dir)]
-            return self.run_command(cmd, "Reconstruction 3D (GLOMAP)", status_prefix="Reconstruction GLOMAP")
+            cmd += self._global_mapper_opts(self._binary_cmd_help(self.glomap_bin, 'mapper'))
+            return self.run_command(cmd, "Reconstruction 3D (GLOMAP)",
+                                    status_prefix="Reconstruction GLOMAP",
+                                    omp_threads=self.num_threads)
 
         self.log("⚠️ Reconstruction globale demandée mais indisponible (ce COLMAP n'a pas "
                  "'global_mapper' et glomap n'est pas installé) → bascule sur le mapper "
@@ -1680,7 +1815,8 @@ class ColmapEngine(BaseEngine):
         """Génère le fichier de configuration pour Brush."""
         if self.params.undistort_images:
             final_images_path = output_dir / "dense" / "images"
-            final_sparse_path = output_dir / "dense" / "sparse"
+            # _normalize_dense_sparse_layout moved the model into sparse/0
+            final_sparse_path = output_dir / "dense" / "sparse" / "0"
             self.log("Utilisation des images et reconstruction non-distordues pour Brush")
         else:
             final_images_path = images_dir

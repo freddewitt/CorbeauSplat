@@ -71,7 +71,7 @@
     "brush_sh_degree": "SH次数:",
     "brush_device": "デバイス:",
     "brush_lbl_res": "最大解像度:",
-    "brush_res_warn": "0 = デフォルト (1080)",
+    "brush_res_warn": "0 = デフォルト (1920)",
     "brush_res_default": "0",
     "brush_group_densify": "高密度化と高度な設定",
     "brush_lbl_build_mode": "Brush バージョン:",

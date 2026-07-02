@@ -80,7 +80,7 @@
     "brush_lbl_output": "Dossier Export :",
     "brush_lbl_ply": "Nom du fichier PLY (optionnel) :",
     "brush_lbl_res": "Résolution Maximum :",
-    "brush_res_warn": "0 = résolution par défaut (1080)",
+    "brush_res_warn": "0 = résolution par défaut (1920)",
     "brush_res_default": "0",
     "brush_group_densify": "Densification & Avancé",
     "brush_lbl_build_mode": "Version Brush :",

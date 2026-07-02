@@ -82,7 +82,7 @@
     "brush_sh_degree": "SH Degree:",
     "brush_device": "Device:",
     "brush_lbl_res": "Max Resolution:",
-    "brush_res_warn": "0 = default resolution (1080)",
+    "brush_res_warn": "0 = default resolution (1920)",
     "brush_res_default": "0",
     "brush_group_densify": "Densification & Advanced",
     "brush_lbl_build_mode": "Brush Version:",

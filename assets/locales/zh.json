@@ -71,7 +71,7 @@
     "brush_sh_degree": "SH 阶数:",
     "brush_device": "设备 (Device):",
     "brush_lbl_res": "最大分辨率:",
-    "brush_res_warn": "0 = 默认分辨率 (1080)",
+    "brush_res_warn": "0 = 默认分辨率 (1920)",
     "brush_res_default": "0",
     "brush_group_densify": "致密化与高级设置",
     "brush_lbl_build_mode": "Brush 版本:",

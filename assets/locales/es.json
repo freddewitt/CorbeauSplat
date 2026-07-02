@@ -71,7 +71,7 @@
     "brush_sh_degree": "Grado SH:",
     "brush_device": "Dispositivo:",
     "brush_lbl_res": "Resolución Máxima:",
-    "brush_res_warn": "0 = resolución por defecto (1080)",
+    "brush_res_warn": "0 = resolución por defecto (1920)",
     "brush_res_default": "0",
     "brush_group_densify": "Densificación y Avanzado",
     "brush_lbl_build_mode": "Versión de Brush:",
