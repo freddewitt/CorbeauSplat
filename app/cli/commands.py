@@ -12,7 +12,7 @@ from app.core.brush_engine import BrushEngine
 from app.core.sharp_engine import SharpEngine
 from app.core.superplat_engine import SuperSplatEngine
 from app.core.system import get_brush_build_mode
-from app.core.ply_cleaner import clean_ply
+from app.core.ply_cleaner import clean_ply, clean_ply_batch
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -351,7 +351,7 @@ def run_4dgs(args):
 
 
 def run_clean(args):
-    """Nettoie un fichier .ply Gaussian Splat."""
+    """Nettoie un fichier .ply ou tous les .ply d'un dossier."""
     overrides = {}
     if args.opacity_min is not None:
         overrides["opacity_min"] = args.opacity_min
@@ -360,20 +360,52 @@ def run_clean(args):
     if args.outlier_pct is not None:
         overrides["outlier_pct"] = args.outlier_pct
 
-    print(f"Nettoyage PLY : {args.input} → {args.output}")
-    print(f"  Sévérité : {args.strength}")
-    if overrides:
-        print(f"  Surcharges : {overrides}")
+    input_path = _Path(args.input)
+    output_path = _Path(args.output)
 
-    try:
-        stats = clean_ply(args.input, args.output, strength=args.strength, overrides=overrides or None, log=print)
-        print(f"Terminé : {stats['kept']}/{stats['total']} splats conservés ({stats['removed']} retirés)")
-    except ValueError as e:
-        print(f"Erreur : {e}")
-        sys.exit(1)
-    except FileNotFoundError as e:
-        print(f"Erreur : {e}")
-        sys.exit(1)
+    # Mode dossier : input et output sont des dossiers
+    if input_path.is_dir():
+        print(f"Nettoyage par lots : {input_path} → {output_path}")
+        print(f"  Sévérité : {args.strength}")
+        print(f"  Récursif : {'oui' if args.recursive else 'non'}")
+        if overrides:
+            print(f"  Surcharges : {overrides}")
+        
+        try:
+            all_stats = clean_ply_batch(
+                input_path, output_path,
+                strength=args.strength, overrides=overrides or None,
+                log=print, recursive=args.recursive,
+            )
+            success = sum(1 for s in all_stats if "error" not in s)
+            failed = len(all_stats) - success
+            for s in all_stats:
+                if "error" in s:
+                    print(f"  ✗ {s['file']}: {s['error']}")
+                else:
+                    print(f"  ✓ {s['file']}: {s['kept']}/{s['total']} splats conservés")
+            print(f"Terminé : {success} réussis, {failed} échoués.")
+            if failed > 0:
+                sys.exit(1)
+        except ValueError as e:
+            print(f"Erreur : {e}")
+            sys.exit(1)
+    else:
+        # Mode fichier unique (comportement existant)
+        print(f"Nettoyage PLY : {args.input} → {args.output}")
+        print(f"  Sévérité : {args.strength}")
+        if overrides:
+            print(f"  Surcharges : {overrides}")
+
+        try:
+            stats = clean_ply(args.input, args.output, strength=args.strength, overrides=overrides or None, log=print)
+            print(f"Terminé : {stats['kept']}/{stats['total']} splats conservés ({stats['removed']} retirés)")
+        except ValueError as e:
+            print(f"Erreur : {e}")
+            sys.exit(1)
+        except FileNotFoundError as e:
+            print(f"Erreur : {e}")
+            sys.exit(1)
 
 
 def run_extract360(args):

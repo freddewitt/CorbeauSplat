@@ -15,6 +15,16 @@ from .i18n import tr
 
 _IMAGE_EXTS = {'.jpg', '.jpeg', '.png'}
 
+
+def _is_valid_image_path(p: Path) -> bool:
+    """Check if a path is a valid image file (not a macOS Apple Double / hidden file)."""
+    return (
+        p.is_file()
+        and not p.name.startswith("._")
+        and not p.name.startswith(".")
+        and p.suffix.lower() in _IMAGE_EXTS
+    )
+
 # macOS 10.13+ APFS supports instant file clones via clonefile(2).
 # On APFS volumes, clonefile creates a copy-on-write reflink — near-instant
 # regardless of file size, with no additional disk space until the copy is
@@ -227,7 +237,7 @@ class ColmapEngine(BaseEngine):
         import cv2
         files = sorted([
             f for f in images_dir.iterdir()
-            if f.is_file() and f.suffix.lower() in _IMAGE_EXTS
+            if _is_valid_image_path(f)
         ])
         if len(files) < 2:
             return
@@ -380,10 +390,10 @@ class ColmapEngine(BaseEngine):
                 if "|" in raw_input:
                     paths = [Path(p.strip()) for p in raw_input.split("|") if p.strip()]
                     for p in paths:
-                        if p.is_file() and p.suffix.lower() in _IMAGE_EXTS and not p.name.lower().endswith('.mask.png'):
+                        if _is_valid_image_path(p) and not p.name.lower().endswith('.mask.png'):
                             src_files.append(p)
                 elif self.input_path.is_file():
-                    if self.input_path.suffix.lower() in _IMAGE_EXTS and not self.input_path.name.lower().endswith('.mask.png'):
+                    if _is_valid_image_path(self.input_path) and not self.input_path.name.lower().endswith('.mask.png'):
                         src_files.append(self.input_path)
                 elif self.input_path.is_dir():
                     if self.input_path.resolve() == images_dir.resolve():
@@ -391,8 +401,7 @@ class ColmapEngine(BaseEngine):
                         return True
                     src_files = [
                         f for f in self.input_path.rglob('*')
-                        if f.is_file()
-                        and f.suffix.lower() in _IMAGE_EXTS
+                        if _is_valid_image_path(f)
                         and not f.name.lower().endswith('.mask.png')
                     ]
                 
@@ -509,7 +518,7 @@ class ColmapEngine(BaseEngine):
 
         files = sorted([
             f for f in images_dir.iterdir()
-            if f.is_file() and f.suffix.lower() in _IMAGE_EXTS
+            if _is_valid_image_path(f)
         ])
 
         if len(files) < 2:
@@ -677,8 +686,7 @@ class ColmapEngine(BaseEngine):
         image_root = Path(images_dir)
         files = sorted(
             f for f in image_root.rglob('*')
-            if f.is_file()
-            and f.suffix.lower() in _IMAGE_EXTS
+            if _is_valid_image_path(f)
             and not f.name.lower().endswith('.mask.png')
         )
         if not files:

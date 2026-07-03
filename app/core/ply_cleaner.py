@@ -11,6 +11,7 @@ nous supprimons uniquement des splats entiers, sans jamais altérer les survivan
 Le fichier original n'est jamais modifié sur place.
 """
 import numpy as np
+from pathlib import Path
 
 # Presets de sévérité → (opacity_min sur l'alpha activé, percentile d'échelle, percentile d'outlier)
 # Percentile plus élevé = garde plus (plus doux) ; plus bas = supprime plus (plus fort).
@@ -25,9 +26,9 @@ def _sigmoid(x):
     return 1.0 / (1.0 + np.exp(-x))
 
 
-def compute_keep_mask(x, y, z, opacity, s0, s1, s2,
-                      opacity_min=0.10, scale_pct=99.5, outlier_pct=99.5):
-    """Calcule un masque booléen de conservation pour un ensemble de splats Gaussian.
+def compute_clean_mask(x, y, z, opacity, s0, s1, s2,
+                       opacity_min=0.10, scale_pct=99.5, outlier_pct=99.5):
+    """Calcule un masque booléen de filtrage pour un ensemble de splats Gaussian.
 
     Les paramètres sont des tableaux numpy 1-D (une entrée par splat). `opacity` est le
     logit brut (pré-sigmoïde) et `s0..s2` sont les échelles logarithmiques, suivant la
@@ -114,7 +115,7 @@ def clean_ply(input_path, output_path, strength="medium", overrides=None, log=No
         )
 
     _log(f"{len(data)} splats chargés. Analyse...")
-    keep, stats = compute_keep_mask(
+    keep, stats = compute_clean_mask(
         data["x"], data["y"], data["z"], data["opacity"],
         data["scale_0"], data["scale_1"], data["scale_2"],
         **params,
@@ -128,3 +129,56 @@ def clean_ply(input_path, output_path, strength="medium", overrides=None, log=No
         f"({stats['removed']} retirés). Écrit dans {output_path}"
     )
     return stats
+
+
+def clean_ply_batch(input_dir, output_dir, strength="medium", overrides=None, log=None, recursive=False):
+    """Nettoie tous les fichiers .ply d'un dossier.
+    
+    Retourne une liste de dictionnaires de statistiques, un par fichier traité.
+    
+    Paramètres :
+    - input_dir : Path ou str — dossier contenant les .ply
+    - output_dir : Path ou str — dossier où écrire les fichiers nettoyés
+    - recursive : bool — si True, parcourt récursivement les sous-dossiers
+    """
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    pattern = "**/*.ply" if recursive else "*.ply"
+    ply_files = sorted(f for f in input_dir.glob(pattern) if not f.name.startswith('.'))
+    
+    if not ply_files:
+        msg = f"Aucun fichier .ply trouvé dans {input_dir}"
+        if log:
+            log(msg)
+        raise ValueError(msg)
+    
+    if log:
+        log(f"{len(ply_files)} fichier(s) .ply trouvé(s) dans {input_dir}. Début du nettoyage...")
+    
+    all_stats = []
+    for ply_path in ply_files:
+        rel = ply_path.relative_to(input_dir)
+        out_path = output_dir / rel
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            stats = clean_ply(ply_path, out_path, strength=strength, overrides=overrides, log=log)
+            stats["file"] = str(ply_path.name)
+            all_stats.append(stats)
+        except ValueError as e:
+            if log:
+                log(f"⚠️  {ply_path.name}: ignoré ({e})")
+            all_stats.append({"file": str(ply_path.name), "error": str(e)})
+        except Exception as e:
+            if log:
+                log(f"❌  {ply_path.name}: erreur ({e})")
+            all_stats.append({"file": str(ply_path.name), "error": str(e)})
+    
+    if log:
+        success = sum(1 for s in all_stats if "error" not in s)
+        failed = len(all_stats) - success
+        log(f"Nettoyage par lots terminé : {success} réussis, {failed} échoués.")
+    
+    return all_stats

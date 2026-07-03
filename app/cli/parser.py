@@ -188,11 +188,15 @@ def get_parser():
                    help="Lancer uniquement COLMAP sur un dataset déjà extrait")
 
     # ── clean ─────────────────────────────────────────────────────────────────
-    p = subs.add_parser("clean", help="Nettoyer un fichier .ply Gaussian Splat (supprime le bruit, les floaters)")
-    p.add_argument("--input",  "-i", required=True, help="Fichier .ply d'entrée")
-    p.add_argument("--output", "-o", required=True, help="Fichier .ply de sortie")
+    p = subs.add_parser("clean", help="Nettoyer un fichier .ply ou un dossier de .ply Gaussian Splat (supprime le bruit, les floaters)")
+    p.add_argument("--input",  "-i", required=True,
+                   help="Fichier .ply d'entrée OU dossier contenant des .ply")
+    p.add_argument("--output", "-o", required=True,
+                   help="Fichier .ply de sortie OU dossier de destination")
     p.add_argument("--strength", choices=["light", "medium", "strong"], default="medium",
                    help="Sévérité du nettoyage (défaut: medium)")
+    p.add_argument("--recursive", "-r", action="store_true",
+                   help="Parcourir récursivement les sous-dossiers (mode dossier uniquement)")
     p.add_argument("--opacity_min", type=float, default=None,
                    help="Opacité minimale (0-1, surcharge le preset)")
     p.add_argument("--scale_pct", type=float, default=None,

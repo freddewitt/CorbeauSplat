@@ -497,27 +497,84 @@ class SharpVideoWorker(BaseWorker):
 
 
 class CleanerWorker(BaseWorker):
-    """Thread worker pour nettoyer un fichier .ply (Gaussian Splat)."""
+    """Thread worker pour nettoyer un ou plusieurs fichiers .ply (Gaussian Splat)."""
 
-    def __init__(self, input_path, output_path, params):
+    def __init__(self, input_path, output_path, params, recursive=False):
         super().__init__()
-        self.input_path = input_path
-        self.output_path = output_path
+        self.input_path = Path(input_path)
+        self.output_path = Path(output_path)
         self.params = params
+        self.recursive = recursive
 
     def run(self):
         try:
             self.log_signal.emit("--- Démarrage du nettoyage PLY ---")
-            stats = clean_ply(
-                self.input_path, self.output_path,
-                log=self.log_signal.emit,
-                overrides=self.params,
-            )
-            msg = (
-                f"Nettoyage terminé : {stats['kept']}/{stats['total']} splats conservés "
-                f"({stats['removed']} retirés)"
-            )
-            self.finished_signal.emit(True, msg)
+
+            if self.input_path.is_dir():
+                # Mode dossier
+                self.log_signal.emit(f"Nettoyage par lots : {self.input_path} → {self.output_path}")
+                self.output_path.mkdir(parents=True, exist_ok=True)
+
+                pattern = "**/*.ply" if self.recursive else "*.ply"
+                ply_files = sorted(f for f in self.input_path.glob(pattern) if not f.name.startswith('.'))
+
+                if not ply_files:
+                    self.log_signal.emit(f"Aucun fichier .ply trouvé dans {self.input_path}")
+                    self.finished_signal.emit(False, "Aucun fichier .ply trouvé.")
+                    return
+
+                total = len(ply_files)
+                success_count = 0
+                fail_count = 0
+
+                for idx, ply_path in enumerate(ply_files, 1):
+                    if self.isInterruptionRequested():
+                        self.log_signal.emit("Nettoyage annulé par l'utilisateur.")
+                        break
+
+                    rel = ply_path.relative_to(self.input_path)
+                    out_path = self.output_path / rel
+                    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    self.log_signal.emit(f"[{idx}/{total}] Nettoyage de {ply_path.name}...")
+                    try:
+                        stats = clean_ply(
+                            ply_path, out_path,
+                            log=self.log_signal.emit,
+                            overrides=self.params,
+                        )
+                        self.log_signal.emit(
+                            f"  ✓ {stats['kept']}/{stats['total']} splats conservés "
+                            f"({stats['removed']} retirés)"
+                        )
+                        success_count += 1
+                    except ValueError as e:
+                        self.log_signal.emit(f"  ⚠️  {ply_path.name}: ignoré ({e})")
+                        fail_count += 1
+                    except Exception as e:
+                        self.log_signal.emit(f"  ❌  {ply_path.name}: {e}")
+                        fail_count += 1
+
+                msg = (
+                    f"Nettoyage par lots terminé : {success_count} réussis, "
+                    f"{fail_count} échoués sur {total} fichiers."
+                )
+                self.finished_signal.emit(fail_count == 0, msg)
+
+            else:
+                # Mode fichier unique (comportement existant)
+                self.log_signal.emit(f"Nettoyage de {self.input_path}...")
+                stats = clean_ply(
+                    self.input_path, self.output_path,
+                    log=self.log_signal.emit,
+                    overrides=self.params,
+                )
+                msg = (
+                    f"Nettoyage terminé : {stats['kept']}/{stats['total']} splats conservés "
+                    f"({stats['removed']} retirés)"
+                )
+                self.finished_signal.emit(True, msg)
+
         except Exception as e:
             self.log_signal.emit(f"ERREUR nettoyage PLY : {e}")
             self.finished_signal.emit(False, str(e))

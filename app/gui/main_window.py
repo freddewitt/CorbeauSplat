@@ -556,7 +556,7 @@ class ColmapGUI(QMainWindow):
         else:
             QMessageBox.warning(self, tr("sharp_error_title"), tr("sharp_error_body"))
 
-    def run_cleaner(self, input_path, output_path, params):
+    def run_cleaner(self, input_path, output_path, params, recursive=False):
         """Lance le nettoyage PLY dans un thread."""
         self.cleaner_tab.progress_bar.setVisible(True)
         self.cleaner_tab.progress_bar.setRange(0, 0)  # Indéterminé
@@ -564,7 +564,7 @@ class ColmapGUI(QMainWindow):
         self.cleaner_tab.btn_clean.setEnabled(False)
         self.logs_tab.append_log(f"Nettoyage PLY : {input_path} → {output_path}")
 
-        self.cleaner_worker = CleanerWorker(input_path, output_path, params)
+        self.cleaner_worker = CleanerWorker(input_path, output_path, params, recursive=recursive)
         self.cleaner_worker.log_signal.connect(self.logs_tab.append_log)
         self.cleaner_worker.finished_signal.connect(self.on_cleaner_finished)
         self.cleaner_worker.start()

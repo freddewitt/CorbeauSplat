@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.5] - 2026-07-03
+
+### 🐞 Bug Fixes
+- **Mode batch du Cleaner** : les fichiers cachés (Apple Double `._*.ply`) ne sont plus traités — filtrés via `f.name.startswith('.')` dans `clean_ply_batch()` et `CleanerWorker.run()`
+- **`compute_keep_mask` renommé en `compute_clean_mask`** : nom plus explicite pour la fonction de calcul du masque de filtrage (appelée dans `ply_cleaner.py` et les tests)
+
 ## [1.0.4] - 2026-06-30
 
 ### 🛠 Improvements

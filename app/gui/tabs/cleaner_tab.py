@@ -14,9 +14,9 @@ from app.core.i18n import tr
 
 
 class CleanerTab(QWidget):
-    """Onglet : Charger un .ply → ajuster les seuils → nettoyer → prévisualiser → sauvegarder."""
+    """Onglet : Charger un .ply / dossier → ajuster les seuils → nettoyer."""
 
-    cleanRequested = pyqtSignal(str, str, dict)   # input_path, output_path, params
+    cleanRequested = pyqtSignal(str, str, dict, bool)   # input_path, output_path, params, recursive
     stopRequested = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -28,21 +28,53 @@ class CleanerTab(QWidget):
     def init_ui(self):
         layout = QVBoxLayout(self)
 
+        # ── Mode ─────────────────────────────────────────────────────────────
+        mode_group = QGroupBox(tr("cleaner_mode_group", "Mode"))
+        mode_layout = QVBoxLayout()
+        self.combo_mode = QComboBox()
+        self.combo_mode.addItem(tr("cleaner_mode_single", "Fichier unique"), "single")
+        self.combo_mode.addItem(tr("cleaner_mode_batch", "Dossier (tous les .ply)"), "batch")
+        self.combo_mode.currentIndexChanged.connect(self._toggle_mode)
+        mode_layout.addWidget(self.combo_mode)
+        mode_group.setLayout(mode_layout)
+        layout.addWidget(mode_group)
+
         # ── Groupe Entrée ────────────────────────────────────────────────────
-        input_group = QGroupBox(tr("cleaner_input_group", "Fichier à nettoyer"))
+        self.input_group = QGroupBox(tr("cleaner_input_group", "Fichier à nettoyer"))
         input_layout = QVBoxLayout()
 
-        btn_row = QHBoxLayout()
+        # Mode fichier unique
+        self.single_input_widget = QWidget()
+        single_row = QHBoxLayout(self.single_input_widget)
+        single_row.setContentsMargins(0, 0, 0, 0)
         self.btn_load = QPushButton(tr("cleaner_btn_load", "Charger un fichier .ply"))
         self.btn_load.clicked.connect(self._browse_input)
-        btn_row.addWidget(self.btn_load)
-
+        single_row.addWidget(self.btn_load)
         self.lbl_input = QLabel(tr("cleaner_no_file", "Aucun fichier chargé"))
         self.lbl_input.setStyleSheet("color: #888;")
-        btn_row.addWidget(self.lbl_input, 1)
-        input_layout.addLayout(btn_row)
-        input_group.setLayout(input_layout)
-        layout.addWidget(input_group)
+        single_row.addWidget(self.lbl_input, 1)
+        input_layout.addWidget(self.single_input_widget)
+
+        # Mode dossier
+        self.dir_input_widget = QWidget()
+        dir_row = QHBoxLayout(self.dir_input_widget)
+        dir_row.setContentsMargins(0, 0, 0, 0)
+        self.btn_load_dir = QPushButton(tr("cleaner_btn_load_dir", "Choisir un dossier..."))
+        self.btn_load_dir.clicked.connect(self._browse_input_dir)
+        dir_row.addWidget(self.btn_load_dir)
+        self.lbl_input_dir = QLabel(tr("cleaner_no_dir", "Aucun dossier choisi"))
+        self.lbl_input_dir.setStyleSheet("color: #888;")
+        dir_row.addWidget(self.lbl_input_dir, 1)
+        self.dir_input_widget.setVisible(False)
+        input_layout.addWidget(self.dir_input_widget)
+
+        # Récursif (mode dossier)
+        self.chk_recursive = QCheckBox(tr("cleaner_recursive", "Parcourir les sous-dossiers"))
+        self.chk_recursive.setVisible(False)
+        input_layout.addWidget(self.chk_recursive)
+
+        self.input_group.setLayout(input_layout)
+        layout.addWidget(self.input_group)
 
         # ── Groupe Paramètres ────────────────────────────────────────────────
         params_group = QGroupBox(tr("cleaner_params_group", "Paramètres de nettoyage"))
@@ -86,24 +118,39 @@ class CleanerTab(QWidget):
         layout.addWidget(params_group)
 
         # ── Groupe Sortie ────────────────────────────────────────────────────
-        output_group = QGroupBox(tr("cleaner_output_group", "Fichier nettoyé"))
+        self.output_group = QGroupBox(tr("cleaner_output_group", "Destination"))
         out_layout = QVBoxLayout()
 
-        out_btn_row = QHBoxLayout()
+        # Sortie fichier unique
+        self.single_output_widget = QWidget()
+        single_out_row = QHBoxLayout(self.single_output_widget)
+        single_out_row.setContentsMargins(0, 0, 0, 0)
         self.btn_output = QPushButton(tr("cleaner_btn_output", "Enregistrer sous..."))
         self.btn_output.clicked.connect(self._browse_output)
-        out_btn_row.addWidget(self.btn_output)
-
+        single_out_row.addWidget(self.btn_output)
         self.lbl_output = QLabel(tr("cleaner_no_output", "Aucune destination choisie"))
         self.lbl_output.setStyleSheet("color: #888;")
-        out_btn_row.addWidget(self.lbl_output, 1)
-        out_layout.addLayout(out_btn_row)
+        single_out_row.addWidget(self.lbl_output, 1)
+        out_layout.addWidget(self.single_output_widget)
 
-        output_group.setLayout(out_layout)
-        layout.addWidget(output_group)
+        # Sortie dossier
+        self.dir_output_widget = QWidget()
+        dir_out_row = QHBoxLayout(self.dir_output_widget)
+        dir_out_row.setContentsMargins(0, 0, 0, 0)
+        self.btn_output_dir = QPushButton(tr("cleaner_btn_output_dir", "Dossier de destination..."))
+        self.btn_output_dir.clicked.connect(self._browse_output_dir)
+        dir_out_row.addWidget(self.btn_output_dir)
+        self.lbl_output_dir = QLabel(tr("cleaner_no_output_dir", "Aucun dossier choisi"))
+        self.lbl_output_dir.setStyleSheet("color: #888;")
+        dir_out_row.addWidget(self.lbl_output_dir, 1)
+        self.dir_output_widget.setVisible(False)
+        out_layout.addWidget(self.dir_output_widget)
+
+        self.output_group.setLayout(out_layout)
+        layout.addWidget(self.output_group)
 
         # ── Bouton d'action ──────────────────────────────────────────────────
-        self.btn_clean = QPushButton(tr("cleaner_btn_clean", "Nettoyer le splat"))
+        self.btn_clean = QPushButton(tr("cleaner_btn_clean", "Nettoyer"))
         self.btn_clean.setMinimumHeight(50)
         self.btn_clean.setStyleSheet(
             "font-size: 16px; font-weight: bold; background-color: #2a82da; color: white;"
@@ -125,6 +172,25 @@ class CleanerTab(QWidget):
 
         layout.addStretch()
 
+    def _toggle_mode(self):
+        """Bascule entre mode fichier unique et mode dossier."""
+        is_batch = self.combo_mode.currentData() == "batch"
+        self.single_input_widget.setVisible(not is_batch)
+        self.dir_input_widget.setVisible(is_batch)
+        self.chk_recursive.setVisible(is_batch)
+        self.single_output_widget.setVisible(not is_batch)
+        self.dir_output_widget.setVisible(is_batch)
+
+        # Update group titles
+        if is_batch:
+            self.input_group.setTitle(tr("cleaner_input_dir_group", "Dossier source"))
+            self.output_group.setTitle(tr("cleaner_output_dir_group", "Dossier destination"))
+        else:
+            self.input_group.setTitle(tr("cleaner_input_group", "Fichier à nettoyer"))
+            self.output_group.setTitle(tr("cleaner_output_group", "Destination"))
+
+        self._update_btn_state()
+
     def _browse_input(self):
         path, _ = QFileDialog.getOpenFileName(
             self, tr("cleaner_btn_load", "Charger un .ply"),
@@ -133,6 +199,15 @@ class CleanerTab(QWidget):
         if path:
             self._current_input = path
             self.lbl_input.setText(os.path.basename(path))
+            self._update_btn_state()
+
+    def _browse_input_dir(self):
+        path = QFileDialog.getExistingDirectory(
+            self, tr("cleaner_btn_load_dir", "Choisir un dossier contenant des .ply")
+        )
+        if path:
+            self._current_input = path
+            self.lbl_input_dir.setText(path)
             self._update_btn_state()
 
     def _browse_output(self):
@@ -145,6 +220,15 @@ class CleanerTab(QWidget):
                 path += ".ply"
             self._current_output = path
             self.lbl_output.setText(os.path.basename(path))
+            self._update_btn_state()
+
+    def _browse_output_dir(self):
+        path = QFileDialog.getExistingDirectory(
+            self, tr("cleaner_btn_output_dir", "Choisir le dossier de destination")
+        )
+        if path:
+            self._current_output = path
+            self.lbl_output_dir.setText(path)
             self._update_btn_state()
 
     def _update_btn_state(self):
@@ -178,10 +262,12 @@ class CleanerTab(QWidget):
             strength = self.combo_strength.currentData()
             params = resolve_params(strength)
 
-        self.cleanRequested.emit(self._current_input, self._current_output, params)
+        recursive = self.chk_recursive.isChecked() if self.combo_mode.currentData() == "batch" else False
+        self.cleanRequested.emit(self._current_input, self._current_output, params, recursive)
 
     def get_state(self):
         return {
+            "mode": self.combo_mode.currentData(),
             "strength": self.combo_strength.currentData(),
             "custom": self.chk_custom.isChecked(),
             "opacity_min": self.spin_opacity.value(),
@@ -189,11 +275,16 @@ class CleanerTab(QWidget):
             "outlier_pct": self.spin_outlier.value(),
             "input": self._current_input,
             "output": self._current_output,
+            "recursive": self.chk_recursive.isChecked(),
         }
 
     def set_state(self, state):
         if not state:
             return
+        if "mode" in state:
+            idx = self.combo_mode.findData(state["mode"])
+            if idx >= 0:
+                self.combo_mode.setCurrentIndex(idx)
         if "strength" in state:
             idx = self.combo_strength.findData(state["strength"])
             if idx >= 0:
@@ -208,8 +299,16 @@ class CleanerTab(QWidget):
             self.spin_outlier.setValue(state["outlier_pct"])
         if state.get("input"):
             self._current_input = state["input"]
-            self.lbl_input.setText(os.path.basename(self._current_input))
+            if self.combo_mode.currentData() == "batch":
+                self.lbl_input_dir.setText(self._current_input)
+            else:
+                self.lbl_input.setText(os.path.basename(self._current_input))
         if state.get("output"):
             self._current_output = state["output"]
-            self.lbl_output.setText(os.path.basename(self._current_output))
+            if self.combo_mode.currentData() == "batch":
+                self.lbl_output_dir.setText(self._current_output)
+            else:
+                self.lbl_output.setText(os.path.basename(self._current_output))
+        if "recursive" in state:
+            self.chk_recursive.setChecked(state["recursive"])
         self._update_btn_state()

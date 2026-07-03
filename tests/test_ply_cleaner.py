@@ -3,7 +3,7 @@ import math
 
 import numpy as np
 
-from app.core.ply_cleaner import PRESETS, compute_keep_mask, resolve_params
+from app.core.ply_cleaner import PRESETS, compute_clean_mask, resolve_params
 
 
 def _logit(alpha):
@@ -15,7 +15,7 @@ class TestComputeKeepMask:
         # alphas: 0.01 (transparent), 0.9, 0.9 -> opacity_min 0.1 drops the first
         opacity = np.array([_logit(0.01), _logit(0.9), _logit(0.9)])
         zeros = np.zeros(3)
-        keep, stats = compute_keep_mask(
+        keep, stats = compute_clean_mask(
             zeros, zeros, zeros, opacity, zeros, zeros, zeros,
             opacity_min=0.1, scale_pct=100.0, outlier_pct=100.0,
         )
@@ -30,7 +30,7 @@ class TestComputeKeepMask:
         scales = np.full(n, math.log(0.01))
         scales[0] = math.log(100.0)  # giant
         zeros = np.zeros(n)
-        keep, stats = compute_keep_mask(
+        keep, stats = compute_clean_mask(
             zeros, zeros, zeros, opacity, scales, scales, scales,
             opacity_min=0.0, scale_pct=95.0, outlier_pct=100.0,
         )
@@ -44,7 +44,7 @@ class TestComputeKeepMask:
         z = np.zeros(10)
         opacity = np.full(10, _logit(0.9))
         zeros = np.zeros(10)
-        keep, stats = compute_keep_mask(
+        keep, stats = compute_clean_mask(
             x, y, z, opacity, zeros, zeros, zeros,
             opacity_min=0.0, scale_pct=100.0, outlier_pct=90.0,
         )
@@ -54,7 +54,7 @@ class TestComputeKeepMask:
     def test_disabled_thresholds_keep_all(self):
         opacity = np.array([_logit(0.5), _logit(0.5)])
         zeros = np.zeros(2)
-        keep, stats = compute_keep_mask(
+        keep, stats = compute_clean_mask(
             zeros, zeros, zeros, opacity, zeros, zeros, zeros,
             opacity_min=0.0, scale_pct=100.0, outlier_pct=100.0,
         )
