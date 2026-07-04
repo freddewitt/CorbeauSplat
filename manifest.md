@@ -165,10 +165,9 @@ main.py                         ← Entry: CLI parser or GUI launcher
 
 ## Known Issues & Gaps
 
-1. **Workers not tested in headless CI** — `test_workers.py` requires PyQt6 runtime, skipped via `pytest.skip()` guard
-2. **`gui/tabs/cleaner_tab.py` and `gui/tabs/upscale_tab.py`** still use raw `QFileDialog` instead of `dialog_utils` wrappers (config_tab.py migrated in v1.0.x)
-3. **No end-to-end integration tests** — all 224 tests are unit-level with mocked subprocesses
-4. **ExportTab runs synchronously on GUI thread** : `ExportTab.start_export()` iterates files in a for loop on the main thread — UI freezes on large batches. A dedicated QThread worker is planned for a future iteration.
+ 1. **Workers not tested in headless CI** — `test_workers.py` requires PyQt6 runtime, skipped via `pytest.skip()` guard
+ 2. **No end-to-end integration tests** — all 224 tests are unit-level with mocked subprocesses
+ 3. **ExportTab runs synchronously on GUI thread** : `ExportTab.start_export()` iterates files in a for loop on the main thread — UI freezes on large batches. A dedicated QThread worker is planned for a future iteration.
 
 ## Changelog Highlights (v1.0.1 → v1.0.6)
 

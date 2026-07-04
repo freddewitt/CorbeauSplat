@@ -4,8 +4,11 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QGroupBox, QComboBox, QDoubleSpinBox, QFileDialog,
+    QGroupBox, QComboBox, QDoubleSpinBox,
     QMessageBox, QProgressBar, QFormLayout, QCheckBox,
+)
+from app.gui.widgets.dialog_utils import (
+    get_open_file_name, get_existing_directory, get_save_file_name,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
@@ -192,7 +195,7 @@ class CleanerTab(QWidget):
         self._update_btn_state()
 
     def _browse_input(self):
-        path, _ = QFileDialog.getOpenFileName(
+        path, _ = get_open_file_name(
             self, tr("cleaner_btn_load", "Charger un .ply"),
             "", "PLY (*.ply);;Tous (*)"
         )
@@ -202,7 +205,7 @@ class CleanerTab(QWidget):
             self._update_btn_state()
 
     def _browse_input_dir(self):
-        path = QFileDialog.getExistingDirectory(
+        path = get_existing_directory(
             self, tr("cleaner_btn_load_dir", "Choisir un dossier contenant des .ply")
         )
         if path:
@@ -211,7 +214,7 @@ class CleanerTab(QWidget):
             self._update_btn_state()
 
     def _browse_output(self):
-        path, _ = QFileDialog.getSaveFileName(
+        path, _ = get_save_file_name(
             self, tr("cleaner_btn_output", "Enregistrer sous"),
             "", "PLY (*.ply);;Tous (*)"
         )
@@ -223,7 +226,7 @@ class CleanerTab(QWidget):
             self._update_btn_state()
 
     def _browse_output_dir(self):
-        path = QFileDialog.getExistingDirectory(
+        path = get_existing_directory(
             self, tr("cleaner_btn_output_dir", "Choisir le dossier de destination")
         )
         if path:

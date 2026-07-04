@@ -6,8 +6,9 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QGroupBox,
     QFormLayout, QCheckBox, QComboBox, QSpinBox, QMessageBox,
     QProgressDialog, QApplication, QScrollArea, QFrame, QSlider,
-    QFileDialog, QSizePolicy,
+    QSizePolicy,
 )
+from app.gui.widgets.dialog_utils import get_open_file_name, get_existing_directory
 
 from app.core.i18n import tr, add_language_observer
 from app.gui.widgets.drop_line_edit import DropLineEdit
@@ -321,7 +322,7 @@ class UpscaleTab(QWidget):
     # ──────────────────────────────────────────── quick test
 
     def _pick_test_src_file(self):
-        path, _ = QFileDialog.getOpenFileName(
+        path, _ = get_open_file_name(
             self, "Sélectionner une image source", "",
             "Images (*.png *.jpg *.jpeg *.tif *.tiff *.webp)",
         )
@@ -329,17 +330,15 @@ class UpscaleTab(QWidget):
             self.edit_test_src.setText(path)
 
     def _pick_test_src_dir(self):
-        path = QFileDialog.getExistingDirectory(
-            self, "Sélectionner un dossier source", "",
-            QFileDialog.Option.ShowDirsOnly,
+        path = get_existing_directory(
+            self, "Sélectionner un dossier source"
         )
         if path:
             self.edit_test_src.setText(path)
 
     def _pick_test_dest(self):
-        path = QFileDialog.getExistingDirectory(
-            self, "Sélectionner le dossier de destination", "",
-            QFileDialog.Option.ShowDirsOnly,
+        path = get_existing_directory(
+            self, "Sélectionner le dossier de destination"
         )
         if path:
             self.edit_test_dest.setText(path)
