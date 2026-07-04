@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QPushButton, QFrame,
-    QMessageBox,
+    QScrollArea, QMessageBox,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
@@ -38,8 +38,12 @@ class CleanerExportTab(QWidget):
         cleaner_layout = QVBoxLayout(cleaner_wrapper)
         cleaner_layout.setContentsMargins(0, 0, 0, 0)
 
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self.cleaner_tab = CleanerTab()
-        cleaner_layout.addWidget(self.cleaner_tab)
+        scroll_area.setWidget(self.cleaner_tab)
+        cleaner_layout.addWidget(scroll_area)
 
         # Bouton Envoyer vers Export
         btn_row = QHBoxLayout()

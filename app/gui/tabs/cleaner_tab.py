@@ -80,7 +80,7 @@ class CleanerTab(QWidget):
         layout.addWidget(self.input_group)
 
         # ── Groupe Paramètres ────────────────────────────────────────────────
-        params_group = QGroupBox(tr("cleaner_params_group", "Paramètres de nettoyage"))
+        params_group = QGroupBox(tr("cleaner_params_group", "Paramètres"))
         form = QFormLayout(params_group)
 
         self.combo_strength = QComboBox()
@@ -88,7 +88,7 @@ class CleanerTab(QWidget):
         self.combo_strength.addItem(tr("cleaner_medium", "Moyen (équilibré)"), "medium")
         self.combo_strength.addItem(tr("cleaner_strong", "Fort (supprime le bruit)"), "strong")
         self.combo_strength.currentIndexChanged.connect(self._update_custom)
-        form.addRow(tr("cleaner_strength", "Intensité du nettoyage :"), self.combo_strength)
+        form.addRow(tr("cleaner_strength", "Intensité :"), self.combo_strength)
 
         # Seuils fins (custom)
         self.chk_custom = QCheckBox(tr("cleaner_custom", "Réglages avancés"))
@@ -100,21 +100,21 @@ class CleanerTab(QWidget):
         self.spin_opacity.setSingleStep(0.01)
         self.spin_opacity.setValue(0.10)
         self.spin_opacity.setDecimals(3)
-        form.addRow(tr("cleaner_opacity", "Opacité minimale (élimine le bruit transparent) :"), self.spin_opacity)
+        form.addRow(tr("cleaner_opacity", "Opacité mini :"), self.spin_opacity)
 
         self.spin_scale = QDoubleSpinBox()
         self.spin_scale.setRange(90.0, 100.0)
         self.spin_scale.setSingleStep(0.1)
         self.spin_scale.setValue(99.5)
         self.spin_scale.setDecimals(1)
-        form.addRow(tr("cleaner_scale_pct", "Taille max en % (élimine les splats géants) :"), self.spin_scale)
+        form.addRow(tr("cleaner_scale_pct", "Taille max (%) :"), self.spin_scale)
 
         self.spin_outlier = QDoubleSpinBox()
         self.spin_outlier.setRange(90.0, 100.0)
         self.spin_outlier.setSingleStep(0.1)
         self.spin_outlier.setValue(99.5)
         self.spin_outlier.setDecimals(1)
-        form.addRow(tr("cleaner_outlier_pct", "Distance max en % (élimine les flotteurs isolés) :"), self.spin_outlier)
+        form.addRow(tr("cleaner_outlier_pct", "Distance max (%) :"), self.spin_outlier)
 
         self._toggle_custom(False)
         params_group.setLayout(form)
