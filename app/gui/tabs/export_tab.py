@@ -17,6 +17,7 @@ class ExportTab(QWidget):
     """Onglet d'export des fichiers PLY vers différents formats avec options avancées."""
 
     exportRequested = pyqtSignal()
+    log_signal = pyqtSignal(str)  # FIX: signal manquant causant un crash à l'export
 
     def __init__(self, parent=None):
         super().__init__(parent)

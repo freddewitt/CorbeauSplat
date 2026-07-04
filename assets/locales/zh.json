@@ -405,5 +405,11 @@
     "err_no_output": "请选择输出文件夹",
     "err_no_input": "请至少添加一个 PLY 文件",
     "export_done_title": "导出完成",
-    "export_done_body": "成功导出 {} 个文件。"
+    "export_done_body": "成功导出 {} 个文件。",
+    "tab_cleaner_export": "清理 + 导出",
+    "cleaner_btn_send_to_export": "发送到导出",
+    "cleaner_sent_to_export": "文件已发送到导出。",
+    "cleaner_no_ply_in_output": "在输出文件夹中未找到 .ply 文件。",
+    "cleaner_section_title": "清理",
+    "export_section_title": "导出"
 }

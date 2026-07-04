@@ -405,5 +405,11 @@
     "err_no_output": "Seleziona una cartella di output",
     "err_no_input": "Aggiungi almeno un file PLY",
     "export_done_title": "Esportazione completata",
-    "export_done_body": "{} file esportati con successo."
+    "export_done_body": "{} file esportati con successo.",
+    "tab_cleaner_export": "Pulizia + Esportazione",
+    "cleaner_btn_send_to_export": "Invia a Esportazione",
+    "cleaner_sent_to_export": "File inviati all'esportazione.",
+    "cleaner_no_ply_in_output": "Nessun file .ply trovato nella cartella di output.",
+    "cleaner_section_title": "Pulizia",
+    "export_section_title": "Esportazione"
 }

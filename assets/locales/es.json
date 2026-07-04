@@ -405,5 +405,11 @@
     "err_no_output": "Seleccione una carpeta de salida",
     "err_no_input": "Añada al menos un archivo PLY",
     "export_done_title": "Exportación completada",
-    "export_done_body": "{} archivos exportados correctamente."
+    "export_done_body": "{} archivos exportados correctamente.",
+    "tab_cleaner_export": "Limpieza + Exportación",
+    "cleaner_btn_send_to_export": "Enviar a Exportación",
+    "cleaner_sent_to_export": "Archivo(s) enviado(s) a exportación.",
+    "cleaner_no_ply_in_output": "No se encontraron archivos .ply en la carpeta de salida.",
+    "cleaner_section_title": "Limpieza",
+    "export_section_title": "Exportación"
 }

@@ -405,5 +405,11 @@
     "brush_done_title": "Training complete",
     "brush_done_body": "Gaussian splats have learned your scene. The model is ready.",
     "brush_error_title": "Training interrupted",
-    "brush_error_body": "Training did not complete. Check the logs for details."
+    "brush_error_body": "Training did not complete. Check the logs for details.",
+    "tab_cleaner_export": "Clean + Export",
+    "cleaner_btn_send_to_export": "Send to Export",
+    "cleaner_sent_to_export": "File(s) sent to export.",
+    "cleaner_no_ply_in_output": "No .ply files found in output folder.",
+    "cleaner_section_title": "Cleaning",
+    "export_section_title": "Export"
 }

@@ -406,5 +406,11 @@
     "err_no_output": "Bitte wählen Sie einen Ausgabeordner",
     "err_no_input": "Bitte fügen Sie mindestens eine PLY-Datei hinzu",
     "export_done_title": "Export abgeschlossen",
-    "export_done_body": "{} Dateien erfolgreich exportiert."
+    "export_done_body": "{} Dateien erfolgreich exportiert.",
+    "tab_cleaner_export": "Reinigung + Export",
+    "cleaner_btn_send_to_export": "An Export senden",
+    "cleaner_sent_to_export": "Datei(en) an Export gesendet.",
+    "cleaner_no_ply_in_output": "Keine .ply-Dateien im Ausgabeordner gefunden.",
+    "cleaner_section_title": "Reinigung",
+    "export_section_title": "Export"
 }

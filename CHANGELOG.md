@@ -1,51 +1,73 @@
 # Changelog
 
+## [1.0.6] - 2026-07-04
+
+### ✨ New Features
+- **Cleaner + Export tabs merged**: The two separate tabs (Cleaner, Export) are now combined into a single "Clean + Export" composite tab with two visually distinct sections (vertical QSplitter). A "Send to Export" button transfers cleaned files to the export section — disabled by default, enabled only after a successful cleaning run.
+  - Single-file mode: transfers the cleaned `.ply` directly to the export file list
+  - Batch mode: globs all `.ply` files from the output directory and adds them to the export list
+  - Explicit user control: the button never auto-triggers export — the user chooses format and options before clicking "Export"
+- **CLI `clean --then-export`**: New `--then-export FORMAT` flag (values: `spz`, `glb`, `obj`, `ply`, `xyz`) chains an automatic multi-format export after cleaning. Optional `--export-output PATH` sets the export destination (defaults to the same directory as the clean output). Reuses `ExportEngine.export()` with default format options.
+  - File mode: exports the single cleaned file
+  - Directory mode: exports all `.ply` files found in the output directory
+  - Example: `python3 main.py clean -i noisy.ply -o cleaned.ply --then-export spz`
+
+### 🐞 Bug Fixes
+- **`ExportTab.log_signal` missing**: `ExportTab.log()` called `self.log_signal.emit(msg)` but `log_signal` was never declared as a class attribute — any log call from `ExportEngine` (e.g. on the first progress message) caused an `AttributeError` crash. Added `log_signal = pyqtSignal(str)` to the `ExportTab` class.
+
+### 🛠 Improvements
+- **CleanerWorker lifecycle moved to composite tab**: `CleanerExportTab` now manages the `CleanerWorker` thread internally — no longer owned by `main_window.py`. This isolates the worker lifecycle and signal wiring within the composite tab, reducing coupling.
+- **Session persistence adapted**: `SessionManager` now references `self.mw.cleaner_export_tab.cleaner_tab` for the cleaner params save/load cycle (previously `self.mw.cleaner_tab`). No state schema change — backward compatible.
+
+### 📖 Documentation
+- **CLI.md updated**: New "Chaining (Clean → Export)" subsection with examples and flag table for `--then-export` and `--export-output`.
+
 ## [1.0.5] - 2026-07-03
 
 ### 🐞 Bug Fixes
-- **Mode batch du Cleaner** : les fichiers cachés (Apple Double `._*.ply`) ne sont plus traités — filtrés via `f.name.startswith('.')` dans `clean_ply_batch()` et `CleanerWorker.run()`
-- **`compute_keep_mask` renommé en `compute_clean_mask`** : nom plus explicite pour la fonction de calcul du masque de filtrage (appelée dans `ply_cleaner.py` et les tests)
+- **Cleaner batch mode**: hidden files (Apple Double `._*.ply`) are no longer processed — filtered via `f.name.startswith('.')` in `clean_ply_batch()` and `CleanerWorker.run()`
+- **`compute_keep_mask` renamed to `compute_clean_mask`**: more explicit name for the filter mask computation function (used in `ply_cleaner.py` and tests)
 
 ## [1.0.4] - 2026-06-30
 
 ### 🛠 Improvements
-- **Validation de chemins relâchée pour la GUI (Option B)** : les chemins sélectionnés via QFileDialog/NSOpenPanel (bouton Parcourir) ne sont plus soumis au containment check `project_root`/`Desktop`/`Documents`. La validation stricte est conservée pour la CLI et la saisie manuelle. Résout le blocage des dossiers utilisateur légitimes situés hors des 3 répertoires autorisés.
+- **GUI path validation relaxed (Option B)**: paths selected via QFileDialog/NSOpenPanel (Browse button) are no longer subject to the `project_root`/`Desktop`/`Documents` containment check. Strict validation is preserved for CLI and manual input. Fixes legitimate user folders being blocked when located outside the 3 allowed directories.
 
 ### 🔒 Security
-- **`validate_path()` avec `gui_trusted`** : les chemins GUI sont désormais marqués comme de confiance via l'attribut `engine.gui_trusted = True` dans les Workers, court-circuitant la vérification de containment. La CLI reste protégée.
+- **`validate_path()` with `gui_trusted`**: GUI paths are now marked as trusted via `engine.gui_trusted = True` in Workers, bypassing the containment check. The CLI remains protected.
 
 ## [1.0.3] - 2026-06-26
 
 ### ✨ New Features
-- **Onglet Cleaner** : nouvel onglet dédié au nettoyage des fichiers .ply Gaussian Splat — retire les artefacts (splats transparents, surdimensionnés, outliers) sans altérer les survivants.
-  - **Charger un fichier .ply** : sélection via boîte de dialogue native (`QFileDialog`)
-  - **Combo Sévérité** (Léger / Moyen / Fort) : trois presets prédéfinis (`light`/`medium`/`strong`) avec seuils opacité + percentiles échelle/distance
-  - **Réglages fins** : override manuel de l'opacité minimale (0–1), taille max en % (90–100), distance outlier en % (90–100)
-  - **CLI** : nouvelle sous-commande `clean-ply` avec les mêmes options (`--strength`, `--opacity`, `--scale`, `--outlier`) dans `app/cli/commands.py`
-  - Worker Qt dédié : `CleanerWorker` dans `app/gui/workers.py` avec barre de progression et affichage des statistiques
-- **Filtrage d'images floues** : la fonction `select_blurry_files()` et ses paramètres (`filter_blurry`, `blur_factor`) sont désormais branchés au pipeline COLMAP complet (GUI + CLI).
-  - **Combo Force** (Léger / Moyen / Fort) : mapping `light=0.5`, `medium=0.7`, `strong=0.9` pour `blur_factor` dans `ConfigTab` et CLI `--blur-strength`
-  - **Mode robuste (grandes scènes)** : nouveau paramètre `--robust` dans le CLI COLMAP/pipeline + case à cocher dans `ConfigTab` — applique des paramètres stables (camera model, matching) pour éviter les crashs sur les grands datasets
+- **Cleaner tab**: new dedicated tab for cleaning Gaussian Splat .ply files — removes artifacts (transparent splats, oversized splats, outliers) without altering survivors.
+  - **Load a .ply file**: selection via native dialog (`QFileDialog`)
+  - **Severity combo** (Light / Medium / Strong): three predefined presets (`light`/`medium`/`strong`) with opacity thresholds + scale/distance percentiles
+  - **Fine-tuning**: manual override of minimum opacity (0–1), max size in % (90–100), outlier distance in % (90–100)
+  - **CLI**: new `clean-ply` subcommand with the same options (`--strength`, `--opacity`, `--scale`, `--outlier`) in `app/cli/commands.py`
+  - Dedicated Qt Worker: `CleanerWorker` in `app/gui/workers.py` with progress bar and statistics display
+- **Blurry image filtering**: the `select_blurry_files()` function and its parameters (`filter_blurry`, `blur_factor`) are now wired into the full COLMAP pipeline (GUI + CLI).
+  - **Strength combo** (Light / Medium / Strong): mapping `light=0.5`, `medium=0.7`, `strong=0.9` for `blur_factor` in `ConfigTab` and CLI `--blur-strength`
+  - **Robust mode (large scenes)**: new `--robust` parameter in CLI COLMAP/pipeline + checkbox in `ConfigTab` — applies stable parameters (camera model, matching) to prevent crashes on large datasets
 
 ### 🔒 Security
-- **Commande injection in `restart()`** : remplacement de `bash -c` avec f-string par deux appels `subprocess.run()`/`subprocess.Popen()` directs dans `AppLifecycle.restart()`. Élimine le risque d'injection shell via chemins contenant des guillemets ou espaces.
-- **`validate_path()` restreint** : la validation des chemins dans `BaseEngine` ne couvre plus `$HOME` entier, mais seulement `project_root` + `Desktop` et `Documents`. Réduction de la surface d'attaque pour les chemins sensibles.
+- **Command injection in `restart()`**: replaced `bash -c` with f-string by two direct `subprocess.run()`/`subprocess.Popen()` calls in `AppLifecycle.restart()`. Eliminates shell injection risk via paths containing quotes or spaces.
+- **`validate_path()` restricted**: path validation in `BaseEngine` no longer covers the entire `$HOME`, only `project_root` + `Desktop` and `Documents`. Reduces attack surface for sensitive paths.
 
 ### 🐞 Bug Fixes
-- **Export SPZ plante au runtime** : `import math` manquant dans `export_engine.py` — `math.sqrt()` utilisé sans import. L'export SPZ est désormais fonctionnel.
-- **Filtrage d'images floues inactif** : la feature `filter_blurry`/`blur_factor` et la fonction `select_blurry_files()` étaient définies et testées mais jamais appelées dans le pipeline. Désormais branchée dans `_process_input()` via une nouvelle méthode `_filter_blurry_images()`.
+- **SPZ export crashes at runtime**: missing `import math` in `export_engine.py` — `math.sqrt()` was used without importing math. SPZ export is now functional.
+- **Blurry image filter inactive**: the `filter_blurry`/`blur_factor` feature and `select_blurry_files()` function were defined and tested but never called in the pipeline. Now wired into `_process_input()` via a new `_filter_blurry_images()` method.
 
 ### 🛠 Improvements
-- **Timeout dans `_execute_command()`** : ajout d'un paramètre `timeout=3600s` (1h) sur l'exécution des binaires externes (COLMAP, Brush, ffmpeg). `TimeoutExpired` tue le processus et retourne -1, empêchant le blocage indéfini.
-- **Code mort supprimé** : bloc orphelin `_parse_ply_manual` (~120 lignes, dupliqué avec `ply_utils.parse_ply_manual()`) retiré de `export_engine.py`.
-- **Test adapté** : `test_valid_path_inside_home` remplacé par `test_valid_path_inside_desktop` et `test_valid_path_inside_documents` pour refléter la nouvelle politique de chemins.
-- **CleanerWorker intégré** dans `main_window.py` avec signaux `cleanRequested`/`stopRequested`, bascule vers l'onglet Logs, barre de progression indéterminée
-- **CleanerTab branché** à `SessionManager` pour la persistance des paramètres entre sessions
-- **CLI `clean-ply`** ajoutée dans `parser.py` et `commands.py` — support de `--strength`, `--opacity`, `--scale`, `--outlier`
-- **`_blur_factor_from_strength()`** : fonction utilitaire dans `commands.py` pour convertir le nom du preset en valeur float
+- **Timeout in `_execute_command()`**: added a `timeout=3600s` (1h) parameter on external binary execution (COLMAP, Brush, ffmpeg). `TimeoutExpired` kills the process and returns -1, preventing indefinite hangs.
+- **Dead code removed**: orphaned `_parse_ply_manual` block (~120 lines, duplicated with `ply_utils.parse_ply_manual()`) removed from `export_engine.py`.
+- **Tests updated**: `test_valid_path_inside_home` replaced by `test_valid_path_inside_desktop` and `test_valid_path_inside_documents` to reflect the new path policy.
+- **CleanerWorker integrated** into `main_window.py` with `cleanRequested`/`stopRequested` signals, auto-switch to the Logs tab, indeterminate progress bar
+- **CleanerTab connected** to `SessionManager` for parameter persistence between sessions
+- **CLI `clean-ply`** added to `parser.py` and `commands.py` — supports `--strength`, `--opacity`, `--scale`, `--outlier`
+- **`_blur_factor_from_strength()`**: utility function in `commands.py` to convert preset name to float value
 
 ### 🧪 Testing
-- **224/224 tests passent** (stable, 0 flaky).
+- **224/224 tests pass** (stable, 0 flaky).
 
 ## [1.0.2] - 2026-06-26
 
@@ -116,7 +138,7 @@ After extensive security hardening, architectural refactoring, and comprehensive
 ### 🧪 Testing
 - **Test coverage massively expanded**: from 39 tests to 210+ tests across 11 test files.
 - **New test files**: `test_cli.py` (27), `test_colmap_engine.py` (23), `test_upscayl_manager.py` (27), `test_sharp_engine.py` (9), `test_four_dgs_engine.py` (15), `test_setup_dependencies.py` (31), `test_managers.py` (18), `test_workers.py` (20, skip without PyQt6).
-- **Couverture par module**: upscayl_manager 90%+, CLI 95%+, ColmapEngine 80%+, SharpEngine 80%+, managers 70%+.
+- **Coverage by module**: upscayl_manager 90%+, CLI 95%+, ColmapEngine 80%+, SharpEngine 80%+, managers 70%+.
 
 ### 📦 Dependency & Quality
 - `pyproject.toml` configured with Ruff + MyPy + Pytest (CI-ready).
@@ -202,7 +224,7 @@ After extensive security hardening, architectural refactoring, and comprehensive
 - **`resize_to_original()` helper**: added to `upscayl_manager.py`, used by both the Upscale tab test worker and the x1 pipeline in `BrushWorker`.
 - **Pillow added to `requirements.txt`** (`>=10.0,<12`) for the x1 resize step.
 - **App icon regenerated**: `icon.icns` rebuilt from the current pixel-art crow PNG at all required resolutions (16 → 1024 px). macOS icon cache cleared.
-- **Tab order**: Entraînement → Brush → SuperSplat → Apple ML Sharp → 4DGS → 360 Extractor → Upscale → Paramètres COLMAP → Logs.
+- **Tab order**: Training → Brush → SuperSplat → Apple ML Sharp → 4DGS → 360 Extractor → Upscale → COLMAP Parameters → Logs.
 
 ## [0.99] - 2026-04-19
 

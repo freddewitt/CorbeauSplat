@@ -405,5 +405,11 @@
     "err_no_output": "Выберите папку назначения",
     "err_no_input": "Добавьте хотя бы один файл PLY",
     "export_done_title": "Экспорт завершён",
-    "export_done_body": "{} файлов успешно экспортировано."
+    "export_done_body": "{} файлов успешно экспортировано.",
+    "tab_cleaner_export": "Очистка + Экспорт",
+    "cleaner_btn_send_to_export": "Отправить на экспорт",
+    "cleaner_sent_to_export": "Файл(ы) отправлен(ы) на экспорт.",
+    "cleaner_no_ply_in_output": "Файлы .ply не найдены в выходной папке.",
+    "cleaner_section_title": "Очистка",
+    "export_section_title": "Экспорт"
 }

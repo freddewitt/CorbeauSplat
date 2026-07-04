@@ -407,6 +407,43 @@ def run_clean(args):
             print(f"Erreur : {e}")
             sys.exit(1)
 
+    # ── Chaînage optionnel : Clean → Export ──────────────────────────────
+    if getattr(args, "then_export", None):
+        from app.core.export_engine import ExportEngine
+
+        then_format = args.then_export
+        export_output = args.export_output
+
+        # Déterminer les fichiers à exporter
+        if input_path.is_dir():
+            export_sources = sorted(_Path(args.output).glob("*.ply"))
+            export_root = _Path(export_output) if export_output else _Path(args.output)
+            msg_sources = f"{len(export_sources)} fichiers dans {args.output}"
+        else:
+            export_sources = [_Path(args.output)]
+            export_root = _Path(export_output) if export_output else _Path(args.output).parent
+            msg_sources = str(args.output)
+
+        print(f"\n── Chaînage Clean → Export ──")
+        print(f"  Format   : {then_format}")
+        print(f"  Sources  : {msg_sources}")
+        print(f"  Destin.  : {export_root}")
+
+        engine = ExportEngine(logger_callback=print)
+        success_count = 0
+        for src in export_sources:
+            if src.exists():
+                ok = engine.export(str(src), str(export_root), then_format)
+                if ok:
+                    success_count += 1
+                    print(f"  ✓ {src.name} → {then_format}")
+                else:
+                    print(f"  ✗ {src.name} → échec")
+            else:
+                print(f"  ⚠️  {src.name} introuvable — ignoré")
+
+        print(f"Export terminé : {success_count}/{len(export_sources)} réussis.")
+
 
 def run_extract360(args):
     from app.core.extractor_360_engine import Extractor360Engine

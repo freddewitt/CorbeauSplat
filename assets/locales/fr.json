@@ -405,5 +405,11 @@
     "four_dgs_install_ok": "Installation 4DGS réussie",
     "logs_saved": "Logs sauvegardés",
     "err_save_log": "Erreur sauvegarde logs",
-    "upscale_bundled_warning": "Attention : upscale intégré"
+    "upscale_bundled_warning": "Attention : upscale intégré",
+    "tab_cleaner_export": "Nettoyage + Export",
+    "cleaner_btn_send_to_export": "Envoyer vers Export",
+    "cleaner_sent_to_export": "Fichier(s) envoyé(s) vers l'export.",
+    "cleaner_no_ply_in_output": "Aucun fichier .ply trouvé dans le dossier de sortie.",
+    "cleaner_section_title": "Nettoyage",
+    "export_section_title": "Export"
 }

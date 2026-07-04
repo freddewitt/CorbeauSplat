@@ -405,5 +405,11 @@
     "err_no_output": "يرجى تحديد مجلد الإخراج",
     "err_no_input": "يرجى إضافة ملف PLY واحد على الأقل",
     "export_done_title": "اكتمل التصدير",
-    "export_done_body": "تم تصدير {} ملف بنجاح."
+    "export_done_body": "تم تصدير {} ملف بنجاح.",
+    "tab_cleaner_export": "التنظيف + التصدير",
+    "cleaner_btn_send_to_export": "إرسال إلى التصدير",
+    "cleaner_sent_to_export": "تم إرسال الملف(ات) إلى التصدير.",
+    "cleaner_no_ply_in_output": "لم يتم العثور على ملفات .ply في مجلد الإخراج.",
+    "cleaner_section_title": "التنظيف",
+    "export_section_title": "التصدير"
 }

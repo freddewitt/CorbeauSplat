@@ -405,5 +405,11 @@
     "err_no_output": "出力フォルダを選択してください",
     "err_no_input": "PLY ファイルを少なくとも1つ追加してください",
     "export_done_title": "エクスポート完了",
-    "export_done_body": "{} ファイルを正常にエクスポートしました。"
+    "export_done_body": "{} ファイルを正常にエクスポートしました。",
+    "tab_cleaner_export": "クリーニング + エクスポート",
+    "cleaner_btn_send_to_export": "エクスポートに送る",
+    "cleaner_sent_to_export": "ファイルをエクスポートに送りました。",
+    "cleaner_no_ply_in_output": "出力フォルダに .ply ファイルが見つかりません。",
+    "cleaner_section_title": "クリーニング",
+    "export_section_title": "エクスポート"
 }

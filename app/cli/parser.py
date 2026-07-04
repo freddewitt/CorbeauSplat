@@ -203,6 +203,11 @@ def get_parser():
                    help="Percentile d'échelle max (90-100, surcharge le preset)")
     p.add_argument("--outlier_pct", type=float, default=None,
                    help="Percentile de distance max (90-100, surcharge le preset)")
+    p.add_argument("--then-export", metavar="FORMAT",
+                   choices=["spz", "glb", "obj", "ply", "xyz"],
+                   help="Enchaîner un export après le nettoyage (format cible)")
+    p.add_argument("--export-output", metavar="PATH", default=None,
+                   help="Dossier de sortie pour l'export (défaut: même dossier que la sortie clean)")
 
     # ── extract360 ────────────────────────────────────────────────────────────
     p = subs.add_parser("extract360", help="Extraction vidéo 360° en multi-caméras COLMAP-ready")
