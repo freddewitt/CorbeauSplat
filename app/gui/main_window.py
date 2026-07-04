@@ -7,7 +7,7 @@ from app.core.system import resolve_project_root
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QTabWidget, QMessageBox, QFileDialog, QApplication, QLabel
 )
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QScreen
 from PyQt6.QtCore import Qt
 from app.core.params import ColmapParams
 from app.core.engine import ColmapEngine
@@ -49,7 +49,12 @@ class ColmapGUI(QMainWindow):
     def init_ui(self):
         """Initialise l'interface"""
         self.setWindowTitle(tr("app_title"))
-        self.setGeometry(100, 100, 1000, 800)
+        self.setMinimumSize(900, 600)
+        screen = QApplication.primaryScreen()
+        if screen:
+            geo = screen.availableGeometry()
+            self.resize(int(geo.width() * 0.88), int(geo.height() * 0.88))
+            self.move(geo.topLeft())
         
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
