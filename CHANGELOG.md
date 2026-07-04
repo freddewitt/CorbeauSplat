@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.1.0] - 2026-07-04
+
+### ✨ New Features
+- **SplatTransformEngine**: New autonomous engine wrapping [PlayCanvas `@playcanvas/splat-transform`](https://github.com/playcanvas/splat-transform) v2.7.1 (MIT). Converts between PLY, SPZ, GLB, and CSV formats; supports `--filter-nan` (degenerate splat removal), `--filter-harmonics` (SH band reduction), `--decimate` (point count reduction), and `--morton-order` (spatial reordering for GPU cache efficiency). Installed locally in `engines/splat-transform/` via npm — does not affect global node environment.
+  - **Security**: HTTP/HTTPS inputs blocked at engine level (SSRF prevention). Strict flag allowlist (`ALLOWED_FLAGS_BOOLEAN` / `ALLOWED_FLAGS_VALUE`). All paths validated through `BaseEngine.validate_path()`. Arguments always passed as list — no `shell=True`.
+  - **GUI tab "SplatTransform"**: input file picker with drag-and-drop, output folder picker, format selector (PLY / SPZ / GLB / CSV), and filter controls. Stop button. i18n (9 languages).
+  - **CLI subcommand `splattransform`**: `python3 main.py splattransform -i scene.ply -o ~/out --format spz [--filter-nan] [--filter-harmonics 1] [--decimate 50%] [--morton-order]`
+- **Official SPZ export (nianticlabs/spz v3.0.0)**: Replaced the previous homemade SPZ encoder with the official [`nianticlabs/spz`](https://github.com/nianticlabs/spz) Python bindings (MIT, compiled via CMake/nanobind). SPZ files produced by CorbeauSplat are now compatible with standard SPZ viewers.
+  - **Breaking change**: Files exported as SPZ by earlier versions used a non-standard format (header `SPZ\0`, no real compression). They are not compatible with the new encoder or standard viewers.
+  - The `spz` library is installed into the main `.venv` (not a separate venv) by `setup_dependencies.py`, which clones the repo at tag `v3.0.0` and runs `pip install .`.
+  - If `spz` is not installed, the export fails immediately with a clear message pointing to the installer.
+- **Post-training options (Entraînement tab)**: Two new checkboxes in the Options section of the Entraînement tab allow chaining PlyCleaner and/or format export automatically after every Brush training run.
+  - **"Nettoyer après (PlyCleaner)"** — runs PlyCleaner on all `.ply` files in the output directory; produces `{stem}_cleaned.ply` files (originals preserved). Strength selectable: Léger / Moyen / Fort.
+  - **"Exporter ensuite"** — exports the resulting files to SPZ or GLB using ExportEngine (pure Python, no Node.js). Runs only if at least one of the two options is active.
+  - Managed by `PostTrainingWorker`, which chains both steps and is interruptible mid-run.
+- **Standalone Nettoyage tab**: The former "Nettoyage + Export" composite tab is now a dedicated cleaning-only tab. Single-file or batch-directory cleaning via PlyCleaner — independent of the training pipeline. Format conversion is now handled exclusively by the SplatTransform tab.
+
+### 🗑 Removed
+- **`app/core/ply_utils.py`**: All 6 helper functions (`compress_scale`, `compress_rotation`, `compress_alpha`, `write_spz_header`, `write_spz_data`, `parse_ply_manual`) that powered the old homemade SPZ encoder have been removed. The file is now empty and can be deleted.
+- **`import math` in `export_engine.py`**: Was only used for the homemade quaternion normalisation in `_export_spz` — removed with the old encoder.
+- **ExportTab from composite tab**: Removed the integrated Export section from the Nettoyage tab. Export is now handled by SplatTransform (format conversion) or the post-training pipeline (automatic SPZ/GLB after Brush).
+
+### 🐞 Bug Fixes
+- **SuperSplat re-install loop**: `SuperSplatEngineDep.install()` was calling `get_remote_version()` a second time at the end to save the installed version. If that network call failed or timed out, an empty string was written to the version file — causing every subsequent startup to detect a SHA mismatch and prompt for re-install. Fixed by reading the local HEAD SHA via `git rev-parse HEAD` (`_local_head_sha()`) after the git reset — no network dependency.
+
+### 🛠 Improvements
+- **Entraînement tab — two-column Options layout**: The Options group now displays reconstruction options (left column) and post-training options (right column) side by side, separated by a vertical divider. Dropdown menus for PlyCleaner strength and export format appear indented below their respective checkboxes, avoiding any horizontal crushing.
+- **`PostTrainingWorker`**: New `BaseWorker` subclass that sequences PlyCleaner and ExportEngine after Brush training. Fully interruptible (`isInterruptionRequested()`), streams progress to the log panel, and emits a summary on completion.
+
 ## [1.0.6] - 2026-07-04
 
 ### ✨ New Features

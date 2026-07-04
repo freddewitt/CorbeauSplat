@@ -209,6 +209,45 @@ def get_parser():
     p.add_argument("--export-output", metavar="PATH", default=None,
                    help="Dossier de sortie pour l'export (défaut: même dossier que la sortie clean)")
 
+    # ── splattransform ────────────────────────────────────────────────────────
+    p = subs.add_parser(
+        "splattransform",
+        help="Convert/filter Gaussian Splat files via PlayCanvas splat-transform",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  python3 main.py splattransform -i scene.ply -o ~/out --format spz\n"
+            "  python3 main.py splattransform -i scene.ply -o ~/out --format ply"
+            " --filter-nan --decimate 50%\n"
+            "  python3 main.py splattransform -i scene.spz -o ~/out --format glb"
+            " --filter-harmonics 1\n"
+        ),
+    )
+    p.add_argument("--input",  "-i", required=True, help="Input file (.ply, .spz, .splat, …)")
+    p.add_argument("--output", "-o", required=True, help="Output folder")
+    p.add_argument(
+        "--format", "-f",
+        choices=["ply", "spz", "glb", "csv"],
+        default="ply",
+        help="Output format — extension determines conversion (default: ply)",
+    )
+    p.add_argument(
+        "--filter-nan", action="store_true",
+        help="Remove degenerate/NaN splats (filterFloaters equivalent)",
+    )
+    p.add_argument(
+        "--filter-harmonics", metavar="0|1|2|3", default=None,
+        help="Strip spherical harmonics above the given band (0 = DC only)",
+    )
+    p.add_argument(
+        "--decimate", metavar="N%", default=None,
+        help="Reduce point count, e.g. '50%%' keeps half the splats",
+    )
+    p.add_argument(
+        "--morton-order", action="store_true",
+        help="Reorder splats using Morton curve for GPU cache efficiency",
+    )
+
     # ── extract360 ────────────────────────────────────────────────────────────
     p = subs.add_parser("extract360", help="Extraction vidéo 360° en multi-caméras COLMAP-ready")
     p.add_argument("--input",  "-i", required=True, help="Fichier vidéo 360°")

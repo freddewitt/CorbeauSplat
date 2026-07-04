@@ -282,24 +282,33 @@ class ConfigTab(QWidget):
         self.output_group.setLayout(output_layout)
         layout.addWidget(self.output_group)
         
-        # Nouveau Groupe: Options
+        # Nouveau Groupe: Options — deux colonnes
         self.options_group = QGroupBox(tr("group_options"))
         options_layout = QVBoxLayout()
-        
+        options_layout.setContentsMargins(8, 8, 8, 8)
+
+        columns = QHBoxLayout()
+        columns.setSpacing(16)
+
+        # ── Colonne gauche : options de reconstruction ─────────────────────
+        left_col = QVBoxLayout()
+        left_col.setSpacing(4)
+
         self.undistort_check = QCheckBox(tr("check_undistort"))
         self.undistort_check.setChecked(False)
-        options_layout.addWidget(self.undistort_check)
-        
+        left_col.addWidget(self.undistort_check)
+
         self.chk_upscale = QCheckBox(tr("upscale_check_colmap", "Enable Upscale (upscayl-ncnn)"))
         self.chk_upscale.setChecked(False)
-        options_layout.addWidget(self.chk_upscale)
+        left_col.addWidget(self.chk_upscale)
 
         self.chk_filter_blur = QCheckBox(tr("check_filter_blur", "Supprimer les images floues avant reconstruction"))
         self.chk_filter_blur.setChecked(False)
         self.chk_filter_blur.toggled.connect(self._on_blur_toggled)
-        options_layout.addWidget(self.chk_filter_blur)
+        left_col.addWidget(self.chk_filter_blur)
 
         blur_layout = QHBoxLayout()
+        blur_layout.setContentsMargins(20, 0, 0, 0)
         self.lbl_blur_strength = QLabel(tr("blur_strength", "Sensibilité :"))
         self.lbl_blur_strength.setVisible(False)
         self.combo_blur_strength = QComboBox()
@@ -310,14 +319,61 @@ class ConfigTab(QWidget):
         blur_layout.addWidget(self.lbl_blur_strength)
         blur_layout.addWidget(self.combo_blur_strength)
         blur_layout.addStretch()
-        options_layout.addLayout(blur_layout)
+        left_col.addLayout(blur_layout)
 
         self.chk_robust = QCheckBox(tr("check_robust", "Mode stabilisé (grandes scènes, anti-plantage)"))
         self.chk_robust.setChecked(False)
         self.chk_robust.toggled.connect(self._on_robust_toggled)
-        options_layout.addWidget(self.chk_robust)
+        left_col.addWidget(self.chk_robust)
 
-        options_layout.addStretch()
+        left_col.addStretch()
+
+        # ── Séparateur vertical ────────────────────────────────────────────
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.VLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+
+        # ── Colonne droite : post-traitement Brush ─────────────────────────
+        right_col = QVBoxLayout()
+        right_col.setSpacing(4)
+
+        self.chk_clean_after = QCheckBox(tr("brush_post_clean", "Nettoyer après (PlyCleaner)"))
+        right_col.addWidget(self.chk_clean_after)
+
+        clean_combo_row = QHBoxLayout()
+        clean_combo_row.setContentsMargins(20, 0, 0, 0)
+        self.combo_clean_strength = QComboBox()
+        self.combo_clean_strength.addItem(tr("cleaner_light", "Léger"), "light")
+        self.combo_clean_strength.addItem(tr("cleaner_medium", "Moyen"), "medium")
+        self.combo_clean_strength.addItem(tr("cleaner_strong", "Fort"), "strong")
+        self.combo_clean_strength.setCurrentIndex(1)
+        self.combo_clean_strength.setVisible(False)
+        self.chk_clean_after.toggled.connect(self.combo_clean_strength.setVisible)
+        clean_combo_row.addWidget(self.combo_clean_strength)
+        clean_combo_row.addStretch()
+        right_col.addLayout(clean_combo_row)
+
+        self.chk_export_after = QCheckBox(tr("brush_post_export", "Exporter ensuite :"))
+        right_col.addWidget(self.chk_export_after)
+
+        export_combo_row = QHBoxLayout()
+        export_combo_row.setContentsMargins(20, 0, 0, 0)
+        self.combo_export_format = QComboBox()
+        self.combo_export_format.addItem("SPZ", "spz")
+        self.combo_export_format.addItem("GLB", "glb")
+        self.combo_export_format.setVisible(False)
+        self.chk_export_after.toggled.connect(self.combo_export_format.setVisible)
+        export_combo_row.addWidget(self.combo_export_format)
+        export_combo_row.addStretch()
+        right_col.addLayout(export_combo_row)
+
+        right_col.addStretch()
+
+        columns.addLayout(left_col, 3)
+        columns.addWidget(sep)
+        columns.addLayout(right_col, 2)
+
+        options_layout.addLayout(columns)
         self.options_group.setLayout(options_layout)
         layout.addWidget(self.options_group)
         
@@ -566,6 +622,19 @@ class ConfigTab(QWidget):
     def get_robust(self): return self.chk_robust.isChecked()
     def set_robust(self, val): self.chk_robust.setChecked(val)
 
+    def get_post_clean(self): return self.chk_clean_after.isChecked()
+    def set_post_clean(self, val): self.chk_clean_after.setChecked(val)
+    def get_post_clean_strength(self): return self.combo_clean_strength.currentData()
+    def set_post_clean_strength(self, val):
+        idx = self.combo_clean_strength.findData(val)
+        if idx >= 0: self.combo_clean_strength.setCurrentIndex(idx)
+    def get_post_export(self): return self.chk_export_after.isChecked()
+    def set_post_export(self, val): self.chk_export_after.setChecked(val)
+    def get_post_export_format(self): return self.combo_export_format.currentData()
+    def set_post_export_format(self, val):
+        idx = self.combo_export_format.findData(val)
+        if idx >= 0: self.combo_export_format.setCurrentIndex(idx)
+
     def _on_blur_toggled(self, checked):
         self.lbl_blur_strength.setVisible(checked)
         self.combo_blur_strength.setVisible(checked)
@@ -581,6 +650,10 @@ class ConfigTab(QWidget):
         self.output_group.setEnabled(not processing)
         self.options_group.setEnabled(not processing)
         self.chk_upscale.setEnabled(not processing)
+        self.chk_clean_after.setEnabled(not processing)
+        self.combo_clean_strength.setEnabled(not processing)
+        self.chk_export_after.setEnabled(not processing)
+        self.combo_export_format.setEnabled(not processing)
         self.btn_delete_dataset.setEnabled(not processing)
         self.combo_lang.setEnabled(not processing)
         
@@ -621,6 +694,10 @@ class ConfigTab(QWidget):
             "filter_blur": self.get_filter_blur(),
             "blur_strength": self.get_blur_strength(),
             "robust": self.get_robust(),
+            "post_clean": self.get_post_clean(),
+            "post_clean_strength": self.get_post_clean_strength(),
+            "post_export": self.get_post_export(),
+            "post_export_format": self.get_post_export_format(),
             "lang": self.combo_lang.currentData()
         }
 
@@ -639,6 +716,10 @@ class ConfigTab(QWidget):
         if "filter_blur" in state: self.set_filter_blur(state["filter_blur"])
         if "blur_strength" in state: self.set_blur_strength(state["blur_strength"])
         if "robust" in state: self.set_robust(state["robust"])
+        if "post_clean" in state: self.set_post_clean(state["post_clean"])
+        if "post_clean_strength" in state: self.set_post_clean_strength(state["post_clean_strength"])
+        if "post_export" in state: self.set_post_export(state["post_export"])
+        if "post_export_format" in state: self.set_post_export_format(state["post_export_format"])
 
         # Lang is special, might require restart if changed, so we just set combo if it matches
         # or we let the main app handle valid lang loading.
@@ -687,6 +768,11 @@ class ConfigTab(QWidget):
         self.combo_blur_strength.setItemText(1, tr("blur_medium", "Moyen (standard)"))
         self.combo_blur_strength.setItemText(2, tr("blur_strong", "Fort (strict)"))
         self.chk_robust.setText(tr("check_robust", "Mode stabilisé (grandes scènes, anti-plantage)"))
+        self.chk_clean_after.setText(tr("brush_post_clean", "Nettoyer après entraînement (PlyCleaner)"))
+        self.chk_export_after.setText(tr("brush_post_export", "Exporter ensuite :"))
+        self.combo_clean_strength.setItemText(0, tr("cleaner_light", "Léger"))
+        self.combo_clean_strength.setItemText(1, tr("cleaner_medium", "Moyen"))
+        self.combo_clean_strength.setItemText(2, tr("cleaner_strong", "Fort"))
 
         self.btn_process.setText(tr("btn_process") if self.btn_process.isEnabled() else tr("btn_stop"))
         self.btn_stop.setText(tr("btn_stop"))

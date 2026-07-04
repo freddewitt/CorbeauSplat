@@ -581,6 +581,43 @@ class CleanerWorker(BaseWorker):
 
 
 # ---------------------------------------------------------------------
+# SPLAT TRANSFORM WORKER
+# ---------------------------------------------------------------------
+
+class SplatTransformWorker(BaseWorker):
+    """Thread worker for PlayCanvas splat-transform conversions."""
+
+    def __init__(self, input_path: str, output_path: str, params: dict, engine=None):
+        super().__init__()
+        from app.core.splat_transform_engine import SplatTransformEngine
+        self.engine = engine or SplatTransformEngine(logger_callback=self.log_signal.emit)
+        self.engine.gui_trusted = True
+        self.input_path = input_path
+        self.output_path = output_path
+        self.params = params
+
+    def stop(self):
+        self.engine.stop()
+        super().stop()
+
+    def run(self):
+        self.log_signal.emit("--- SplatTransform ---")
+        if not self.engine.is_available():
+            self.finished_signal.emit(
+                False,
+                tr("st_err_not_installed",
+                   "splat-transform not installed. Run dependency setup.")
+            )
+            return
+        returncode = self.engine.transform(self.input_path, self.output_path, self.params)
+        success = (returncode == 0)
+        if success:
+            self.finished_signal.emit(True, tr("st_done", "SplatTransform completed."))
+        else:
+            self.finished_signal.emit(False, tr("st_err_failed", "splat-transform returned an error (see logs)."))
+
+
+# ---------------------------------------------------------------------
 # 4DGS WORKER
 # ---------------------------------------------------------------------
 from app.core.four_dgs_engine import FourDGSEngine
@@ -617,3 +654,87 @@ class FourDGSWorker(BaseWorker):
         if self.engine:
             self.engine.stop()
         super().stop()
+
+
+# ---------------------------------------------------------------------
+# POST-TRAINING WORKER
+# ---------------------------------------------------------------------
+
+class PostTrainingWorker(BaseWorker):
+    """Enchaîne optionnellement PlyCleaner et/ou export (SPZ/GLB) après Brush.
+
+    Cherche les .ply dans output_path (non-récursif, sans hidden files).
+    Si clean : écrit {stem}_cleaned.ply dans le même dossier.
+    Si export : appelle ExportEngine sur les fichiers résultants.
+    """
+
+    def __init__(self, output_path: str, clean: bool, clean_strength: str,
+                 export: bool, export_format: str):
+        super().__init__()
+        self._output_path = Path(output_path)
+        self._clean = clean
+        self._clean_strength = clean_strength
+        self._export = export
+        self._export_format = export_format
+
+    def run(self):
+        ply_files = sorted(
+            f for f in self._output_path.glob("*.ply")
+            if not f.name.startswith(".")
+        )
+        if not ply_files:
+            self.finished_signal.emit(
+                False,
+                f"Post-traitement : aucun .ply trouvé dans {self._output_path}"
+            )
+            return
+
+        self.log_signal.emit(
+            f"--- Post-traitement Brush : {len(ply_files)} fichier(s) ---"
+        )
+
+        to_export = []
+
+        if self._clean:
+            for ply in ply_files:
+                if self.isInterruptionRequested():
+                    self.finished_signal.emit(False, "Post-traitement annulé.")
+                    return
+                cleaned = ply.parent / f"{ply.stem}_cleaned.ply"
+                try:
+                    stats = clean_ply(
+                        ply, cleaned,
+                        strength=self._clean_strength,
+                        log=self.log_signal.emit,
+                    )
+                    self.log_signal.emit(
+                        f"  ✓ {ply.name} → {cleaned.name} "
+                        f"({stats['kept']}/{stats['total']} splats conservés)"
+                    )
+                    to_export.append(cleaned)
+                except Exception as e:
+                    self.log_signal.emit(f"  ❌ {ply.name} : {e}")
+                    to_export.append(ply)
+        else:
+            to_export = list(ply_files)
+
+        if self._export:
+            from app.core.export_engine import ExportEngine
+            engine = ExportEngine(logger_callback=self.log_signal.emit)
+            for src in to_export:
+                if self.isInterruptionRequested():
+                    self.finished_signal.emit(False, "Post-traitement annulé.")
+                    return
+                try:
+                    ok = engine.export(
+                        str(src), str(self._output_path), self._export_format
+                    )
+                    self.log_signal.emit(
+                        f"  {'✓' if ok else '❌'} "
+                        f"Export {self._export_format.upper()} : {src.name}"
+                    )
+                except Exception as e:
+                    self.log_signal.emit(f"  ❌ Export {src.name} : {e}")
+
+        n = len(to_export)
+        self.finished_signal.emit(True, f"Post-traitement terminé : {n} fichier(s) traité(s).")

@@ -24,8 +24,9 @@ from app.gui.tabs.upscale_tab import UpscaleTab
 from app.gui.tabs.four_dgs_tab import FourDGSTab
 from app.gui.tabs.extractor_360_tab import Extractor360Tab
 from app.gui.tabs.cleaner_export_tab import CleanerExportTab
+from app.gui.tabs.splat_transform_tab import SplatTransformTab
 from app.gui.workers import ColmapWorker, BrushWorker, SharpWorker, FourDGSWorker
-from app.gui.workers import SharpVideoWorker
+from app.gui.workers import SharpVideoWorker, SplatTransformWorker, PostTrainingWorker
 from app import VERSION
 
 class ColmapGUI(QMainWindow):
@@ -34,6 +35,9 @@ class ColmapGUI(QMainWindow):
         self.worker = None
         self.brush_worker = None
         self.sharp_worker = None
+        self.splat_transform_worker = None
+        self.post_training_worker = None
+        self._last_brush_output_path = None
         # cleaner_worker est géré par CleanerExportTab
         self.cleaner_export_tab = None  # initialisé dans init_ui
         
@@ -75,7 +79,10 @@ class ColmapGUI(QMainWindow):
         self.tabs.addTab(self.superplat_tab, tr("tab_supersplat"))
 
         self.cleaner_export_tab = CleanerExportTab()
-        self.tabs.addTab(self.cleaner_export_tab, tr("tab_cleaner_export"))
+        self.tabs.addTab(self.cleaner_export_tab, tr("tab_cleaner"))
+
+        self.splat_transform_tab = SplatTransformTab()
+        self.tabs.addTab(self.splat_transform_tab, tr("tab_splat_transform"))
 
         self.sharp_tab = SharpTab()
         self.tabs.addTab(self.sharp_tab, tr("tab_sharp"))
@@ -120,20 +127,24 @@ class ColmapGUI(QMainWindow):
 
         self.cleaner_export_tab.log_signal.connect(self.logs_tab.append_log)
 
+        self.splat_transform_tab.transformRequested.connect(self.run_splat_transform)
+        self.splat_transform_tab.stopRequested.connect(self.stop_splat_transform)
+
         # Apply visual hierarchy to utility tabs
         self.apply_tab_styling()
 
     def retranslate_ui(self):
         """Update window title and tab names when language changes"""
         self.setWindowTitle(tr("app_title"))
-        
+
         # Tabs are identified by index, but we can match them with our members
         tab_names = {
             self.config_tab: tr("tab_config"),
             self.params_tab: tr("tab_params"),
             self.brush_tab: tr("tab_brush"),
             self.superplat_tab: tr("tab_supersplat"),
-            self.cleaner_export_tab: tr("tab_cleaner_export"),
+            self.cleaner_export_tab: tr("tab_cleaner"),
+            self.splat_transform_tab: tr("tab_splat_transform"),
             self.upscale_tab: tr("tab_upscale"),
             self.sharp_tab: tr("tab_sharp"),
             self.four_dgs_tab: tr("tab_four_dgs"),
@@ -159,6 +170,7 @@ class ColmapGUI(QMainWindow):
             self.four_dgs_tab,
             self.extractor_360_tab,
             self.logs_tab
+            # splat_transform_tab is primary (white) — same level as Brush/SuperSplat
         ]
         
         tab_bar = self.tabs.tabBar()
@@ -394,7 +406,8 @@ class ColmapGUI(QMainWindow):
             else:
                 output_path = input_path / "checkpoints"
             output_path.mkdir(parents=True, exist_ok=True)
-            
+            self._last_brush_output_path = output_path
+
         else:
             # Mode Automatique (via Colmap output)
             colmap_out_root_str = self.config_tab.get_output_path()
@@ -418,6 +431,7 @@ class ColmapGUI(QMainWindow):
             input_path = dataset_path
             output_path = dataset_path / "checkpoints"
             output_path.mkdir(parents=True, exist_ok=True)
+            self._last_brush_output_path = output_path
         
         self.brush_tab.set_processing_state(True)
         self.logs_tab.append_log(tr("msg_brush_start", str(input_path)))
@@ -445,15 +459,49 @@ class ColmapGUI(QMainWindow):
             self.logs_tab.append_log("Arrêt de Brush demandé...")
 
     def on_brush_finished(self, success, message):
-        """Fin entrainement Brush"""
+        """Fin entrainement Brush — enchaîne le post-traitement si activé."""
         self.brush_tab.set_processing_state(False)
         self.logs_tab.append_log(message)
 
         if success:
-            QMessageBox.information(self, tr("brush_done_title"), tr("brush_done_body"))
+            do_clean = self.config_tab.get_post_clean()
+            do_export = self.config_tab.get_post_export()
+
+            if (do_clean or do_export) and self._last_brush_output_path:
+                self._run_post_training(
+                    self._last_brush_output_path,
+                    do_clean,
+                    self.config_tab.get_post_clean_strength(),
+                    do_export,
+                    self.config_tab.get_post_export_format(),
+                )
+            else:
+                QMessageBox.information(self, tr("brush_done_title"), tr("brush_done_body"))
         else:
             if not (self.brush_worker and self.brush_worker.stopped_by_user):
                 QMessageBox.warning(self, tr("brush_error_title"), tr("brush_error_body"))
+
+    def _run_post_training(self, output_path, clean, strength, export, fmt):
+        self.brush_tab.set_processing_state(True)
+        self.logs_tab.append_log(
+            f"Post-traitement : {'nettoyage' if clean else ''}"
+            f"{' + ' if clean and export else ''}"
+            f"{'export ' + fmt.upper() if export else ''} …"
+        )
+        self.post_training_worker = PostTrainingWorker(
+            str(output_path), clean, strength, export, fmt
+        )
+        self.post_training_worker.log_signal.connect(self.logs_tab.append_log)
+        self.post_training_worker.finished_signal.connect(self._on_post_training_finished)
+        self.post_training_worker.start()
+
+    def _on_post_training_finished(self, success, message):
+        self.brush_tab.set_processing_state(False)
+        self.logs_tab.append_log(message)
+        if success:
+            QMessageBox.information(self, tr("brush_done_title"), tr("brush_done_body"))
+        else:
+            QMessageBox.warning(self, tr("msg_error"), message)
 
 
 
@@ -554,6 +602,31 @@ class ColmapGUI(QMainWindow):
             QMessageBox.warning(self, tr("sharp_error_title"), tr("sharp_error_body"))
 
 
+
+    def run_splat_transform(self, input_path: str, output_path: str, params: dict):
+        """Launch a splat-transform conversion in a background thread."""
+        self.splat_transform_tab.set_processing_state(True)
+        self.logs_tab.append_log(f"--- SplatTransform: {input_path} → {output_path} ---")
+
+        self.splat_transform_worker = SplatTransformWorker(input_path, output_path, params)
+        self.splat_transform_worker.log_signal.connect(self.logs_tab.append_log)
+        self.splat_transform_worker.finished_signal.connect(self._on_splat_transform_finished)
+        self.splat_transform_worker.start()
+        self.tabs.setCurrentWidget(self.logs_tab)
+
+    def stop_splat_transform(self):
+        if self.splat_transform_worker and self.splat_transform_worker.isRunning():
+            self.splat_transform_worker.stop()
+            self.logs_tab.append_log("SplatTransform stop requested...")
+
+    def _on_splat_transform_finished(self, success: bool, message: str):
+        self.splat_transform_tab.set_processing_state(False)
+        self.logs_tab.append_log(message)
+        if not success and not (
+            self.splat_transform_worker and self.splat_transform_worker.stopped_by_user
+        ):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, tr("msg_error"), message)
 
     def restart_application(self):
         """Redémarre l'application."""

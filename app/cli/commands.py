@@ -445,6 +445,59 @@ def run_clean(args):
         print(f"Export terminé : {success_count}/{len(export_sources)} réussis.")
 
 
+def run_splat_transform(args):
+    """Convert or filter Gaussian Splat files via PlayCanvas splat-transform."""
+    from app.core.splat_transform_engine import SplatTransformEngine
+
+    engine = SplatTransformEngine(logger_callback=print)
+
+    if not engine.is_available():
+        print(
+            "Error: splat-transform not found.\n"
+            "Install it by running:  python3 app/scripts/setup_dependencies.py\n"
+            "or manually:  cd engines/splat-transform && npm install @playcanvas/splat-transform"
+        )
+        sys.exit(1)
+
+    input_path = _Path(args.input)
+    output_dir = _Path(args.output)
+
+    if not input_path.exists():
+        print(f"Error: input file not found: {input_path}")
+        sys.exit(1)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_file = output_dir / f"{input_path.stem}.{args.format}"
+
+    params = {"--overwrite": True}
+    if args.filter_nan:
+        params["--filter-nan"] = True
+    if args.filter_harmonics is not None:
+        params["--filter-harmonics"] = args.filter_harmonics
+    if args.decimate is not None:
+        params["--decimate"] = args.decimate
+    if args.morton_order:
+        params["--morton-order"] = True
+
+    print(f"SplatTransform: {input_path} → {output_file}")
+    print(f"  Format  : {args.format}")
+    if params:
+        print(f"  Options : {', '.join(k for k in params if params[k] is not True)}")
+
+    try:
+        returncode = engine.transform(str(input_path), str(output_file), params)
+    except KeyboardInterrupt:
+        print(tr("cli_stopping"))
+        engine.stop()
+        sys.exit(0)
+
+    if returncode == 0:
+        print(tr("msg_success"))
+    else:
+        print(tr("msg_error"))
+        sys.exit(1)
+
+
 def run_extract360(args):
     from app.core.extractor_360_engine import Extractor360Engine
 
@@ -582,13 +635,14 @@ def run_pipeline(args):
 # ─────────────────────────────────────────────────────────────────────────────
 
 DISPATCH = {
-    "pipeline":    run_pipeline,
-    "colmap":      run_colmap,
-    "brush":       run_brush,
-    "sharp":       run_sharp,
-    "view":        run_supersplat,
-    "upscale":     run_upscale,
-    "4dgs":        run_4dgs,
-    "extract360":  run_extract360,
-    "clean":       run_clean,
+    "pipeline":         run_pipeline,
+    "colmap":           run_colmap,
+    "brush":            run_brush,
+    "sharp":            run_sharp,
+    "view":             run_supersplat,
+    "upscale":          run_upscale,
+    "4dgs":             run_4dgs,
+    "extract360":       run_extract360,
+    "clean":            run_clean,
+    "splattransform":   run_splat_transform,
 }

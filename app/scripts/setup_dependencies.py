@@ -19,6 +19,8 @@ from app.scripts.installers.mapping import ColmapBrewDep, GlomapEngineDep
 from app.scripts.installers.supersplat import SuperSplatEngineDep
 from app.scripts.installers.extractor_360 import Extractor360EngineDep
 from app.scripts.installers.upscayl import UpscaylEngineDep
+from app.scripts.installers.spz import SpzEngineDep
+from app.scripts.installers.splat_transform import SplatTransformEngineDep
 from app.scripts.installers.tools import (
     load_config,
     relax_requirements,
@@ -91,6 +93,8 @@ def main():
     manager.register(SuperSplatEngineDep())
     manager.register(Extractor360EngineDep())
     manager.register(UpscaylEngineDep())
+    manager.register(SpzEngineDep())
+    manager.register(SplatTransformEngineDep())
     
     check_only = "--check" in sys.argv
     startup = "--startup" in sys.argv

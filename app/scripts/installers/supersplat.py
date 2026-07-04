@@ -16,6 +16,14 @@ class SuperSplatEngineDep(EngineDependency):
     def __init__(self):
         super().__init__("supersplat", SUPERPLAT_REPO)
 
+    def _local_head_sha(self) -> str:
+        """SHA du HEAD local après install — pas d'appel réseau."""
+        result = subprocess.run(
+            ["git", "-C", str(self.target_dir), "rev-parse", "HEAD"],
+            capture_output=True, text=True,
+        )
+        return result.stdout.strip() if result.returncode == 0 else ""
+
     def _git_is_own_repo(self) -> bool:
         """Returns True if target_dir is an independent git repo (not a parent repo)."""
         result = subprocess.run(
@@ -60,4 +68,4 @@ class SuperSplatEngineDep(EngineDependency):
 
         self._npm_install()
         subprocess.check_call(["npm", "run", "build"], cwd=str(self.target_dir))
-        self.save_local_version(self.get_remote_version())
+        self.save_local_version(self._local_head_sha())

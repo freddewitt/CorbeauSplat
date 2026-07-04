@@ -1,5 +1,3 @@
-# FIX(AUDIT): add missing math import used by _export_spz
-import math
 import os
 import shutil
 import subprocess
@@ -7,10 +5,6 @@ from pathlib import Path
 from typing import Optional, Callable
 
 from .base_engine import BaseEngine
-from .ply_utils import (
-    compress_scale, compress_rotation, compress_alpha,
-    write_spz_header, write_spz_data, parse_ply_manual,
-)
 
 
 class ExportEngine(BaseEngine):
@@ -401,102 +395,47 @@ class ExportEngine(BaseEngine):
             return False
 
     def _export_spz(self, input_file: Path, output_dir: Path, opts: dict) -> bool:
-        """Export PLY to SPZ (compressed Gaussian Splats format).
+        """Export PLY to SPZ using the official nianticlabs/spz library.
 
-        SPZ format specification (v1):
-        - Header: "SPZ\0" (4 bytes)
-        - Version: uint32 (4 bytes) = 1
-        - Num points: uint32 (4 bytes)
-        - Positions: float32[3] per point (12 bytes each)
-        - Colors: uint8[4] per point (rgba, 4 bytes each)
-        - Scales: uint8[3] per point (log compressed, 3 bytes each)
-        - Rotations: uint8[3] per point (octahedral compressed, 3 bytes each)
-        - Alphas: uint8 per point (sigmoid compressed, 1 byte each)
+        Requires the 'spz' package (compiled from source via the SPZ installer).
+        PLY coordinate system is assumed RDF (Right-Down-Forward), which is the
+        standard output of Brush/COLMAP pipelines. The library converts internally
+        to its own storage format when writing.
+
+        No fallback: if 'spz' is not installed the export fails with a clear message.
         """
         output_file = output_dir / f"{input_file.stem}.spz"
-        
-        # Options
-        quantize_positions = opts.get('quantize_positions', False)
-        compression_level = opts.get('compression_level', 'normal')  # low, normal, high
-        include_sh = opts.get('include_sh', True)  # Spherical harmonics
 
         try:
-            # Try using plyfile first
-            try:
-                from plyfile import PlyData
-                ply = PlyData.read(str(input_file))
-                vertex = ply['vertex']
-                num_points = len(vertex)
+            import spz
+        except ImportError:
+            self.log(
+                "Erreur export SPZ: la bibliothèque 'spz' (nianticlabs/spz) n'est pas installée. "
+                "Relancez l'installateur de dépendances (setup_dependencies.py) pour la compiler."
+            )
+            return False
 
-                # Extract data
-                positions = []
-                colors = []
-                scales = []
-                rotations = []
-                alphas = []
+        try:
+            # load_splat_from_ply handles all PLY field mapping internally
+            # (positions, scales in log-space, rotations wxyz→internal, SH bands, etc.)
+            unpack_opts = spz.UnpackOptions()
+            cloud = spz.load_splat_from_ply(str(input_file), unpack_opts)
 
-                for i in range(num_points):
-                    data = vertex[i]
-                    # Positions (always present)
-                    positions.extend([float(data['x']), float(data['y']), float(data['z'])])
+            # PLY from Brush/COLMAP is in RDF (Right-Down-Forward = OpenCV convention)
+            pack_opts = spz.PackOptions()
+            pack_opts.from_coord = spz.CoordinateSystem.RDF
 
-                    # Colors (may not be present, default to gray)
-                    if 'red' in data.dtype.names:
-                        colors.extend([int(data['red']), int(data['green']), int(data['blue']), 255])
-                    elif 'diffuse_red' in data.dtype.names:
-                        colors.extend([int(data['diffuse_red']), int(data['diffuse_green']), int(data['diffuse_blue']), 255])
-                    else:
-                        colors.extend([128, 128, 128, 255])
+            ok = spz.save_spz(cloud, pack_opts, str(output_file))
+            if not ok:
+                self.log("Erreur export SPZ: save_spz a retourné False")
+                return False
 
-                    # Scales (may not be present, default to small)
-                    if 'scale_0' in data.dtype.names:
-                        s0 = max(0.001, float(data.get('scale_0', -2.0)))
-                        s1 = max(0.001, float(data.get('scale_1', -2.0)))
-                        s2 = max(0.001, float(data.get('scale_2', -2.0)))
-                        scales.extend(compress_scale(s0, s1, s2))
-                    else:
-                        scales.extend([0, 0, 0])
-
-                    # Rotations (quaternions) - may not be present
-                    if 'rot_0' in data.dtype.names:
-                        r0 = float(data.get('rot_0', 1.0))
-                        r1 = float(data.get('rot_1', 0.0))
-                        r2 = float(data.get('rot_2', 0.0))
-                        r3 = float(data.get('rot_3', 0.0))
-                        # Normalize quaternion
-                        norm = math.sqrt(r0*r0 + r1*r1 + r2*r2 + r3*r3)
-                        if norm > 0:
-                            r0, r1, r2, r3 = r0/norm, r1/norm, r2/norm, r3/norm
-                        rotations.extend(compress_rotation(r0, r1, r2, r3))
-                    else:
-                        rotations.extend([127, 127, 127])  # Identity rotation
-
-                    # Alphas (opacity) - may not be present, default to 1.0
-                    if 'opacity' in data.dtype.names:
-                        alpha = float(data['opacity'])
-                        alphas.append(compress_alpha(alpha))
-                    else:
-                        alphas.append(255)  # Fully opaque
-
-            except ImportError:
-                # Fallback: parse PLY manually
-                positions, colors, scales, rotations, alphas = parse_ply_manual(input_file)
-                num_points = len(positions) // 3
-
-            # Write SPZ file
-            with open(output_file, 'wb') as f:
-                write_spz_header(f, num_points)
-                write_spz_data(f, positions, colors, scales, rotations, alphas)
-
-            self.log(f"Exporté SPZ: {output_file} ({num_points} points)")
+            self.log(f"Exporté SPZ: {output_file} ({cloud.num_points} points)")
             return True
 
         except Exception as e:
             self.log(f"Erreur export SPZ: {e}")
             return False
-
-    # FIX(AUDIT): removed orphaned _parse_ply_manual block (l.496-618),
-    # now handled by ply_utils.parse_ply_manual() imported at top.
 
     def _convert_obj_to_glb(self, obj_file: Path, glb_file: Path) -> bool:
         """Convert OBJ to GLB using assimp or blender."""

@@ -17,11 +17,13 @@ This application provides a unified Graphical User Interface (GUI) to orchestrat
 2.  **Sparse Reconstruction**: Automates **COLMAP** feature extraction, matching, and mapping. Supports **Glomap** as a modern alternative mapper.
 3.  **Undistortion**: Automatically undistorts images for optimal training quality.
 4.  **AI Upscaling**: Optionally enhances input images before reconstruction using **upscayl-ncnn** — a fast NCNN-based upscaler with 6 curated models (Real-ESRGAN x4+, 4xLSDIR, 4xNomos8kSC, and more). Installed automatically at first launch.
-5.  **Training**: Integrates **Brush** to train Gaussian Splats directly on your Mac.
-6.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
-7.  **ML Sharp (Image/Video to 3D)**: Uses **Apple ML Sharp** to generate a 3D model from a single image or a sequence of 3D models directly from a video.
-8.  **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
-9.  **360 Extractor (Experimental)**: Converts equirectangular 360° videos into optimal planar image sets (Cube Map, Ring, etc.) for photogrammetry, with AI operator masking.
+5.  **Training**: Integrates **Brush** to train Gaussian Splats directly on your Mac. Optional post-training pipeline: automatically clean (PlyCleaner) and/or export (SPZ / GLB) the resulting `.ply` files without any extra steps.
+6.  **Cleaning**: Standalone **Nettoyage** tab to remove artifacts from any `.ply` file — transparent splats, oversized splats, spatial outliers — in single-file or batch mode. Three presets: Light / Medium / Strong.
+7.  **Format Conversion**: **SplatTransform** tab powered by [PlayCanvas `@playcanvas/splat-transform`](https://github.com/playcanvas/splat-transform) v2.7.1. Converts between PLY, SPZ, GLB, and CSV. Supports SH band reduction, point count decimation, NaN filtering, and Morton spatial reordering.
+8.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
+9.  **ML Sharp (Image/Video to 3D)**: Uses **Apple ML Sharp** to generate a 3D model from a single image or a sequence of 3D models directly from a video.
+10. **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
+11. **360 Extractor (Experimental)**: Converts equirectangular 360° videos into optimal planar image sets (Cube Map, Ring, etc.) for photogrammetry, with AI operator masking.
 
 It is designed to be "click-and-run", handling dependency checks, process management, and **session persistence** for you.
 It also includes built-in full localization support for **French, English, German, Italian, Spanish, Arabic, Russian, Chinese, and Japanese**.
@@ -73,11 +75,18 @@ It also includes built-in full localization support for **French, English, Germa
 4.  **Brush Tab**: 
     -   **Auto-Refine**: Choose "Refine" mode to resume training from the latest checkpoint.
     -   **Presets**: Use specific densification strategies (e.g., "Aggressive Densification").
+    -   **Post-training pipeline** (Entraînement tab → Options): check **"Nettoyer après"** and/or **"Exporter ensuite"** to automatically clean and/or convert your `.ply` files right after training — no extra steps needed.
     -   Click **"Start Brush Training"**.
-5.  **SuperSplat Tab**: 
+5.  **Nettoyage Tab**: Clean any `.ply` file independently from training.
+    -   Single-file or batch-directory mode.
+    -   Three presets: Light (conservative), Medium (standard), Strong (aggressive).
+6.  **SplatTransform Tab**: Convert `.ply` files to SPZ, GLB, or CSV.
+    -   Optional SH reduction, point decimation, NaN filtering, and Morton reordering.
+    -   Powered by PlayCanvas `@playcanvas/splat-transform` v2.7.1 — installed locally via npm.
+7.  **SuperSplat Tab**: 
     -   Load your trained `.ply` file.
     -   Click **"Start Servers"** to launch the viewer locally.
-6.  **4DGS Tab (Experimental)**:
+8.  **4DGS Tab (Experimental)**:
     -   Check **"Activate"** to install the required dependencies (Nerfstudio).
     -   Select a folder containing your synced camera videos.
     -   Click **"Start Process"** to generate a dataset ready for 4DGS training.
@@ -85,7 +94,7 @@ It also includes built-in full localization support for **French, English, Germa
     -   **Activate**: Install the dedicated environment (PySide6, YOLOv8).
     -   **Convert**: Extract images from 360° videos with advanced layouts (Ring, Cube Map, Fibonacci).
     -   **AI Masking**: Automatically mask the operator.
-8. **Apple Sharp Tab (Bonus)**:
+9. **Apple Sharp Tab (Bonus)**:
     -   Select a single source image or a **Video**.
     -   Click **"Predict 3D Model"** or **"Start Conversion"** to generate a mesh sequence using machine learning.
 
@@ -106,6 +115,8 @@ This project stands on the shoulders of giants. A huge thank you to the creators
 *   **Apple ML Sharp**: Machine Learning tools for Swift. [GitHub](https://github.com/apple/ml-sharp)
 *   **Nerfstudio**: The modular NeRF and Splatting framework (used for 4DGS data prep). [GitHub](https://github.com/nerfstudio-project/nerfstudio)
 *   **upscayl-ncnn**: High-performance AI image upscaling using NCNN. Powers the Upscale tab. [GitHub](https://github.com/upscayl/upscayl-ncnn)
+*   **PlayCanvas splat-transform**: Fast PLY ↔ SPZ ↔ GLB conversion CLI by PlayCanvas (MIT). Powers the SplatTransform tab. [GitHub](https://github.com/playcanvas/splat-transform)
+*   **nianticlabs/spz**: Official SPZ encoder/decoder by Niantic Labs (MIT). Powers the SPZ export in ExportEngine. [GitHub](https://github.com/nianticlabs/spz)
 
 ## 📄 License
 

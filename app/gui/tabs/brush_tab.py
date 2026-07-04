@@ -154,7 +154,7 @@ class BrushTab(QWidget):
         self.combo_preset.currentIndexChanged.connect(self.apply_preset)
         self.lbl_preset = QLabel(tr("brush_lbl_preset"))
         workflow_form.addRow(self.lbl_preset, self.combo_preset)
-        
+
         layout.addLayout(workflow_form)
         
         # 4. Manual Dataset Path (Visible only if Independent)
@@ -409,6 +409,7 @@ class BrushTab(QWidget):
             "ply_name": self.ply_name_edit.text(),
             "show_details": self.check_details.isChecked(),
             "build_mode": self.combo_build_mode.currentData(),
+
         }
         
     def set_params(self, params):
@@ -442,7 +443,7 @@ class BrushTab(QWidget):
         if "build_mode" in params:
             idx = self.combo_build_mode.findData(params["build_mode"])
             if idx >= 0: self.combo_build_mode.setCurrentIndex(idx)
-        
+
         # Manual paths
         if "input_path" in params: self.input_path.setText(params["input_path"])
         if "output_path" in params: self.output_path.setText(params["output_path"])
@@ -506,6 +507,7 @@ class BrushTab(QWidget):
         self.lbl_fraction.setText(tr("brush_lbl_fraction"))
         self.lbl_max_splats.setText(tr("brush_lbl_max_splats"))
         self.lbl_ckpt_interval.setText(tr("brush_lbl_ckpt_interval"))
+
 
     def get_state(self):
         return self.get_params()
