@@ -83,7 +83,13 @@ class LanguageManager:
                 logger.exception("Error notifying language observer: %s", cb)
 
     def tr(self, key, *args):
-        text = self._translations.get(key, key)
+        text = self._translations.get(key)
+        if text is None:
+            if args:
+                text = str(args[0])
+                args = args[1:]
+            else:
+                text = key
         if args:
             try:
                 text = text.format(*args)
