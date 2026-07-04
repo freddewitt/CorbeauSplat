@@ -1,9 +1,6 @@
-# CorbeauSplat v1.0.3
+# CorbeauSplat
 
 **CorbeauSplat** is an all-in-one Gaussian Splatting automation tool designed specifically for **macOS Silicon**. It streamlines the entire workflow from raw video/images to a fully trained and viewable 3D scene (Gaussian Splat).
-
-> 🎉 **v1.0.3 — Security & Stability Release**  
-> Full code audit with 7 fixes applied, 224 unit tests passing.
 
 <div align="center">
 
