@@ -303,7 +303,15 @@ def run_upscayl(input_path, output_path, params,
                 _log("⚠ Upscale interrompu par l'utilisateur.")
                 break
             _log(line.rstrip())
-        proc.wait()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _log("⚠ upscayl-bin ne répond pas après SIGTERM — envoi de SIGKILL.")
+            proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                _log("❌ Impossible de terminer upscayl-bin.")
         success = (proc.returncode == 0) and not (cancel_check and cancel_check())
         if proc.returncode != 0 and not (cancel_check and cancel_check()):
             _log(f"❌ upscayl-bin a retourné le code {proc.returncode}")
