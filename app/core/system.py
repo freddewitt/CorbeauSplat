@@ -98,10 +98,7 @@ def resolve_binary(name):
             return str(colmap_app)
             
     # 2. Chercher dans le PATH système
-    path = shutil.which(name)
-    if path and os.access(path, os.X_OK):
-        return path
-    return None
+    return shutil.which(name)
 
 def get_device() -> str:
     """Centralized device selection: mps, cuda, or cpu."""

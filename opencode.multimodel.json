@@ -1,0 +1,200 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "headroom/deepseek-v4-flash",
+  "small_model": "headroom/deepseek-v4-flash",
+  "default_agent": "orchestrator",
+  "provider": {
+    "mlx": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "MLX (local)",
+      "options": { "baseURL": "http://127.0.0.1:8000/v1" },
+      "models": {
+        "mlx-community/gemma-4-E4B-it-mxfp4": { "name": "Gemma 4 E4B" }
+      }
+    },
+    "headroom": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Headroom Proxy",
+      "options": { "baseURL": "http://127.0.0.1:8787/v1" },
+      "models": {
+        "deepseek-v4-flash": {
+          "name": "DeepSeek V4 Flash",
+          "family": "flash",
+          "cost": { "input": 0.15, "output": 0.60 }
+        },
+        "deepseek-pro": {
+          "name": "DeepSeek Pro",
+          "family": "deepseek",
+          "cost": { "input": 2.00, "output": 8.00 }
+        },
+        "kimi": {
+          "name": "Kimi",
+          "family": "kimi",
+          "cost": { "input": 1.00, "output": 4.00 }
+        },
+        "glm-5.2": {
+          "name": "GLM-5.2",
+          "family": "glm",
+          "cost": { "input": 5.00, "output": 20.00 }
+        },
+        "mimo-v2.5-pro": {
+          "name": "MiMo V2.5 Pro",
+          "family": "mimo",
+          "cost": { "input": 4.00, "output": 16.00 }
+        }
+      }
+    },
+    "deepseek": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "DeepSeek (direct)",
+      "env": ["DEEPSEEK_API_KEY"],
+      "options": {
+        "baseURL": "https://api.deepseek.com/v1",
+        "apiKey": "$DEEPSEEK_API_KEY"
+      },
+      "models": {
+        "deepseek-chat": { "name": "DeepSeek Pro V4", "family": "deepseek" },
+        "deepseek-reasoner": { "name": "DeepSeek Reasoner", "family": "deepseek" }
+      }
+    },
+    "kimi": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Kimi (Moonshot AI)",
+      "env": ["KIMI_API_KEY"],
+      "options": {
+        "baseURL": "https://api.moonshot.cn/v1",
+        "apiKey": "$KIMI_API_KEY"
+      },
+      "models": {
+        "kimi-vision": { "name": "Kimi Vision", "family": "kimi" }
+      }
+    },
+    "glm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "GLM (Zhipu AI)",
+      "env": ["GLM_API_KEY"],
+      "options": {
+        "baseURL": "https://open.bigmodel.cn/api/paas/v4",
+        "apiKey": "$GLM_API_KEY"
+      },
+      "models": {
+        "glm-5.2-flash": { "name": "GLM-5.2 Flash", "family": "glm" },
+        "glm-5.2-pro": { "name": "GLM-5.2 Pro", "family": "glm" }
+      }
+    }
+  },
+  "agent": {
+    "orchestrator": {
+      "model": "headroom/deepseek-v4-flash",
+      "mode": "primary",
+      "description": "Orchestrateur multi-agent — route les tâches, ne code pas",
+      "color": "primary"
+    },
+    "build": {
+      "model": "headroom/deepseek-v4-flash",
+      "mode": "primary",
+      "description": "Agent de codage principal (fallback)"
+    },
+    "plan": {
+      "model": "headroom/deepseek-pro",
+      "mode": "primary",
+      "description": "Agent de planification architecturale"
+    },
+    "explore": {
+      "model": "headroom/deepseek-v4-flash",
+      "mode": "primary",
+      "description": "Exploration rapide du codebase"
+    },
+    "general": {
+      "model": "headroom/kimi",
+      "mode": "primary",
+      "description": "Agent généraliste polyvalent"
+    },
+    "title": {
+      "model": "headroom/deepseek-v4-flash",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Génération de titres (tâches légères)"
+    },
+    "summary": {
+      "model": "headroom/deepseek-v4-flash",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Résumé de session"
+    },
+    "compaction": {
+      "model": "headroom/kimi",
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Compaction intelligente du contexte"
+    },
+    "chercheur": {
+      "model": "headroom/deepseek-v4-flash",
+      "mode": "subagent",
+      "hidden": true,
+      "steps": 3,
+      "description": "Recherche rapide dans le codebase — réponses en 3 phrases max"
+    },
+    "testeur": {
+      "model": "headroom/deepseek-v4-flash",
+      "mode": "subagent",
+      "hidden": true,
+      "steps": 5,
+      "description": "Écriture et exécution de tests"
+    },
+    "optimiseur": {
+      "model": "headroom/deepseek-v4-flash",
+      "mode": "subagent",
+      "hidden": true,
+      "steps": 8,
+      "description": "Corrections ciblées post-audit"
+    },
+    "archiviste": {
+      "model": "headroom/deepseek-v4-flash",
+      "mode": "subagent",
+      "hidden": true,
+      "steps": 3,
+      "description": "Journalisation de session (journal.md / jsonl) — ne touche pas au code"
+    },
+    "chercheur-approfondi": {
+      "model": "headroom/kimi",
+      "mode": "subagent",
+      "hidden": true,
+      "steps": 10,
+      "description": "Recherche complexe — nouvelles features, alternatives architecturales"
+    },
+    "integrateur": {
+      "model": "headroom/deepseek-pro",
+      "mode": "subagent",
+      "hidden": true,
+      "steps": 10,
+      "description": "Ajout de fonctionnalités en suivant les patterns existants"
+    },
+    "auditeur": {
+      "model": "headroom/glm-5.2",
+      "mode": "subagent",
+      "hidden": true,
+      "steps": 12,
+      "description": "Audit complet du code — sécurité, performance, architecture"
+    },
+    "refonteur": {
+      "model": "headroom/mimo-v2.5-pro",
+      "mode": "subagent",
+      "hidden": true,
+      "steps": 15,
+      "description": "Refonte architecturale lourde — migration de modules"
+    }
+  },
+  "mcp": {
+    "headroom": {
+      "type": "local",
+      "command": ["/opt/homebrew/Caskroom/miniconda/base/bin/headroom", "mcp", "serve"],
+      "enabled": true
+    },
+    "serena": {
+      "type": "local",
+      "command": ["uvx", "--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--project-from-cwd", "--context", "agent", "--open-web-dashboard", "False"],
+      "enabled": true
+    }
+  }
+}

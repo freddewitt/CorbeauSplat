@@ -138,6 +138,8 @@ class TestBuildCommand:
         params.single_camera = True
         params.max_image_size = 3200
         params.max_num_features = 8192
+        params.feature_type = "SIFT"
+        params.matching_type = "SIFT_BRUTEFORCE"
         params.estimate_affine_shape = False
         params.domain_size_pooling = False
         params.matcher_type = "sequential"
@@ -170,6 +172,8 @@ class TestBuildCommand:
         from app.core.engine import ColmapEngine
 
         params = MagicMock()
+        params.matching_type = "SIFT_BRUTEFORCE"
+        params.feature_type = "SIFT"
         params.matcher_type = "sequential"
         params.max_ratio = 0.8
         params.max_distance = 0.7
@@ -199,6 +203,8 @@ class TestBuildCommand:
         from app.core.engine import ColmapEngine
 
         params = MagicMock()
+        params.matching_type = "SIFT_BRUTEFORCE"
+        params.feature_type = "SIFT"
         params.matcher_type = "exhaustive"
         params.max_ratio = 0.8
         params.max_distance = 0.7
@@ -563,3 +569,209 @@ class TestSelectBlurryFiles:
         scores.update({f"s{i}": 100.0 for i in range(7)})
         rejected, _ = select_blurry_files(scores, 0.7, max_remove_frac=0.1)
         assert rejected == ["a"]  # cap = int(10 * 0.1) = 1, blurriest kept
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ALIKED / LightGlue integration tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestAlikedLightGlue:
+    """Tests pour les features ALIKED et le matching LightGlue."""
+
+    @patch("app.core.engine.resolve_binary")
+    @patch("app.core.engine.is_apple_silicon")
+    def test_feature_extraction_aliked(self, mock_silicon, mock_resolve_binary, tmp_path):
+        """ALIKED feature_extraction utilise --FeatureExtraction.type et --AlikedExtraction.*."""
+        mock_silicon.return_value = False
+        mock_resolve_binary.side_effect = lambda x: x
+
+        from app.core.engine import ColmapEngine
+
+        params = MagicMock()
+        params.camera_model = "SIMPLE_RADIAL"
+        params.single_camera = True
+        params.max_image_size = 3200
+        params.max_num_features = 8192
+        params.feature_type = "ALIKED_N16ROT"
+        params.matching_type = "ALIKED_BRUTEFORCE"
+        params.estimate_affine_shape = False
+        params.domain_size_pooling = False
+        params.matcher_type = "exhaustive"
+
+        engine = ColmapEngine(
+            params, str(tmp_path / "input"), str(tmp_path / "output"),
+            "images", 5, logger_callback=print
+        )
+
+        with patch.object(engine, '_write_sorted_image_list', return_value=None):
+            with patch.object(engine, 'run_command', return_value=True) as mock_run:
+                engine.feature_extraction(
+                    str(tmp_path / "database.db"),
+                    str(tmp_path / "images"),
+                )
+                cmd = mock_run.call_args[0][0]
+                assert "--FeatureExtraction.type" in cmd
+                assert "ALIKED_N16ROT" in cmd
+                assert "--AlikedExtraction.max_num_features" in cmd
+                assert "--SiftExtraction.max_num_features" not in cmd
+                assert "--SiftExtraction.estimate_affine_shape" not in cmd
+
+    @patch("app.core.engine.resolve_binary")
+    @patch("app.core.engine.is_apple_silicon")
+    def test_feature_extraction_sift_preserved(self, mock_silicon, mock_resolve_binary, tmp_path):
+        """SIFT reste par défaut et utilise les flags SiftExtraction.*."""
+        mock_silicon.return_value = False
+        mock_resolve_binary.side_effect = lambda x: x
+
+        from app.core.engine import ColmapEngine
+
+        params = MagicMock()
+        params.camera_model = "SIMPLE_RADIAL"
+        params.single_camera = True
+        params.max_image_size = 3200
+        params.max_num_features = 8192
+        params.feature_type = "SIFT"
+        params.matching_type = "SIFT_BRUTEFORCE"
+        params.estimate_affine_shape = True
+        params.domain_size_pooling = True
+        params.matcher_type = "exhaustive"
+
+        engine = ColmapEngine(
+            params, str(tmp_path / "input"), str(tmp_path / "output"),
+            "images", 5, logger_callback=print
+        )
+
+        with patch.object(engine, '_write_sorted_image_list', return_value=None):
+            with patch.object(engine, 'run_command', return_value=True) as mock_run:
+                engine.feature_extraction(
+                    str(tmp_path / "database.db"),
+                    str(tmp_path / "images"),
+                )
+                cmd = mock_run.call_args[0][0]
+                assert "--FeatureExtraction.type" in cmd
+                assert "SIFT" in cmd
+                assert "--SiftExtraction.max_num_features" in cmd
+                assert "--SiftExtraction.estimate_affine_shape" in cmd
+                assert "--SiftExtraction.domain_size_pooling" in cmd
+                assert "--AlikedExtraction.max_num_features" not in cmd
+
+    @patch("app.core.engine.resolve_binary")
+    @patch("app.core.engine.is_apple_silicon")
+    def test_matching_aliked_lightglue(self, mock_silicon, mock_resolve_binary, tmp_path):
+        """ALIKED + LightGlue match combiné."""
+        mock_silicon.return_value = False
+        mock_resolve_binary.side_effect = lambda x: x
+
+        from app.core.engine import ColmapEngine
+
+        params = MagicMock()
+        params.matching_type = "ALIKED_LIGHTGLUE"
+        params.feature_type = "ALIKED_N16ROT"
+        params.matcher_type = "exhaustive"
+        params.max_ratio = 0.8
+        params.max_distance = 0.7
+        params.cross_check = True
+        params.guided_matching = False
+        params.sequential_overlap = 10
+
+        engine = ColmapEngine(
+            params, str(tmp_path / "input"), str(tmp_path / "output"),
+            "images", 5, logger_callback=print
+        )
+
+        with patch.object(engine, 'run_command', return_value=True) as mock_run:
+            engine.feature_matching(str(tmp_path / "database.db"))
+            cmd = mock_run.call_args[0][0]
+            assert "--FeatureMatching.type" in cmd
+            assert "ALIKED_LIGHTGLUE" in cmd
+            # LightGlue ne prend pas les flags SiftMatching.*
+            assert "--SiftMatching.max_ratio" not in cmd
+
+    @patch("app.core.engine.resolve_binary")
+    @patch("app.core.engine.is_apple_silicon")
+    def test_matching_aliked_bruteforce_min_cossim(self, mock_silicon, mock_resolve_binary, tmp_path):
+        """ALIKED + bruteforce ajoute --AlikedMatching.min_cossim."""
+        mock_silicon.return_value = False
+        mock_resolve_binary.side_effect = lambda x: x
+
+        from app.core.engine import ColmapEngine
+
+        params = MagicMock()
+        params.matching_type = "ALIKED_BRUTEFORCE"
+        params.feature_type = "ALIKED_N32"
+        params.matcher_type = "exhaustive"
+        params.max_ratio = 0.8
+        params.max_distance = 0.7
+        params.cross_check = True
+        params.guided_matching = False
+
+        engine = ColmapEngine(
+            params, str(tmp_path / "input"), str(tmp_path / "output"),
+            "images", 5, logger_callback=print
+        )
+
+        with patch.object(engine, 'run_command', return_value=True) as mock_run:
+            engine.feature_matching(str(tmp_path / "database.db"))
+            cmd = mock_run.call_args[0][0]
+            assert "--FeatureMatching.type" in cmd
+            assert "ALIKED_BRUTEFORCE" in cmd
+            assert "--AlikedMatching.min_cossim" in cmd
+
+    @patch("app.core.engine.resolve_binary")
+    @patch("app.core.engine.is_apple_silicon")
+    def test_matching_sift_lightglue(self, mock_silicon, mock_resolve_binary, tmp_path):
+        """SIFT + LightGlue est supporté."""
+        mock_silicon.return_value = False
+        mock_resolve_binary.side_effect = lambda x: x
+
+        from app.core.engine import ColmapEngine
+
+        params = MagicMock()
+        params.matching_type = "SIFT_LIGHTGLUE"
+        params.feature_type = "SIFT"
+        params.matcher_type = "sequential"
+        params.max_ratio = 0.8
+        params.max_distance = 0.7
+        params.cross_check = True
+        params.guided_matching = False
+        params.sequential_overlap = 10
+
+        engine = ColmapEngine(
+            params, str(tmp_path / "input"), str(tmp_path / "output"),
+            "images", 5, logger_callback=print
+        )
+
+        with patch.object(engine, 'run_command', return_value=True) as mock_run:
+            engine.feature_matching(str(tmp_path / "database.db"))
+            cmd = mock_run.call_args[0][0]
+            assert "sequential_matcher" in cmd
+            assert "--FeatureMatching.type" in cmd
+            assert "SIFT_LIGHTGLUE" in cmd
+            # SIFT + LightGlue: pas de flags SiftMatching.*
+            assert "--SiftMatching.max_ratio" not in cmd
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tests pour app/cli/commands.py — _resolve_matching_type
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestResolveMatchingType:
+    """Tests pour _resolve_matching_type()."""
+
+    def test_explicit_match_type_is_returned(self):
+        from app.cli.commands import _resolve_matching_type
+        assert _resolve_matching_type("SIFT", "SIFT_LIGHTGLUE") == "SIFT_LIGHTGLUE"
+        assert _resolve_matching_type("ALIKED_N16ROT", "ALIKED_LIGHTGLUE") == "ALIKED_LIGHTGLUE"
+
+    def test_default_for_sift(self):
+        from app.cli.commands import _resolve_matching_type
+        assert _resolve_matching_type("SIFT", None) == "SIFT_BRUTEFORCE"
+
+    def test_default_for_aliked(self):
+        from app.cli.commands import _resolve_matching_type
+        assert _resolve_matching_type("ALIKED_N16ROT", None) == "ALIKED_BRUTEFORCE"
+        assert _resolve_matching_type("ALIKED_N32", None) == "ALIKED_BRUTEFORCE"
+
+    def test_unknown_feature_type_falls_back(self):
+        from app.cli.commands import _resolve_matching_type
+        assert _resolve_matching_type("UNKNOWN_FEATURE", None) == "SIFT_BRUTEFORCE"

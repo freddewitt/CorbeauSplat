@@ -37,6 +37,8 @@
     "check_force_cpu": "Принудительно CPU:",
     "check_affine": "Аффинная форма:",
     "check_domain": "Пул доменов:",
+    "lbl_feature_type": "Тип признаков:",
+    "lbl_matching_algo": "Алгоритм сопоставления:",
     "group_match": "Сопоставление признаков",
     "lbl_match_type": "Тип сопоставления:",
     "lbl_max_ratio": "Макс. соотношение:",

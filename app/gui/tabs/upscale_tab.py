@@ -376,13 +376,9 @@ class UpscaleTab(QWidget):
 
     def _on_test_done(self, success: bool, result: str):
         self.btn_test.setEnabled(True)
-        if success and result:
-            result_path = Path(result).resolve()
-            if result_path.exists() and not str(result).startswith("-"):
-                self.lbl_test_result.setText("✅ Terminé.")
-                subprocess.Popen(["open", str(result_path)])
-            else:
-                self.lbl_test_result.setText(f"❌ Résultat introuvable: {result}")
+        if success:
+            self.lbl_test_result.setText("✅ Terminé.")
+            subprocess.Popen(["open", result])
         else:
             self.lbl_test_result.setText(f"❌ {result}")
 

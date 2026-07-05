@@ -6,7 +6,7 @@ import time
 from pathlib import Path as _Path
 
 from app.core.i18n import tr
-from app.core.params import ColmapParams
+from app.core.params import ColmapParams, FEATURE_TO_DEFAULT_MATCHING
 from app.core.engine import ColmapEngine
 from app.core.brush_engine import BrushEngine
 from app.core.sharp_engine import SharpEngine
@@ -71,12 +71,23 @@ def _blur_factor_from_strength(strength: str) -> float:
     return {"light": 0.5, "medium": 0.7, "strong": 0.9}.get(strength, 0.7)
 
 
+def _resolve_matching_type(feature_type: str, matching_type: str | None) -> str:
+    """Retourne le matching type : explicite ou défaut selon le feature type."""
+    if matching_type:
+        return matching_type
+    return FEATURE_TO_DEFAULT_MATCHING.get(feature_type, 'SIFT_BRUTEFORCE')
+
+
 def run_colmap(args):
+    feat_type = getattr(args, 'feature_type', 'SIFT')
+    match_type = _resolve_matching_type(feat_type, getattr(args, 'matching_type', None))
     params = ColmapParams(
         camera_model=args.camera_model,
         single_camera=not args.no_single_camera,
         max_image_size=args.max_image_size,
         max_num_features=args.max_num_features,
+        feature_type=feat_type,
+        matching_type=match_type,
         estimate_affine_shape=args.estimate_affine_shape,
         domain_size_pooling=not args.no_domain_size_pooling,
         max_ratio=args.max_ratio,
@@ -557,8 +568,12 @@ def run_pipeline(args):
     if args.type == "video":
         print(f"  FPS         : {args.fps}")
 
+    feat_type = getattr(args, 'feature_type', 'SIFT')
+    match_type = _resolve_matching_type(feat_type, getattr(args, 'matching_type', None))
     colmap_params = ColmapParams(
         camera_model=args.camera_model,
+        feature_type=feat_type,
+        matching_type=match_type,
         matcher_type=args.matcher_type,
         max_image_size=args.max_image_size,
         undistort_images=args.undistort,

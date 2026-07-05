@@ -47,6 +47,8 @@
     "check_force_cpu": "Forcer CPU :",
     "check_affine": "Affine shape :",
     "check_domain": "Domain pooling :",
+    "lbl_feature_type": "Type de features :",
+    "lbl_matching_algo": "Algorithme de matching :",
     "group_match": "Feature Matching",
     "lbl_match_type": "Type de matching :",
     "lbl_max_ratio": "Max ratio :",

@@ -37,6 +37,8 @@
     "check_force_cpu": "强制使用 CPU:",
     "check_affine": "仿射形状:",
     "check_domain": "域池化:",
+    "lbl_feature_type": "特征类型:",
+    "lbl_matching_algo": "匹配算法:",
     "group_match": "特征匹配",
     "lbl_match_type": "匹配类型:",
     "lbl_max_ratio": "最大比率:",

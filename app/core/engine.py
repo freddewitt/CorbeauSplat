@@ -317,10 +317,7 @@ class ColmapEngine(BaseEngine):
         # recent COLMAP versions. Convert the database to DELETE mode before
         # handing it off to GLOMAP.
         if self.params.use_glomap:
-            try:
-                self._convert_db_journal_mode(database_path)
-            except Exception:
-                return False, "Échec conversion base de données pour GLOMAP"
+            self._convert_db_journal_mode(database_path)
 
         self.status(tr("status_reconstruction", "Création de la scène 3D..."))
         if not self.mapper(str(database_path), str(images_dir), str(sparse_dir)):
@@ -446,23 +443,16 @@ class ColmapEngine(BaseEngine):
         rollback-journal mode before GLOMAP reads the file.
         """
         try:
-            con = sqlite3.connect(str(database_path))
-            try:
-                # wal_checkpoint(TRUNCATE) must come BEFORE journal_mode=DELETE
-                # to properly flush WAL frames back into the main database file.
-                con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            with sqlite3.connect(str(database_path)) as con:
                 con.execute("PRAGMA journal_mode=DELETE")
-            finally:
-                con.close()
+                con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             for wal_file in [database_path.parent / (database_path.name + "-wal"),
                              database_path.parent / (database_path.name + "-shm")]:
                 if wal_file.exists():
                     wal_file.unlink()
             self.log("Base de données convertie (WAL → DELETE) pour compatibilité GLOMAP.")
         except Exception as e:
-            self.log(f"ERREUR : conversion journal mode échouée : {e}")
-            self.logger.error("Failed to convert database journal mode for GLOMAP", exc_info=True)
-            raise
+            self.log(f"Avertissement : conversion journal mode échouée : {e}")
 
     def _run_upscale(self, project_dir: Path, images_dir: Path) -> bool:
         """Gère l'upscaling via upscayl-bin."""
@@ -673,8 +663,9 @@ class ColmapEngine(BaseEngine):
             return False
 
     def feature_extraction(self, database_path: str, images_dir: str) -> bool:
-        """Exécute l'extraction des features SIFT."""
+        """Exécute l'extraction des features (SIFT ou ALIKED)."""
         image_list_path = self._write_sorted_image_list(images_dir)
+        feat_type = getattr(self.params, 'feature_type', 'SIFT')
         cmd = [
             self.colmap_bin, 'feature_extractor',
             '--database_path', database_path,
@@ -683,13 +674,21 @@ class ColmapEngine(BaseEngine):
             '--ImageReader.single_camera', '1' if self.params.single_camera else '0',
             '--FeatureExtraction.num_threads', str(self.num_threads),
             '--FeatureExtraction.max_image_size', str(self.params.max_image_size),
-            '--SiftExtraction.max_num_features', str(self.params.max_num_features),
-            '--SiftExtraction.estimate_affine_shape', '1' if self.params.estimate_affine_shape else '0',
-            '--SiftExtraction.domain_size_pooling', '1' if self.params.domain_size_pooling else '0',
+            '--FeatureExtraction.type', feat_type,
         ]
+        if feat_type == 'SIFT':
+            cmd.extend([
+                '--SiftExtraction.max_num_features', str(self.params.max_num_features),
+                '--SiftExtraction.estimate_affine_shape', '1' if self.params.estimate_affine_shape else '0',
+                '--SiftExtraction.domain_size_pooling', '1' if self.params.domain_size_pooling else '0',
+            ])
+        else:
+            cmd.extend([
+                '--AlikedExtraction.max_num_features', str(self.params.max_num_features),
+            ])
         if image_list_path:
             cmd.extend(['--image_list_path', str(image_list_path)])
-        return self.run_command(cmd, "Extraction des features", status_prefix="Analyse")
+        return self.run_command(cmd, f"Extraction des features ({feat_type})", status_prefix="Analyse")
 
     def _write_sorted_image_list(self, images_dir: str) -> Optional[Path]:
         """Write a deterministic COLMAP image list so sequential matching follows frame order."""
@@ -721,9 +720,9 @@ class ColmapEngine(BaseEngine):
             ("frame_data", "data_id"),
             ("pose_priors", "corr_data_id"),
         }
+
         try:
-            con = sqlite3.connect(str(database_path))
-            try:
+            with sqlite3.connect(str(database_path)) as con:
                 rows = con.execute(
                     "SELECT image_id, name FROM images ORDER BY name"
                 ).fetchall()
@@ -740,7 +739,6 @@ class ColmapEngine(BaseEngine):
                     "INSERT INTO image_id_map(old_id, new_id) VALUES (?, ?)",
                     id_map.items(),
                 )
-
                 table_columns = {
                     table_name: {
                         column[1]
@@ -795,37 +793,47 @@ class ColmapEngine(BaseEngine):
                 )
                 con.commit()
                 self.log(f"Base COLMAP retriee pour matching sequentiel: {len(rows)} images")
-            finally:
-                con.close()
         except Exception as e:
             self.log(f"Avertissement: tri de la base COLMAP echoue: {e}")
 
     def feature_matching(self, database_path: str) -> bool:
-        """Exécute le matching des features."""
+        """Exécute le matching des features (bruteforce ou LightGlue)."""
+        match_type = getattr(self.params, 'matching_type', 'SIFT_BRUTEFORCE')
+        feat_type = getattr(self.params, 'feature_type', 'SIFT')
+
         if self.params.matcher_type == 'sequential':
             cmd = [
                 self.colmap_bin, 'sequential_matcher',
                 '--database_path', database_path,
                 '--FeatureMatching.num_threads', str(self.num_threads),
-                '--SiftMatching.max_ratio', str(self.params.max_ratio),
-                '--SiftMatching.max_distance', str(self.params.max_distance),
-                '--SiftMatching.cross_check', '1' if self.params.cross_check else '0',
+                '--FeatureMatching.type', match_type,
                 '--FeatureMatching.guided_matching', '1' if self.params.guided_matching else '0',
                 '--SequentialMatching.overlap', str(self.params.sequential_overlap),
                 '--SequentialMatching.quadratic_overlap', '1',
             ]
-            description = "Matching Sequentiel"
+            description = f"Matching Sequentiel ({match_type})"
         else:
             cmd = [
                 self.colmap_bin, 'exhaustive_matcher',
                 '--database_path', database_path,
                 '--FeatureMatching.num_threads', str(self.num_threads),
+                '--FeatureMatching.type', match_type,
+                '--FeatureMatching.guided_matching', '1' if self.params.guided_matching else '0',
+            ]
+            description = f"Matching Exhaustif ({match_type})"
+
+        # Add algo-specific matching flags
+        if match_type == 'SIFT_BRUTEFORCE':
+            cmd.extend([
                 '--SiftMatching.max_ratio', str(self.params.max_ratio),
                 '--SiftMatching.max_distance', str(self.params.max_distance),
                 '--SiftMatching.cross_check', '1' if self.params.cross_check else '0',
-                '--FeatureMatching.guided_matching', '1' if self.params.guided_matching else '0',
-            ]
-            description = "Matching Exhaustif"
+            ])
+        elif feat_type.startswith('ALIKED'):
+            cmd.extend([
+                '--AlikedMatching.min_cossim', '0.85',
+            ])
+        # LightGlue types carry their own matching — no extra flags needed
             
         return self.run_command(cmd, description, status_prefix="Comparaison")
 

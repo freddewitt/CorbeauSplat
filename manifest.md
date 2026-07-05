@@ -213,3 +213,15 @@ Input (Video/Images)
 `pipeline`, `colmap`, `brush`, `sharp`, `view`, `upscale`, `4dgs`, `extract360`, `clean`
 
 Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
+
+## RESTE À FAIRE (priorisé)
+
+1. **Worker QThread pour ExportTab** — l'export synchrone freeze l'UI sur les gros batches
+2. **Tests d'intégration end-to-end** — tous les 224+ tests sont unitaires (mock subprocess)
+3. **Tests workers en CI headless** — `test_workers.py` skip PyQt6, pas de couverture CI
+4. **Mise à jour pyproject.toml** — version indique encore 1.0.5 (code réel: 1.1.0)
+5. **Migration glomap standalone → `colmap global_mapper`** — COLMAP 4.0 a intégré GLOMAP ; le binaire séparé n'est plus maintenu, et le hack WAL→DELETE deviendra inutile
+
+## Graphify
+
+Un graphe de connaissance est maintenu dans `graphify-out/`. Pour toute question d'architecture : `graphify query "<question>"`. Dernière reconstruction : 1649 nœuds, 3139 arêtes, 110 communautés (2026-07-05).

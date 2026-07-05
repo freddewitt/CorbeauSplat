@@ -1,5 +1,20 @@
 from dataclasses import dataclass, asdict, fields
 
+FEATURE_TYPES = ['SIFT', 'ALIKED_N16ROT', 'ALIKED_N32']
+MATCHING_TYPES = ['SIFT_BRUTEFORCE', 'ALIKED_BRUTEFORCE', 'SIFT_LIGHTGLUE', 'ALIKED_LIGHTGLUE']
+
+FEATURE_TO_DEFAULT_MATCHING = {
+    'SIFT': 'SIFT_BRUTEFORCE',
+    'ALIKED_N16ROT': 'ALIKED_BRUTEFORCE',
+    'ALIKED_N32': 'ALIKED_BRUTEFORCE',
+}
+
+COMPATIBLE_MATCHING = {
+    'SIFT': ['SIFT_BRUTEFORCE', 'SIFT_LIGHTGLUE'],
+    'ALIKED_N16ROT': ['ALIKED_BRUTEFORCE', 'ALIKED_LIGHTGLUE'],
+    'ALIKED_N32': ['ALIKED_BRUTEFORCE', 'ALIKED_LIGHTGLUE'],
+}
+
 @dataclass
 class ColmapParams:
     """Structure de données pour les paramètres COLMAP"""
@@ -7,6 +22,8 @@ class ColmapParams:
     single_camera: bool = True
     max_image_size: int = 3200
     max_num_features: int = 8192
+    feature_type: str = 'SIFT'
+    matching_type: str = 'SIFT_BRUTEFORCE'
     force_cpu: bool = False
     estimate_affine_shape: bool = False
     domain_size_pooling: bool = True

@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QScrollArea, QGroupBox, QFormLayout, 
     QComboBox, QCheckBox, QSpinBox, QDoubleSpinBox
 )
-from app.core.params import ColmapParams
+from app.core.params import ColmapParams, FEATURE_TYPES, MATCHING_TYPES, FEATURE_TO_DEFAULT_MATCHING, COMPATIBLE_MATCHING
 from app.core.system import is_apple_silicon, get_optimal_threads
 from app.core.i18n import tr, add_language_observer
 
@@ -72,6 +72,14 @@ class ParamsTab(QWidget):
         self.domain_pooling_check.setChecked(True)
         self.lbl_domain = QLabel(tr("check_domain"))
         extract_layout.addRow(self.lbl_domain, self.domain_pooling_check)
+
+        self.feature_type_combo = QComboBox()
+        self.feature_type_combo.addItems(FEATURE_TYPES)
+        self.feature_type_combo.setCurrentText('SIFT')
+        self.feature_type_combo.setMinimumWidth(150)
+        self.lbl_feature_type = QLabel(tr("lbl_feature_type"))
+        extract_layout.addRow(self.lbl_feature_type, self.feature_type_combo)
+        self.feature_type_combo.currentTextChanged.connect(self._on_feature_type_changed)
         
         self.extract_group.setLayout(extract_layout)
         scroll_layout.addWidget(self.extract_group)
@@ -86,7 +94,14 @@ class ParamsTab(QWidget):
         self.matcher_type_combo.setMinimumWidth(150)
         self.lbl_match_type = QLabel(tr("lbl_match_type"))
         match_layout.addRow(self.lbl_match_type, self.matcher_type_combo)
-        
+
+        self.matching_algo_combo = QComboBox()
+        self.matching_algo_combo.addItems(MATCHING_TYPES)
+        self.matching_algo_combo.setCurrentText('SIFT_BRUTEFORCE')
+        self.matching_algo_combo.setMinimumWidth(180)
+        self.lbl_matching_algo = QLabel(tr("lbl_matching_algo"))
+        match_layout.addRow(self.lbl_matching_algo, self.matching_algo_combo)
+
         self.max_ratio_spin = QDoubleSpinBox()
         self.max_ratio_spin.setRange(0.1, 1.0)
         self.max_ratio_spin.setSingleStep(0.1)
@@ -164,6 +179,15 @@ class ParamsTab(QWidget):
         scroll.setWidget(scroll_widget)
         layout.addWidget(scroll)
 
+    def _on_feature_type_changed(self, feat_type: str):
+        compatible = COMPATIBLE_MATCHING.get(feat_type, ['SIFT_BRUTEFORCE'])
+        self.matching_algo_combo.clear()
+        self.matching_algo_combo.addItems(compatible)
+        current = self.matching_algo_combo.currentText()
+        default = FEATURE_TO_DEFAULT_MATCHING.get(feat_type, 'SIFT_BRUTEFORCE')
+        if current not in compatible:
+            self.matching_algo_combo.setCurrentText(default)
+
     def get_params(self):
         """Récupère les paramètres actuels"""
         return ColmapParams(
@@ -171,6 +195,8 @@ class ParamsTab(QWidget):
             single_camera=self.single_camera_check.isChecked(),
             max_image_size=self.max_image_spin.value(),
             max_num_features=self.max_features_spin.value(),
+            feature_type=self.feature_type_combo.currentText(),
+            matching_type=self.matching_algo_combo.currentText(),
             force_cpu=self.force_cpu_check.isChecked(),
             estimate_affine_shape=self.estimate_affine_check.isChecked(),
             domain_size_pooling=self.domain_pooling_check.isChecked(),
@@ -195,6 +221,12 @@ class ParamsTab(QWidget):
         self.single_camera_check.setChecked(params.single_camera)
         self.max_image_spin.setValue(params.max_image_size)
         self.max_features_spin.setValue(params.max_num_features)
+        feat_type = getattr(params, 'feature_type', 'SIFT')
+        self.feature_type_combo.setCurrentText(feat_type)
+        self._on_feature_type_changed(feat_type)
+        match_type = getattr(params, 'matching_type', 'SIFT_BRUTEFORCE')
+        if match_type in COMPATIBLE_MATCHING.get(feat_type, []):
+            self.matching_algo_combo.setCurrentText(match_type)
         self.force_cpu_check.setChecked(params.force_cpu)
         self.estimate_affine_check.setChecked(params.estimate_affine_shape)
         self.domain_pooling_check.setChecked(params.domain_size_pooling)
@@ -230,9 +262,11 @@ class ParamsTab(QWidget):
         self.lbl_force_cpu.setText(tr("check_force_cpu"))
         self.lbl_affine.setText(tr("check_affine"))
         self.lbl_domain.setText(tr("check_domain"))
+        self.lbl_feature_type.setText(tr("lbl_feature_type"))
         
         self.match_group.setTitle(tr("group_match"))
         self.lbl_match_type.setText(tr("lbl_match_type"))
+        self.lbl_matching_algo.setText(tr("lbl_matching_algo"))
         self.lbl_max_ratio.setText(tr("lbl_max_ratio"))
         self.lbl_max_dist.setText(tr("lbl_max_dist"))
         self.lbl_cross.setText(tr("check_cross"))

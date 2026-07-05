@@ -37,6 +37,8 @@
     "check_force_cpu": "CPUを強制:",
     "check_affine": "アフィン形状:",
     "check_domain": "ドメインプーリング:",
+    "lbl_feature_type": "特徴タイプ:",
+    "lbl_matching_algo": "マッチングアルゴリズム:",
     "group_match": "特徴マッチング",
     "lbl_match_type": "マッチングタイプ:",
     "lbl_max_ratio": "最大比率:",

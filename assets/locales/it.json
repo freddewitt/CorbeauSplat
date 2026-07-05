@@ -37,6 +37,8 @@
     "check_force_cpu": "Forza CPU:",
     "check_affine": "Affine Shape:",
     "check_domain": "Domain Pooling:",
+    "lbl_feature_type": "Tipo di Feature:",
+    "lbl_matching_algo": "Algoritmo di Matching:",
     "group_match": "Matching Feature",
     "lbl_match_type": "Tipo di Matching:",
     "lbl_max_ratio": "Rapporto Max:",
