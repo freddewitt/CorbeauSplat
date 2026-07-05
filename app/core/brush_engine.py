@@ -1,5 +1,6 @@
 import os
 import logging
+import shlex
 from pathlib import Path
 from typing import Optional, Dict, Any, Callable, List, Tuple
 
@@ -88,18 +89,60 @@ class BrushEngine(BaseEngine):
         custom_args = params.get("custom_args")
         build_mode = params.get("build_mode")
         if custom_args:
-            args_list = custom_args.split()
+            try:
+                args_list = shlex.split(custom_args)
+            except ValueError as e:
+                self.log(f"Erreur de parsing des arguments personnalisés: {e}")
+                args_list = custom_args.split()  # fallback for backward compat
             safe_args = []
             i = 0
+            # Flags that expect a numeric value
+            _numeric_flags = {
+                "--save-iterations", "--start-iter", "--refine-every",
+                "--growth-grad-threshold", "--growth-select-fraction",
+                "--growth-stop-iter", "--max-splats", "--eval-every",
+                "--export-every", "--max-resolution",
+            }
+            # Flags that expect a path value
+            _path_flags = {"--refine-pose"}
             while i < len(args_list):
                 arg = args_list[i]
-                if arg in self.ALLOWED_FLAGS:
-                    safe_args.append(arg)
-                    if i + 1 < len(args_list) and not args_list[i + 1].startswith("--"):
-                        safe_args.append(args_list[i + 1])
-                        i += 1
-                else:
+                if arg not in self.ALLOWED_FLAGS:
                     self.log(f"Avertissement de sécurité: paramètre non autorisé ignoré ({arg})")
+                    i += 1
+                    continue
+
+                safe_args.append(arg)
+                if i + 1 < len(args_list):
+                    next_arg = args_list[i + 1]
+                    # Refuse values that look like flags (start with '-')
+                    if next_arg.startswith("-"):
+                        self.log(f"Avertissement: valeur suspecte '{next_arg}' ignorée pour {arg}")
+                        i += 2  # skip flag + suspicious value
+                        continue
+                    # Path-valued flags → validate via validate_path
+                    if arg in _path_flags:
+                        safe_val = self.validate_path(next_arg)
+                        if safe_val is not None:
+                            safe_args.append(str(safe_val))
+                        else:
+                            self.log(f"SECURITY: chemin non autorisé ignoré: {next_arg}")
+                        i += 2  # consumed flag + value
+                        continue
+                    # Numeric-valued flags → coerce, refuse non-numeric garbage
+                    if arg in _numeric_flags:
+                        try:
+                            float(next_arg)  # coerce to numeric
+                            safe_args.append(next_arg)
+                        except ValueError:
+                            self.log(f"Valeur non numérique ignorée pour {arg}: {next_arg}")
+                        i += 2  # consumed flag + value
+                        continue
+                    # Other allowed flags — accept value as-is
+                    safe_args.append(next_arg)
+                    i += 2  # consumed flag + value
+                    continue
+                # No value to consume
                 i += 1
             cmd.extend(safe_args)
         cmd.append(str(input_path))

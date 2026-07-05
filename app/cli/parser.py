@@ -3,6 +3,57 @@
 import argparse
 
 
+# ---------------------------------------------------------------------------
+# Custom type validators — bound CLI arguments to sane values
+# ---------------------------------------------------------------------------
+
+def _positive_int(value: str) -> int:
+    """Validator: integer >= 1."""
+    try:
+        v = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"'{value}' is not a valid integer")
+    if v < 1:
+        raise argparse.ArgumentTypeError(f"must be >= 1, got {v}")
+    return v
+
+
+def _non_negative_int(value: str) -> int:
+    """Validator: integer >= 0."""
+    try:
+        v = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"'{value}' is not a valid integer")
+    if v < 0:
+        raise argparse.ArgumentTypeError(f"must be >= 0, got {v}")
+    return v
+
+
+def _range_int(lo: int, hi: int):
+    """Factory: returns a validator for integers in [lo, hi]."""
+    def validator(value: str) -> int:
+        try:
+            v = int(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"'{value}' is not a valid integer")
+        if v < lo or v > hi:
+            raise argparse.ArgumentTypeError(f"must be between {lo} and {hi}, got {v}")
+        return v
+    validator.__name__ = f"_range_int_{lo}_{hi}"
+    return validator
+
+
+def _positive_float(value: str) -> float:
+    """Validator: float > 0."""
+    try:
+        v = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"'{value}' is not a valid number")
+    if v <= 0:
+        raise argparse.ArgumentTypeError(f"must be > 0, got {v}")
+    return v
+
+
 def get_parser():
     parser = argparse.ArgumentParser(
         prog="main.py",
@@ -47,7 +98,7 @@ def get_parser():
     # COLMAP
     p.add_argument("--type", choices=["images", "video"], default="images",
                    help="Type d'entrée (défaut: images)")
-    p.add_argument("--fps",  type=int, default=5,   help="FPS d'extraction vidéo (défaut: 5)")
+    p.add_argument("--fps",  type=_positive_int, default=5,   help="FPS d'extraction vidéo (défaut: 5)")
     p.add_argument("--camera_model", default="SIMPLE_RADIAL",
                    choices=["SIMPLE_PINHOLE","PINHOLE","SIMPLE_RADIAL","RADIAL","OPENCV","OPENCV_FISHEYE"],
                    help="Modèle de caméra COLMAP (défaut: SIMPLE_RADIAL)")
@@ -55,7 +106,7 @@ def get_parser():
     p.add_argument("--use_glomap", action="store_true", help="Utiliser Glomap au lieu du mapper COLMAP")
     p.add_argument("--matcher_type", choices=["exhaustive","sequential","vocab_tree"], default="exhaustive",
                    help="Stratégie de matching (défaut: exhaustive)")
-    p.add_argument("--max_image_size", type=int, default=3200,
+    p.add_argument("--max_image_size", type=_positive_int, default=3200,
                    help="Résolution max des images pour COLMAP (défaut: 3200)")
     # Brush
     p.add_argument("--preset", choices=["default","fast","std","dense"], default="default",
@@ -90,7 +141,7 @@ def get_parser():
     p.add_argument("--use_glomap", action="store_true", help="Utiliser Glomap au lieu du mapper COLMAP")
     # Feature extraction
     p.add_argument("--no_single_camera",  action="store_true", help="Désactiver le mode caméra unique")
-    p.add_argument("--max_image_size",    type=int,   default=3200, help="Résolution max des images (défaut: 3200)")
+    p.add_argument("--max_image_size",    type=_positive_int,   default=3200, help="Résolution max des images (défaut: 3200)")
     p.add_argument("--max_num_features",  type=int,   default=8192, help="Nb max de features par image (défaut: 8192)")
     p.add_argument("--estimate_affine_shape", action="store_true", help="Estimer la forme affine des features")
     p.add_argument("--no_domain_size_pooling", action="store_true", help="Désactiver le domain size pooling")
@@ -101,8 +152,8 @@ def get_parser():
     p.add_argument("--max_distance", type=float, default=0.7,  help="Distance max (défaut: 0.7)")
     p.add_argument("--no_cross_check", action="store_true", help="Désactiver le cross-check")
     # Mapper
-    p.add_argument("--min_model_size",    type=int, default=10, help="Taille min du modèle (défaut: 10)")
-    p.add_argument("--min_num_matches",   type=int, default=15, help="Nb min de matches (défaut: 15)")
+    p.add_argument("--min_model_size",    type=_positive_int, default=10, help="Taille min du modèle (défaut: 10)")
+    p.add_argument("--min_num_matches",   type=_positive_int, default=15, help="Nb min de matches (défaut: 15)")
     p.add_argument("--multiple_models",   action="store_true",  help="Autoriser plusieurs modèles")
     p.add_argument("--no_refine_focal",   action="store_true",  help="Ne pas affiner la focale")
     p.add_argument("--refine_principal",  action="store_true",  help="Affiner le point principal")
@@ -175,7 +226,7 @@ def get_parser():
     p.add_argument("--tile",        type=int, default=0,
                    help="Taille des tuiles VRAM en px, 0=auto (défaut: 0)")
     p.add_argument("--tta",         action="store_true", help="Activer le Test-Time Augmentation")
-    p.add_argument("--compression", type=int, default=0,
+    p.add_argument("--compression", type=_range_int(0, 9), default=0,
                    help="Niveau de compression sortie 0-9 (défaut: 0)")
 
     # ── 4dgs ──────────────────────────────────────────────────────────────────
@@ -256,11 +307,11 @@ def get_parser():
                    help="Intervalle entre frames en secondes (défaut: 1.0)")
     p.add_argument("--format",          default="jpg",
                    help="Format image de sortie (défaut: jpg)")
-    p.add_argument("--resolution",      type=int,   default=2048,
-                   help="Résolution des images extraites (défaut: 2048)")
-    p.add_argument("--camera_count",    type=int,   default=6,
-                   help="Nombre de caméras virtuelles (défaut: 6)")
-    p.add_argument("--quality",         type=int,   default=95,
+    p.add_argument("--resolution",      type=_positive_int,   default=2048,
+                    help="Résolution des images extraites (défaut: 2048)")
+    p.add_argument("--camera_count",    type=_positive_int,   default=6,
+                    help="Nombre de caméras virtuelles (défaut: 6)")
+    p.add_argument("--quality",         type=_range_int(0, 100),   default=95,
                    help="Qualité JPEG 0-100 (défaut: 95)")
     p.add_argument("--layout",          default="equirectangular",
                    help="Layout de projection (défaut: equirectangular)")

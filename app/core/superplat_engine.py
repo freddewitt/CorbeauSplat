@@ -33,6 +33,8 @@ class SuperSplatEngine(BaseEngine):
         self.data_server_process: Optional[subprocess.Popen] = None
         self.data_server_thread: Optional[threading.Thread] = None
         self.httpd: Optional[socketserver.TCPServer] = None
+        self._stdout_thread: Optional[threading.Thread] = None
+        self._stdout_stop_event = threading.Event()
 
     def get_supersplat_path(self) -> Path:
         """Return the absolute path to the bundled SuperSplat distribution."""
@@ -66,13 +68,19 @@ class SuperSplatEngine(BaseEngine):
         try:
             self.runner.start(cmd, env=os.environ.copy(), cwd=str(splat_path))
 
+            # Clear stop event before starting a new consumer thread
+            self._stdout_stop_event.clear()
+
             def _consume_stdout():
                 for line in self.runner.stdout_iter():
+                    if self._stdout_stop_event.is_set():
+                        break
                     stripped = line.strip()
                     if stripped:
                         self.log(stripped)
 
-            threading.Thread(target=_consume_stdout, daemon=True).start()
+            self._stdout_thread = threading.Thread(target=_consume_stdout, daemon=True)
+            self._stdout_thread.start()
             self.log(f"SuperSplat démarré sur http://localhost:{port}")
             return True, f"SuperSplat démarré sur http://localhost:{port}"
         except Exception as e:
@@ -81,6 +89,11 @@ class SuperSplatEngine(BaseEngine):
 
     def stop_supersplat(self) -> None:
         """Terminate the SuperSplat viewer process if it is running."""
+        # Signal the stdout consumer thread to exit
+        self._stdout_stop_event.set()
+        if self._stdout_thread and self._stdout_thread.is_alive():
+            self._stdout_thread.join(timeout=5)
+        self._stdout_thread = None
         self.runner.terminate()
         self.log("SuperSplat arrêté")
 

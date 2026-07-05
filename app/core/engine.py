@@ -317,7 +317,10 @@ class ColmapEngine(BaseEngine):
         # recent COLMAP versions. Convert the database to DELETE mode before
         # handing it off to GLOMAP.
         if self.params.use_glomap:
-            self._convert_db_journal_mode(database_path)
+            try:
+                self._convert_db_journal_mode(database_path)
+            except Exception:
+                return False, "Échec conversion base de données pour GLOMAP"
 
         self.status(tr("status_reconstruction", "Création de la scène 3D..."))
         if not self.mapper(str(database_path), str(images_dir), str(sparse_dir)):
@@ -443,16 +446,23 @@ class ColmapEngine(BaseEngine):
         rollback-journal mode before GLOMAP reads the file.
         """
         try:
-            with sqlite3.connect(str(database_path)) as con:
-                con.execute("PRAGMA journal_mode=DELETE")
+            con = sqlite3.connect(str(database_path))
+            try:
+                # wal_checkpoint(TRUNCATE) must come BEFORE journal_mode=DELETE
+                # to properly flush WAL frames back into the main database file.
                 con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                con.execute("PRAGMA journal_mode=DELETE")
+            finally:
+                con.close()
             for wal_file in [database_path.parent / (database_path.name + "-wal"),
                              database_path.parent / (database_path.name + "-shm")]:
                 if wal_file.exists():
                     wal_file.unlink()
             self.log("Base de données convertie (WAL → DELETE) pour compatibilité GLOMAP.")
         except Exception as e:
-            self.log(f"Avertissement : conversion journal mode échouée : {e}")
+            self.log(f"ERREUR : conversion journal mode échouée : {e}")
+            self.logger.error("Failed to convert database journal mode for GLOMAP", exc_info=True)
+            raise
 
     def _run_upscale(self, project_dir: Path, images_dir: Path) -> bool:
         """Gère l'upscaling via upscayl-bin."""
@@ -711,9 +721,9 @@ class ColmapEngine(BaseEngine):
             ("frame_data", "data_id"),
             ("pose_priors", "corr_data_id"),
         }
-
         try:
-            with sqlite3.connect(str(database_path)) as con:
+            con = sqlite3.connect(str(database_path))
+            try:
                 rows = con.execute(
                     "SELECT image_id, name FROM images ORDER BY name"
                 ).fetchall()
@@ -730,6 +740,7 @@ class ColmapEngine(BaseEngine):
                     "INSERT INTO image_id_map(old_id, new_id) VALUES (?, ?)",
                     id_map.items(),
                 )
+
                 table_columns = {
                     table_name: {
                         column[1]
@@ -784,6 +795,8 @@ class ColmapEngine(BaseEngine):
                 )
                 con.commit()
                 self.log(f"Base COLMAP retriee pour matching sequentiel: {len(rows)} images")
+            finally:
+                con.close()
         except Exception as e:
             self.log(f"Avertissement: tri de la base COLMAP echoue: {e}")
 
