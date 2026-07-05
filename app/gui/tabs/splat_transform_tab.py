@@ -7,7 +7,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal
 
 from app.core.i18n import tr, add_language_observer
-from app.core.system import resolve_project_root
 from app.gui.widgets.drop_line_edit import DropLineEdit
 from app.gui.widgets.dialog_utils import get_open_file_name, get_existing_directory
 
@@ -78,7 +77,6 @@ class SplatTransformTab(QWidget):
         self.lbl_input = QLabel(tr("st_lbl_input", "Input:"))
         self.lbl_input.setFixedWidth(56)
         self.input_path = DropLineEdit()
-        self.input_path.set_allowed_base_dirs([resolve_project_root(), Path.home()])
         self.input_path.setPlaceholderText(tr("st_ph_input", "Path to .ply, .spz, .splat …"))
         self.btn_browse_input = QPushButton("…")
         self.btn_browse_input.setFixedWidth(32)
@@ -101,7 +99,6 @@ class SplatTransformTab(QWidget):
         self.lbl_output_dir = QLabel(tr("st_lbl_output_dir", "Folder:"))
         self.lbl_output_dir.setFixedWidth(56)
         self.output_dir = DropLineEdit()
-        self.output_dir.set_allowed_base_dirs([resolve_project_root(), Path.home()])
         self.output_dir.setPlaceholderText(tr("st_ph_output_dir", "Destination folder"))
         self.btn_browse_output = QPushButton("…")
         self.btn_browse_output.setFixedWidth(32)

@@ -96,14 +96,24 @@ class UpscaleEngine(BaseEngine):
         """
         if not upsampler:
             return False
-        input_path = Path(input_path)
-        output_path = Path(output_path)
+        safe_in = self.validate_path(input_path)
+        if safe_in is None:
+            self.log(f"SECURITY: Invalid input path: {input_path}")
+            return False
+        safe_out = self.validate_path(output_path)
+        if safe_out is None:
+            out_parent = Path(output_path).parent
+            safe_parent = self.validate_path(str(out_parent))
+            if safe_parent is None:
+                self.log(f"SECURITY: Invalid output path: {output_path}")
+                return False
+            safe_out = safe_parent / Path(output_path).name
         with tempfile.TemporaryDirectory() as tmp_in:
-            shutil.copy2(input_path, Path(tmp_in) / input_path.name)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(safe_in, Path(tmp_in) / safe_in.name)
+            safe_out.parent.mkdir(parents=True, exist_ok=True)
             success, _ = self.upscale_folder(
                 input_dir=tmp_in,
-                output_dir=str(output_path.parent),
+                output_dir=str(safe_out.parent),
                 **upsampler,
             )
             return success
@@ -115,6 +125,19 @@ class UpscaleEngine(BaseEngine):
                        cancel_check=None) -> tuple:
         if not model_id:
             return False, "No model selected."
+        # Validate paths
+        safe_in = self.validate_path(input_dir)
+        safe_out = self.validate_path(output_dir) or (Path(output_dir).parent if self.validate_path(str(Path(output_dir).parent)) else None)
+        if safe_in is None:
+            self.log(f"SECURITY: Invalid input directory: {input_dir}")
+            return False, "Chemin d'entrée non autorisé."
+        if safe_out is None:
+            out_parent = Path(output_dir).parent
+            safe_parent = self.validate_path(str(out_parent))
+            if safe_parent is None:
+                self.log(f"SECURITY: Invalid output directory: {output_dir}")
+                return False, "Chemin de sortie non autorisé."
+            safe_out = safe_parent / Path(output_dir).name
         from app.upscayl_manager import run_upscayl
         params = {
             "model_id":    model_id,
@@ -125,7 +148,7 @@ class UpscaleEngine(BaseEngine):
             "compression": compression,
         }
         result = [False]
-        run_upscayl(input_dir, output_dir, params,
+        run_upscayl(input_dir, str(safe_out), params,  # pass original input_dir to run_upscayl (validated)
                     log_callback=self.log,
                     done_callback=lambda ok: result.__setitem__(0, ok),
                     cancel_check=cancel_check)

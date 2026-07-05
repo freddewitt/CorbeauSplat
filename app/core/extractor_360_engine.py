@@ -37,11 +37,20 @@ class Extractor360Engine(BaseEngine):
             if log_callback: log_callback("Error: 360Extractor not installed.")
             return False
 
+        safe_in = self.validate_path(input_path)
+        safe_out = self.validate_path(output_dir) or self.validate_path(str(Path(output_dir).parent))
+        if safe_in is None:
+            if log_callback: log_callback(f"SECURITY: Invalid input path: {input_path}")
+            return False
+        if safe_out is None:
+            if log_callback: log_callback(f"SECURITY: Invalid output directory: {output_dir}")
+            return False
+
         cmd = [
             self.venv_python,
             self.script_path,
-            "--input", input_path,
-            "--output", output_dir
+            "--input", str(safe_in),
+            "--output", str(safe_out if isinstance(safe_out, Path) else output_dir)
         ]
 
         # Map params to CLI args

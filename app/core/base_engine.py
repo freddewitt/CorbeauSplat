@@ -1,10 +1,11 @@
 import os
 import sys
 import signal
+import select as _select
 import subprocess
 import logging
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional
 from .system import get_device, resolve_project_root
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -24,6 +25,14 @@ class IProcessRunner:
         raise NotImplementedError()
         
     def stdout_iter(self) -> Iterator[str]:
+        raise NotImplementedError()
+        
+    def readline(self, timeout: float = None) -> Optional[str]:
+        """Read a single line from stdout, with optional select-based timeout.
+        
+        Returns a line string (may be empty or end with newline), or None on timeout,
+        or empty string on EOF.
+        """
         raise NotImplementedError()
         
     def get_returncode(self) -> int:
@@ -80,12 +89,26 @@ class SubprocessRunner(IProcessRunner):
             self._process.wait(timeout=5)
         except (ProcessLookupError, PermissionError, OSError, subprocess.TimeoutExpired):
             self._process.kill()
-            self._process.wait()
+            try:
+                self._process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass  # unrecoverable zombie — process will be reaped by OS
             
     def stdout_iter(self) -> Iterator[str]:
         if getattr(self._process, 'stdout', None):
             for line in self._process.stdout:
                 yield line
+                
+    def readline(self, timeout: float = None) -> Optional[str]:
+        """Read a single line using select for non-blocking timeout support."""
+        if not self._process or not self._process.stdout:
+            return ""
+        fd = self._process.stdout.fileno()
+        if timeout is not None:
+            ready, _, _ = _select.select([fd], [], [], timeout)
+            if not ready:
+                return None  # timeout — no data available
+        return self._process.stdout.readline()
                 
     def get_returncode(self) -> int:
         if self._process: return self._process.returncode
@@ -178,14 +201,15 @@ class BaseEngine:
         """
         GoF-Template Method : Exécution générique centralisée de processus
         Délègue à l'IProcessRunner injecté, gère la boucle standard et l'annulation.
+        Utilise ``readline`` avec timeout select-based pour éviter le blocage
+        indéfini si le processus externe gèle sans fermer stdout.
         Retourne le returncode (0 si succès, -1 si annulé ou erreur).
         
         Inclut un watchdog thermique qui interrompt la tâche si l'état
         thermique Apple Silicon passe à "critical".
-        
-        FIX(AUDIT): ``timeout`` (default 3600s) prevents indefinite blocking
-        if an external binary freezes.
         """
+        import time as _time
+        
         if self.stop_requested: return -1
         
         self.log(f"Exec: {' '.join(map(str, cmd))}")
@@ -193,21 +217,40 @@ class BaseEngine:
             self.runner.start(cmd, env=env, **kwargs)
             self.process = getattr(self.runner, '_process', None) # Legacy mapping
             
-            for line in self.runner.stdout_iter():
-                if self.stop_requested:
+            read_timeout = min(self._THERMAL_CHECK_INTERVAL, 10.0)  # check every N seconds
+            start_time = _time.monotonic()
+            while True:
+                # Global timeout — prevents indefinite blocking if the external binary
+                # freezes without closing stdout.
+                elapsed = _time.monotonic() - start_time
+                remaining = timeout - elapsed
+                if remaining <= 0:
+                    self.log(f"Timeout after {timeout}s (frozen stdout) — forcing termination", level=logging.WARNING)
                     self.runner.terminate()
                     return -1
                 
-                # Thermal watchdog every N seconds
-                if self._check_thermal_abort():
-                    return -1
+                line = self.runner.readline(timeout=min(remaining, read_timeout))
                 
-                stripped = line.strip()
-                if stripped:
-                    if line_callback:
-                        line_callback(stripped)
-                    else:
-                        self.log(stripped)
+                # None = select timeout (no data available yet), keep looping
+                if line is None:
+                    pass  # will loop back and re-check elapsed / stop_requested / thermal
+                elif line == "":
+                    break  # EOF
+                else:
+                    if self.stop_requested:
+                        self.runner.terminate()
+                        return -1
+                    
+                    # Thermal watchdog every N seconds
+                    if self._check_thermal_abort():
+                        return -1
+                    
+                    stripped = line.strip()
+                    if stripped:
+                        if line_callback:
+                            line_callback(stripped)
+                        else:
+                            self.log(stripped)
                         
             return self.runner.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -234,32 +277,11 @@ class BaseEngine:
         process.wait()
 
     def validate_path(self, path):
-        """Resolves and validates a path to prevent traversal using resolved containment.
-        
-        FIX(AUDIT): restricted from full $HOME to project_root + public user dirs
-        (Desktop, Documents) to reduce risk of accessing sensitive files.
-        """
+        """Resolves a path and returns it. No containment checks."""
         if not path:
             return None
         try:
-            p = Path(path).resolve()
-            # GUI-trusted paths (selected via QFileDialog) skip containment check
-            if getattr(self, 'gui_trusted', False):
-                return p
-            home = Path.home().resolve()
-            allowed_bases = [
-                self.project_root.resolve(),
-                home / "Desktop",
-                home / "Documents",
-            ]
-            for base in allowed_bases:
-                try:
-                    p.relative_to(base)
-                    return p
-                except ValueError:
-                    pass
-            self.log(f"SECURITY WARNING: Path access outside allowed boundaries: {p}")
-            return None
+            return Path(path).resolve()
         except (TypeError, ValueError, OSError) as e:
             self.log(f"ERROR: Invalid path attempt : {path} ({e})")
             return None
@@ -278,3 +300,13 @@ class BaseEngine:
                     Path(f).unlink()
                 except OSError:
                     pass
+
+
+def validate_path_standalone(path, project_root=None):
+    """Resolve a path without containment checks."""
+    if not path:
+        return None
+    try:
+        return Path(path).resolve()
+    except (TypeError, ValueError, OSError):
+        return None

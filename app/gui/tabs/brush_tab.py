@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
 from pathlib import Path
 from PyQt6.QtCore import pyqtSignal
 from app.core.i18n import tr, add_language_observer
-from app.core.system import resolve_binary, resolve_project_root
+from app.core.system import resolve_binary
 from app.gui.widgets.drop_line_edit import DropLineEdit
 from app.gui.widgets.dialog_utils import get_existing_directory
 
@@ -164,7 +164,6 @@ class BrushTab(QWidget):
         
         input_layout = QHBoxLayout()
         self.input_path = DropLineEdit()
-        self.input_path.set_allowed_base_dirs([resolve_project_root(), Path.home()])
         self.btn_browse_input = QPushButton("...")
         self.btn_browse_input.setMaximumWidth(40)
         self.btn_browse_input.clicked.connect(self.browse_input)
@@ -175,7 +174,6 @@ class BrushTab(QWidget):
         
         output_layout = QHBoxLayout()
         self.output_path = DropLineEdit()
-        self.output_path.set_allowed_base_dirs([resolve_project_root(), Path.home()])
         self.btn_browse_output = QPushButton("...")
         self.btn_browse_output.setMaximumWidth(40)
         self.btn_browse_output.clicked.connect(self.browse_output)

@@ -45,14 +45,10 @@ class TestValidatePath:
         finally:
             doc_target.unlink(missing_ok=True)
 
-    def test_traversal_attempt_blocked(self, engine, tmp_path):
-        malicious = tmp_path / ".." / ".." / ".." / "etc" / "passwd"
-        result = engine.validate_path(str(malicious))
-        assert result is None
-
-    def test_absolute_path_outside_allowed(self, engine):
+    def test_any_absolute_path_is_accepted(self, engine):
         result = engine.validate_path("/opt/corbeausplat_secret")
-        assert result is None
+        assert result is not None
+        assert result == Path("/opt/corbeausplat_secret").resolve()
 
     def test_empty_path_returns_none(self, engine):
         assert engine.validate_path("") is None
@@ -60,18 +56,19 @@ class TestValidatePath:
     def test_none_path_returns_none(self, engine):
         assert engine.validate_path(None) is None
 
-    def test_nonexistent_path_inside_root_returns_resolved(self, engine, tmp_path):
+    def test_nonexistent_path_returns_resolved(self, engine, tmp_path):
         target = tmp_path / "missing" / "file.ply"
         result = engine.validate_path(str(target))
         assert result is not None
         assert result == target.resolve()
 
-    def test_dot_dot_collapsed(self, engine, tmp_path):
+    def test_dot_dot_collapsed_returns_resolved(self, engine, tmp_path):
         subdir = tmp_path / "a" / "b"
         subdir.mkdir(parents=True)
         traversal = subdir / ".." / ".." / ".." / ".." / "etc" / "hostname"
         result = engine.validate_path(str(traversal))
-        assert result is None
+        assert result is not None
+        assert result == traversal.resolve()
 
     def test_symlink_inside_root(self, engine, tmp_path):
         real = tmp_path / "real.txt"
@@ -92,7 +89,7 @@ class TestIsSafePath:
         target = tmp_path / "nope.txt"
         assert engine.is_safe_path(str(target)) is False
 
-    def test_path_outside_root(self, engine):
+    def test_path_outside_root_not_existing(self, engine):
         assert engine.is_safe_path("/tmp/corbeausplat_fake") is False
 
     def test_empty_string(self, engine):

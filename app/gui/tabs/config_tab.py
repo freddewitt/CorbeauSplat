@@ -4,9 +4,7 @@ from PyQt6.QtWidgets import (
     QProgressBar, QButtonGroup, QDialog, QFrame
 )
 from PyQt6.QtCore import pyqtSignal, Qt
-from pathlib import Path
 from app.core.i18n import tr, set_language, get_current_lang, add_language_observer
-from app.core.system import resolve_project_root
 from app.gui.widgets.drop_line_edit import DropLineEdit
 from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_names
 
@@ -215,7 +213,6 @@ class ConfigTab(QWidget):
         self.lbl_path = QLabel(tr("label_path"))
         path_layout.addWidget(self.lbl_path)
         self.input_path = DropLineEdit()
-        self.input_path.set_allowed_base_dirs([resolve_project_root(), Path.home()])
         self.input_path.fileDropped.connect(self.on_input_dropped)
         path_layout.addWidget(self.input_path)
         self.btn_browse_input = QPushButton(tr("btn_browse"))
@@ -259,7 +256,6 @@ class ConfigTab(QWidget):
         self.lbl_out_path = QLabel(tr("label_out_path"))
         path_out_layout.addWidget(self.lbl_out_path)
         self.output_path = DropLineEdit()
-        self.output_path.set_allowed_base_dirs([resolve_project_root(), Path.home()])
         path_out_layout.addWidget(self.output_path)
         self.btn_browse_output = QPushButton(tr("btn_browse"))
         self.btn_browse_output.clicked.connect(self.browse_output)

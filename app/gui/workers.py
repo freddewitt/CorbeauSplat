@@ -19,7 +19,7 @@ class Extractor360Worker(BaseWorker):
         super().__init__()
         # DIP : Injection
         self.engine = engine or Extractor360Engine(logger_callback=self.log_signal.emit)
-        self.engine.gui_trusted = True
+
         self.input_path = input_path
         self.output_path = output_path
         self.params = params
@@ -74,7 +74,7 @@ class ColmapWorker(BaseWorker):
             status_callback=self.status_signal.emit,
             check_cancel_callback=self.isInterruptionRequested
         )
-        self.engine.gui_trusted = True
+
         
     def stop(self):
         if self.extractor_engine:
@@ -87,7 +87,6 @@ class ColmapWorker(BaseWorker):
         if self.extractor_360_params and self.extractor_360_params.get("enabled", False):
             from app.core.extractor_360_engine import Extractor360Engine
             self.extractor_engine = Extractor360Engine()
-            self.extractor_engine.gui_trusted = True
             
             if not self.extractor_engine.is_installed():
                 self.log_signal.emit(tr("err_360_not_installed_colmap", "ERREUR: 360 Extractor activé mais non installé."))
@@ -124,7 +123,7 @@ class ColmapWorker(BaseWorker):
                 status_callback=self.status_signal.emit,
                 check_cancel_callback=self.isInterruptionRequested
             )
-            self.engine.gui_trusted = True
+    
 
         # 2. Check Upscale 
         if self.upscale_params and self.upscale_params.get("active", False):
@@ -141,7 +140,7 @@ class BrushWorker(BaseWorker):
         super().__init__()
         # DIP : Injection
         self.engine = engine or BrushEngine(logger_callback=self.log_signal.emit)
-        self.engine.gui_trusted = True
+
         self.input_path = input_path
         self.output_path = output_path
         self.params = params
@@ -384,7 +383,7 @@ class SharpWorker(BaseWorker):
         from app.core.sharp_engine import SharpEngine
         # DIP : Injection
         self.engine = engine or SharpEngine(logger_callback=self.log_signal.emit)
-        self.engine.gui_trusted = True
+
         self.input_path = input_path
         self.output_path = output_path
         self.params = params
@@ -461,7 +460,7 @@ class SharpVideoWorker(BaseWorker):
         super().__init__()
         from app.core.sharp_engine import SharpEngine
         self.engine = engine or SharpEngine(logger_callback=self.log_signal.emit)
-        self.engine.gui_trusted = True
+
         self.video_path = video_path
         self.output_path = output_path
         self.params = params
@@ -591,7 +590,7 @@ class SplatTransformWorker(BaseWorker):
         super().__init__()
         from app.core.splat_transform_engine import SplatTransformEngine
         self.engine = engine or SplatTransformEngine(logger_callback=self.log_signal.emit)
-        self.engine.gui_trusted = True
+
         self.input_path = input_path
         self.output_path = output_path
         self.params = params
@@ -633,7 +632,7 @@ class FourDGSWorker(BaseWorker):
             logger_callback=self.log_signal.emit,
             status_callback=self.status_signal.emit
         )
-        self.engine.gui_trusted = True
+
 
     def run(self):
         self.log_signal.emit("--- Démarrage 4DGS ---")
@@ -738,3 +737,61 @@ class PostTrainingWorker(BaseWorker):
 
         n = len(to_export)
         self.finished_signal.emit(True, f"Post-traitement terminé : {n} fichier(s) traité(s).")
+
+
+# ---------------------------------------------------------------------
+# EXPORT WORKER
+# ---------------------------------------------------------------------
+
+class ExportWorker(BaseWorker):
+    """Thread worker for exporting PLY files to various formats.
+
+    Moves the blocking export loop out of the GUI thread to prevent
+    UI freezes on large batches.
+    """
+
+    def __init__(self, input_paths, output_dir, output_format, options=None):
+        super().__init__()
+        self.input_paths = list(input_paths)
+        self.output_dir = Path(output_dir)
+        self.output_format = output_format
+        self.options = options or {}
+
+    def run(self):
+        from app.core.export_engine import ExportEngine
+
+        total = len(self.input_paths)
+        if total == 0:
+            self.finished_signal.emit(False, "Aucun fichier à exporter.")
+            return
+
+        self.log_signal.emit(f"--- Démarrage de l'export ({self.output_format.upper()}) ---")
+        self.log_signal.emit(f"{total} fichier(s) à traiter. Sortie: {self.output_dir}")
+
+        engine = ExportEngine(logger_callback=self.log_signal.emit)
+        success_count = 0
+
+        for idx, input_path in enumerate(self.input_paths, 1):
+            if self.isInterruptionRequested():
+                self.log_signal.emit("Export annulé par l'utilisateur.")
+                break
+
+            self.progress_signal.emit(int((idx / total) * 100))
+            self.status_signal.emit(f"Export {idx}/{total}: {Path(input_path).name}")
+
+            try:
+                ok = engine.export(str(input_path), str(self.output_dir), self.output_format, options=self.options)
+                if ok:
+                    success_count += 1
+                    self.log_signal.emit(f"  ✓ {Path(input_path).name}")
+                else:
+                    self.log_signal.emit(f"  ❌ {Path(input_path).name}")
+            except Exception as e:
+                self.log_signal.emit(f"  ❌ {Path(input_path).name}: {e}")
+
+        msg = (
+            f"Export terminé : {success_count}/{total} réussis"
+            if success_count == total
+            else f"Export partiel : {success_count}/{total} réussis"
+        )
+        self.finished_signal.emit(success_count == total, msg)

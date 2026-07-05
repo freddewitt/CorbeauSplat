@@ -71,16 +71,30 @@ class SharpEngine(BaseEngine):
         cmd = self._get_sharp_cmd()
         
         cmd.extend(["predict"])
-        # Prepare paths
-        input_path = Path(input_path).resolve()
-        output_path = Path(output_path).resolve()
+        # Validate and resolve paths
+        safe_input = self.validate_path(input_path)
+        safe_output = self.validate_path(output_path)
+        if safe_input is None:
+            self.log(f"SECURITY: Invalid input path: {input_path}")
+            return -1
+        if safe_output is None:
+            # Output may not exist yet — check parent
+            out_parent = Path(output_path).parent
+            if self.validate_path(str(out_parent)) is None:
+                self.log(f"SECURITY: Invalid output path: {output_path}")
+                return -1
+            safe_output = Path(output_path).resolve()
         
-        cmd.extend(["-i", str(input_path)])
-        cmd.extend(["-o", str(output_path)])
+        cmd.extend(["-i", str(safe_input)])
+        cmd.extend(["-o", str(safe_output)])
         
         checkpoint = params.get("checkpoint")
         if checkpoint:
-            cmd.extend(["-c", str(Path(checkpoint).resolve())])
+            safe_ckpt = self.validate_path(checkpoint)
+            if safe_ckpt:
+                cmd.extend(["-c", str(safe_ckpt)])
+            else:
+                self.log(f"SECURITY: Invalid checkpoint path: {checkpoint}")
             
         device = params.get("device", self.device)
         if device and device != "default":
@@ -162,7 +176,12 @@ class SharpEngine(BaseEngine):
             log_callback(f"Running: {' '.join(ffmpeg_cmd)}")
         
         try:
-            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=3600)
+        except subprocess.TimeoutExpired:
+            if log_callback:
+                log_callback("FFmpeg timed out after 3600s — aborting frame extraction.")
+            shutil.rmtree(frames_dir, ignore_errors=True)
+            return 0
         except FileNotFoundError:
             if log_callback:
                 log_callback("Erreur : FFmpeg introuvable.")

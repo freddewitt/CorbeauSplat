@@ -12,6 +12,7 @@ Le fichier original n'est jamais modifié sur place.
 """
 import numpy as np
 from pathlib import Path
+from .base_engine import validate_path_standalone as _validate_path
 
 # Presets de sévérité → (opacity_min sur l'alpha activé, percentile d'échelle, percentile d'outlier)
 # Percentile plus élevé = garde plus (plus doux) ; plus bas = supprime plus (plus fort).
@@ -98,6 +99,16 @@ def clean_ply(input_path, output_path, strength="medium", overrides=None, log=No
         if log:
             log(msg)
 
+    # Validate paths before any I/O
+    safe_in = _validate_path(input_path)
+    if safe_in is None:
+        raise ValueError(f"Chemin d'entrée non autorisé: {input_path}")
+    safe_out = _validate_path(output_path) or _validate_path(str(Path(output_path).parent))
+    if safe_out is None:
+        raise ValueError(f"Chemin de sortie non autorisé: {output_path}")
+    input_path = safe_in
+    output_path = safe_out
+
     params = resolve_params(strength, overrides)
     _log(f"Lecture de {input_path} ...")
     ply = PlyData.read(str(input_path))
@@ -141,8 +152,14 @@ def clean_ply_batch(input_dir, output_dir, strength="medium", overrides=None, lo
     - output_dir : Path ou str — dossier où écrire les fichiers nettoyés
     - recursive : bool — si True, parcourt récursivement les sous-dossiers
     """
-    input_dir = Path(input_dir)
-    output_dir = Path(output_dir)
+    safe_in = _validate_path(input_dir)
+    safe_out = _validate_path(output_dir) or _validate_path(str(Path(output_dir).parent))
+    if safe_in is None:
+        raise ValueError(f"Chemin d'entrée non autorisé: {input_dir}")
+    if safe_out is None:
+        raise ValueError(f"Chemin de sortie non autorisé: {output_dir}")
+    input_dir = safe_in
+    output_dir = safe_out
     output_dir.mkdir(parents=True, exist_ok=True)
     
     pattern = "**/*.ply" if recursive else "*.ply"

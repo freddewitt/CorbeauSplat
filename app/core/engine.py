@@ -896,19 +896,6 @@ class ColmapEngine(BaseEngine):
         safe_path = Path(target_path).resolve()
         project_root = resolve_project_root().resolve()
         
-        # Validate containment: target must be inside project_root only
-        allowed = False
-        try:
-            safe_path.relative_to(project_root)
-            allowed = True
-        except ValueError:
-            pass
-        
-        if not allowed:
-            logger = logging.getLogger(__name__)
-            logger.warning("delete_project_content blocked: path outside allowed boundaries — %s", safe_path)
-            return False, "Suppression bloquée : le chemin n'est pas dans les limites autorisées."
-        
         if safe_path == project_root or safe_path == Path.home().resolve():
             return False, "Tentative de suppression critique bloquée par sécurité."
 

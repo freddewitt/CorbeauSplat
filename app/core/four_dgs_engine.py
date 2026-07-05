@@ -116,6 +116,14 @@ class FourDGSEngine(BaseEngine):
         return True
 
     def process_dataset(self, videos_dir, output_dir, fps=5):
+        safe_in = self.validate_path(videos_dir)
+        safe_out = self.validate_path(output_dir) or self.validate_path(str(Path(output_dir).parent))
+        if safe_in is None:
+            self.log(f"SECURITY: Invalid input directory: {videos_dir}")
+            return False
+        if safe_out is None:
+            self.log(f"SECURITY: Invalid output directory: {output_dir}")
+            return False
         self.log(f"Scan du dossier : {videos_dir}")
         supported_ext = (".mp4", ".mov", ".avi", ".mkv")
         videos_path = Path(videos_dir)

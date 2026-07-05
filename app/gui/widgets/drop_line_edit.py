@@ -1,26 +1,18 @@
 from PyQt6.QtWidgets import QLineEdit
 from PyQt6.QtCore import pyqtSignal
 from pathlib import Path
-from typing import Optional
 
 
 class DropLineEdit(QLineEdit):
     """
     A QLineEdit that accepts file drops.
     Emits fileDropped(str) signal when a valid path is dropped.
-    If allowed_base_dirs is set, validates that the dropped path
-    is contained within one of the specified directories (containment check).
     """
     fileDropped = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True)
-        self._allowed_base_dirs: Optional[list[Path]] = None
-
-    def set_allowed_base_dirs(self, dirs: list[Path]):
-        """Set allowed base directories for containment validation."""
-        self._allowed_base_dirs = [Path(d).resolve() for d in dirs]
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -37,18 +29,7 @@ class DropLineEdit(QLineEdit):
     def _validate_path(self, path: str) -> bool:
         try:
             p = Path(path).resolve()
-            if not p.exists():
-                return False
-            # Containment check: if base dirs are configured, path must be inside one
-            if self._allowed_base_dirs is not None:
-                for base in self._allowed_base_dirs:
-                    try:
-                        p.relative_to(base)
-                        return True
-                    except ValueError:
-                        continue
-                return False
-            return True
+            return p.exists()
         except (TypeError, ValueError, OSError):
             return False
 
