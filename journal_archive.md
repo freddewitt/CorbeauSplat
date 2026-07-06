@@ -52,3 +52,9 @@ Analyse engine COLMAP (app/core/engine.py) et params croisée FAQ COLMAP 2025 + 
 **Audit i18n** : 459 clés fr.json + en.json vérifiées (1 par 1), scan morphologique (aucune terminaison ES), mapping i18n ok (Français→fr.json, etc.), 9 locales identiques. Seul défaut : confirm_reset ES valeur incohérente (long avertissement vs short label) — NON corrigé.
 
 **Git** : commits 62a1531 (25 fichiers, +326/-66 sessions 3-5) + fd04f50 (.gitignore .tokensave/) poussés origin/main.
+
+## Session 6 (2026-07-06) — Reprise
+
+Synchro versions : app/__init__.py + pyproject.toml 1.2.0 → 1.2.2 (alignés CHANGELOG + manifest).
+Tests intégration validés (32 pass, 1 skip). Commits 08fb98b + 97a519b poussés localement.
+Orchestrateur a retiré « synchro versions » du RESTE À FAIRE. Restent : confirm_reset ES, e2e absent.

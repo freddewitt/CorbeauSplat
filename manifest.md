@@ -219,8 +219,7 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 ## RESTE À FAIRE (priorisé)
 
 1. **`confirm_reset` (ES)** — seul défaut i18n restant : la valeur espagnole est incohérente (long avertissement « Restablecimiento de Fábrica » au lieu de « Choose reset level »). fr/en propres (audit des 459 clés, 9 locales alignées).
-2. **Synchroniser les numéros de version** — `app/__init__.py` et `pyproject.toml` encore à 1.2.0 ; CHANGELOG et manifest à 1.2.2.
-3. **Tests d'intégration end-to-end réels** — toujours absents ; toute la suite (262 pass, 2 skip) reste unitaire ou mockée. (Les 13 échecs préexistants sont résolus : gel `readline`/EOF, pollution `cv2`, fixtures obsolètes.)
+2. **Tests d'intégration end-to-end réels** — toujours absents ; toute la suite (262 pass, 2 skip) reste unitaire ou mockée. (Les 13 échecs préexistants sont résolus : gel `readline`/EOF, pollution `cv2`, fixtures obsolètes.)
 
 ## Graphify
 
