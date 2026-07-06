@@ -103,6 +103,7 @@ class TestFourDGSEngine:
                 engine.runner = MagicMock()
                 engine.runner.start.return_value = None
                 engine.runner.stdout_iter.return_value = iter([])
+                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
                 engine.runner.wait.return_value = 0
 
                 video_path = tmp_path / "video.mp4"
@@ -126,6 +127,7 @@ class TestFourDGSEngine:
                     engine.runner = MagicMock()
                     engine.runner.start.return_value = None
                     engine.runner.stdout_iter.return_value = iter([])
+                    engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
                     engine.runner.wait.return_value = 0
 
                     video_path = tmp_path / "video.mp4"
@@ -161,6 +163,7 @@ class TestFourDGSEngine:
                 engine.runner = MagicMock()
                 engine.runner.start.return_value = None
                 engine.runner.stdout_iter.return_value = iter([])
+                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
                 engine.runner.wait.return_value = 0
 
                 dataset_root = tmp_path / "dataset"
@@ -182,6 +185,7 @@ class TestFourDGSEngine:
                 engine.runner = MagicMock()
                 engine.runner.start.return_value = None
                 engine.runner.stdout_iter.return_value = iter([])
+                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
                 engine.runner.wait.return_value = 1  # non-zero return code
 
                 dataset_root = tmp_path / "dataset"
@@ -220,6 +224,7 @@ class TestFourDGSEngine:
                 engine.runner = MagicMock()
                 engine.runner.start.return_value = None
                 engine.runner.stdout_iter.return_value = iter([])
+                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
                 engine.runner.wait.return_value = 0
 
                 # Create video files
@@ -246,6 +251,7 @@ class TestFourDGSEngine:
                 engine.runner = MagicMock()
                 engine.runner.start.return_value = None
                 engine.runner.stdout_iter.return_value = iter([])
+                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
                 engine.runner.wait.return_value = 0
 
                 videos_dir = tmp_path / "videos"

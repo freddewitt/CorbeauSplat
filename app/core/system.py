@@ -214,8 +214,9 @@ def adapt_max_splats(max_splats: int, thermal_throttling: bool = True) -> int:
       • ≥ 16 GB total → no reduction (full splats)
       •  8-15 GB      → 75% of requested
       •  < 8 GB       → 50% of requested
-      •  thermal warning → additional 25% reduction
-      •  thermal critical → cap at 2M hard limit
+      •  thermal fair    → cap factor at 0.75
+      •  thermal serious → cap factor at 0.5
+      •  thermal critical → cap factor at 0.2
 
     Returns the adapted max_splats value (never below 500_000).
     """
@@ -235,13 +236,16 @@ def adapt_max_splats(max_splats: int, thermal_throttling: bool = True) -> int:
     elif pressure > 75:
         factor *= 0.85
 
-    # Reduce under thermal warning/critical
+    # Reduce under thermal warning/critical.
+    # get_thermal_state() returns nominal/fair/serious/critical (NSProcessInfo).
     if thermal_throttling:
         thermal = get_thermal_state()
         if thermal == "critical":
             factor = min(factor, 0.2)
-        elif thermal == "warning":
+        elif thermal == "serious":
             factor = min(factor, 0.5)
+        elif thermal == "fair":
+            factor = min(factor, 0.75)
 
     adapted = int(max_splats * factor)
     return max(500_000, adapted)

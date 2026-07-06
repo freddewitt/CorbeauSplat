@@ -15,7 +15,10 @@ from app.gui.workers import (
 # Patch send2trash et cv2 pour les workers qui les utilisent indirectement
 for _mod_name in ["send2trash", "cv2"]:
     if _mod_name not in sys.modules:
-        sys.modules[_mod_name] = MagicMock()
+        try:
+            __import__(_mod_name)  # keep real module if installed — avoids clobbering cv2/numpy session-wide
+        except ImportError:
+            sys.modules[_mod_name] = MagicMock()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

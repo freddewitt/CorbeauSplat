@@ -6,7 +6,8 @@ from app.scripts.setup_dependencies import install_sharp, uninstall_sharp
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QGroupBox,
     QFormLayout, QCheckBox, QComboBox, QMessageBox, QProgressDialog, QApplication,
-    QRadioButton, QButtonGroup, QStackedWidget, QSpinBox, QProgressBar
+    QRadioButton, QButtonGroup, QStackedWidget, QSpinBox, QProgressBar,
+    QScrollArea, QFrame
 )
 
 class SharpTab(QWidget):
@@ -21,8 +22,19 @@ class SharpTab(QWidget):
         add_language_observer(self.retranslate_ui)
         
     def init_ui(self):
-        layout = QVBoxLayout(self)
-        
+        # Scroll wrapper so the tab adapts to short screens (content reachable
+        # by scrolling instead of being clipped off the bottom).
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background-color: transparent; }")
+        content = QWidget()
+        outer.addWidget(scroll)
+        scroll.setWidget(content)
+        layout = QVBoxLayout(content)
+
         # Engine check for initial state
         from app.core.sharp_engine import SharpEngine
         self.engine = SharpEngine()

@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QCheckBox, QComboBox, QSpinBox, QDoubleSpinBox, QGroupBox, 
-    QMessageBox, QProgressBar
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QCheckBox, QComboBox, QSpinBox, QDoubleSpinBox, QGroupBox,
+    QMessageBox, QProgressBar, QScrollArea, QFrame
 )
 from PyQt6.QtCore import pyqtSignal, QThread
 
@@ -39,8 +39,19 @@ class Extractor360Tab(QWidget):
         add_language_observer(self.retranslate_ui)
         
     def init_ui(self):
-        layout = QVBoxLayout(self)
-        
+        # Scroll wrapper so the tab adapts to short screens (content reachable
+        # by scrolling instead of being clipped off the bottom).
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background-color: transparent; }")
+        content = QWidget()
+        outer.addWidget(scroll)
+        scroll.setWidget(content)
+        layout = QVBoxLayout(content)
+
         # Header
         self.lbl_header = QLabel(tr("360_header"))
         self.lbl_header.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")

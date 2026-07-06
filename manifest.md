@@ -172,6 +172,7 @@ main.py                         ← Entry: CLI parser or GUI launcher
 
 | Version | Key Changes |
 |---------|-------------|
+| **1.2.x** (2026-07-06, dev, non commité) | SfM COLMAP : défaut repassé à **SIFT + DSP-SIFT** (`estimate_affine_shape=True`, force CPU) ; branche `vocab_tree` désormais fonctionnelle (était un no-op silencieux) ; `loop_detection` séquentiel (gardé SIFT) ; **repli automatique** `global_mapper`→`mapper` incrémental si pas de modèle `sparse/0` valide (`_has_valid_sparse_model`). |
 | **1.2.2** (2026-07-06) | Fix timeout Brush 3600s → 14400s configurable (`training_timeout`). Nouveau paramètre `inactivity_timeout` dans `BaseEngine._execute_command()` : détection processus gelé (10min sans stdout). Rétrocompatible. |
 | **1.2.1** (2026-07-05) | ExportTab async fix confirmed (already used ExportWorker); CI headless worker tests unblocked; integration tests expanded; pyproject.toml version synced to 1.2.0 |
 | **1.0.6** (2026-07-04) | Cleaner + Export tabs merged into one composite tab; new `--then-export` CLI flag; `ExportTab.log_signal` crash bug fixed |
@@ -218,9 +219,9 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 ## RESTE À FAIRE (priorisé)
 
 1. **Tests d'intégration end-to-end** — tous les 224+ tests sont unitaires ou integration mockés ; pas de vrai bout-en-bout
-2. **10 tests préexistants en échec** — COLMAP pipeline (6), export PLY (1), validation chemins (3) — non liés au fix Brush, mais à résoudre
+2. **9 tests préexistants en échec** — COLMAP pipeline (5, dont `test_mapper_colmap_command` corrigé en session SfM), export PLY (1), validation chemins (3) — à résoudre. Note : `test_default_for_aliked` reflète un désaccord entre le test et la constante `FEATURE_TO_DEFAULT_MATCHING` (ALIKED→LIGHTGLUE)
 3. **i18n** — vérifier couverture des clés dans les nouveaux onglets (Cleaner+Export, 4DGS, Extractor360)
 
 ## Graphify
 
-Un graphe de connaissance est maintenu dans `graphify-out/`. Pour toute question d'architecture : `graphify query "<question>"`. Dernière reconstruction : 1789 nœuds, 3365 arêtes, 116 communautés (2026-07-06).
+Un graphe de connaissance est maintenu dans `graphify-out/`. Pour toute question d'architecture : `graphify query "<question>"`. Dernière reconstruction : 1967 nœuds, 3548 arêtes, 137 communautés (2026-07-06).

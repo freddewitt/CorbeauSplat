@@ -14,7 +14,13 @@ _missing_modules = {}
 for _mod_name in ["send2trash", "PyQt6", "PyQt6.QtWidgets", "PyQt6.QtGui",
                   "PyQt6.QtCore", "AppKit", "cv2"]:
     if _mod_name not in sys.modules:
-        _missing_modules[_mod_name] = MagicMock()
+        try:
+            # Keep the real module when installed (cv2/send2trash) — mocking it
+            # unconditionally clobbers it session-wide and breaks other tests
+            # (e.g. the COLMAP integration pipeline needs real cv2.imread).
+            __import__(_mod_name)
+        except ImportError:
+            _missing_modules[_mod_name] = MagicMock()
 
 # Patch PyQt6.QtCore.pyqtSignal
 if "PyQt6.QtCore" in _missing_modules:

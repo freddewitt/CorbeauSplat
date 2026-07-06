@@ -13,7 +13,10 @@ import pytest
 # Patch send2trash at module level if missing (used by engine.py via upscayl_manager imports)
 for _mod_name in ["send2trash", "cv2"]:
     if _mod_name not in sys.modules:
-        sys.modules[_mod_name] = MagicMock()
+        try:
+            __import__(_mod_name)  # keep real module if installed — avoids clobbering cv2/numpy session-wide
+        except ImportError:
+            sys.modules[_mod_name] = MagicMock()
 
 from app.scripts.checksum_verifier import verify_download, verify_download_strict, compute_file_sha256
 

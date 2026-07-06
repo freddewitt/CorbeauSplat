@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QLineEdit,
     QGroupBox, QRadioButton, QSpinBox, QCheckBox, QMessageBox, QComboBox,
-    QProgressBar, QButtonGroup, QDialog, QFrame
+    QProgressBar, QButtonGroup, QDialog, QFrame, QScrollArea
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 from app.core.i18n import tr, set_language, get_current_lang, add_language_observer
@@ -106,7 +106,18 @@ class ConfigTab(QWidget):
         add_language_observer(self.retranslate_ui)
         
     def init_ui(self):
-        layout = QVBoxLayout(self)
+        # Scroll wrapper so the tab adapts to short screens (content reachable
+        # by scrolling instead of being clipped off the bottom).
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background-color: transparent; }")
+        content = QWidget()
+        outer.addWidget(scroll)
+        scroll.setWidget(content)
+        layout = QVBoxLayout(content)
         
         # Header + Language
         header_layout = QHBoxLayout()

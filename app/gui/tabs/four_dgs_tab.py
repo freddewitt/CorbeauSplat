@@ -4,7 +4,8 @@ import sys
 import subprocess
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QGroupBox,
-    QFormLayout, QCheckBox, QSpinBox, QMessageBox, QTextEdit, QApplication, QProgressDialog
+    QFormLayout, QCheckBox, QSpinBox, QMessageBox, QTextEdit, QApplication, QProgressDialog,
+    QScrollArea, QFrame
 )
 from PyQt6.QtCore import Qt
 from app.core.i18n import tr, add_language_observer
@@ -41,7 +42,18 @@ class FourDGSTab(QWidget):
         add_language_observer(self.retranslate_ui)
 
     def init_ui(self):
-        layout = QVBoxLayout(self)
+        # Scroll wrapper so the tab adapts to short screens (content reachable
+        # by scrolling instead of being clipped off the bottom).
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background-color: transparent; }")
+        content = QWidget()
+        outer.addWidget(scroll)
+        scroll.setWidget(content)
+        layout = QVBoxLayout(content)
 
         # Header
         self.lbl_header = QLabel(tr("four_dgs_header"))

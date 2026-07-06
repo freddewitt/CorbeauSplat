@@ -22,9 +22,11 @@ class ColmapParams:
     single_camera: bool = True
     max_image_size: int = 3200
     max_num_features: int = 8192
-    feature_type: str = 'ALIKED_N32'
-    matching_type: str = 'ALIKED_LIGHTGLUE'
-    estimate_affine_shape: bool = False
+    feature_type: str = 'SIFT'
+    matching_type: str = 'SIFT_BRUTEFORCE'
+    # DSP-SIFT complet : affine_shape + domain_size_pooling maximisent les correspondances
+    # (recommandation FAQ COLMAP). Force le calcul CPU — plus lent mais plus robuste.
+    estimate_affine_shape: bool = True
     domain_size_pooling: bool = True
     max_ratio: float = 0.8
     max_distance: float = 0.7

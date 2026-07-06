@@ -2,7 +2,7 @@ from pathlib import Path
 import webbrowser
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
-    QGroupBox, QCheckBox, QMessageBox, QSpinBox, QFormLayout
+    QGroupBox, QCheckBox, QMessageBox, QSpinBox, QFormLayout, QScrollArea, QFrame
 )
 from PyQt6.QtCore import pyqtSignal, QTimer
 from app.core.i18n import tr, add_language_observer
@@ -23,8 +23,19 @@ class SuperSplatTab(QWidget):
         add_language_observer(self.retranslate_ui)
         
     def init_ui(self):
-        layout = QVBoxLayout(self)
-        
+        # Scroll wrapper so the tab adapts to short screens (content reachable
+        # by scrolling instead of being clipped off the bottom).
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background-color: transparent; }")
+        content = QWidget()
+        outer.addWidget(scroll)
+        scroll.setWidget(content)
+        layout = QVBoxLayout(content)
+
         # Header / Info
         self.lbl_info = QLabel(tr("superplat_info", "SuperSplat (PlayCanvas)"))
         self.lbl_info.setWordWrap(True)

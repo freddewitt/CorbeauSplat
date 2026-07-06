@@ -142,6 +142,7 @@ class ModelCard(QFrame):
         info = QVBoxLayout()
         name = QLabel(f"<b>{self.model.label}</b>")
         desc = QLabel(self.model.description)
+        desc.setWordWrap(True)
         desc.setStyleSheet("color: #888; font-size: 11px;")
         info.addWidget(name)
         info.addWidget(desc)

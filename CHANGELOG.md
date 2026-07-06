@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.2.2] - 2026-07-06
+
+### ✨ New Features (SfM / reconstruction)
+- **DSP-SIFT as default features**: Default `feature_type` is now `SIFT` with both `estimate_affine_shape` and `domain_size_pooling` enabled — full DSP-SIFT, as recommended by the COLMAP FAQ. More correspondences and more robust matching, at the cost of CPU-side computation. Default `matching_type` is `SIFT_BRUTEFORCE`. (Replaces the `ALIKED_N32` / `ALIKED_LIGHTGLUE` defaults introduced in 1.2.0; ALIKED remains selectable.)
+- **Sequential matcher loop detection**: `--SequentialMatching.loop_detection` is enabled for SIFT sequential matching. It closes loops when the camera revisits an already-filmed area (object turntables, looped rooms), avoiding drift and ghost geometry. Enabled for SIFT only — the vocabulary tree it relies on is SIFT-based and incompatible with ALIKED.
+- **Vocabulary-tree matcher**: New `matcher_type='vocab_tree'` runs `colmap vocab_tree_matcher`, matching by visual similarity. Far faster than exhaustive matching on large, unordered photo collections (beyond ~500 images). COLMAP downloads and caches the SIFT vocabulary tree on first use.
+- **Incremental mapper fallback**: If `global_mapper` (GLOMAP) produces no usable reconstruction, the pipeline now automatically falls back to the incremental `colmap mapper`, restarting from a clean sparse directory. A new `_has_valid_sparse_model()` check verifies that `sparse/0/` holds a complete reconstruction (cameras + images + points3D, `.bin` or `.txt`) before accepting a result — the pipeline never silently returns an empty reconstruction.
+
+### 🛠 Improvements
+- **Responsive tabs on short screens**: The Config, 360 Extractor, 4DGS, ML Sharp, and SuperSplat tabs are now wrapped in a `QScrollArea`. Their content stays reachable by scrolling instead of being clipped off the bottom on short displays. Minor word-wrap fixes on the Upscale hints.
+- **GUI defaults aligned with the engine**: `params_tab` feature-type / matching-type defaults now match the SIFT / DSP-SIFT engine defaults.
+
+### 🔒 Security
+- **`delete_project_content()` safety guard**: The "delete dataset content" action (send-to-trash) now blocks catastrophic targets — the filesystem root (`/`), `$HOME` itself, the application directory, and any ancestor of those (e.g. `/Users`). User project folders (Desktop, Documents, elsewhere) remain deletable. Previously only the exact application directory and `$HOME` were blocked, so `/`, a `$HOME` sub-directory, or a path outside those areas would have been trashed without a guard.
+
+### 🐞 Bug Fixes
+- **`adapt_max_splats()` dead thermal branch**: The thermal-reduction logic tested `elif thermal == "warning"`, but `get_thermal_state()` (NSProcessInfo) never returns `"warning"` — it returns `nominal` / `fair` / `serious` / `critical`. The branch was dead, so only `critical` ever reduced the splat budget. Replaced with the real thermal tiers: `fair` → cap factor 0.75, `serious` → 0.5, `critical` → 0.2.
+- **Test suite infinite hang**: After the 1.2.1 refactor, `BaseEngine._execute_command()` reads process output via `runner.readline()` in a `while True` loop, but several engine tests still mocked the old `stdout_iter()` API. A bare `MagicMock().readline()` never returns `""` (EOF), so the loop spun forever and the whole suite hung. Test runner mocks now stub `readline` to return EOF.
+- **`cv2` mock clobbering the real module session-wide**: Four test modules injected `sys.modules["cv2"] = MagicMock()` unconditionally at import time. When collected before the COLMAP integration tests, this replaced the real (installed) `cv2` for the entire session, breaking `cv2.imread` and making the reconstruction-pipeline tests fail depending on collection order. The stubs now import the real module first and fall back to a mock only when it is genuinely absent (headless CI). Same guard applied to `send2trash`.
+- **Stale tests realigned with current behaviour**: the ALIKED default-matching test (now `ALIKED_LIGHTGLUE`), the `SessionManager` fixture (composite `cleaner_export_tab.cleaner_tab` structure from 1.0.6), and the GLB export integration test (now skips gracefully when `trimesh` / `open3d` are absent, since `export()` returns `False` rather than raising).
+
 ## [1.2.1] - 2026-07-06
 
 ### 🐞 Bug Fixes

@@ -228,10 +228,15 @@ class TestSessionManager:
 
         # Mock tabs with get_state returning serializable dicts
         for tab_name in ["config_tab", "params_tab", "brush_tab", "sharp_tab",
-                         "cleaner_tab", "upscale_tab", "extractor_360_tab", "four_dgs_tab", "superplat_tab"]:
+                         "upscale_tab", "extractor_360_tab", "four_dgs_tab", "superplat_tab"]:
             tab = MagicMock()
             tab.get_state = MagicMock(return_value={"param1": "value1"})
             setattr(main_window, tab_name, tab)
+
+        # Cleaner is a sub-tab of the composite cleaner_export_tab (v1.0.6)
+        cleaner_tab = MagicMock()
+        cleaner_tab.get_state = MagicMock(return_value={"param1": "value1"})
+        main_window.cleaner_export_tab.cleaner_tab = cleaner_tab
 
         # Config tab needs combo_lang.currentData() to return a string
         main_window.config_tab.combo_lang.currentData = MagicMock(return_value="fr")
@@ -258,9 +263,11 @@ class TestSessionManager:
         session_manager.load()
 
         # Verify set_state was called
-        for tab_name in ["config_tab", "params_tab", "brush_tab", "sharp_tab", "cleaner_tab"]:
+        for tab_name in ["config_tab", "params_tab", "brush_tab", "sharp_tab"]:
             tab = getattr(session_manager.mw, tab_name)
             tab.set_state.assert_called_with({"param1": "value1"})
+        # Cleaner is nested under the composite cleaner_export_tab (v1.0.6)
+        session_manager.mw.cleaner_export_tab.cleaner_tab.set_state.assert_called_with({"param1": "value1"})
 
     def test_load_no_session_file(self, session_manager, tmp_path):
         """load sans fichier ne fait rien."""

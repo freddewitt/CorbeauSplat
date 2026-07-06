@@ -799,7 +799,25 @@ class ColmapEngine(BaseEngine):
                 '--SequentialMatching.overlap', str(self.params.sequential_overlap),
                 '--SequentialMatching.quadratic_overlap', '1',
             ]
+            # Loop detection ferme les boucles quand la caméra repasse sur une zone déjà
+            # filmée (tour d'objet, pièce en boucle) — évite dérive et fantômes. COLMAP
+            # télécharge et met en cache l'arbre de vocabulaire au 1er usage. L'arbre est
+            # basé SIFT : on ne l'active que pour les features SIFT (incompatible ALIKED).
+            if feat_type == 'SIFT':
+                cmd.extend(['--SequentialMatching.loop_detection', '1'])
             description = f"Matching Sequentiel ({match_type})"
+        elif self.params.matcher_type == 'vocab_tree':
+            # Vocab tree : matching par similarité visuelle, adapté aux grandes collections
+            # de photos non ordonnées (bien plus rapide qu'exhaustif au-delà de ~500 images).
+            # COLMAP télécharge/met en cache l'arbre de vocabulaire (SIFT) au 1er usage.
+            cmd = [
+                self.colmap_bin, 'vocab_tree_matcher',
+                '--database_path', database_path,
+                '--FeatureMatching.num_threads', str(self.num_threads),
+                '--FeatureMatching.type', match_type,
+                '--FeatureMatching.guided_matching', '1' if self.params.guided_matching else '0',
+            ]
+            description = f"Matching Vocab Tree ({match_type})"
         else:
             cmd = [
                 self.colmap_bin, 'exhaustive_matcher',
@@ -826,8 +844,15 @@ class ColmapEngine(BaseEngine):
         return self.run_command(cmd, description, status_prefix="Comparaison")
 
     def mapper(self, database_path: str, images_dir: str, sparse_dir: Path) -> bool:
-        """Exécute la reconstruction 3D (global_mapper via COLMAP 4.0+)."""
-        cmd = [
+        """Reconstruction 3D : global_mapper (GLOMAP, COLMAP 4.0+) avec repli automatique
+        sur le mapper incrémental si le mapper global ne produit rien d'exploitable.
+
+        GLOMAP est rapide et bon sur les scènes bien texturées, mais moins robuste sur les
+        scènes petites, symétriques ou à motifs répétitifs — cas où le mapper incrémental
+        reste plus fiable. Le repli garantit qu'on ne rend jamais une reconstruction vide.
+        """
+        sparse_dir = Path(sparse_dir)
+        global_cmd = [
             self.colmap_bin, 'global_mapper',
             '--database_path', database_path,
             '--image_path', images_dir,
@@ -839,7 +864,47 @@ class ColmapEngine(BaseEngine):
             '--GlobalMapper.ba_refine_principal_point', '1' if self.params.ba_refine_principal_point else '0',
             '--GlobalMapper.ba_refine_extra_params', '1' if self.params.ba_refine_extra_params else '0',
         ]
-        return self.run_command(cmd, "Reconstruction 3D (global_mapper)", status_prefix="Reconstruction 3D")
+        ok = self.run_command(global_cmd, "Reconstruction 3D (global_mapper)", status_prefix="Reconstruction 3D")
+        if ok and self._has_valid_sparse_model(sparse_dir):
+            return True
+
+        if self.is_cancelled():
+            return False
+
+        self.log("global_mapper n'a produit aucune reconstruction exploitable — "
+                 "repli sur le mapper incrémental (colmap mapper).")
+        self.status("Reconstruction 3D (repli incrémental)...")
+        # Repart d'un dossier sparse propre pour éviter que le mapper incrémental
+        # reprenne un modèle partiel/cassé laissé par global_mapper.
+        if sparse_dir.exists():
+            shutil.rmtree(sparse_dir)
+        sparse_dir.mkdir(parents=True, exist_ok=True)
+
+        incremental_cmd = [
+            self.colmap_bin, 'mapper',
+            '--database_path', database_path,
+            '--image_path', images_dir,
+            '--output_path', str(sparse_dir),
+            '--Mapper.num_threads', str(self.num_threads),
+            '--Mapper.min_num_matches', str(self.params.min_num_matches),
+            '--Mapper.ignore_watermarks', '1' if self.params.ignore_watermarks else '0',
+            '--Mapper.ba_refine_focal_length', '1' if self.params.ba_refine_focal_length else '0',
+            '--Mapper.ba_refine_principal_point', '1' if self.params.ba_refine_principal_point else '0',
+            '--Mapper.ba_refine_extra_params', '1' if self.params.ba_refine_extra_params else '0',
+        ]
+        ok = self.run_command(incremental_cmd, "Reconstruction 3D (mapper incrémental)", status_prefix="Reconstruction 3D")
+        return ok and self._has_valid_sparse_model(sparse_dir)
+
+    def _has_valid_sparse_model(self, sparse_dir: Path) -> bool:
+        """Vérifie qu'au moins un sous-modèle sparse (dossier 0/) contient une
+        reconstruction complète (cameras + images + points3D, format .bin ou .txt)."""
+        model_dir = Path(sparse_dir) / "0"
+        if not model_dir.is_dir():
+            return False
+        for stem in ("cameras", "images", "points3D"):
+            if not ((model_dir / f"{stem}.bin").exists() or (model_dir / f"{stem}.txt").exists()):
+                return False
+        return True
 
     def image_undistorter(self, images_dir: str, sparse_dir: str, output_dir: str) -> bool:
         """Exécute l'undistortion des images."""
@@ -893,8 +958,15 @@ class ColmapEngine(BaseEngine):
         
         safe_path = Path(target_path).resolve()
         project_root = resolve_project_root().resolve()
-        
-        if safe_path == project_root or safe_path == Path.home().resolve():
+        home = Path.home().resolve()
+
+        # Garde minimale : on bloque uniquement les chemins catastrophiques —
+        # la racine du système de fichiers ("/"), $HOME lui-même, le dossier de
+        # l'application, et tout ancêtre de ceux-ci (ex. "/Users"). Les projets
+        # de l'utilisateur (Desktop, Documents, dossiers divers) restent supprimables.
+        if (safe_path == safe_path.parent  # racine du système de fichiers ("/")
+                or home == safe_path or home.is_relative_to(safe_path)
+                or project_root == safe_path or project_root.is_relative_to(safe_path)):
             return False, "Tentative de suppression critique bloquée par sécurité."
 
         if not target_path.exists():

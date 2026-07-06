@@ -6,10 +6,16 @@ from unittest.mock import Mock, patch, MagicMock, call, ANY, PropertyMock
 
 import pytest
 
-# Patch send2trash and cv2 at module level if missing
+# Provide send2trash / cv2 stubs ONLY when the real package is unavailable
+# (headless CI). Injecting a MagicMock unconditionally would clobber a real,
+# installed cv2 for the whole session and break other tests (e.g. the COLMAP
+# integration pipeline relies on real cv2.imread).
 for _mod_name in ["send2trash", "cv2"]:
     if _mod_name not in sys.modules:
-        sys.modules[_mod_name] = MagicMock()
+        try:
+            __import__(_mod_name)
+        except ImportError:
+            sys.modules[_mod_name] = MagicMock()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -34,8 +40,9 @@ class TestDeleteProjectContent:
                 assert result is True
                 assert "corbeille" in msg
 
-    def test_path_inside_home_blocked(self):
-        """Chemin dans $HOME mais hors project_root → bloqué (sécurité renforcée)."""
+    def test_path_inside_home_allowed(self):
+        """Garde minimale : un sous-dossier ordinaire de $HOME (non critique) est
+        autorisé — c'est le cas normal d'un projet utilisateur."""
         from app.core.engine import ColmapEngine
 
         home_subdir = Path.home() / ".corbeausplat_test_delete"
@@ -43,10 +50,10 @@ class TestDeleteProjectContent:
 
         try:
             with patch("app.core.system.resolve_project_root", return_value=Path("/tmp/fake_project")):
-                with patch("app.core.engine.send2trash.send2trash") as mock_trash:
+                with patch("app.core.engine.send2trash.send2trash"):
                     result, msg = ColmapEngine.delete_project_content(home_subdir)
-                    assert result is False
-                    assert "bloquée" in msg
+                    assert result is True
+                    assert "bloquée" not in msg
         finally:
             if home_subdir.exists():
                 home_subdir.rmdir()
@@ -69,12 +76,24 @@ class TestDeleteProjectContent:
             assert result is False
             assert "bloquée" in msg
 
-    def test_path_outside_allowed_areas(self):
-        """Chemin en dehors de project_root et home → bloqué."""
+    def test_path_outside_home_not_security_blocked(self):
+        """Garde minimale : un chemin non critique hors $HOME n'est PAS bloqué pour
+        raison de sécurité. Ici il n'existe pas → message « n'existe pas », pas « bloquée »."""
         from app.core.engine import ColmapEngine
 
         with patch("app.core.system.resolve_project_root", return_value=Path("/tmp/fake_project")):
-            result, msg = ColmapEngine.delete_project_content(Path("/opt/somewhere"))
+            result, msg = ColmapEngine.delete_project_content(Path("/opt/nonexistent_corbeausplat"))
+            assert result is False
+            assert "bloquée" not in msg
+            assert "n'existe pas" in msg
+
+    def test_path_ancestor_of_home_blocked(self):
+        """Un ancêtre de $HOME (ex. /Users) est catastrophique → bloqué."""
+        from app.core.engine import ColmapEngine
+
+        ancestor = Path.home().resolve().parent  # ex. /Users
+        with patch("app.core.system.resolve_project_root", return_value=Path("/tmp/fake_project")):
+            result, msg = ColmapEngine.delete_project_content(ancestor)
             assert result is False
             assert "bloquée" in msg
 
@@ -244,11 +263,17 @@ class TestBuildCommand:
 
         with patch.object(engine, 'run_command', return_value=True) as mock_run:
             engine.mapper(str(tmp_path / "database.db"), str(tmp_path / "images"), tmp_path / "sparse")
-            cmd = mock_run.call_args[0][0]
-            assert "colmap" in cmd
-            assert "global_mapper" in cmd
-            assert "--Mapper.num_threads" in cmd
-            assert "glomap" not in cmd
+            # 1er appel : mapper global (GLOMAP)
+            global_cmd = mock_run.call_args_list[0][0][0]
+            assert "colmap" in global_cmd
+            assert "global_mapper" in global_cmd
+            assert "--GlobalMapper.num_threads" in global_cmd
+            assert "glomap" not in global_cmd
+            # run_command mocké renvoie True mais aucun modèle sparse/0 valide n'est
+            # produit → repli automatique sur le mapper incrémental.
+            fallback_cmd = mock_run.call_args_list[1][0][0]
+            assert "mapper" in fallback_cmd
+            assert "--Mapper.num_threads" in fallback_cmd
 
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
@@ -722,9 +747,10 @@ class TestResolveMatchingType:
         assert _resolve_matching_type("SIFT", None) == "SIFT_BRUTEFORCE"
 
     def test_default_for_aliked(self):
+        # ALIKED features default to LightGlue matching (intégration ALIKED/LightGlue)
         from app.cli.commands import _resolve_matching_type
-        assert _resolve_matching_type("ALIKED_N16ROT", None) == "ALIKED_BRUTEFORCE"
-        assert _resolve_matching_type("ALIKED_N32", None) == "ALIKED_BRUTEFORCE"
+        assert _resolve_matching_type("ALIKED_N16ROT", None) == "ALIKED_LIGHTGLUE"
+        assert _resolve_matching_type("ALIKED_N32", None) == "ALIKED_LIGHTGLUE"
 
     def test_unknown_feature_type_falls_back(self):
         from app.cli.commands import _resolve_matching_type

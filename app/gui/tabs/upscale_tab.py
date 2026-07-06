@@ -62,10 +62,12 @@ class UpscaleTab(QWidget):
 
         if binary is None:
             hint = QLabel("upscayl-bin will be installed automatically on next launch.")
+            hint.setWordWrap(True)
             hint.setStyleSheet("color: #888; font-size: 11px;")
             engine_lay.addWidget(hint)
         else:
             hint = QLabel("\u2705 upscayl-bin is installed. Download models below to use them.")
+            hint.setWordWrap(True)
             hint.setStyleSheet("color: #44aa44; font-size: 11px;")
             engine_lay.addWidget(hint)
 

@@ -60,6 +60,7 @@ class ParamsTab(QWidget):
         extract_layout.addRow(self.lbl_max_feat, self.max_features_spin)
         
         self.estimate_affine_check = QCheckBox()
+        self.estimate_affine_check.setChecked(True)
         self.lbl_affine = QLabel(tr("check_affine"))
         extract_layout.addRow(self.lbl_affine, self.estimate_affine_check)
         
@@ -70,7 +71,7 @@ class ParamsTab(QWidget):
 
         self.feature_type_combo = QComboBox()
         self.feature_type_combo.addItems(FEATURE_TYPES)
-        self.feature_type_combo.setCurrentText('ALIKED_N32')
+        self.feature_type_combo.setCurrentText('SIFT')
         self.feature_type_combo.setMinimumWidth(150)
         self.lbl_feature_type = QLabel(tr("lbl_feature_type"))
         extract_layout.addRow(self.lbl_feature_type, self.feature_type_combo)
@@ -213,10 +214,10 @@ class ParamsTab(QWidget):
         self.single_camera_check.setChecked(params.single_camera)
         self.max_image_spin.setValue(params.max_image_size)
         self.max_features_spin.setValue(params.max_num_features)
-        feat_type = getattr(params, 'feature_type', 'ALIKED_N32')
+        feat_type = getattr(params, 'feature_type', 'SIFT')
         self.feature_type_combo.setCurrentText(feat_type)
         self._on_feature_type_changed(feat_type)
-        match_type = getattr(params, 'matching_type', 'ALIKED_LIGHTGLUE')
+        match_type = getattr(params, 'matching_type', 'SIFT_BRUTEFORCE')
         if match_type in COMPATIBLE_MATCHING.get(feat_type, []):
             self.matching_algo_combo.setCurrentText(match_type)
         self.estimate_affine_check.setChecked(params.estimate_affine_shape)

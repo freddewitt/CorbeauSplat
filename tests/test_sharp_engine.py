@@ -10,7 +10,10 @@ import pytest
 # Patch missing modules at module level
 for _mod_name in ["cv2", "send2trash"]:
     if _mod_name not in sys.modules:
-        sys.modules[_mod_name] = MagicMock()
+        try:
+            __import__(_mod_name)  # keep real module if installed — avoids clobbering cv2/numpy session-wide
+        except ImportError:
+            sys.modules[_mod_name] = MagicMock()
 
 
 class TestProcessVideoFrames:
@@ -23,6 +26,8 @@ class TestProcessVideoFrames:
         engine = SharpEngine(logger_callback=print)
         # Mock the runner to avoid subprocess calls
         engine.runner = MagicMock()
+        engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
+        engine.runner.wait.return_value = 0
         return engine
 
     @patch("shutil.which")
@@ -228,6 +233,7 @@ class TestSharpPredict:
         engine.runner = MagicMock()
         engine.runner.start.return_value = None
         engine.runner.stdout_iter.return_value = iter([])
+        engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
         engine.runner.wait.return_value = 0
 
         input_path = tmp_path / "input.jpg"
@@ -247,6 +253,7 @@ class TestSharpPredict:
         engine.runner = MagicMock()
         engine.runner.start.return_value = None
         engine.runner.stdout_iter.return_value = iter([])
+        engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
         engine.runner.wait.return_value = 0
 
         input_path = tmp_path / "input.jpg"

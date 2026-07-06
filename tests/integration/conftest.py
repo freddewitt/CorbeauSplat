@@ -118,15 +118,26 @@ def mock_subprocess_run():
     (nécessaire pour l'étape view_graph_calibration qui copie la base).
     """
     def _side_effect(cmd, *args, **kwargs):
+        from pathlib import Path
         # COLMAP feature_extractor creates database.db — simulate this
         cmd_list = list(cmd) if not isinstance(cmd, str) else cmd.split()
         if "feature_extractor" in cmd_list and "--database_path" in cmd_list:
             try:
                 db_idx = cmd_list.index("--database_path") + 1
-                from pathlib import Path
                 db_path = Path(cmd_list[db_idx])
                 db_path.parent.mkdir(parents=True, exist_ok=True)
                 db_path.touch()
+            except (ValueError, IndexError):
+                pass
+        # global_mapper / mapper produce a sparse model in <output_path>/0 —
+        # simulate it so _has_valid_sparse_model() passes (cameras/images/points3D)
+        if ("global_mapper" in cmd_list or "mapper" in cmd_list) and "--output_path" in cmd_list:
+            try:
+                out_idx = cmd_list.index("--output_path") + 1
+                model_dir = Path(cmd_list[out_idx]) / "0"
+                model_dir.mkdir(parents=True, exist_ok=True)
+                for stem in ("cameras", "images", "points3D"):
+                    (model_dir / f"{stem}.bin").touch()
             except (ValueError, IndexError):
                 pass
         return 0
