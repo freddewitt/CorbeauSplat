@@ -203,7 +203,7 @@ def get_thermal_state() -> str:
         return "unknown"
 
 
-def adapt_max_splats(max_splats: int) -> int:
+def adapt_max_splats(max_splats: int, thermal_throttling: bool = True) -> int:
     """Reduce *max_splats* under memory pressure or thermal warning.
 
     On Apple Silicon UMA systems, GPU splats consume the same RAM pool
@@ -236,11 +236,12 @@ def adapt_max_splats(max_splats: int) -> int:
         factor *= 0.85
 
     # Reduce under thermal warning/critical
-    thermal = get_thermal_state()
-    if thermal == "critical":
-        factor = min(factor, 0.2)
-    elif thermal == "warning":
-        factor = min(factor, 0.5)
+    if thermal_throttling:
+        thermal = get_thermal_state()
+        if thermal == "critical":
+            factor = min(factor, 0.2)
+        elif thermal == "warning":
+            factor = min(factor, 0.5)
 
     adapted = int(max_splats * factor)
     return max(500_000, adapted)

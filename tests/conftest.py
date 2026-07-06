@@ -55,5 +55,11 @@ def _patch_pyqt6():
     if "send2trash" not in sys.modules:
         sys.modules["send2trash"] = MagicMock()
 
+    try:
+        import numpy  # noqa: F811 — prevent mocking if real numpy is available (plyfile needs it)
+    except ImportError:
+        # Headless CI without numpy — provide a mock so ply_cleaner.py can import
+        sys.modules["numpy"] = MagicMock()
+
 
 _patch_pyqt6()

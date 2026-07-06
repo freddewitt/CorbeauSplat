@@ -16,15 +16,12 @@
     "single_camera": true,
     "max_image_size": 3200,
     "max_num_features": 8192,
-    "force_cpu": false,
     "estimate_affine_shape": false,
     "domain_size_pooling": true,
     "max_ratio": 0.8,
     "max_distance": 0.7,
     "cross_check": true,
     "guided_matching": false,
-    "min_model_size": 10,
-    "multiple_models": false,
     "ba_refine_focal_length": true,
     "ba_refine_principal_point": false,
     "ba_refine_extra_params": true,
@@ -32,7 +29,7 @@
     "matcher_type": "exhaustive",
     "sequential_overlap": 30,
     "undistort_images": false,
-    "use_glomap": false
+    "thermal_throttling": false
   },
   "brush_params": {
     "iterations": 30000,

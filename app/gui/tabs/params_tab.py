@@ -59,11 +59,6 @@ class ParamsTab(QWidget):
         self.lbl_max_feat = QLabel(tr("lbl_max_feat"))
         extract_layout.addRow(self.lbl_max_feat, self.max_features_spin)
         
-        self.force_cpu_check = QCheckBox()
-        self.force_cpu_check.setEnabled(False)
-        self.lbl_force_cpu = QLabel(tr("check_force_cpu"))
-        extract_layout.addRow(self.lbl_force_cpu, self.force_cpu_check)
-        
         self.estimate_affine_check = QCheckBox()
         self.lbl_affine = QLabel(tr("check_affine"))
         extract_layout.addRow(self.lbl_affine, self.estimate_affine_check)
@@ -75,7 +70,7 @@ class ParamsTab(QWidget):
 
         self.feature_type_combo = QComboBox()
         self.feature_type_combo.addItems(FEATURE_TYPES)
-        self.feature_type_combo.setCurrentText('SIFT')
+        self.feature_type_combo.setCurrentText('ALIKED_N32')
         self.feature_type_combo.setMinimumWidth(150)
         self.lbl_feature_type = QLabel(tr("lbl_feature_type"))
         extract_layout.addRow(self.lbl_feature_type, self.feature_type_combo)
@@ -135,22 +130,6 @@ class ParamsTab(QWidget):
         self.mapper_group = QGroupBox(tr("group_mapper"))
         mapper_layout = QFormLayout()
         
-        self.min_model_spin = QSpinBox()
-        self.min_model_spin.setRange(3, 100)
-        self.min_model_spin.setValue(10)
-        self.min_model_spin.setMinimumWidth(100)
-        self.lbl_min_model = QLabel(tr("lbl_min_model"))
-        mapper_layout.addRow(self.lbl_min_model, self.min_model_spin)
-
-        self.use_glomap_check = QCheckBox()
-        self.use_glomap_check.setText(tr("check_use_glomap"))
-        self.lbl_glomap = QLabel(tr("lbl_glomap"))
-        mapper_layout.addRow(self.lbl_glomap, self.use_glomap_check)
-        
-        self.multiple_models_check = QCheckBox()
-        self.lbl_multi_model = QLabel(tr("check_multi_model"))
-        mapper_layout.addRow(self.lbl_multi_model, self.multiple_models_check)
-        
         self.refine_focal_check = QCheckBox()
         self.refine_focal_check.setChecked(True)
         self.lbl_focal = QLabel(tr("check_focal"))
@@ -171,6 +150,20 @@ class ParamsTab(QWidget):
         self.min_matches_spin.setMinimumWidth(100)
         self.lbl_min_match = QLabel(tr("lbl_min_match"))
         mapper_layout.addRow(self.lbl_min_match, self.min_matches_spin)
+
+        self.view_graph_calibration_check = QCheckBox()
+        self.view_graph_calibration_check.setChecked(True)
+        self.lbl_view_graph_calibration = QLabel(tr("check_view_graph_calibration"))
+        mapper_layout.addRow(self.lbl_view_graph_calibration, self.view_graph_calibration_check)
+
+        self.ignore_watermarks_check = QCheckBox()
+        self.ignore_watermarks_check.setChecked(True)
+        self.lbl_ignore_watermarks = QLabel(tr("check_ignore_watermarks"))
+        mapper_layout.addRow(self.lbl_ignore_watermarks, self.ignore_watermarks_check)
+
+        self.thermal_throttling_check = QCheckBox()
+        self.lbl_thermal_throttling = QLabel(tr("check_thermal_throttling"))
+        mapper_layout.addRow(self.lbl_thermal_throttling, self.thermal_throttling_check)
         
         self.mapper_group.setLayout(mapper_layout)
         scroll_layout.addWidget(self.mapper_group)
@@ -197,22 +190,21 @@ class ParamsTab(QWidget):
             max_num_features=self.max_features_spin.value(),
             feature_type=self.feature_type_combo.currentText(),
             matching_type=self.matching_algo_combo.currentText(),
-            force_cpu=self.force_cpu_check.isChecked(),
             estimate_affine_shape=self.estimate_affine_check.isChecked(),
             domain_size_pooling=self.domain_pooling_check.isChecked(),
             max_ratio=self.max_ratio_spin.value(),
             max_distance=self.max_distance_spin.value(),
             cross_check=self.cross_check_check.isChecked(),
             guided_matching=self.guided_match_check.isChecked(),
-            min_model_size=self.min_model_spin.value(),
-            multiple_models=self.multiple_models_check.isChecked(),
             ba_refine_focal_length=self.refine_focal_check.isChecked(),
             ba_refine_principal_point=self.refine_principal_check.isChecked(),
             ba_refine_extra_params=self.refine_extra_check.isChecked(),
             min_num_matches=self.min_matches_spin.value(),
             matcher_type=self.matcher_type_combo.currentText(),
-            use_glomap=self.use_glomap_check.isChecked(),
             undistort_images=False, # Géré par ConfigTab pour l'instant, ou on peut le passer ici si on veut
+            use_view_graph_calibration=self.view_graph_calibration_check.isChecked(),
+            ignore_watermarks=self.ignore_watermarks_check.isChecked(),
+            thermal_throttling=self.thermal_throttling_check.isChecked(),
         )
 
     def set_params(self, params):
@@ -221,26 +213,25 @@ class ParamsTab(QWidget):
         self.single_camera_check.setChecked(params.single_camera)
         self.max_image_spin.setValue(params.max_image_size)
         self.max_features_spin.setValue(params.max_num_features)
-        feat_type = getattr(params, 'feature_type', 'SIFT')
+        feat_type = getattr(params, 'feature_type', 'ALIKED_N32')
         self.feature_type_combo.setCurrentText(feat_type)
         self._on_feature_type_changed(feat_type)
-        match_type = getattr(params, 'matching_type', 'SIFT_BRUTEFORCE')
+        match_type = getattr(params, 'matching_type', 'ALIKED_LIGHTGLUE')
         if match_type in COMPATIBLE_MATCHING.get(feat_type, []):
             self.matching_algo_combo.setCurrentText(match_type)
-        self.force_cpu_check.setChecked(params.force_cpu)
         self.estimate_affine_check.setChecked(params.estimate_affine_shape)
         self.domain_pooling_check.setChecked(params.domain_size_pooling)
         self.max_ratio_spin.setValue(params.max_ratio)
         self.max_distance_spin.setValue(params.max_distance)
         self.cross_check_check.setChecked(params.cross_check)
-        self.min_model_spin.setValue(params.min_model_size)
-        self.multiple_models_check.setChecked(params.multiple_models)
         self.refine_focal_check.setChecked(params.ba_refine_focal_length)
         self.refine_principal_check.setChecked(params.ba_refine_principal_point)
         self.refine_extra_check.setChecked(params.ba_refine_extra_params)
         self.min_matches_spin.setValue(params.min_num_matches)
         self.matcher_type_combo.setCurrentText(params.matcher_type)
-        self.use_glomap_check.setChecked(params.use_glomap)
+        self.view_graph_calibration_check.setChecked(params.use_view_graph_calibration)
+        self.ignore_watermarks_check.setChecked(params.ignore_watermarks)
+        self.thermal_throttling_check.setChecked(getattr(params, 'thermal_throttling', False))
         # undistort est dans config tab
 
     def get_state(self):
@@ -259,7 +250,6 @@ class ParamsTab(QWidget):
         self.lbl_single_cam.setText(tr("check_single_cam"))
         self.lbl_max_img.setText(tr("lbl_max_img"))
         self.lbl_max_feat.setText(tr("lbl_max_feat"))
-        self.lbl_force_cpu.setText(tr("check_force_cpu"))
         self.lbl_affine.setText(tr("check_affine"))
         self.lbl_domain.setText(tr("check_domain"))
         self.lbl_feature_type.setText(tr("lbl_feature_type"))
@@ -273,11 +263,10 @@ class ParamsTab(QWidget):
         self.lbl_guided.setText(tr("check_guided"))
         
         self.mapper_group.setTitle(tr("group_mapper"))
-        self.lbl_min_model.setText(tr("lbl_min_model"))
-        self.lbl_glomap.setText(tr("lbl_glomap"))
-        self.use_glomap_check.setText(tr("check_use_glomap"))
-        self.lbl_multi_model.setText(tr("check_multi_model"))
         self.lbl_focal.setText(tr("check_focal"))
         self.lbl_principal.setText(tr("check_principal"))
         self.lbl_extra.setText(tr("check_extra"))
         self.lbl_min_match.setText(tr("lbl_min_match"))
+        self.lbl_view_graph_calibration.setText(tr("check_view_graph_calibration"))
+        self.lbl_ignore_watermarks.setText(tr("check_ignore_watermarks"))
+        self.lbl_thermal_throttling.setText(tr("check_thermal_throttling"))

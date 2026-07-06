@@ -19,15 +19,17 @@ class BrushEngine(BaseEngine):
         "--eval-every", "--export-every", "--max-resolution", "--refine-pose"
     }
 
-    def __init__(self, logger_callback: Optional[Callable] = None) -> None:
+    def __init__(self, logger_callback: Optional[Callable] = None, thermal_throttling: bool = False) -> None:
         """Initialize the Brush engine.
 
         Parameters
         ----------
         logger_callback: Optional[Callable]
             Callback to forward log messages to the UI.
+        thermal_throttling: bool
+            Whether to enable thermal throttling.
         """
-        super().__init__("Brush", logger_callback)
+        super().__init__("Brush", logger_callback, thermal_throttling=thermal_throttling)
         self.brush_bin = resolve_binary("brush")
         self.process = None
 
@@ -133,10 +135,10 @@ class BrushEngine(BaseEngine):
         # --- Memory & thermal adaptation ---
         eps = params or {}
         orig_splats = eps.get("max_splats", 10_000_000)
-        adapted = adapt_max_splats(orig_splats)
+        adapted = adapt_max_splats(orig_splats, thermal_throttling=self.thermal_throttling)
         if adapted < orig_splats:
             reduction_pct = 100 - int(100 * adapted / max(orig_splats, 1))
-            thermal_state = get_thermal_state()
+            thermal_state = get_thermal_state() if self.thermal_throttling else "disabled"
             self.log(
                 f"⚠️  Mémoire sous pression (pct={self._mem_pressure():.0f}%, "
                 f"thermique={thermal_state}) — "
@@ -150,7 +152,14 @@ class BrushEngine(BaseEngine):
 
         cmd, env = self.build_command(str(safe_input), str(safe_output), params)
         self.log(f"Lancement Brush: {' '.join(cmd)}")
-        return self._execute_command(cmd, env=env)
+        # Brush training can exceed 1h on large scenes — use extended wall-clock timeout.
+        # Inactivity detection disabled: Brush has legitimately long silent phases
+        # (viewer init, checkpoint I/O, heavy computation) that trigger false positives.
+        return self._execute_command(
+            cmd, env=env,
+            timeout=14400,      # 4h wall-clock safety net
+            inactivity_timeout=0,   # disabled — noisy stdout behavior
+        )
 
     @staticmethod
     def _mem_pressure() -> float:

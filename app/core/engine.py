@@ -105,7 +105,7 @@ class ColmapEngine(BaseEngine):
     
     def __init__(self, params: Any, input_path: str, output_path: str, input_type: str, fps: int, project_name: str = "Untitled", logger_callback: Optional[Callable] = None, progress_callback: Optional[Callable] = None, status_callback: Optional[Callable] = None, check_cancel_callback: Optional[Callable] = None):
         """Initialise le moteur COLMAP avec les paramètres de configuration."""
-        super().__init__("COLMAP", logger_callback)
+        super().__init__("COLMAP", logger_callback, thermal_throttling=params.thermal_throttling)
         self.params = params
         self.input_path = Path(input_path)
         self.output_path = Path(output_path)
@@ -123,7 +123,6 @@ class ColmapEngine(BaseEngine):
         # Resolve binaries
         self.ffmpeg_bin = resolve_binary('ffmpeg') or 'ffmpeg'
         self.colmap_bin = resolve_binary('colmap') or 'colmap'
-        self.glomap_bin = resolve_binary('glomap') or 'glomap'
         
         # Pre-load cv2 on the main thread to avoid Bus Error (SIGBUS) 
         try:
@@ -134,7 +133,7 @@ class ColmapEngine(BaseEngine):
             
         if self.is_silicon:
             self.log(f"Apple Silicon détecté - {self.num_threads} threads optimisés")
-        self.log(f"Binaires: {self.colmap_bin}, {self.ffmpeg_bin}, {self.glomap_bin}")
+        self.log(f"Binaires: {self.colmap_bin}, {self.ffmpeg_bin}")
 
     @property
     def project_path(self) -> Path:
@@ -308,16 +307,24 @@ class ColmapEngine(BaseEngine):
         self.status(tr("status_feature_matching", "Recherche des points communs..."))
         if not self.feature_matching(str(database_path)):
             return False, "Échec matching"
-            
-        self.progress(75)
-        
-        if self.is_cancelled(): return False, tr("USER_CANCELLED")
 
-        # GLOMAP's bundled SQLite does not support WAL journal mode created by
-        # recent COLMAP versions. Convert the database to DELETE mode before
-        # handing it off to GLOMAP.
-        if self.params.use_glomap:
-            self._convert_db_journal_mode(database_path)
+        self.progress(75)
+
+        # View graph calibration (recommended before global_mapper, especially for AI-generated content)
+        if self.params.use_view_graph_calibration:
+            if self.is_cancelled(): return False, tr("USER_CANCELLED")
+            self.status("Calibration du graphe de vues...")
+            calib_db = database_path.with_stem(database_path.stem + "_calib")
+            shutil.copy2(database_path, calib_db)
+            if not self.run_command([
+                self.colmap_bin, 'view_graph_calibrator',
+                '--database_path', str(calib_db),
+            ], "Calibration du graphe de vues", status_prefix="Calibration"):
+                return False, "Échec calibration"
+            # Use the calibrated database for mapping
+            database_path = calib_db
+
+        if self.is_cancelled(): return False, tr("USER_CANCELLED")
 
         self.status(tr("status_reconstruction", "Création de la scène 3D..."))
         if not self.mapper(str(database_path), str(images_dir), str(sparse_dir)):
@@ -434,25 +441,6 @@ class ColmapEngine(BaseEngine):
             except Exception as e:
                 self.log(f"Erreur copie images: {e}")
                 return False
-
-    def _convert_db_journal_mode(self, database_path: Path):
-        """Switch the COLMAP database from WAL to DELETE journal mode.
-
-        Recent COLMAP versions open the database in WAL mode, which GLOMAP's
-        bundled SQLite cannot handle. This converts it back to the classic
-        rollback-journal mode before GLOMAP reads the file.
-        """
-        try:
-            with sqlite3.connect(str(database_path)) as con:
-                con.execute("PRAGMA journal_mode=DELETE")
-                con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            for wal_file in [database_path.parent / (database_path.name + "-wal"),
-                             database_path.parent / (database_path.name + "-shm")]:
-                if wal_file.exists():
-                    wal_file.unlink()
-            self.log("Base de données convertie (WAL → DELETE) pour compatibilité GLOMAP.")
-        except Exception as e:
-            self.log(f"Avertissement : conversion journal mode échouée : {e}")
 
     def _run_upscale(self, project_dir: Path, images_dir: Path) -> bool:
         """Gère l'upscaling via upscayl-bin."""
@@ -838,31 +826,20 @@ class ColmapEngine(BaseEngine):
         return self.run_command(cmd, description, status_prefix="Comparaison")
 
     def mapper(self, database_path: str, images_dir: str, sparse_dir: Path) -> bool:
-        """Exécute la reconstruction 3D (Mapper)."""
-        if self.params.use_glomap:
-            self.log("Utilisation de GLOMAP pour la reconstruction...")
-            cmd = [
-                self.glomap_bin, 'mapper',
-                '--database_path', database_path,
-                '--image_path', images_dir,
-                '--output_path', str(sparse_dir)
-            ]
-            return self.run_command(cmd, "Reconstruction 3D (GLOMAP)", status_prefix="Reconstruction GLOMAP")
-        else:
-            cmd = [
-                self.colmap_bin, 'mapper',
-                '--database_path', database_path,
-                '--image_path', images_dir,
-                '--output_path', str(sparse_dir),
-                '--Mapper.num_threads', str(self.num_threads),
-                '--Mapper.min_model_size', str(self.params.min_model_size),
-                '--Mapper.multiple_models', '1' if self.params.multiple_models else '0',
-                '--Mapper.ba_refine_focal_length', '1' if self.params.ba_refine_focal_length else '0',
-                '--Mapper.ba_refine_principal_point', '1' if self.params.ba_refine_principal_point else '0',
-                '--Mapper.ba_refine_extra_params', '1' if self.params.ba_refine_extra_params else '0',
-                '--Mapper.min_num_matches', str(self.params.min_num_matches),
-            ]
-            return self.run_command(cmd, "Reconstruction 3D (COLMAP)", status_prefix="Reconstruction 3D")
+        """Exécute la reconstruction 3D (global_mapper via COLMAP 4.0+)."""
+        cmd = [
+            self.colmap_bin, 'global_mapper',
+            '--database_path', database_path,
+            '--image_path', images_dir,
+            '--output_path', str(sparse_dir),
+            '--GlobalMapper.num_threads', str(self.num_threads),
+            '--GlobalMapper.min_num_matches', str(self.params.min_num_matches),
+            '--GlobalMapper.ignore_watermarks', '1' if self.params.ignore_watermarks else '0',
+            '--GlobalMapper.ba_refine_focal_length', '1' if self.params.ba_refine_focal_length else '0',
+            '--GlobalMapper.ba_refine_principal_point', '1' if self.params.ba_refine_principal_point else '0',
+            '--GlobalMapper.ba_refine_extra_params', '1' if self.params.ba_refine_extra_params else '0',
+        ]
+        return self.run_command(cmd, "Reconstruction 3D (global_mapper)", status_prefix="Reconstruction 3D")
 
     def image_undistorter(self, images_dir: str, sparse_dir: str, output_dir: str) -> bool:
         """Exécute l'undistortion des images."""

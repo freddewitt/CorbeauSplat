@@ -62,7 +62,6 @@ def _apply_robust(params: ColmapParams) -> ColmapParams:
     params.camera_model = "PINHOLE"
     params.ba_refine_extra_params = False
     params.ba_refine_principal_point = False
-    params.multiple_models = True
     params.filter_blurry = True
     return params
 
@@ -79,7 +78,7 @@ def _resolve_matching_type(feature_type: str, matching_type: str | None) -> str:
 
 
 def run_colmap(args):
-    feat_type = getattr(args, 'feature_type', 'SIFT')
+    feat_type = getattr(args, 'feature_type', 'ALIKED_N32')
     match_type = _resolve_matching_type(feat_type, getattr(args, 'matching_type', None))
     params = ColmapParams(
         camera_model=args.camera_model,
@@ -93,17 +92,17 @@ def run_colmap(args):
         max_ratio=args.max_ratio,
         max_distance=args.max_distance,
         cross_check=not args.no_cross_check,
-        min_model_size=args.min_model_size,
-        multiple_models=args.multiple_models,
         ba_refine_focal_length=not args.no_refine_focal,
         ba_refine_principal_point=args.refine_principal,
         ba_refine_extra_params=not args.no_refine_extra,
         min_num_matches=args.min_num_matches,
         matcher_type=args.matcher_type,
         undistort_images=args.undistort,
-        use_glomap=args.use_glomap,
         filter_blurry=args.filter_blur,
         blur_factor=_blur_factor_from_strength(args.blur_strength),
+        use_view_graph_calibration=getattr(args, 'view_graph_calibration', True),
+        ignore_watermarks=getattr(args, 'ignore_watermarks', True),
+        thermal_throttling=args.thermal_throttling,
     )
     if getattr(args, "robust", False):
         params = _apply_robust(params)
@@ -568,7 +567,7 @@ def run_pipeline(args):
     if args.type == "video":
         print(f"  FPS         : {args.fps}")
 
-    feat_type = getattr(args, 'feature_type', 'SIFT')
+    feat_type = getattr(args, 'feature_type', 'ALIKED_N32')
     match_type = _resolve_matching_type(feat_type, getattr(args, 'matching_type', None))
     colmap_params = ColmapParams(
         camera_model=args.camera_model,
@@ -577,9 +576,11 @@ def run_pipeline(args):
         matcher_type=args.matcher_type,
         max_image_size=args.max_image_size,
         undistort_images=args.undistort,
-        use_glomap=args.use_glomap,
         filter_blurry=getattr(args, "filter_blur", False),
         blur_factor=_blur_factor_from_strength(getattr(args, "blur_strength", "medium")),
+        use_view_graph_calibration=getattr(args, 'view_graph_calibration', True),
+        ignore_watermarks=getattr(args, 'ignore_watermarks', True),
+        thermal_throttling=getattr(args, 'thermal_throttling', False),
     )
     if getattr(args, "robust", False):
         colmap_params = _apply_robust(colmap_params)

@@ -1,6 +1,6 @@
 # CorbeauSplat — Project Manifest
 
-> Version 1.1.0 — macOS Apple Silicon Gaussian Splatting Pipeline
+> Version 1.2.1 — macOS Apple Silicon Gaussian Splatting Pipeline
 
 ## Identity
 
@@ -165,14 +165,15 @@ main.py                         ← Entry: CLI parser or GUI launcher
 
 ## Known Issues & Gaps
 
- 1. **Workers not tested in headless CI** — `test_workers.py` requires PyQt6 runtime, skipped via `pytest.skip()` guard
- 2. **No end-to-end integration tests** — all 224 tests are unit-level with mocked subprocesses
- 3. **ExportTab runs synchronously on GUI thread** : `ExportTab.start_export()` iterates files in a for loop on the main thread — UI freezes on large batches. A dedicated QThread worker is planned for a future iteration.
+ 1. **No end-to-end integration tests** — all 224+ tests are unit-level or integration-with-mocks; true end-to-end (real binaries) not covered
+ 2. **Workers tested headless via mock PyQt6** — `conftest.py` patches PyQt6 at session scope, but import chain still requires numpy mock for CI
 
 ## Changelog Highlights (v1.0.1 → v1.0.6)
 
 | Version | Key Changes |
 |---------|-------------|
+| **1.2.2** (2026-07-06) | Fix timeout Brush 3600s → 14400s configurable (`training_timeout`). Nouveau paramètre `inactivity_timeout` dans `BaseEngine._execute_command()` : détection processus gelé (10min sans stdout). Rétrocompatible. |
+| **1.2.1** (2026-07-05) | ExportTab async fix confirmed (already used ExportWorker); CI headless worker tests unblocked; integration tests expanded; pyproject.toml version synced to 1.2.0 |
 | **1.0.6** (2026-07-04) | Cleaner + Export tabs merged into one composite tab; new `--then-export` CLI flag; `ExportTab.log_signal` crash bug fixed |
 | **1.0.5** (2026-07-03) | Cleaner batch mode: hidden files `._*.ply` filtered out; `compute_keep_mask` → `compute_clean_mask` rename |
 | **1.0.4** (2026-06-30) | GUI path validation relaxed: `gui_trusted` flag bypasses containment for QFileDialog paths; CLI remains strict |
@@ -216,12 +217,10 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 
 ## RESTE À FAIRE (priorisé)
 
-1. **Worker QThread pour ExportTab** — l'export synchrone freeze l'UI sur les gros batches
-2. **Tests d'intégration end-to-end** — tous les 224+ tests sont unitaires (mock subprocess)
-3. **Tests workers en CI headless** — `test_workers.py` skip PyQt6, pas de couverture CI
-4. **Mise à jour pyproject.toml** — version indique encore 1.0.5 (code réel: 1.1.0)
-5. **Migration glomap standalone → `colmap global_mapper`** — COLMAP 4.0 a intégré GLOMAP ; le binaire séparé n'est plus maintenu, et le hack WAL→DELETE deviendra inutile
+1. **Tests d'intégration end-to-end** — tous les 224+ tests sont unitaires ou integration mockés ; pas de vrai bout-en-bout
+2. **10 tests préexistants en échec** — COLMAP pipeline (6), export PLY (1), validation chemins (3) — non liés au fix Brush, mais à résoudre
+3. **i18n** — vérifier couverture des clés dans les nouveaux onglets (Cleaner+Export, 4DGS, Extractor360)
 
 ## Graphify
 
-Un graphe de connaissance est maintenu dans `graphify-out/`. Pour toute question d'architecture : `graphify query "<question>"`. Dernière reconstruction : 1649 nœuds, 3139 arêtes, 110 communautés (2026-07-05).
+Un graphe de connaissance est maintenu dans `graphify-out/`. Pour toute question d'architecture : `graphify query "<question>"`. Dernière reconstruction : 1789 nœuds, 3365 arêtes, 116 communautés (2026-07-06).

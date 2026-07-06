@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.2.0] - 2026-07-05
+
+### ✨ New Features
+- **Logs tab enhancements**: Added "Copy" button to copy all log content to clipboard, a collapsible search bar with find-next/find-previous navigation, and an auto-scroll lock that lets users scroll up freely during training without being forced back to the bottom.
+- **Thermal throttling now optional**: Thermal watchdog and adaptive max_splats reduction are disabled by default. Opt-in via GUI checkbox or `--thermal-throttling` CLI flag.
+- **View graph calibration in pipeline**: `view_graph_calibrator` runs automatically between feature matching and `global_mapper`. Copies the database, calibrates intrinsics from the view graph, and feeds the calibrated copy to the mapper. Essential for AI-generated video. Toggle via `--view-graph-calibration` / `--no-view-graph-calibration`.
+- **Ignore watermarks option**: `--GlobalMapper.ignore_watermarks` enabled by default. GUI checkbox and `--ignore-watermarks` / `--no-ignore-watermarks` CLI flags.
+- **ALIKED + LightGlue as defaults**: Feature type defaults to `ALIKED_N32` and matching to `ALIKED_LIGHTGLUE`. More robust on AI-generated frames with inconsistent geometry or illumination.
+
+### 🔧 Changed
+- **glomap → colmap global_mapper**: Removed standalone `glomap` binary, WAL→DELETE SQLite hack, `_convert_db_journal_mode()`, `GlomapEngineDep`, and `use_glomap` parameter. All reconstruction uses `colmap global_mapper`.
+- **GlobalMapper option prefix**: Mapper options use `--GlobalMapper.*` instead of `--Mapper.*`.
+
+### 🗑 Removed
+- **`force_cpu`**: Dead parameter never wired to COLMAP commands. Removed from params, GUI, config, and all 9 locale files.
+- **`min_model_size` and `multiple_models`**: Not supported by `global_mapper`. Removed from all layers.
+- **`GlomapEngineDep`**: Deleted from installer. COLMAP 4.0+ includes GLOMAP natively.
+
+### 🐞 Bug Fixes
+- Fixed `AttributeError` crash where `self.params.thermal_throttling` was accessed before `self.params` assignment in `ColmapEngine.__init__`.
+
 ## [1.1.0] - 2026-07-04
 
 ### ✨ New Features

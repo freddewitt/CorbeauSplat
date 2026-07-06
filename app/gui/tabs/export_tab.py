@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 from app.core.i18n import tr, add_language_observer
-from app.core.export_engine import ExportEngine
+from app.gui.workers import ExportWorker
 from app.gui.widgets.drop_line_edit import DropLineEdit
 from app.gui.widgets.dialog_utils import get_open_file_name, get_existing_directory
 
@@ -21,7 +21,7 @@ class ExportTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.engine = ExportEngine(logger_callback=self.log)
+        self._export_worker = None
         self.init_ui()
         add_language_observer(self.retranslate_ui)
 
@@ -261,32 +261,34 @@ class ExportTab(QWidget):
         output_format = self.combo_format.currentData()
         options = self.get_export_options()
 
+        # Collect input paths from the list widget
+        total = self.input_list.count()
+        input_paths = [
+            self.input_list.item(i).data(Qt.ItemDataRole.UserRole)
+            for i in range(total)
+        ]
+
         self.btn_export.setEnabled(False)
         self.progress.setVisible(True)
         self.progress.setValue(0)
 
-        success_count = 0
-        total = self.input_list.count()
+        worker = ExportWorker(input_paths, output_dir, output_format, options=options)
+        worker.log_signal.connect(self.log_signal)
+        worker.progress_signal.connect(self.progress.setValue)
+        worker.status_signal.connect(self.status_lbl.setText)
+        worker.finished_signal.connect(self._on_export_finished)
 
-        for i in range(total):
-            item = self.input_list.item(i)
-            input_path = item.data(Qt.ItemDataRole.UserRole)
+        self._export_worker = worker
+        worker.start()
 
-            self.progress.setValue(int((i / total) * 100))
-
-            success = self.engine.export(input_path, str(output_dir), output_format, options=options)
-            if success:
-                success_count += 1
-
-        self.progress.setValue(100)
+    def _on_export_finished(self, success, message):
         self.btn_export.setEnabled(True)
         self.progress.setVisible(False)
-
-        QMessageBox.information(
-            self,
-            tr("export_done_title"),
-            tr("export_done_body", f"{success_count}/{total}")
-        )
+        if success:
+            QMessageBox.information(self, tr("export_done_title"), message)
+        else:
+            QMessageBox.warning(self, tr("msg_warning"), message)
+        self._export_worker = None
 
     def retranslate_ui(self):
         self.status_lbl.setText(tr("export_title"))

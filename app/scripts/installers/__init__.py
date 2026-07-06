@@ -6,7 +6,7 @@ from app.scripts.installers.base import (
 )
 from app.scripts.installers.brush import BrushEngineDep
 from app.scripts.installers.sharp import SharpEngineDep
-from app.scripts.installers.mapping import ColmapBrewDep, GlomapEngineDep
+from app.scripts.installers.mapping import ColmapBrewDep
 from app.scripts.installers.supersplat import SuperSplatEngineDep
 from app.scripts.installers.extractor_360 import Extractor360EngineDep
 from app.scripts.installers.upscayl import UpscaylEngineDep
@@ -36,7 +36,6 @@ __all__ = [
     "BrushEngineDep",
     "SharpEngineDep",
     "ColmapBrewDep",
-    "GlomapEngineDep",
     "SuperSplatEngineDep",
     "Extractor360EngineDep",
     "UpscaylEngineDep",

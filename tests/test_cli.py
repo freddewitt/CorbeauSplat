@@ -76,7 +76,6 @@ class TestCLIParser:
             "--fps", "10",
             "--camera_model", "OPENCV",
             "--undistort",
-            "--use_glomap",
             "--matcher_type", "sequential",
             "--preset", "dense",
             "--iterations", "50000",
@@ -91,7 +90,6 @@ class TestCLIParser:
         assert args.fps == 10
         assert args.camera_model == "OPENCV"
         assert args.undistort is True
-        assert args.use_glomap is True
         assert args.matcher_type == "sequential"
         assert args.preset == "dense"
         assert args.iterations == 50000
@@ -347,15 +345,12 @@ class TestRunFunctions:
         args.max_ratio = 0.8
         args.max_distance = 0.7
         args.no_cross_check = False
-        args.min_model_size = 10
-        args.multiple_models = False
         args.no_refine_focal = False
         args.refine_principal = False
         args.no_refine_extra = False
         args.min_num_matches = 15
         args.matcher_type = "exhaustive"
         args.undistort = False
-        args.use_glomap = False
         args.input = "/in"
         args.output = "/out"
         args.type = "images"
@@ -471,7 +466,6 @@ class TestPipelineRun:
         args.matcher_type = "exhaustive"
         args.max_image_size = 3200
         args.undistort = False
-        args.use_glomap = False
         args.preset = "default"
         args.iterations = None
         args.sh_degree = None
@@ -497,7 +491,6 @@ class TestRobustMode:
         assert p.camera_model == "PINHOLE"
         assert p.ba_refine_extra_params is False
         assert p.ba_refine_principal_point is False
-        assert p.multiple_models is True
         assert p.filter_blurry is True
 
     def test_robust_flag_parses(self):

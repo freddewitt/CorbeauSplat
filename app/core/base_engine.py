@@ -121,13 +121,14 @@ class BaseEngine:
     """
     _THERMAL_CHECK_INTERVAL = 30  # seconds between thermal state checks
 
-    def __init__(self, name, logger_callback=None, process_runner: IProcessRunner = None):
+    def __init__(self, name, logger_callback=None, process_runner: IProcessRunner = None, thermal_throttling: bool = False):
         self.name = name
         self.logger_callback = logger_callback
         self.device = get_device()
         self.project_root = resolve_project_root()
         self.stop_requested = False
         self._last_thermal_check = 0.0
+        self.thermal_throttling = thermal_throttling
 
         # If thermal state is already serious at init time, warn immediately
         self._check_initial_thermal()
@@ -140,6 +141,8 @@ class BaseEngine:
 
     def _check_initial_thermal(self):
         """Log a warning if thermal state is already degraded at startup."""
+        if not self.thermal_throttling:
+            return
         try:
             from .system import get_thermal_state
             state = get_thermal_state()
@@ -158,6 +161,8 @@ class BaseEngine:
         Called from _execute_command every _THERMAL_CHECK_INTERVAL seconds.
         If thermal state is critical, sets stop_requested and returns True.
         """
+        if not self.thermal_throttling:
+            return False
         import time
         now = time.monotonic()
         if now - self._last_thermal_check < self._THERMAL_CHECK_INTERVAL:
@@ -197,14 +202,22 @@ class BaseEngine:
         self._kill_process(self.process) # Legacy cleanup
 
     def _execute_command(self, cmd: list, env: dict = None, line_callback=None,
-                         timeout: float = 3600, **kwargs) -> int:
+                         timeout: float = 3600, inactivity_timeout: float = 0, **kwargs) -> int:
         """
         GoF-Template Method : Exécution générique centralisée de processus
         Délègue à l'IProcessRunner injecté, gère la boucle standard et l'annulation.
         Utilise ``readline`` avec timeout select-based pour éviter le blocage
         indéfini si le processus externe gèle sans fermer stdout.
         Retourne le returncode (0 si succès, -1 si annulé ou erreur).
-        
+
+        Parameters
+        ----------
+        timeout : float
+            Wall-clock timeout in seconds (safety net).  Default 3600.
+        inactivity_timeout : float
+            Max seconds without any stdout line before the process is considered
+            frozen and terminated.  0 (default) disables inactivity detection.
+
         Inclut un watchdog thermique qui interrompt la tâche si l'état
         thermique Apple Silicon passe à "critical".
         """
@@ -219,15 +232,29 @@ class BaseEngine:
             
             read_timeout = min(self._THERMAL_CHECK_INTERVAL, 10.0)  # check every N seconds
             start_time = _time.monotonic()
+            last_output_time = start_time  # track last stdout activity for inactivity timeout
             while True:
-                # Global timeout — prevents indefinite blocking if the external binary
-                # freezes without closing stdout.
-                elapsed = _time.monotonic() - start_time
+                now = _time.monotonic()
+                elapsed = now - start_time
                 remaining = timeout - elapsed
+                
+                # Wall-clock timeout — safety net for runaway processes
                 if remaining <= 0:
-                    self.log(f"Timeout after {timeout}s (frozen stdout) — forcing termination", level=logging.WARNING)
+                    self.log(f"Timeout after {timeout}s (wall-clock) — forcing termination", level=logging.WARNING)
                     self.runner.terminate()
                     return -1
+                
+                # Inactivity timeout — detects frozen/blocked processes
+                if inactivity_timeout > 0:
+                    idle = now - last_output_time
+                    if idle >= inactivity_timeout:
+                        self.log(
+                            f"Inactivity timeout after {idle:.0f}s "
+                            f"(no stdout for {inactivity_timeout}s) — forcing termination",
+                            level=logging.WARNING
+                        )
+                        self.runner.terminate()
+                        return -1
                 
                 line = self.runner.readline(timeout=min(remaining, read_timeout))
                 
@@ -237,6 +264,7 @@ class BaseEngine:
                 elif line == "":
                     break  # EOF
                 else:
+                    last_output_time = _time.monotonic()  # reset inactivity timer on actual output
                     if self.stop_requested:
                         self.runner.terminate()
                         return -1

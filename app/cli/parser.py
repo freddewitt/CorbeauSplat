@@ -37,8 +37,7 @@ def get_parser():
             "  python3 main.py pipeline -i video.mp4 -o ~/projets --type video\n\n"
             "  # Depuis des photos, preset haute qualité\n"
             "  python3 main.py pipeline -i ~/photos -o ~/projets --preset dense\n\n"
-            "  # Avec Glomap et un nom de projet\n"
-            "  python3 main.py pipeline -i ~/photos -o ~/projets --project_name scene --use_glomap\n"
+            "  # Avec un nom de projet\n"
         ),
     )
     p.add_argument("--input",  "-i", required=True, help="Vidéo ou dossier d'images source")
@@ -52,9 +51,8 @@ def get_parser():
                    choices=["SIMPLE_PINHOLE","PINHOLE","SIMPLE_RADIAL","RADIAL","OPENCV","OPENCV_FISHEYE"],
                    help="Modèle de caméra COLMAP (défaut: SIMPLE_RADIAL)")
     p.add_argument("--undistort",  action="store_true", help="Undistortion après reconstruction")
-    p.add_argument("--use_glomap", action="store_true", help="Utiliser Glomap au lieu du mapper COLMAP")
-    p.add_argument("--feature_type", choices=["SIFT","ALIKED_N16ROT","ALIKED_N32"], default="SIFT",
-                   help="Extracteur de features (défaut: SIFT). ALIKED requiert ONNX (intégré dans brew colmap)")
+    p.add_argument("--feature_type", choices=["SIFT","ALIKED_N16ROT","ALIKED_N32"], default="ALIKED_N32",
+                   help="Extracteur de features (défaut: ALIKED_N32). ALIKED requiert ONNX (intégré dans brew colmap)")
     p.add_argument("--matching_type", choices=["SIFT_BRUTEFORCE","ALIKED_BRUTEFORCE","SIFT_LIGHTGLUE","ALIKED_LIGHTGLUE"], default=None,
                    help="Algorithme de matching (défaut: auto selon --feature-type). LightGlue = matching neuronal")
     p.add_argument("--matcher_type", choices=["exhaustive","sequential","vocab_tree"], default="exhaustive",
@@ -78,6 +76,11 @@ def get_parser():
     p.add_argument("--blur_strength", choices=["light","medium","strong"], default="medium",
                    help="Force du filtre flou (défaut: medium)")
     p.add_argument("--robust",       action="store_true", help="Mode robuste pour grandes scènes (anti-crash COLMAP)")
+    p.add_argument("--thermal-throttling", action="store_true", help="Activer le throttling thermique")
+    p.add_argument("--view-graph-calibration", action="store_true", default=True, help="Calibrer le graphe de vues (recommandé pour vidéo IA)")
+    p.add_argument("--no-view-graph-calibration", action="store_false", dest="view_graph_calibration", help="Désactiver la calibration du graphe de vues")
+    p.add_argument("--ignore-watermarks", action="store_true", default=True, help="Ignorer les watermarks (recommandé pour vidéo IA)")
+    p.add_argument("--no-ignore-watermarks", action="store_false", dest="ignore_watermarks", help="Désactiver l'ignorance des watermarks")
 
     # ── colmap ────────────────────────────────────────────────────────────────
     p = subs.add_parser("colmap", help="Pipeline COLMAP (vidéo/images → dataset)")
@@ -91,7 +94,6 @@ def get_parser():
                    choices=["SIMPLE_PINHOLE","PINHOLE","SIMPLE_RADIAL","RADIAL","OPENCV","OPENCV_FISHEYE"],
                    help="Modèle de caméra COLMAP (défaut: SIMPLE_RADIAL)")
     p.add_argument("--undistort",  action="store_true", help="Undistortion après reconstruction")
-    p.add_argument("--use_glomap", action="store_true", help="Utiliser Glomap au lieu du mapper COLMAP")
     # Feature extraction
     p.add_argument("--no_single_camera",  action="store_true", help="Désactiver le mode caméra unique")
     p.add_argument("--feature_type",  choices=["SIFT","ALIKED_N16ROT","ALIKED_N32"], default="SIFT",
@@ -109,9 +111,7 @@ def get_parser():
     p.add_argument("--max_distance", type=float, default=0.7,  help="Distance max (défaut: 0.7)")
     p.add_argument("--no_cross_check", action="store_true", help="Désactiver le cross-check")
     # Mapper
-    p.add_argument("--min_model_size",    type=int, default=10, help="Taille min du modèle (défaut: 10)")
     p.add_argument("--min_num_matches",   type=int, default=15, help="Nb min de matches (défaut: 15)")
-    p.add_argument("--multiple_models",   action="store_true",  help="Autoriser plusieurs modèles")
     p.add_argument("--no_refine_focal",   action="store_true",  help="Ne pas affiner la focale")
     p.add_argument("--refine_principal",  action="store_true",  help="Affiner le point principal")
     p.add_argument("--no_refine_extra",   action="store_true",  help="Ne pas affiner les params extra")
@@ -119,6 +119,11 @@ def get_parser():
     p.add_argument("--blur_strength", choices=["light","medium","strong"], default="medium",
                    help="Force du filtre flou (défaut: medium)")
     p.add_argument("--robust",       action="store_true", help="Mode robuste pour grandes scènes (anti-crash COLMAP)")
+    p.add_argument("--thermal-throttling", action="store_true", help="Activer le throttling thermique")
+    p.add_argument("--view-graph-calibration", action="store_true", default=True, help="Calibrer le graphe de vues (recommandé pour vidéo IA)")
+    p.add_argument("--no-view-graph-calibration", action="store_false", dest="view_graph_calibration", help="Désactiver la calibration du graphe de vues")
+    p.add_argument("--ignore-watermarks", action="store_true", default=True, help="Ignorer les watermarks (recommandé pour vidéo IA)")
+    p.add_argument("--no-ignore-watermarks", action="store_false", dest="ignore_watermarks", help="Désactiver l'ignorance des watermarks")
 
     # ── brush ─────────────────────────────────────────────────────────────────
     p = subs.add_parser("brush", help="Entraînement Gaussian Splat (Brush)")

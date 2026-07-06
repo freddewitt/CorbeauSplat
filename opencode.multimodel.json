@@ -85,7 +85,7 @@
   },
   "agent": {
     "orchestrateur": {
-      "model": "headroom/deepseek-pro",
+      "model": "headroom/deepseek-v4-flash",
       "mode": "primary",
       "description": "Orchestrateur multi-agent — délègue aux sous-agents, ne code pas",
       "color": "primary"

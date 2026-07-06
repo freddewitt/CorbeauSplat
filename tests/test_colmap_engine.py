@@ -225,16 +225,13 @@ class TestBuildCommand:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_mapper_colmap_command(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """Mapper utilise COLMAP par défaut."""
+        """Mapper utilise global_mapper (COLMAP 4.0+)."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
         from app.core.engine import ColmapEngine
 
         params = MagicMock()
-        params.use_glomap = False
-        params.min_model_size = 10
-        params.multiple_models = False
         params.ba_refine_focal_length = True
         params.ba_refine_principal_point = False
         params.ba_refine_extra_params = True
@@ -249,32 +246,9 @@ class TestBuildCommand:
             engine.mapper(str(tmp_path / "database.db"), str(tmp_path / "images"), tmp_path / "sparse")
             cmd = mock_run.call_args[0][0]
             assert "colmap" in cmd
-            assert "mapper" in cmd
+            assert "global_mapper" in cmd
             assert "--Mapper.num_threads" in cmd
             assert "glomap" not in cmd
-
-    @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
-    def test_mapper_glomap_command(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """Mapper utilise GLOMAP quand use_glomap=True."""
-        mock_silicon.return_value = False
-        mock_resolve_binary.side_effect = lambda x: x
-
-        from app.core.engine import ColmapEngine
-
-        params = MagicMock()
-        params.use_glomap = True
-
-        engine = ColmapEngine(
-            params, str(tmp_path / "input"), str(tmp_path / "output"),
-            "images", 5, logger_callback=print
-        )
-
-        with patch.object(engine, 'run_command', return_value=True) as mock_run:
-            engine.mapper(str(tmp_path / "database.db"), str(tmp_path / "images"), tmp_path / "sparse")
-            cmd = mock_run.call_args[0][0]
-            assert "glomap" in cmd
-            assert "mapper" in cmd
 
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
@@ -479,26 +453,6 @@ class TestColmapUtils:
 
         result = engine._validate_and_setup_paths()
         assert result is None
-
-    @patch("app.core.engine.resolve_binary")
-    @patch("app.core.engine.is_apple_silicon")
-    def test_convert_db_journal_mode(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """_convert_db_journal_mode s'exécute sans erreur."""
-        mock_silicon.return_value = False
-        mock_resolve_binary.side_effect = lambda x: x
-
-        from app.core.engine import ColmapEngine
-
-        params = MagicMock()
-        engine = ColmapEngine(
-            params, str(tmp_path / "input"), str(tmp_path / "output"),
-            "images", 5, logger_callback=print
-        )
-
-        db_path = tmp_path / "database.db"
-        # Should handle non-existent db gracefully
-        engine._convert_db_journal_mode(db_path)
-        # No exception means success
 
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
