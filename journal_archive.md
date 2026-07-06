@@ -36,3 +36,19 @@ Analyse engine COLMAP (app/core/engine.py) et params croisée FAQ COLMAP 2025 + 
 **Tests** : 30/34 pass (4 préexistants : TestDeleteProjectContent + test_default_for_aliked).
 **Graphify** : 1967 nœuds, 3548 arêtes, 137 communautés.
 **Caveats** : SIFT+affine force CPU (lent, robuste) ; vocab_tree/loop_detection téléchargent arbre (connexion 1e fois).
+
+## Session 5 (2026-07-06) — Réparation suite tests + audit i18n + CHANGELOG 1.2.2
+
+**Réparation tests** : gel infini + 13 échecs → 262 pass, 2 skip, 0 fail.
+- **Cause racine** : refactor session 1 (`_execute_command()` → `runner.readline()` en boucle `while True`), mais 4 fichiers de tests mockaient encore `stdout_iter()`. `MagicMock().readline()` ne renvoie jamais "" (EOF) → boucle infinie.
+- **Fix** : mocks stubbent `readline=""` (EOF). test_four_dgs_engine.py, test_sharp_engine.py. Idem test_colmap_engine.py, test_upscayl_manager.py, test_workers.py, test_cli.py pour pollution cv2.
+- **Pollution cv2** : 5 fichiers injectaient `sys.modules["cv2"]=MagicMock()` en aveugle → écrasait vrai cv2 pour toute session, cassait 4 tests colmap_pipeline selon ordre collecte. Fix : import réel d'abord, MagicMock seulement si ImportError (headless CI).
+- **Fixtures** : SessionManager réalignée (structure v1.0.6 composite cleaner_export_tab), mock conftest pour sparse/0/, test GLB export skip gracieux si trimesh/open3d absents.
+
+**Sécurité `delete_project_content`** : garde minimale (choix utilisateur). Bloque : "/" / $HOME / dossier app / tous ancêtres (via `is_relative_to`). Projets utilisateur (Desktop/Documents) supprimables. 2 tests réécrits + 1 ajouté (test_path_ancestor_of_home_blocked).
+
+**CHANGELOG 1.2.2** (2026-07-06, anglais) : DSP-SIFT défaut, loop_detection séquentiel, vocab_tree matcher, fallback mapper incrémental, 5 onglets QScrollArea, adapt_max_splats fair/serious/critical, delete_project_content garde, tests réparés.
+
+**Audit i18n** : 459 clés fr.json + en.json vérifiées (1 par 1), scan morphologique (aucune terminaison ES), mapping i18n ok (Français→fr.json, etc.), 9 locales identiques. Seul défaut : confirm_reset ES valeur incohérente (long avertissement vs short label) — NON corrigé.
+
+**Git** : commits 62a1531 (25 fichiers, +326/-66 sessions 3-5) + fd04f50 (.gitignore .tokensave/) poussés origin/main.
