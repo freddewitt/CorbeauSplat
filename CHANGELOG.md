@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.1] - 2026-07-06
+
+### 🐞 Bug Fixes
+- **Brush timeout after 3600s**: `BaseEngine._execute_command()` had a hard-coded wall-clock timeout of 3600s. Brush training on large scenes (30k steps, AI-generated video) regularly exceeds 1h, causing premature termination. Fixed by extending the Brush timeout to 14400s (4h) and making it configurable via `config.json` (`training_timeout`).
+- **Inactivity timeout false positives**: Added an `inactivity_timeout` parameter (detects processes with no stdout output for N seconds) that triggered incorrectly on Brush — the trainer has legitimate silent phases (viewer init, checkpoint I/O, heavy computation). Disabled for Brush (`inactivity_timeout=0`). The parameter remains available in `BaseEngine._execute_command()` for other engines.
+
+### 🔧 Changed
+- **`BaseEngine._execute_command()`**: New `inactivity_timeout: float = 0` parameter. When > 0, the process is terminated if no stdout line is received for that duration. Wall-clock timeout retained as safety net. Backward compatible — all existing callers unchanged.
+- **`config.json`**: Added `"training_timeout": 14400` at the root level (configurable wall-clock timeout for training processes).
+
+### 🛠 Improvements
+- **Distinct timeout messages**: Wall-clock and inactivity timeouts now log different messages ("Timeout after Xs (wall-clock)" vs "Inactivity timeout after Xs (no stdout for Ys)"), making it immediately clear which protection triggered.
+
 ## [1.2.0] - 2026-07-05
 
 ### ✨ New Features
