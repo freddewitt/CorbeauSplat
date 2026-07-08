@@ -476,7 +476,7 @@ class ColmapGUI(QMainWindow):
                     self.config_tab.get_post_export_format(),
                 )
             else:
-                QMessageBox.information(self, tr("brush_done_title"), tr("brush_done_body"))
+                self._show_training_done_dialog(self._last_brush_output_path)
         else:
             if not (self.brush_worker and self.brush_worker.stopped_by_user):
                 QMessageBox.warning(self, tr("brush_error_title"), tr("brush_error_body"))
@@ -499,9 +499,35 @@ class ColmapGUI(QMainWindow):
         self.brush_tab.set_processing_state(False)
         self.logs_tab.append_log(message)
         if success:
-            QMessageBox.information(self, tr("brush_done_title"), tr("brush_done_body"))
+            self._show_training_done_dialog(self._last_brush_output_path)
         else:
             QMessageBox.warning(self, tr("msg_error"), message)
+
+    def _show_training_done_dialog(self, output_path):
+        """Affiche la fin d'entrainement avec un raccourci pour ouvrir le splat dans SuperSplat."""
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle(tr("brush_done_title"))
+        box.setText(tr("brush_done_body"))
+        btn_open = box.addButton(tr("btn_open_splat", "Ouvrir le splat"), QMessageBox.ButtonRole.ActionRole)
+        btn_ok = box.addButton(QMessageBox.StandardButton.Ok)
+        box.setDefaultButton(btn_ok)
+        box.exec()
+        if box.clickedButton() == btn_open:
+            self._open_latest_splat(output_path)
+
+    def _open_latest_splat(self, output_path):
+        """Ouvre le dernier checkpoint .ply du dossier d'entrainement dans SuperSplat."""
+        if not output_path:
+            return
+        ply_files = [p for p in Path(output_path).rglob("*.ply") if not p.name.startswith('.')]
+        if not ply_files:
+            QMessageBox.warning(self, tr("msg_warning"), tr("msg_no_ply_found", "Aucun fichier .ply trouvé dans le dossier de sortie."))
+            return
+        latest_ply = max(ply_files, key=lambda p: p.stat().st_mtime)
+        self.superplat_tab.input_path.setText(str(latest_ply))
+        self.tabs.setCurrentWidget(self.superplat_tab)
+        self.superplat_tab.start_server()
 
 
 

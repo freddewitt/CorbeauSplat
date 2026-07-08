@@ -397,6 +397,8 @@
     "brush_done_body": "Gli splat gaussiani hanno imparato la tua scena. Il modello è pronto.",
     "brush_error_title": "Allenamento interrotto",
     "brush_error_body": "L'allenamento non è stato completato. Controlla i log per i dettagli.",
+    "btn_open_splat": "Apri Splat",
+    "msg_no_ply_found": "Nessun file .ply trovato nella cartella di output.",
     "tab_export": "Esporta",
     "export_title": "Esporta PLY",
     "export_group_input": "File PLY",

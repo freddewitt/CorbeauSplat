@@ -413,6 +413,8 @@
     "brush_done_body": "Gaussian splats have learned your scene. The model is ready.",
     "brush_error_title": "Training interrupted",
     "brush_error_body": "Training did not complete. Check the logs for details.",
+    "btn_open_splat": "Open Splat",
+    "msg_no_ply_found": "No .ply files found in output folder.",
     "tab_cleaner_export": "Clean + Export",
     "brush_post_group": "Post-processing",
     "brush_post_clean": "Clean output (PlyCleaner)",

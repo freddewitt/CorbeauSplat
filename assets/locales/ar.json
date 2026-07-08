@@ -397,6 +397,8 @@
     "brush_done_body": "تعلمت splats الغاوسية مشهدك. النموذج جاهز.",
     "brush_error_title": "توقف التدريب",
     "brush_error_body": "لم يكتمل التدريب. تحقق من السجلات للحصول على التفاصيل.",
+    "btn_open_splat": "فتح Splat",
+    "msg_no_ply_found": "لم يتم العثور على ملفات .ply في مجلد الإخراج.",
     "tab_export": "تصدير",
     "export_title": "تصدير PLY",
     "export_group_input": "ملفات PLY",

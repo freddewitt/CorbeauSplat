@@ -398,6 +398,8 @@
     "brush_done_body": "Die Gauß-Splats haben Ihre Szene gelernt. Das Modell ist bereit.",
     "brush_error_title": "Training unterbrochen",
     "brush_error_body": "Das Training wurde nicht abgeschlossen. Prüfen Sie die Protokolle für Details.",
+    "btn_open_splat": "Splat öffnen",
+    "msg_no_ply_found": "Keine .ply-Dateien im Ausgabeordner gefunden.",
     "tab_export": "Export",
     "export_title": "PLY-Export",
     "export_group_input": "PLY-Dateien",

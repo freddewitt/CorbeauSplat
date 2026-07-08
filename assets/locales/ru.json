@@ -397,6 +397,8 @@
     "brush_done_body": "Гауссовы сплаты изучили вашу сцену. Модель готова.",
     "brush_error_title": "Обучение прервано",
     "brush_error_body": "Обучение не завершено. Проверьте журналы для подробностей.",
+    "btn_open_splat": "Открыть Splat",
+    "msg_no_ply_found": "Файлы .ply не найдены в выходной папке.",
     "tab_export": "Экспорт",
     "export_title": "Экспорт PLY",
     "export_group_input": "Файлы PLY",

@@ -397,6 +397,8 @@
     "brush_done_body": "ガウススプラットがシーンを学習しました。モデルの準備が整いました。",
     "brush_error_title": "トレーニング中断",
     "brush_error_body": "トレーニングが完了しませんでした。詳細はログを確認してください。",
+    "btn_open_splat": "スプラットを開く",
+    "msg_no_ply_found": "出力フォルダに .ply ファイルが見つかりません。",
     "tab_export": "エクスポート",
     "export_title": "PLY エクスポート",
     "export_group_input": "PLY ファイル",

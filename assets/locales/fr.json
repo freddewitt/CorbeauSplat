@@ -354,6 +354,8 @@
     "brush_done_body": "Les splats gaussiens ont appris votre scène. Le modèle est prêt pour la suite.",
     "brush_error_title": "Entraînement interrompu",
     "brush_error_body": "L'entraînement n'a pas abouti. Consultez les journaux pour en savoir plus.",
+    "btn_open_splat": "Ouvrir le splat",
+    "msg_no_ply_found": "Aucun fichier .ply trouvé dans le dossier de sortie.",
     "tab_export": "Export",
     "export_title": "Export PLY",
     "export_group_input": "Fichiers PLY",

@@ -397,6 +397,8 @@
     "brush_done_body": "高斯 splat 已学习您的场景。模型已准备就绪。",
     "brush_error_title": "训练中断",
     "brush_error_body": "训练未完成。请查看日志了解详情。",
+    "btn_open_splat": "打开 Splat",
+    "msg_no_ply_found": "在输出文件夹中未找到 .ply 文件。",
     "tab_export": "导出",
     "export_title": "导出 PLY",
     "export_group_input": "PLY 文件",
