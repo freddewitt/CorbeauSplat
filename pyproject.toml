@@ -29,3 +29,9 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+# Les tests e2e réels (binaires colmap/brush) sont lents et opt-in : désélectionnés
+# par défaut. Pour les lancer :  pytest -m e2e
+addopts = "-m 'not e2e'"
+markers = [
+    "e2e: pipeline end-to-end réel avec vrais binaires (colmap, brush) — lent, opt-in",
+]
