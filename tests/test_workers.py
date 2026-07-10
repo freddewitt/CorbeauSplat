@@ -196,6 +196,7 @@ class TestBrushWorker:
                         worker.output_path = str(tmp_path / "output")
                         worker.params = {"refine_mode": False}
                         worker.project_name = ""
+                        worker.keep_only_latest = False
 
                         worker.run()
                         mock_engine.train.assert_called_once()
@@ -239,6 +240,43 @@ class TestBrushWorker:
             worker._rename_checkpoints_with_project_name()
             assert (output_dir / "test_scene_iteration_1000.ply").exists()
             assert (output_dir / "test_scene_iteration_2000.ply").exists()
+
+    def test_prune_to_latest_checkpoint(self, tmp_path):
+        """_prune_to_latest_checkpoint ne garde que le PLY le plus récent et purge les dossiers vides."""
+        output_dir = tmp_path / "output"
+        (output_dir / "point_cloud" / "iteration_1000").mkdir(parents=True)
+        (output_dir / "point_cloud" / "iteration_2000").mkdir(parents=True)
+        old = output_dir / "point_cloud" / "iteration_1000" / "point_cloud.ply"
+        new = output_dir / "point_cloud" / "iteration_2000" / "point_cloud.ply"
+        old.write_bytes(b"old")
+        new.write_bytes(b"new")
+        # Force un mtime plus récent pour `new`
+        os.utime(old, (1000, 1000))
+        os.utime(new, (2000, 2000))
+
+        worker = BrushWorker.__new__(BrushWorker)
+        with patch.object(worker, 'log_signal', MagicMock()):
+            worker.output_path = str(output_dir)
+
+            worker._prune_to_latest_checkpoint()
+            assert new.exists()
+            assert not old.exists()
+            # Le dossier vide de l'ancien checkpoint est supprimé
+            assert not (output_dir / "point_cloud" / "iteration_1000").exists()
+
+    def test_prune_to_latest_checkpoint_single(self, tmp_path):
+        """_prune_to_latest_checkpoint avec un seul PLY → ne supprime rien."""
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        only = output_dir / "iteration_1000.ply"
+        only.write_bytes(b"data")
+
+        worker = BrushWorker.__new__(BrushWorker)
+        with patch.object(worker, 'log_signal', MagicMock()):
+            worker.output_path = str(output_dir)
+
+            worker._prune_to_latest_checkpoint()
+            assert only.exists()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

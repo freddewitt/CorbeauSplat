@@ -165,7 +165,7 @@ main.py                         ← Entry: CLI parser or GUI launcher
 
 ## Known Issues & Gaps
 
- 1. **No end-to-end integration tests** — the full suite (262 passed, 2 skipped) is unit-level or integration-with-mocks; true end-to-end (real binaries) not covered. GLB export tests skip when `trimesh`/`open3d` absent
+ 1. **E2E réel = pipeline principal seulement** — `pytest -m e2e` couvre COLMAP → Brush → clean → export SPZ (7 tests, ~21 s). Sharp/Upscale/4DGS/360 restent mockés. Suite par défaut : 263 pass, 1 skip (e2e désélectionné). GLB export tests skip si `trimesh`/`open3d` absents
  2. **Workers tested headless via mock PyQt6** — `conftest.py` patches PyQt6 at session scope, but import chain still requires numpy mock for CI
 
 ## Changelog Highlights (v1.0.1 → v1.0.6)
@@ -175,13 +175,8 @@ main.py                         ← Entry: CLI parser or GUI launcher
 | **1.2.2** (2026-07-06) | SfM COLMAP : défaut **SIFT + DSP-SIFT** (`estimate_affine_shape=True`, force CPU) ; `vocab_tree` fonctionnel (était un no-op silencieux) ; `loop_detection` séquentiel (SIFT) ; **repli auto** `global_mapper`→`mapper` incrémental si pas de `sparse/0` valide (`_has_valid_sparse_model`). GUI responsive (5 onglets `QScrollArea`). `adapt_max_splats` : branche thermique morte corrigée (fair/serious/critical). Sécurité : `delete_project_content` bloque `/`, `$HOME`, dossier app + ancêtres. Réparation suite de tests (gel infini `readline`/EOF, pollution `cv2` session-wide) → **262 pass, 2 skip**. |
 | **1.2.1** (2026-07-06) | Fix timeout Brush 3600s → 14400s configurable (`training_timeout`) ; `inactivity_timeout` dans `BaseEngine._execute_command()` (désactivé pour Brush — phases silencieuses). Rétrocompatible. |
 | **1.2.0** (2026-07-05) | ExportTab async confirmé ; CI headless worker tests débloqués ; tests d'intégration étendus ; `pyproject.toml` → 1.2.0 |
-| **1.0.6** (2026-07-04) | Cleaner + Export tabs merged into one composite tab; new `--then-export` CLI flag; `ExportTab.log_signal` crash bug fixed |
-| **1.0.5** (2026-07-03) | Cleaner batch mode: hidden files `._*.ply` filtered out; `compute_keep_mask` → `compute_clean_mask` rename |
-| **1.0.4** (2026-06-30) | GUI path validation relaxed: `gui_trusted` flag bypasses containment for QFileDialog paths; CLI remains strict |
-| **1.0.3** (2026-06-26) | ✨ **Cleaner tab + CLI `clean` command**; blurry image filtering in pipeline; `--robust` mode for large scenes; security fixes (restart injection, validate_path restricted); SPZ export bug fix; 224/224 tests |
-| **1.0.2** (2026-06-26) | ⚡ Apple Silicon optimizations: thermal watchdog, RAM-adaptive max_splats, adaptive tile size, `nice(10)` on child processes, APFS clonefile, Rosetta detection, VideoToolbox check |
-| **1.0.1** (2026-06-18) | 4DGS install fix for Python 3.13 (PyAV wheel), test suite flaky fixes, conftest.py mocks, 209/209 tests |
-| **1.0.0** (2026-06-17) | 🎉 First stable release |
+
+_Versions ≤ 1.0.6 : voir `CHANGELOG.md` (historique complet)._
 
 ## Pipeline Flow
 
@@ -218,9 +213,11 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 
 ## RESTE À FAIRE (priorisé)
 
-1. **`confirm_reset` (ES)** — seul défaut i18n restant : la valeur espagnole est incohérente (long avertissement « Restablecimiento de Fábrica » au lieu de « Choose reset level »). fr/en propres (audit des 459 clés, 9 locales alignées).
-2. **Tests d'intégration end-to-end réels** — toujours absents ; toute la suite (262 pass, 2 skip) reste unitaire ou mockée. (Les 13 échecs préexistants sont résolus : gel `readline`/EOF, pollution `cv2`, fixtures obsolètes.)
+_Aucun point ouvert prioritaire._ Pistes possibles : couvrir Sharp/Upscale/4DGS en e2e réel (upscayl à installer) ; taille de `manifest.md` à réduire (arbre d'archi = détail → `graphify query`).
+
+> Résolu : **tests e2e réels** — session 2026-07-09. Pipeline complet COLMAP → Brush → clean → export SPZ sur scène synthétique générée à la volée (`tests/integration/_synthetic_scene.py`), 7 tests opt-in `pytest -m e2e` (désélectionnés par défaut). Au passage : `opencv-python-headless` réinstallé dans `.venv` (manquait → fuite de mock cv2 qui cassait 4 tests mockés en run complet).
+> Résolu : `confirm_reset` (ES) — session 2026-07-08 (aligné sur en/fr). Audit i18n : 9 locales cohérentes.
 
 ## Graphify
 
-Un graphe de connaissance est maintenu dans `graphify-out/`. Pour toute question d'architecture : `graphify query "<question>"`. Dernière reconstruction : 1976 nœuds, 3572 arêtes (2026-07-06, session 5).
+Un graphe de connaissance est maintenu dans `graphify-out/`. Pour toute question d'architecture : `graphify query "<question>"`. Hook post-commit installé → graphe rafraîchi automatiquement après chaque commit (extraction code AST ; l'extraction sémantique des docs nécessite une clé API, sinon ignorée).

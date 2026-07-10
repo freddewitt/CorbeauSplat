@@ -459,5 +459,8 @@
     "btn_copy_log": "Копировать",
     "btn_search": "Поиск",
     "check_view_graph_calibration": "Калибровка графа",
-    "check_ignore_watermarks": "Игнор. водяные знаки"
+    "check_ignore_watermarks": "Игнор. водяные знаки",
+    "label_ckpt_dest": "Папка контрольных точек (необязательно):",
+    "ckpt_dest_placeholder": "По умолчанию: <проект>/checkpoints",
+    "ckpt_dest_tip": "Если указано, контрольные точки сохраняются в <папка>/<имя проекта>, и остаётся только самая новая."
 }

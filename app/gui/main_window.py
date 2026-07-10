@@ -385,7 +385,8 @@ class ColmapGUI(QMainWindow):
         """Lance l'entrainement Brush"""
         brush_params = self.brush_tab.get_params()
         project_name = self.config_tab.get_project_name()
-        
+        keep_only_latest = False
+
         if not force_auto and brush_params.get("independent"):
             # Mode Indépendant
             input_path_str = brush_params.get("input_path")
@@ -429,7 +430,14 @@ class ColmapGUI(QMainWindow):
                 return
                 
             input_path = dataset_path
-            output_path = dataset_path / "checkpoints"
+
+            # Destination personnalisée des checkpoints (optionnel)
+            ckpt_dest = self.config_tab.get_checkpoint_dest().strip()
+            if ckpt_dest:
+                output_path = Path(ckpt_dest) / project_name
+                keep_only_latest = True
+            else:
+                output_path = dataset_path / "checkpoints"
             output_path.mkdir(parents=True, exist_ok=True)
             self._last_brush_output_path = output_path
         
@@ -442,6 +450,7 @@ class ColmapGUI(QMainWindow):
             output_path,
             brush_params,
             project_name=project_name,
+            keep_only_latest=keep_only_latest,
         )
         
         self.brush_worker.log_signal.connect(self.logs_tab.append_log)

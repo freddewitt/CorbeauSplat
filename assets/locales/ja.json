@@ -459,5 +459,8 @@
     "btn_copy_log": "コピー",
     "btn_search": "検索",
     "check_view_graph_calibration": "ビューグラフ校正",
-    "check_ignore_watermarks": "透かし無視"
+    "check_ignore_watermarks": "透かし無視",
+    "label_ckpt_dest": "チェックポイントの保存先（任意）：",
+    "ckpt_dest_placeholder": "既定: <プロジェクト>/checkpoints",
+    "ckpt_dest_tip": "指定した場合、チェックポイントは <保存先>/<プロジェクト名> に保存され、最新のもののみが保持されます。"
 }

@@ -460,5 +460,8 @@
     "btn_copy_log": "Kopieren",
     "btn_search": "Suchen",
     "check_view_graph_calibration": "View-Graph-Kalibrierung",
-    "check_ignore_watermarks": "Wasserzeichen ignor."
+    "check_ignore_watermarks": "Wasserzeichen ignor.",
+    "label_ckpt_dest": "Checkpoint-Ziel (optional):",
+    "ckpt_dest_placeholder": "Standard: <Projekt>/checkpoints",
+    "ckpt_dest_tip": "Wenn gesetzt, werden Checkpoints in <Ziel>/<Projektname> gespeichert und nur der neueste bleibt erhalten."
 }

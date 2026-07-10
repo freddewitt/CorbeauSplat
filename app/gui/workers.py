@@ -136,7 +136,7 @@ class ColmapWorker(BaseWorker):
 class BrushWorker(BaseWorker):
     """Thread worker pour exécuter Brush"""
 
-    def __init__(self, input_path, output_path, params, engine=None, project_name=""):
+    def __init__(self, input_path, output_path, params, engine=None, project_name="", keep_only_latest=False):
         super().__init__()
         # DIP : Injection
         self.engine = engine or BrushEngine(logger_callback=self.log_signal.emit)
@@ -145,6 +145,7 @@ class BrushWorker(BaseWorker):
         self.output_path = output_path
         self.params = params
         self.project_name = project_name
+        self.keep_only_latest = keep_only_latest
         
     def resolve_dataset_root(self, path: Path) -> Path:
         """
@@ -291,6 +292,8 @@ class BrushWorker(BaseWorker):
                 self.handle_ply_rename()
                 if self.project_name:
                     self._rename_checkpoints_with_project_name()
+                if self.keep_only_latest:
+                    self._prune_to_latest_checkpoint()
                 self.finished_signal.emit(True, "Entrainement Brush terminé avec succès")
             else:
                 self.finished_signal.emit(False, "Brush a retourné une erreur (voir logs ci-dessus).")
@@ -373,6 +376,37 @@ class BrushWorker(BaseWorker):
                     self.log_signal.emit(f"Erreur renommage {ply_path.name}: {e}")
         if renamed:
             self.log_signal.emit(f"Checkpoints renommés avec le préfixe '{prefix}' ({renamed} fichiers)")
+
+    def _prune_to_latest_checkpoint(self):
+        """Ne conserve que le checkpoint .ply le plus récent dans le dossier de sortie."""
+        output_path = Path(self.output_path)
+        plys = [p for p in output_path.rglob("*.ply") if p.is_file()]
+        if len(plys) <= 1:
+            return
+
+        latest = max(plys, key=lambda p: p.stat().st_mtime)
+        removed = 0
+        for ply in plys:
+            if ply == latest:
+                continue
+            try:
+                ply.unlink()
+                removed += 1
+            except OSError as e:
+                self.log_signal.emit(f"Erreur suppression {ply.name}: {e}")
+
+        # Supprimer les sous-dossiers désormais vides (du plus profond au plus superficiel)
+        for d in sorted(output_path.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+            if d.is_dir():
+                try:
+                    d.rmdir()
+                except OSError:
+                    pass
+
+        if removed:
+            self.log_signal.emit(
+                f"Nettoyage : {removed} checkpoint(s) supprimé(s), seul le plus récent conservé ({latest.name})"
+            )
 
 class SharpWorker(BaseWorker):
     """Thread worker pour exécuter Apple ML Sharp"""

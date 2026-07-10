@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.3] - 2026-07-10
+
+### ✨ New Features (Brush training)
+- **Custom checkpoints destination**: The Training tab now offers an optional "Checkpoints destination" field. When set, Brush checkpoints are written to `<destination>/<project name>/` instead of the default `<dataset>/checkpoints`, and after a successful training run only the most recent checkpoint `.ply` is kept (intermediate checkpoints and empty folders are removed). Applies to the automatic COLMAP → Brush pipeline; leaving the field empty preserves the previous behaviour (all checkpoints kept). The setting is remembered across sessions and translated in all 9 locales.
+
 ## [1.2.2] - 2026-07-06
 
 ### ✨ New Features (SfM / reconstruction)

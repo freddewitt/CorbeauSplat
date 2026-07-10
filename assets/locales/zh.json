@@ -459,5 +459,8 @@
     "btn_copy_log": "复制",
     "btn_search": "搜索",
     "check_view_graph_calibration": "视图图校准",
-    "check_ignore_watermarks": "忽略水印"
+    "check_ignore_watermarks": "忽略水印",
+    "label_ckpt_dest": "检查点目标位置（可选）：",
+    "ckpt_dest_placeholder": "默认：<项目>/checkpoints",
+    "ckpt_dest_tip": "若设置，检查点将保存到 <目标位置>/<项目名称>，且只保留最新的一个。"
 }

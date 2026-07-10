@@ -58,3 +58,47 @@ Analyse engine COLMAP (app/core/engine.py) et params croisée FAQ COLMAP 2025 + 
 Synchro versions : app/__init__.py + pyproject.toml 1.2.0 → 1.2.2 (alignés CHANGELOG + manifest).
 Tests intégration validés (32 pass, 1 skip). Commits 08fb98b + 97a519b poussés localement.
 Orchestrateur a retiré « synchro versions » du RESTE À FAIRE. Restent : confirm_reset ES, e2e absent.
+
+### 2026-07-07 (session 1)
+Réparation SharpEngine (ModuleNotFoundError: sharp). Cause : dossier `engines/sharp/` source disparu → install éditable cassée. Fix : `SharpEngineDep().install()` reclone dépôt Apple et rétablit éditable. Aucun code modifié. Graphify 2 commits derrière HEAD (non bloquant). RESTE À FAIRE inchangé : confirm_reset ES incohérent, tests e2e réels absents.
+
+## 2026-07-06 (session 6) — Reprise — synchro versions + validation tests intégration
+
+- Synchro versions : app/__init__.py + pyproject.toml passés 1.2.0 → 1.2.2 (alignés CHANGELOG + manifest).
+- Tests intégration validés : 32 pass, 1 skip (tests/integration/).
+- Commits : 08fb98b (chore: sync version), 97a519b (docs: journal + manifest).
+- Git : 2 commits locaux d'avance sur origin/main.
+- RESTE À FAIRE mis à jour : point 'synchro versions' retiré. Restent : confirm_reset ES incohérent, tests e2e réels absents.
+- Fichiers modifiés : app/__init__.py, pyproject.toml, journal.md, journal.jsonl, manifest.md.
+- Graphify rebuild : non.
+
+## Session 2026-07-09 (1)
+
+**Lot** : Amorçage complété + tests e2e réels + feature « Ouvrir le splat »
+
+**Fichiers créés** : tests/integration/_synthetic_scene.py, test_e2e_pipeline.py ; .opencode/agent/ (9 agents : orchestrateur, chercheur, integrateur, optimiseur, refonteur, testeur, validateur, archiviste)
+
+**Fichiers modifiés** : pyproject.toml (e2e marker), app/gui/main_window.py, assets/locales/*.json (9, +2 clés), .claude/agents/ (4 : blocs Interdits)
+
+**Environnement** : opencv-python-headless .venv 4.13
+
+**Décisions** : Tests e2e RÉELS COLMAP→Brush→clean→export SPZ, scène synthétique numpy+PIL (pas data/réseau, opt-in 'pytest -m e2e'), 9 agents .opencode/ créés, hook graphify post-commit + post-checkout.
+
+**Pièges** : cv2 mock pollution cassant tests COLMAP (fix install), COLMAP 2 modèles features faibles (résolu PNG multi-octave), numpy 2.x ptp() supprimé, pytest mark skipif ne décore pas fixture.
+
+**Tests** : 263 pass/1 skip (défaut) ; 7 pass ~21s (e2e). **Commits** : 2e82496 + ff3bb75 poussés.
+
+
+## 2026-07-10 (session 1) — Feature destination perso checkpoints Brush
+
+Champ optionnel « Destination des checkpoints » + Parcourir dans groupe Sortie config_tab. Vide → défaut (`<dataset>/checkpoints`).
+Mode COLMAP→Brush auto : checkpoints → `<dest>/<nom_projet>/` ; après succès seul .ply récent conservé (intermédiaires + vides supprimés).
+Mémorisé sessions (get_state/set_state), traduit 9 locales.
+
+**Décision** : nettoyage « dernier checkpoint » UNIQUEMENT destination perso renseignée (flux défaut garde tous — mode Refine les cherche).
+
+**Fichiers** : config_tab.py (UI, browse, state, retranslate) ; main_window.py (train_brush, keep_only_latest) ; workers.py (param, _prune_to_latest_checkpoint) ; 9 locales (label_ckpt_dest, ckpt_dest_placeholder, ckpt_dest_tip) ; test_workers.py (+2 tests, worker.keep_only_latest=False dans test_run_success).
+
+Tests 264 pass, 0 fail, 2 skip. py_compile OK. Graphify 2027 nœuds, 3662 arêtes.
+
+Working tree non committé. RESTE : (1) commit ; (2) e2e réel Sharp/Upscale/4DGS/360 ; (3) alléger manifest.md.

@@ -459,5 +459,8 @@
     "btn_copy_log": "نسخ",
     "btn_search": "بحث",
     "check_view_graph_calibration": "معايرة الرسم",
-    "check_ignore_watermarks": "تجاهل العلامات"
+    "check_ignore_watermarks": "تجاهل العلامات",
+    "label_ckpt_dest": "وجهة نقاط التحقق (اختياري):",
+    "ckpt_dest_placeholder": "الافتراضي: <المشروع>/checkpoints",
+    "ckpt_dest_tip": "في حال تحديدها، تُحفظ نقاط التحقق في <الوجهة>/<اسم المشروع> ويُحتفظ بالأحدث فقط."
 }

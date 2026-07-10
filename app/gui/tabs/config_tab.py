@@ -272,7 +272,20 @@ class ConfigTab(QWidget):
         self.btn_browse_output.clicked.connect(self.browse_output)
         path_out_layout.addWidget(self.btn_browse_output)
         output_layout.addLayout(path_out_layout)
-        
+
+        # Destination personnalisée des checkpoints (optionnel)
+        ckpt_dest_layout = QHBoxLayout()
+        self.lbl_ckpt_dest = QLabel(tr("label_ckpt_dest"))
+        ckpt_dest_layout.addWidget(self.lbl_ckpt_dest)
+        self.ckpt_dest_path = DropLineEdit()
+        self.ckpt_dest_path.setPlaceholderText(tr("ckpt_dest_placeholder"))
+        self.ckpt_dest_path.setToolTip(tr("ckpt_dest_tip"))
+        ckpt_dest_layout.addWidget(self.ckpt_dest_path)
+        self.btn_browse_ckpt_dest = QPushButton(tr("btn_browse"))
+        self.btn_browse_ckpt_dest.clicked.connect(self.browse_ckpt_dest)
+        ckpt_dest_layout.addWidget(self.btn_browse_ckpt_dest)
+        output_layout.addLayout(ckpt_dest_layout)
+
         delete_layout = QHBoxLayout()
         self.btn_delete_dataset = QPushButton(tr("btn_delete"))
         self.btn_delete_dataset.clicked.connect(self.deleteDatasetRequested.emit)
@@ -560,6 +573,12 @@ class ConfigTab(QWidget):
         if path:
             self.output_path.setText(path)
 
+    def browse_ckpt_dest(self):
+        """Parcourir la destination personnalisée des checkpoints"""
+        path = get_existing_directory(self, tr("label_ckpt_dest"))
+        if path:
+            self.ckpt_dest_path.setText(path)
+
     def on_input_dropped(self, path):
         """Handle drag and drop detection"""
         # This function is called when a file is dropped.
@@ -589,6 +608,9 @@ class ConfigTab(QWidget):
     
     def get_output_path(self): return self.output_path.text()
     def set_output_path(self, path): self.output_path.setText(path)
+
+    def get_checkpoint_dest(self): return self.ckpt_dest_path.text()
+    def set_checkpoint_dest(self, path): self.ckpt_dest_path.setText(path)
     
     def get_fps(self): return self.fps_spin.value()
     def set_fps(self, fps): self.fps_spin.setValue(fps)
@@ -694,6 +716,7 @@ class ConfigTab(QWidget):
             "training_mode": self.get_training_mode(),
             "input_path": self.get_input_path(),
             "output_path": self.get_output_path(),
+            "checkpoint_dest": self.get_checkpoint_dest(),
             "fps": self.get_fps(),
             "undistort": self.get_undistort(),
             "auto_brush": self.get_auto_brush(),
@@ -716,6 +739,7 @@ class ConfigTab(QWidget):
         if "training_mode" in state: self.set_training_mode(state["training_mode"])
         if "input_path" in state: self.set_input_path(state["input_path"])
         if "output_path" in state: self.set_output_path(state["output_path"])
+        if "checkpoint_dest" in state: self.set_checkpoint_dest(state["checkpoint_dest"])
         if "fps" in state: self.set_fps(state["fps"])
         if "undistort" in state: self.set_undistort(state["undistort"])
         if "auto_brush" in state: self.set_auto_brush(state["auto_brush"])
@@ -763,6 +787,10 @@ class ConfigTab(QWidget):
         
         self.output_group.setTitle(tr("group_output"))
         self.lbl_out_path.setText(tr("label_out_path"))
+        self.lbl_ckpt_dest.setText(tr("label_ckpt_dest"))
+        self.ckpt_dest_path.setPlaceholderText(tr("ckpt_dest_placeholder"))
+        self.ckpt_dest_path.setToolTip(tr("ckpt_dest_tip"))
+        self.btn_browse_ckpt_dest.setText(tr("btn_browse"))
         self.btn_browse_output.setText(tr("btn_browse"))
         self.btn_delete_dataset.setText(tr("btn_delete"))
         self.chk_auto_brush.setText(tr("check_auto_brush"))

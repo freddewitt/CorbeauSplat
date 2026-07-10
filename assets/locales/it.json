@@ -459,5 +459,8 @@
     "btn_copy_log": "Copia",
     "btn_search": "Cerca",
     "check_view_graph_calibration": "Calibrazione grafo viste",
-    "check_ignore_watermarks": "Ignora filigrane"
+    "check_ignore_watermarks": "Ignora filigrane",
+    "label_ckpt_dest": "Destinazione checkpoint (opzionale):",
+    "ckpt_dest_placeholder": "Predefinito: <progetto>/checkpoints",
+    "ckpt_dest_tip": "Se impostato, i checkpoint vengono salvati in <destinazione>/<nome progetto> e viene conservato solo il più recente."
 }

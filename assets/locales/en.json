@@ -459,5 +459,8 @@
     "btn_copy_log": "Copy",
     "btn_search": "Search",
     "check_view_graph_calibration": "View graph calibration",
-    "check_ignore_watermarks": "Ignore watermarks"
+    "check_ignore_watermarks": "Ignore watermarks",
+    "label_ckpt_dest": "Checkpoints destination (optional):",
+    "ckpt_dest_placeholder": "Default: <project>/checkpoints",
+    "ckpt_dest_tip": "If set, checkpoints are saved to <destination>/<project name> and only the most recent one is kept."
 }
