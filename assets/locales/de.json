@@ -325,7 +325,6 @@
     "reset_deep_desc": "Löscht ALLES (Envs + Engines + Config).",
     "select_output_dir": "Ausgabeverzeichnis wählen",
     "placeholder_output_dir": "Projektausgabeverzeichnis (z.B. ~/SPLAT_OUT)",
-    "brush_build_mode": "Build-Modus:",
     "brush_build_release": "Release (Stabil & Schnell)",
     "brush_build_compile": "Aus Quelle kompilieren (Neueste)",
     "btn_reinstall_brush": "Neu installieren",

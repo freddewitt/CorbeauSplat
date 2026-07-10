@@ -5,6 +5,10 @@
 ### ✨ New Features (Brush training)
 - **Custom checkpoints destination**: The Training tab now offers an optional "Checkpoints destination" field. When set, Brush checkpoints are written to `<destination>/<project name>/` instead of the default `<dataset>/checkpoints`, and after a successful training run only the most recent checkpoint `.ply` is kept (intermediate checkpoints and empty folders are removed). Applies to the automatic COLMAP → Brush pipeline; leaving the field empty preserves the previous behaviour (all checkpoints kept). The setting is remembered across sessions and translated in all 9 locales.
 
+### 🐛 Fixes
+- **i18n: Training tab widgets not retranslated on language switch**: The "Selection type" label, the Folder/File(s) radio buttons and the "Upscale images" checkbox were missing from `retranslate_ui()`, so they kept their construction-time language when the user switched languages (e.g. leftover Spanish text in a French UI). They are now retranslated like the rest of the tab. Affected all languages equally; translation data itself was already correct.
+- **i18n: removed orphan key** `brush_build_mode` from `de.json` (unused, no `tr()` reference) so all 9 locales are key-aligned.
+
 ## [1.2.2] - 2026-07-06
 
 ### ✨ New Features (SfM / reconstruction)
