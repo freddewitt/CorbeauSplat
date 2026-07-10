@@ -462,5 +462,10 @@
     "check_ignore_watermarks": "透かし無視",
     "label_ckpt_dest": "チェックポイントの保存先（任意）：",
     "ckpt_dest_placeholder": "既定: <プロジェクト>/checkpoints",
-    "ckpt_dest_tip": "指定した場合、チェックポイントは <保存先>/<プロジェクト名> に保存され、最新のもののみが保持されます。"
+    "ckpt_dest_tip": "指定した場合、チェックポイントは <保存先>/<プロジェクト名> に保存され、最新のもののみが保持されます。",
+    "btn_resume_colmap": "COLMAP を再開",
+    "msg_resume_colmap": "--- COLMAP を再開（画像を再利用）---",
+    "err_resume_no_images": "再開できません: プロジェクトフォルダーに画像が見つかりません。先に抽出を実行してください。",
+    "msg_resume_reuse": "COLMAP を再開: 既存の画像を再利用",
+    "resume_colmap_tip": "抽出済みの画像を再利用して COLMAP を再実行します（抽出とアップスケールをスキップ）。以前の再構成を上書きし、オプションが有効な場合は Brush に続きます。"
 }

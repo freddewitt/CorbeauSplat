@@ -462,5 +462,10 @@
     "check_ignore_watermarks": "忽略水印",
     "label_ckpt_dest": "检查点目标位置（可选）：",
     "ckpt_dest_placeholder": "默认：<项目>/checkpoints",
-    "ckpt_dest_tip": "若设置，检查点将保存到 <目标位置>/<项目名称>，且只保留最新的一个。"
+    "ckpt_dest_tip": "若设置，检查点将保存到 <目标位置>/<项目名称>，且只保留最新的一个。",
+    "btn_resume_colmap": "恢复 COLMAP",
+    "msg_resume_colmap": "--- 恢复 COLMAP（重用图像）---",
+    "err_resume_no_images": "无法恢复：项目文件夹中未找到图像。请先运行提取。",
+    "msg_resume_reuse": "恢复 COLMAP：重用现有图像",
+    "resume_colmap_tip": "使用已提取的图像重新运行 COLMAP（跳过提取和超分）。覆盖之前的重建，并在勾选选项时接续 Brush。"
 }

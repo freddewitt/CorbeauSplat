@@ -94,6 +94,7 @@ class ConfigTab(QWidget):
     
     # Signaux pour les actions globales qui necessitent l'orchestration du Main Window
     processRequested = pyqtSignal()
+    resumeColmapRequested = pyqtSignal()
     stopRequested = pyqtSignal()
     deleteDatasetRequested = pyqtSignal()
     quitRequested = pyqtSignal()
@@ -291,6 +292,13 @@ class ConfigTab(QWidget):
         self.btn_delete_dataset.clicked.connect(self.deleteDatasetRequested.emit)
         self.btn_delete_dataset.setStyleSheet("background-color: #aa4444; color: white; border: none; padding: 5px;")
         delete_layout.addWidget(self.btn_delete_dataset)
+
+        self.btn_resume_colmap = QPushButton(tr("btn_resume_colmap"))
+        self.btn_resume_colmap.clicked.connect(self.resumeColmapRequested.emit)
+        self.btn_resume_colmap.setToolTip(tr("resume_colmap_tip"))
+        self.btn_resume_colmap.setStyleSheet("background-color: #55707a; color: white; border: none; padding: 5px;")
+        delete_layout.addWidget(self.btn_resume_colmap)
+
         delete_layout.addStretch()
         output_layout.addLayout(delete_layout)
         
@@ -684,6 +692,7 @@ class ConfigTab(QWidget):
         self.chk_export_after.setEnabled(not processing)
         self.combo_export_format.setEnabled(not processing)
         self.btn_delete_dataset.setEnabled(not processing)
+        self.btn_resume_colmap.setEnabled(not processing)
         self.combo_lang.setEnabled(not processing)
         
         # Toggle Action Buttons
@@ -796,6 +805,8 @@ class ConfigTab(QWidget):
         self.btn_browse_ckpt_dest.setText(tr("btn_browse"))
         self.btn_browse_output.setText(tr("btn_browse"))
         self.btn_delete_dataset.setText(tr("btn_delete"))
+        self.btn_resume_colmap.setText(tr("btn_resume_colmap"))
+        self.btn_resume_colmap.setToolTip(tr("resume_colmap_tip"))
         self.chk_auto_brush.setText(tr("check_auto_brush"))
         
         self.options_group.setTitle(tr("group_options"))

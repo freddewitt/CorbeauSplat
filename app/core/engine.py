@@ -115,6 +115,8 @@ class ColmapEngine(BaseEngine):
         self.is_silicon = is_apple_silicon()
         self.num_threads = get_optimal_threads()
         self._current_process = None
+        # Reprise COLMAP : réutilise les images déjà extraites (saute extraction/upscale)
+        self.resume_colmap = False
         self.progress = progress_callback if progress_callback else lambda x: None
         self.status = status_callback if status_callback else lambda x: None
         self.check_cancel = check_cancel_callback if check_cancel_callback else lambda: False
@@ -150,8 +152,18 @@ class ColmapEngine(BaseEngine):
             setup_result = self._validate_and_setup_paths()
             if not setup_result: return False, "Erreur de validation des chemins"
             project_dir, images_dir, checkpoints_dir = setup_result
-            
-            if not self._process_input(project_dir, images_dir):
+
+            if self.resume_colmap:
+                # Reprise : réutilise les images déjà extraites, saute extraction + upscale
+                if not images_dir.exists() or not any(
+                    _is_valid_image_path(p) for p in images_dir.iterdir()
+                ):
+                    return False, tr(
+                        "err_resume_no_images",
+                        "Reprise impossible : aucune image trouvée dans le dossier du projet. Lancez d'abord l'extraction.",
+                    )
+                self.log(tr("msg_resume_reuse", "Reprise COLMAP : réutilisation des images existantes"))
+            elif not self._process_input(project_dir, images_dir):
                 if self.is_cancelled(): return False, tr("USER_CANCELLED")
                 return False, "Erreur lors de la preparation de l'entree"
 

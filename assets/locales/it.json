@@ -462,5 +462,10 @@
     "check_ignore_watermarks": "Ignora filigrane",
     "label_ckpt_dest": "Destinazione checkpoint (opzionale):",
     "ckpt_dest_placeholder": "Predefinito: <progetto>/checkpoints",
-    "ckpt_dest_tip": "Se impostato, i checkpoint vengono salvati in <destinazione>/<nome progetto> e viene conservato solo il più recente."
+    "ckpt_dest_tip": "Se impostato, i checkpoint vengono salvati in <destinazione>/<nome progetto> e viene conservato solo il più recente.",
+    "btn_resume_colmap": "Riprendi COLMAP",
+    "msg_resume_colmap": "--- Ripresa COLMAP (riutilizzo delle immagini) ---",
+    "err_resume_no_images": "Impossibile riprendere: nessuna immagine trovata nella cartella del progetto. Esegui prima l'estrazione.",
+    "msg_resume_reuse": "Ripresa COLMAP: riutilizzo delle immagini esistenti",
+    "resume_colmap_tip": "Riesegue COLMAP riutilizzando le immagini già estratte (salta estrazione e upscaling). Sovrascrive la ricostruzione precedente e avvia Brush se l'opzione è selezionata."
 }

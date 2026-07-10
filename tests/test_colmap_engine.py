@@ -459,6 +459,59 @@ class TestColmapUtils:
 
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
+    def test_resume_colmap_skips_process_input(self, mock_silicon, mock_resolve_binary, tmp_path):
+        """resume_colmap=True → saute _process_input et réutilise les images existantes."""
+        mock_silicon.return_value = False
+        mock_resolve_binary.side_effect = lambda x: x
+        from app.core.engine import ColmapEngine
+
+        output = tmp_path / "output"
+        images_dir = output / "proj" / "images"
+        images_dir.mkdir(parents=True)
+        (images_dir / "img_0001.jpg").write_bytes(b"fake")
+
+        engine = ColmapEngine(
+            MagicMock(), str(images_dir), str(output),
+            "images", 5, project_name="proj", logger_callback=print
+        )
+        engine.project_root = tmp_path
+        engine.resume_colmap = True
+
+        with patch.object(engine, "_process_input") as mock_process, \
+             patch.object(engine, "_run_reconstruction_pipeline", return_value=(True, "ok")) as mock_pipeline:
+            ok, _msg = engine.run()
+
+        assert ok is True
+        mock_process.assert_not_called()
+        mock_pipeline.assert_called_once()
+
+    @patch("app.core.engine.resolve_binary")
+    @patch("app.core.engine.is_apple_silicon")
+    def test_resume_colmap_no_images_fails(self, mock_silicon, mock_resolve_binary, tmp_path):
+        """resume_colmap=True sans image → échec explicite, pipeline non lancé."""
+        mock_silicon.return_value = False
+        mock_resolve_binary.side_effect = lambda x: x
+        from app.core.engine import ColmapEngine
+
+        output = tmp_path / "output"
+        images_dir = output / "proj" / "images"
+        images_dir.mkdir(parents=True)  # vide
+
+        engine = ColmapEngine(
+            MagicMock(), str(images_dir), str(output),
+            "images", 5, project_name="proj", logger_callback=print
+        )
+        engine.project_root = tmp_path
+        engine.resume_colmap = True
+
+        with patch.object(engine, "_run_reconstruction_pipeline") as mock_pipeline:
+            ok, _msg = engine.run()
+
+        assert ok is False
+        mock_pipeline.assert_not_called()
+
+    @patch("app.core.engine.resolve_binary")
+    @patch("app.core.engine.is_apple_silicon")
     def test_validate_project_name_with_dots_blocked(self, mock_silicon, mock_resolve_binary, tmp_path):
         """Nom de projet avec '..' → None."""
         mock_silicon.return_value = False

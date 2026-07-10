@@ -462,5 +462,10 @@
     "check_ignore_watermarks": "Ignore watermarks",
     "label_ckpt_dest": "Checkpoints destination (optional):",
     "ckpt_dest_placeholder": "Default: <project>/checkpoints",
-    "ckpt_dest_tip": "If set, checkpoints are saved to <destination>/<project name> and only the most recent one is kept."
+    "ckpt_dest_tip": "If set, checkpoints are saved to <destination>/<project name> and only the most recent one is kept.",
+    "btn_resume_colmap": "Resume COLMAP",
+    "msg_resume_colmap": "--- Resuming COLMAP (reusing images) ---",
+    "err_resume_no_images": "Cannot resume: no images found in the project folder. Run the extraction first.",
+    "msg_resume_reuse": "Resume COLMAP: reusing existing images",
+    "resume_colmap_tip": "Re-runs COLMAP reusing the already-extracted images (skips extraction and upscaling). Overwrites the previous reconstruction and chains Brush if the option is checked."
 }

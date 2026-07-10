@@ -110,6 +110,7 @@ class ColmapGUI(QMainWindow):
         
         # Connect signals
         self.config_tab.processRequested.connect(self.process)
+        self.config_tab.resumeColmapRequested.connect(self.resume_colmap)
         self.config_tab.stopRequested.connect(self.stop_process)
         self.config_tab.deleteDatasetRequested.connect(self.delete_dataset)
         self.config_tab.quitRequested.connect(self.close)
@@ -294,6 +295,48 @@ class ColmapGUI(QMainWindow):
             self.fourdgs_worker.finished_signal.connect(self.on_finished)
             self.fourdgs_worker.start()
             
+    def resume_colmap(self):
+        """Relance COLMAP en réutilisant les images déjà extraites (saute extraction/upscale).
+
+        Écrase la reconstruction COLMAP précédente. Enchaîne l'entraînement Brush
+        si la case 'auto-brush' est cochée (via on_finished).
+        """
+        output_path = self.config_tab.get_output_path()
+        project_name = self.config_tab.get_project_name()
+
+        if not output_path:
+            QMessageBox.critical(self, tr("msg_error"), tr("err_no_paths"))
+            return
+
+        images_dir = Path(output_path) / project_name / "images"
+        if not images_dir.exists() or not any(images_dir.iterdir()):
+            QMessageBox.warning(
+                self, tr("msg_warning"),
+                tr("err_resume_no_images",
+                   "Reprise impossible : aucune image trouvée dans le dossier du projet. Lancez d'abord l'extraction.")
+            )
+            return
+
+        self.config_tab.set_processing_state(True)
+        self.logs_tab.clear_log()
+        self.logs_tab.append_log(tr("msg_resume_colmap", "--- Reprise COLMAP (réutilisation des images) ---"))
+
+        # On pointe l'entrée sur les images déjà extraites : aucune extraction ni upscale.
+        self.worker = ColmapWorker(
+            self.get_current_params(),
+            str(images_dir), output_path, "images",
+            self.config_tab.get_fps(),
+            project_name,
+            upscale_params=None,
+            extractor_360_params=None,
+        )
+        self.worker.engine.resume_colmap = True
+        self.worker.log_signal.connect(self.logs_tab.append_log)
+        self.worker.progress_signal.connect(self.config_tab.progress_bar.setValue)
+        self.worker.status_signal.connect(self.config_tab.lbl_status.setText)
+        self.worker.finished_signal.connect(self.on_finished)
+        self.worker.start()
+
     def stop_process(self):
         """Arrête le processus en cours"""
         if (self.worker and self.worker.isRunning()) or \

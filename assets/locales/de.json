@@ -462,5 +462,10 @@
     "check_ignore_watermarks": "Wasserzeichen ignor.",
     "label_ckpt_dest": "Checkpoint-Ziel (optional):",
     "ckpt_dest_placeholder": "Standard: <Projekt>/checkpoints",
-    "ckpt_dest_tip": "Wenn gesetzt, werden Checkpoints in <Ziel>/<Projektname> gespeichert und nur der neueste bleibt erhalten."
+    "ckpt_dest_tip": "Wenn gesetzt, werden Checkpoints in <Ziel>/<Projektname> gespeichert und nur der neueste bleibt erhalten.",
+    "btn_resume_colmap": "COLMAP fortsetzen",
+    "msg_resume_colmap": "--- COLMAP fortsetzen (Bilder werden wiederverwendet) ---",
+    "err_resume_no_images": "Fortsetzen nicht möglich: Keine Bilder im Projektordner gefunden. Führen Sie zuerst die Extraktion aus.",
+    "msg_resume_reuse": "COLMAP fortsetzen: vorhandene Bilder werden wiederverwendet",
+    "resume_colmap_tip": "Führt COLMAP mit den bereits extrahierten Bildern erneut aus (überspringt Extraktion und Hochskalierung). Überschreibt die vorherige Rekonstruktion und startet Brush, falls aktiviert."
 }

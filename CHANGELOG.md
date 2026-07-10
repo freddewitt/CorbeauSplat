@@ -2,6 +2,9 @@
 
 ## [1.2.3] - 2026-07-10
 
+### ✨ New Features (Training)
+- **Resume COLMAP**: New "Resume COLMAP" button in the Training tab (Output group). It re-runs the COLMAP reconstruction reusing the images already extracted in `<project>/images`, skipping the expensive frame-extraction and upscaling steps. The previous reconstruction (`sparse/` + `database.db`) is overwritten. Useful when COLMAP failed or needs re-running without redoing extraction/upscale. Chains Brush training automatically if the auto-brush checkbox is checked. Works for both the Gsplat and 360 pipelines (the 360 extractor is not re-run). If no images are found in the project folder, an explicit error is shown and nothing is launched.
+
 ### ✨ New Features (Brush training)
 - **Custom checkpoints destination**: The Training tab now offers an optional "Checkpoints destination" field. When set, Brush checkpoints are written to `<destination>/<project name>/` instead of the default `<dataset>/checkpoints`, and after a successful training run only the most recent checkpoint `.ply` is kept (intermediate checkpoints and empty folders are removed). Applies to the automatic COLMAP → Brush pipeline; leaving the field empty preserves the previous behaviour (all checkpoints kept). The setting is remembered across sessions and translated in all 9 locales.
 
