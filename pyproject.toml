@@ -34,4 +34,8 @@ python_files = ["test_*.py"]
 addopts = "-m 'not e2e'"
 markers = [
     "e2e: pipeline end-to-end réel avec vrais binaires (colmap, brush) — lent, opt-in",
+    "e2e_sharp: e2e réel Sharp (nécessite .venv_sharp + ffmpeg)",
+    "e2e_upscale: e2e réel Upscale (nécessite upscayl-bin + modèles)",
+    "e2e_4dgs: e2e réel 4DGS (nécessite .venv_4dgs + ffmpeg + colmap)",
+    "e2e_360: e2e réel 360 Extractor (nécessite .venv_360)",
 ]

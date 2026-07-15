@@ -9,7 +9,7 @@
 - **License**: MIT
 - **Python**: 3.13+ (main), 3.11 (ML Sharp venv)
 - **Stack**: PyQt6, COLMAP/Glomap, Brush (Rust/WGPU), Apple ML Sharp, upscayl-ncnn, opencv-python-headless
-- **File count**: ~70 Python files, ~15,978 LOC first-party
+- **File count**: ~74 Python files
 
 ## Quickstart
 
@@ -29,143 +29,13 @@ python3 main.py clean -i noisy.ply -o cleaned.ply --then-export spz
 
 ## Architecture
 
-```
-main.py                         ← Entry: CLI parser or GUI launcher
-├── app/
-│   ├── __init__.py             ← VERSION = "1.0.5"
-│   ├── upscayl_manager.py      ← Binary download, model management
-│   ├── upscayl_models.py       ← 6 model catalogue definitions
-│   │
-│   ├── cli/                    ← CLI subcommand dispatch
-│   │   ├── __init__.py         ← main() entry, dispatcher
-│   │   ├── parser.py           ← argparse 9 subcommands
-│   │   ├── commands.py         ← 9 run_* handlers (557 lines)
-│   │   └── launcher.py         ← GUI launcher helper
-│   │
-│   ├── core/                   ← Business logic (engine layer)
-│   │   ├── base_engine.py      ← BaseEngine + IProcessRunner (Template Method)
-│   │   ├── engine.py           ← ColmapEngine — SfM pipeline (929 lines)
-│   │   ├── brush_engine.py     ← BrushEngine — Gaussian Splat trainer
-│   │   ├── sharp_engine.py     ← SharpEngine — Apple ML Sharp
-│   │   ├── upscale_engine.py   ← UpscaleEngine — upscayl-ncnn wrapper
-│   │   ├── superplat_engine.py ← SuperSplatEngine — web viewer
-│   │   ├── four_dgs_engine.py  ← 4DGS data preparation
-│   │   ├── extractor_360_engine.py — 360° video extraction
-│   │   ├── export_engine.py    ← PLY → SPZ/GLB/OBJ/XYZ export (540 lines)
-│   │   ├── ply_cleaner.py      ← PLY noise/floaters removal
-│   │   ├── ply_utils.py        ← PLY parsing utilities
-│   │   ├── i18n.py             ← LanguageManager singleton (9 languages)
-│   │   ├── params.py           ← ColmapParams dataclass
-│   │   └── system.py           ← Device detection, binary resolution
-│   │
-│   ├── gui/                    ← PyQt6 interface
-│   │   ├── main_window.py      ← ColmapGUI — tab orchestrator
-│   │   ├── managers.py         ← SessionManager + AppLifecycle
-│   │   ├── workers.py          ← QThread workers (all engines + Cleaner)
-│   │   ├── base_worker.py      ← BaseWorker with signals
-│   │   ├── styles.py           ← Dark theme QPalette + stylesheet
-│   │   ├── widgets/            ← Reusable widget components
-│   │   │   ├── dialog_utils.py ← QFileDialog wrappers
-│   │   │   ├── drop_line_edit.py ← Drag & drop text input
-│   │   │   └── upscale_widgets.py ← Upscale-specific controls
-│   │   └── tabs/               ← 10 tab widgets
-│   │       ├── brush_tab.py         ← Brush training controls
-│   │       ├── cleaner_export_tab.py← Clean + Export composite tab (v1.0.6)
-│   │       ├── config_tab.py        ← Main dataset config
-│   │       ├── extractor_360_tab.py ← 360° extractor
-│   │       ├── four_dgs_tab.py      ← 4DGS prep controls
-│   │       ├── logs_tab.py          ← Log viewer
-│   │       ├── params_tab.py        ← COLMAP advanced params
-│   │       ├── sharp_tab.py         ← ML Sharp controls
-│   │       ├── superplat_tab.py     ← Viewer controls
-│   │       └── upscale_tab.py       ← Model download/upscale
-│   │
-│   └── scripts/
-│       ├── setup_dependencies.py ← Engine installer (orchestrator)
-│       ├── checksum_verifier.py  ← Download integrity checks
-│       ├── checksums.json        ← Hash manifest
-│       └── installers/           ← 9 modular installer modules
-│           ├── base.py           ← EngineDependency base class
-│           ├── brush.py          ← Brush (Rust) installer
-│           ├── extractor_360.py  ← 360Extractor venv installer
-│           ├── mapping.py        ← COLMAP + Glomap build/install
-│           ├── sharp.py          ← ML Sharp venv installer
-│           ├── supersplat.py     ← SuperSplat npm installer
-│           ├── tools.py          ← Shared utilities (193 lines)
-│           └── upscayl.py        ← upscayl-bin downloader
-│
-├── engines/                     ← External engine binaries/sources
-│   ├── brush/                   ← Gaussian Splat trainer binary
-│   ├── brush.version
-│   ├── sharp/                   ← Apple ML Sharp package
-│   ├── sharp.version
-│   ├── supersplat/              ← Web viewer (node_modules)
-│   ├── supersplat.version
-│   ├── glomap/                  ← Glomap binary
-│   ├── glomap-source/           ← Glomap + COLMAP build tree
-│   ├── glomap.version
-│   ├── extractor_360/           ← 360Extractor package
-│   ├── extractor_360.version
-│   ├── .crates.toml / .crates2.json ← Rust crate registry cache
-│
-├── config.json                  ← User config (session persistence)
-├── assets/locales/              ← 9 locale JSON files (fr, en, de, es, it, ja, zh, ru, ar)
-├── CLI.md                       ← Full CLI reference (319 lines)
-├── CHANGELOG.md                 ← Release history
-├── pyproject.toml               ← Tool config (ruff, mypy, pytest)
-└── main.py                      ← Entry point (13 lines, delegated to app/cli/)
-```
+Vue d'ensemble : `main.py` (entry) → `app/cli/` (dispatch CLI) et `app/gui/` (PyQt6, `main_window.py` orchestrateur + `tabs/` par moteur) s'appuient tous deux sur `app/core/` (moteurs, tous héritant de `base_engine.py`/BaseEngine : `engine.py`/ColmapEngine, `brush_engine.py`, `sharp_engine.py`, `upscale_engine.py`, `superplat_engine.py`, `four_dgs_engine.py`, `extractor_360_engine.py`, `export_engine.py`, `ply_cleaner.py`, `splat_transform_engine.py`). `app/scripts/installers/` installe les binaires externes dans `engines/`.
 
-## Key Design Patterns
-
-| Pattern | Location | Usage |
-|---------|----------|-------|
-| Template Method | `BaseEngine._execute_command()` | All engines delegate process execution |
-| Dependency Injection | `IProcessRunner` interface | Testable process execution |
-| Singleton | `LanguageManager` | Single i18n instance |
-| Observer | `LanguageManager.add_observer()` | UI retranslation on language change |
-| SRP | `SessionManager`, `AppLifecycle` | Separated from MainWindow |
-| Strategy | `BRUSH_PRESETS` dict | Named parameter profiles |
-| Strategy | `CLEANER_PRESETS` dict | Named PLY clean severity presets |
-
-## Engines
-
-| Engine | Input | Output | Binary |
-|--------|-------|--------|--------|
-| **ColmapEngine** | Video/images | COLMAP dataset (sparse + dense) | `colmap` / `glomap` |
-| **BrushEngine** | COLMAP dataset | Gaussian Splat `.ply` | `brush` (Rust) |
-| **SharpEngine** | Image/video | `.ply` splat | `sharp` (Apple ML) |
-| **UpscaleEngine** | Image/folder | Upscaled images | `upscayl-bin` (NCNN) |
-| **SuperSplatEngine** | `.ply` file | Web viewer | `npx serve` |
-| **FourDGSEngine** | Multi-cam videos | Nerfstudio dataset | COLMAP + ns-process-data |
-| **Extractor360Engine** | 360° video | Planar images | 360Extractor venv |
-| **ExportEngine** | `.ply` file | SPZ/GLB/OBJ/XYZ/PLY | Python |
-| **PlyCleaner** | `.ply` file/dir | Clean `.ply` (noise/floaters removed) | Python (native) |
-
-## Dependencies
-
-**Python** (requirements.txt): PyQt6, requests, urllib3, numpy, send2trash, pyobjc-framework-Cocoa, Pillow, plyfile, opencv-python-headless
-
-**Python** (dev, pyproject.toml): ruff, mypy, pytest, pytest-qt, pip-audit, pip-tools
-
-**System**: FFmpeg, COLMAP, Homebrew, Xcode CLT, Rust (for Brush build), Node.js (for SuperSplat)
-
-**Run-time downloaded**: upscayl-bin (auto-install from GitHub releases), upscayl models (6 custom models)
-
-## Security
-
-- Path traversal validation in `BaseEngine.validate_path()` — restricts to project root + Desktop + Documents (v1.0.3+)
-- GUI paths trusted via `gui_trusted` flag (v1.0.4) — bypasses containment check for QFileDialog selections
-- Project name sanitization in `engine.py` — rejects `..`, `/`, `\`
-- Shell injection prevention: no `shell=True` anywhere in the codebase
-- CORS hardening in `SuperSplatEngine` — only allows localhost origins
-- Custom args allowlist in `BrushEngine` — only known flags accepted
-- Shell injection fixed in `AppLifecycle.restart()` (v1.0.3) — replaced `bash -c` f-string with direct subprocess calls
-- 24+ security findings fixed since v0.99.3
+Détail (fichiers, classes, patterns, moteurs, dépendances, sécurité) → `graphify query "<question>"` ou `graphify explain "<concept>"`. Ne pas dupliquer ici ce que le graphe retrouve déjà.
 
 ## Known Issues & Gaps
 
- 1. **E2E réel = pipeline principal seulement** — `pytest -m e2e` couvre COLMAP → Brush → clean → export SPZ (7 tests, ~21 s). Sharp/Upscale/4DGS/360 restent mockés. Suite par défaut : 263 pass, 1 skip (e2e désélectionné). GLB export tests skip si `trimesh`/`open3d` absents
+ 1. **E2E réel = pipeline principal seulement** — `pytest -m e2e` couvre COLMAP → Brush → clean → export SPZ (7 tests, ~21 s). Upscale/Sharp couverts en e2e réel (8 tests, ~145 s) ; 360/4DGS restent mockés. Suite par défaut : 291 pass, 2 skip. Marqueurs e2e : `e2e_sharp`, `e2e_upscale`, `e2e_4dgs`, `e2e_360` en plus de `e2e` umbrella (e2e désélectionné). GLB export tests skip si `trimesh`/`open3d` absents
  2. **Workers tested headless via mock PyQt6** — `conftest.py` patches PyQt6 at session scope, but import chain still requires numpy mock for CI
 
 ## Changelog Highlights (v1.0.1 → v1.0.6)
@@ -213,10 +83,14 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 
 ## RESTE À FAIRE (priorisé)
 
-_Aucun point ouvert prioritaire._ Pistes possibles : couvrir Sharp/Upscale/4DGS en e2e réel (upscayl à installer) ; taille de `manifest.md` à réduire (arbre d'archi = détail → `graphify query`).
+1. **Commit** working tree (checkpoints Brush + bugfix SplatTransform + tests e2e P0-P2)
+2. **E2E 360 Extractor** (`.venv_360` requis, générateur équirectangulaire à créer)
+3. **E2E Sharp vidéo** (ffmpeg + Sharp predict par frame)
+4. **E2E 4DGS** (ffmpeg + COLMAP + nerfstudio, coûteux)
 
-> Résolu : **tests e2e réels** — session 2026-07-09. Pipeline complet COLMAP → Brush → clean → export SPZ sur scène synthétique générée à la volée (`tests/integration/_synthetic_scene.py`), 7 tests opt-in `pytest -m e2e` (désélectionnés par défaut). Au passage : `opencv-python-headless` réinstallé dans `.venv` (manquait → fuite de mock cv2 qui cassait 4 tests mockés en run complet).
-> Résolu : `confirm_reset` (ES) — session 2026-07-08 (aligné sur en/fr). Audit i18n : 9 locales cohérentes.
+> Résolu : **manifest.md allégé** (détail archi renvoyé vers `graphify query`) — session 2026-07-15. **`test_export_spz_created`** revérifié (isolé + suite complète + suite e2e) : passe systématiquement, l'échec signalé était obsolète — session 2026-07-15.
+
+> Résolu : **tests e2e réels** — sessions 2026-07-09 et 2026-07-12. P0 (Upscale, 4 tests, upscayl-bin réel), P1 (360 Extractor, 25 tests unitaires mock), P2 (Sharp image, 4 tests, Sharp réel ~142s). Voir `feature-proposal.md` pour le design P3-P5.
 
 ## Graphify
 

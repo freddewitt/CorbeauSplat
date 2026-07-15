@@ -102,3 +102,39 @@ Mémorisé sessions (get_state/set_state), traduit 9 locales.
 Tests 264 pass, 0 fail, 2 skip. py_compile OK. Graphify 2027 nœuds, 3662 arêtes.
 
 Working tree non committé. RESTE : (1) commit ; (2) e2e réel Sharp/Upscale/4DGS/360 ; (3) alléger manifest.md.
+## Session 2026-07-12 — Bugfix SplatTransform + e2e P0/P1/P2 livrés
+
+### Contexte
+Reprise session 2026-07-10 (feature checkpoints Brush, working tree non committé).
+
+### Déroulé
+**1. Bugfix SplatTransformTab crash**
+- `_browse_input()` ligne 227 ne déstructurait pas `QFileDialog.getOpenFileName()` (retourne tuple PyQt6).
+- Fix : `path = get_open_file_name(` → `path, _ = get_open_file_name(`.
+- Fichier : `app/gui/tabs/splat_transform_tab.py:227`.
+- Tests : 266 pass, 2 skip, 0 fail.
+
+**2. Tests e2e réels — phases P0, P1, P2**
+- P0 (Upscale e2e) : `_synthetic_image.py` (générateur 160×120) + `test_e2e_upscale.py` (4 tests, upscayl-bin). 4 pass.
+- P1 (360 Extractor unit) : `test_extractor_360_engine.py` (303 lignes, 25 tests mock). 25 pass.
+- P2 (Sharp image e2e) : `generate_depth_image()` (640×480) + `test_e2e_sharp.py` (4 tests, Sharp Apple ML, 142s). 4 pass.
+- Marqueurs pytest : `e2e_sharp`, `e2e_upscale`, `e2e_4dgs`, `e2e_360` (pyproject.toml).
+- Proposition : `feature-proposal.md` (407 lignes, design P3-P5).
+
+### État final
+- Tests : 291 pass, 2 skip, 15 deselected, 0 fail.
+- Nouveaux fichiers : 5 (3 test modules + 1 generator + 1 proposal).
+- Fichiers modifiés : 2 (splat_transform_tab.py:227, pyproject.toml marqueurs).
+- Working tree NON COMMITTÉ (cumule session 2026-07-10 + cette session).
+
+### RESTE À FAIRE
+1. Commit working tree
+2. P3 : 360 Extractor e2e (.venv_360 requis)
+3. P4 : Sharp vidéo e2e (ffmpeg + Sharp predict par frame)
+4. P5 : 4DGS e2e (ffmpeg + COLMAP + nerfstudio)
+5. Alléger manifest.md
+6. SPZ export test (préexistant échec)
+
+### Pièges
+- `getOpenFileName` tuple PyQt6 : seul SplatTransform manquait la déstructuration (corrigé).
+- Sharp predict ~142s Apple Silicon (timeout tests 300s).

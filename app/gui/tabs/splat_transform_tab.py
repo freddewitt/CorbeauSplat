@@ -224,7 +224,7 @@ class SplatTransformTab(QWidget):
     # ── Event handlers ───────────────────────────────────────────────────────
 
     def _browse_input(self):
-        path = get_open_file_name(
+        path, _ = get_open_file_name(
             self,
             tr("st_dlg_input", "Select input file"),
             filter="Splat files (*.ply *.spz *.splat *.ksplat);;All files (*)",
