@@ -12,6 +12,13 @@ from typing import Tuple, Any, Optional, Callable
 from .base_engine import BaseEngine
 from .system import is_apple_silicon, get_optimal_threads, resolve_binary
 from .i18n import tr
+from .colmap_commands import (
+    build_feature_extraction_command,
+    build_feature_matching_command,
+    build_global_mapper_command,
+    build_incremental_mapper_command,
+    build_image_undistorter_command,
+)
 
 _IMAGE_EXTS = {'.jpg', '.jpeg', '.png'}
 
@@ -665,30 +672,10 @@ class ColmapEngine(BaseEngine):
     def feature_extraction(self, database_path: str, images_dir: str) -> bool:
         """Exécute l'extraction des features (SIFT ou ALIKED)."""
         image_list_path = self._write_sorted_image_list(images_dir)
-        feat_type = getattr(self.params, 'feature_type', 'SIFT')
-        cmd = [
-            self.colmap_bin, 'feature_extractor',
-            '--database_path', database_path,
-            '--image_path', images_dir,
-            '--ImageReader.camera_model', self.params.camera_model,
-            '--ImageReader.single_camera', '1' if self.params.single_camera else '0',
-            '--FeatureExtraction.num_threads', str(self.num_threads),
-            '--FeatureExtraction.max_image_size', str(self.params.max_image_size),
-            '--FeatureExtraction.type', feat_type,
-        ]
-        if feat_type == 'SIFT':
-            cmd.extend([
-                '--SiftExtraction.max_num_features', str(self.params.max_num_features),
-                '--SiftExtraction.estimate_affine_shape', '1' if self.params.estimate_affine_shape else '0',
-                '--SiftExtraction.domain_size_pooling', '1' if self.params.domain_size_pooling else '0',
-            ])
-        else:
-            cmd.extend([
-                '--AlikedExtraction.max_num_features', str(self.params.max_num_features),
-            ])
-        if image_list_path:
-            cmd.extend(['--image_list_path', str(image_list_path)])
-        return self.run_command(cmd, f"Extraction des features ({feat_type})", status_prefix="Analyse")
+        cmd, description = build_feature_extraction_command(
+            self.colmap_bin, database_path, images_dir, self.params, self.num_threads, image_list_path
+        )
+        return self.run_command(cmd, description, status_prefix="Analyse")
 
     def _write_sorted_image_list(self, images_dir: str) -> Optional[Path]:
         """Write a deterministic COLMAP image list so sequential matching follows frame order."""
@@ -798,61 +785,7 @@ class ColmapEngine(BaseEngine):
 
     def feature_matching(self, database_path: str) -> bool:
         """Exécute le matching des features (bruteforce ou LightGlue)."""
-        match_type = getattr(self.params, 'matching_type', 'SIFT_BRUTEFORCE')
-        feat_type = getattr(self.params, 'feature_type', 'SIFT')
-
-        if self.params.matcher_type == 'sequential':
-            cmd = [
-                self.colmap_bin, 'sequential_matcher',
-                '--database_path', database_path,
-                '--FeatureMatching.num_threads', str(self.num_threads),
-                '--FeatureMatching.type', match_type,
-                '--FeatureMatching.guided_matching', '1' if self.params.guided_matching else '0',
-                '--SequentialMatching.overlap', str(self.params.sequential_overlap),
-                '--SequentialMatching.quadratic_overlap', '1',
-            ]
-            # Loop detection ferme les boucles quand la caméra repasse sur une zone déjà
-            # filmée (tour d'objet, pièce en boucle) — évite dérive et fantômes. COLMAP
-            # télécharge et met en cache l'arbre de vocabulaire au 1er usage. L'arbre est
-            # basé SIFT : on ne l'active que pour les features SIFT (incompatible ALIKED).
-            if feat_type == 'SIFT':
-                cmd.extend(['--SequentialMatching.loop_detection', '1'])
-            description = f"Matching Sequentiel ({match_type})"
-        elif self.params.matcher_type == 'vocab_tree':
-            # Vocab tree : matching par similarité visuelle, adapté aux grandes collections
-            # de photos non ordonnées (bien plus rapide qu'exhaustif au-delà de ~500 images).
-            # COLMAP télécharge/met en cache l'arbre de vocabulaire (SIFT) au 1er usage.
-            cmd = [
-                self.colmap_bin, 'vocab_tree_matcher',
-                '--database_path', database_path,
-                '--FeatureMatching.num_threads', str(self.num_threads),
-                '--FeatureMatching.type', match_type,
-                '--FeatureMatching.guided_matching', '1' if self.params.guided_matching else '0',
-            ]
-            description = f"Matching Vocab Tree ({match_type})"
-        else:
-            cmd = [
-                self.colmap_bin, 'exhaustive_matcher',
-                '--database_path', database_path,
-                '--FeatureMatching.num_threads', str(self.num_threads),
-                '--FeatureMatching.type', match_type,
-                '--FeatureMatching.guided_matching', '1' if self.params.guided_matching else '0',
-            ]
-            description = f"Matching Exhaustif ({match_type})"
-
-        # Add algo-specific matching flags
-        if match_type == 'SIFT_BRUTEFORCE':
-            cmd.extend([
-                '--SiftMatching.max_ratio', str(self.params.max_ratio),
-                '--SiftMatching.max_distance', str(self.params.max_distance),
-                '--SiftMatching.cross_check', '1' if self.params.cross_check else '0',
-            ])
-        elif feat_type.startswith('ALIKED'):
-            cmd.extend([
-                '--AlikedMatching.min_cossim', '0.85',
-            ])
-        # LightGlue types carry their own matching — no extra flags needed
-            
+        cmd, description = build_feature_matching_command(self.colmap_bin, database_path, self.params, self.num_threads)
         return self.run_command(cmd, description, status_prefix="Comparaison")
 
     def mapper(self, database_path: str, images_dir: str, sparse_dir: Path) -> bool:
@@ -864,18 +797,7 @@ class ColmapEngine(BaseEngine):
         reste plus fiable. Le repli garantit qu'on ne rend jamais une reconstruction vide.
         """
         sparse_dir = Path(sparse_dir)
-        global_cmd = [
-            self.colmap_bin, 'global_mapper',
-            '--database_path', database_path,
-            '--image_path', images_dir,
-            '--output_path', str(sparse_dir),
-            '--GlobalMapper.num_threads', str(self.num_threads),
-            '--GlobalMapper.min_num_matches', str(self.params.min_num_matches),
-            '--GlobalMapper.ignore_watermarks', '1' if self.params.ignore_watermarks else '0',
-            '--GlobalMapper.ba_refine_focal_length', '1' if self.params.ba_refine_focal_length else '0',
-            '--GlobalMapper.ba_refine_principal_point', '1' if self.params.ba_refine_principal_point else '0',
-            '--GlobalMapper.ba_refine_extra_params', '1' if self.params.ba_refine_extra_params else '0',
-        ]
+        global_cmd = build_global_mapper_command(self.colmap_bin, database_path, images_dir, sparse_dir, self.params, self.num_threads)
         ok = self.run_command(global_cmd, "Reconstruction 3D (global_mapper)", status_prefix="Reconstruction 3D")
         if ok and self._has_valid_sparse_model(sparse_dir):
             return True
@@ -892,18 +814,7 @@ class ColmapEngine(BaseEngine):
             shutil.rmtree(sparse_dir)
         sparse_dir.mkdir(parents=True, exist_ok=True)
 
-        incremental_cmd = [
-            self.colmap_bin, 'mapper',
-            '--database_path', database_path,
-            '--image_path', images_dir,
-            '--output_path', str(sparse_dir),
-            '--Mapper.num_threads', str(self.num_threads),
-            '--Mapper.min_num_matches', str(self.params.min_num_matches),
-            '--Mapper.ignore_watermarks', '1' if self.params.ignore_watermarks else '0',
-            '--Mapper.ba_refine_focal_length', '1' if self.params.ba_refine_focal_length else '0',
-            '--Mapper.ba_refine_principal_point', '1' if self.params.ba_refine_principal_point else '0',
-            '--Mapper.ba_refine_extra_params', '1' if self.params.ba_refine_extra_params else '0',
-        ]
+        incremental_cmd = build_incremental_mapper_command(self.colmap_bin, database_path, images_dir, sparse_dir, self.params, self.num_threads)
         ok = self.run_command(incremental_cmd, "Reconstruction 3D (mapper incrémental)", status_prefix="Reconstruction 3D")
         return ok and self._has_valid_sparse_model(sparse_dir)
 
@@ -920,16 +831,8 @@ class ColmapEngine(BaseEngine):
 
     def image_undistorter(self, images_dir: str, sparse_dir: str, output_dir: str) -> bool:
         """Exécute l'undistortion des images."""
-        input_path = Path(sparse_dir) / "0"
-        cmd = [
-            self.colmap_bin, 'image_undistorter',
-            '--image_path', images_dir,
-            '--input_path', str(input_path),
-            '--output_path', output_dir,
-            '--output_type', 'COLMAP',
-            '--max_image_size', str(self.params.max_image_size),
-        ]
-        return self.run_command(cmd, "Undistortion des images", status_prefix="Correction optique")
+        cmd, description = build_image_undistorter_command(self.colmap_bin, images_dir, sparse_dir, output_dir, self.params)
+        return self.run_command(cmd, description, status_prefix="Correction optique")
 
     def create_brush_config(self, output_dir: Path, images_dir: Path, sparse_dir: Path):
         """Génère le fichier de configuration pour Brush."""
