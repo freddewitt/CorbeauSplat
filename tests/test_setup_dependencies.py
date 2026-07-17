@@ -216,6 +216,9 @@ class TestSetupDependenciesUtils:
 
     def test_check_xcode_tools_present(self):
         """check_xcode_tools retourne True si xcode-select -p réussit."""
+        import sys as _sys
+        if _sys.platform != "darwin":
+            pytest.skip("xcode-select test only relevant on macOS")
         with patch("app.scripts.installers.tools.subprocess.check_call") as mock_check:
             from app.scripts.installers.tools import check_xcode_tools
             assert check_xcode_tools() is True
