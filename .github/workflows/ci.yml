@@ -46,7 +46,7 @@ jobs:
       - name: Install system dependencies (Linux)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libegl1-mesa libgl1-mesa-glx libegl-dev
+          sudo apt-get install -y libegl1 libgl1 libegl-dev
 
       - name: Install Python dependencies
         run: |
