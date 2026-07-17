@@ -1,8 +1,7 @@
-import os
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Optional, Callable
 
 from .base_engine import BaseEngine
 
@@ -12,7 +11,7 @@ class ExportEngine(BaseEngine):
 
     SUPPORTED_FORMATS = ["spz", "glb", "obj", "ply", "xyz"]
 
-    def __init__(self, logger_callback: Optional[Callable] = None) -> None:
+    def __init__(self, logger_callback: Callable | None = None) -> None:
         super().__init__("Export", logger_callback)
 
     def is_available(self) -> bool:
@@ -80,9 +79,8 @@ class ExportEngine(BaseEngine):
             elif opts.get('compress', False):
                 import gzip
                 output_file = output_dir / (input_file.name + '.gz')
-                with open(input_file, 'rb') as f_in:
-                    with gzip.open(output_file, 'wb') as f_out:
-                        shutil.copyfileobj(f_in, f_out)
+                with open(input_file, 'rb') as f_in, gzip.open(output_file, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
                 self.log(f"Compressé: {output_file}")
                 return True
             else:
@@ -114,19 +112,19 @@ class ExportEngine(BaseEngine):
         output_file = output_dir / f"{input_file.stem}.xyz"
         include_colors = opts.get('include_colors', False)
         delimiter = opts.get('delimiter', ' ')
-        
+
         try:
             try:
                 from plyfile import PlyData
                 ply = PlyData.read(str(input_file))
                 vertex = ply['vertex']
                 has_colors = 'red' in vertex.data.dtype.names
-                
+
                 with open(output_file, 'w') as fout:
                     for i in range(len(vertex)):
                         data = vertex[i]
                         x, y, z = float(data['x']), float(data['y']), float(data['z'])
-                        
+
                         if include_colors and has_colors:
                             r, g, b = int(data['red']), int(data['green']), int(data['blue'])
                             fout.write(f"{x}{delimiter}{y}{delimiter}{z}{delimiter}{r}{delimiter}{g}{delimiter}{b}\n")
@@ -134,7 +132,7 @@ class ExportEngine(BaseEngine):
                             fout.write(f"{x}{delimiter}{y}{delimiter}{z}\n")
             except ImportError:
                 # Fallback: parse manually
-                with open(input_file, 'r') as fin:
+                with open(input_file) as fin:
                     lines = fin.readlines()
 
                 with open(output_file, 'w') as fout:
@@ -166,14 +164,14 @@ class ExportEngine(BaseEngine):
         include_mtl = opts.get('include_materials', True)
         include_colors = opts.get('include_vertex_colors', True)
         scale = opts.get('scale', 1.0)
-        
+
         try:
             try:
                 from plyfile import PlyData
                 ply = PlyData.read(str(input_file))
                 vertex = ply['vertex']
                 has_colors = 'red' in vertex.data.dtype.names
-                
+
                 if include_mtl:
                     mtl_file = output_dir / f"{input_file.stem}.mtl"
                     with open(mtl_file, 'w') as fmtl:
@@ -198,7 +196,7 @@ class ExportEngine(BaseEngine):
                         x = float(data['x']) * scale
                         y = float(data['y']) * scale
                         z = float(data['z']) * scale
-                        
+
                         vertex_count += 1
                         if include_colors and has_colors:
                             r, g, b = int(data['red'])/255, int(data['green'])/255, int(data['blue'])/255
@@ -207,10 +205,10 @@ class ExportEngine(BaseEngine):
                             fout.write(f"v {x:.6f} {y:.6f} {z:.6f}\n")
 
                     fout.write(f"\n# {vertex_count} vertices\n")
-                    
+
             except ImportError:
                 # Fallback: parse manually
-                with open(input_file, 'r') as fin:
+                with open(input_file) as fin:
                     lines = fin.readlines()
 
                 has_colors = False
@@ -265,8 +263,8 @@ class ExportEngine(BaseEngine):
         """Export PLY to GLB using available tools."""
         output_file = output_dir / f"{input_file.stem}.glb"
         method = opts.get('method', 'auto')  # auto, trimesh, open3d, assimp
-        point_size = opts.get('point_size', 0.01)
-        
+        opts.get('point_size', 0.01)
+
         if method == 'auto':
             if self._try_export_glb_trimesh(input_file, output_file, opts):
                 return True
@@ -290,26 +288,26 @@ class ExportEngine(BaseEngine):
     def _try_export_glb_trimesh(self, input_file: Path, output_file: Path, opts: dict) -> bool:
         """Export using trimesh library."""
         try:
-            import trimesh
             import numpy as np
+            import trimesh
             from plyfile import PlyData
-            
+
             ply = PlyData.read(str(input_file))
             vertex = ply['vertex']
-            
+
             points = np.column_stack([
                 vertex['x'], vertex['y'], vertex['z']
             ])
-            
+
             colors = None
             if 'red' in vertex.data.dtype.names:
                 colors = np.column_stack([
                     vertex['red'], vertex['green'], vertex['blue']
                 ])
-            
+
             # Create point cloud
             cloud = trimesh.PointCloud(vertices=points, colors=colors)
-            
+
             # Export as GLB
             cloud.export(str(output_file))
             self.log(f"Exporté GLB via trimesh: {output_file}")
@@ -324,13 +322,13 @@ class ExportEngine(BaseEngine):
         """Export using open3d library."""
         try:
             import open3d as o3d
-            
+
             pcd = o3d.io.read_point_cloud(str(input_file))
-            
+
             # open3d doesn't natively export GLB, convert via intermediate
             temp_ply = output_file.parent / f"{input_file.stem}_temp.ply"
             o3d.io.write_point_cloud(str(temp_ply), pcd)
-            
+
             # Then use trimesh for GLB
             try:
                 import trimesh
@@ -341,7 +339,7 @@ class ExportEngine(BaseEngine):
                 return True
             except ImportError:
                 pass
-                
+
             temp_ply.unlink(missing_ok=True)
             return False
         except ImportError:
@@ -354,10 +352,10 @@ class ExportEngine(BaseEngine):
         """Export using assimp command-line tool via intermediate OBJ."""
         try:
             from plyfile import PlyData
-            
+
             ply = PlyData.read(str(input_file))
             vertex = ply['vertex']
-            
+
             temp_obj = input_file.parent / f"{input_file.stem}_temp.obj"
             temp_mtl = input_file.parent / f"{input_file.stem}_temp.mtl"
 

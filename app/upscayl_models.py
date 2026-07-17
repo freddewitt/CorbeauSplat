@@ -6,7 +6,6 @@ Custom models require individual download via url_bin / url_param.
 """
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 _CUSTOM = "https://raw.githubusercontent.com/upscayl/custom-models/main/models"
 
@@ -128,7 +127,7 @@ MODELS: list[UpscaylModel] = [
 ]
 
 
-def get_model(model_id: str) -> Optional[UpscaylModel]:
+def get_model(model_id: str) -> UpscaylModel | None:
     return next((m for m in MODELS if m.id == model_id), None)
 
 

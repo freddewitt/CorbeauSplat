@@ -1,12 +1,12 @@
 """Tests pour upscayl_manager.py."""
+import hashlib
+import io
 import os
 import sys
-import zipfile
 import tarfile
-import io
-import hashlib
+import zipfile
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call, ANY
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -18,8 +18,7 @@ for _mod_name in ["send2trash", "cv2"]:
         except ImportError:
             sys.modules[_mod_name] = MagicMock()
 
-from app.scripts.checksum_verifier import verify_download, verify_download_strict, compute_file_sha256
-
+from app.scripts.checksum_verifier import compute_file_sha256, verify_download, verify_download_strict  # noqa: E402
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tests for checksum_verifier (used by upscayl_manager)

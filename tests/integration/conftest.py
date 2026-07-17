@@ -4,13 +4,13 @@ Importe le conftest racine (mock PyQt6) puis fournit des fixtures
 pour créer des projets COLMAP factices et mocker les binaires externes.
 """
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-from subprocess import CompletedProcess
+from unittest.mock import patch
 
 import pytest
 
 # Importe le conftest parent (mock PyQt6 + send2trash)
 from tests.conftest import _patch_pyqt6
+
 _patch_pyqt6()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

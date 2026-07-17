@@ -7,7 +7,7 @@ L'orchestration du pipeline (enchaînement des étapes, décision de repli
 global_mapper → mapper incrémental) reste dans ColmapEngine.
 """
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any
 
 
 def build_feature_extraction_command(
@@ -16,8 +16,8 @@ def build_feature_extraction_command(
     images_dir: str,
     params: Any,
     num_threads: int,
-    image_list_path: Optional[Path] = None,
-) -> Tuple[list, str]:
+    image_list_path: Path | None = None,
+) -> tuple[list, str]:
     """Commande d'extraction des features (SIFT ou ALIKED)."""
     feat_type = getattr(params, 'feature_type', 'SIFT')
     cmd = [
@@ -50,7 +50,7 @@ def build_feature_matching_command(
     database_path: str,
     params: Any,
     num_threads: int,
-) -> Tuple[list, str]:
+) -> tuple[list, str]:
     """Commande de matching des features (sequential/vocab_tree/exhaustive,
     bruteforce ou LightGlue selon le type de features)."""
     match_type = getattr(params, 'matching_type', 'SIFT_BRUTEFORCE')
@@ -164,7 +164,7 @@ def build_image_undistorter_command(
     sparse_dir: str,
     output_dir: str,
     params: Any,
-) -> Tuple[list, str]:
+) -> tuple[list, str]:
     """Commande d'undistortion des images à partir du modèle sparse."""
     input_path = Path(sparse_dir) / "0"
     cmd = [

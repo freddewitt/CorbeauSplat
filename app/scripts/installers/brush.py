@@ -1,7 +1,7 @@
 """Brush engine dependency installer."""
-import os
-import sys
+import contextlib
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -9,7 +9,6 @@ from pathlib import Path
 from app.scripts.checksum_verifier import load_expected_checksums, verify_download
 from app.scripts.installers.base import EngineDependency
 from app.scripts.installers.tools import install_rust_toolchain
-
 
 BRUSH_REPO = "https://github.com/ArthurBrussee/brush.git"
 
@@ -26,17 +25,15 @@ class BrushEngineDep(EngineDependency):
     def get_remote_version(self) -> str:
         """Returns HEAD commit hash in source mode, latest release tag otherwise."""
         config = {}
-        try:
+        with contextlib.suppress(OSError, json.JSONDecodeError):
             config = json.loads((self.root / "config.json").read_text())
-        except (OSError, json.JSONDecodeError):
-            pass
         build_mode = config.get("brush_params", {}).get("build_mode", "release")
 
         if build_mode == "source":
             return self._get_head_commit()
 
-        import urllib.request
         import json as _json
+        import urllib.request
         try:
             req = urllib.request.Request(
                 "https://api.github.com/repos/ArthurBrussee/brush/releases/latest",
@@ -65,10 +62,8 @@ class BrushEngineDep(EngineDependency):
 
     def install(self):
         config = {}
-        try:
+        with contextlib.suppress(OSError, json.JSONDecodeError):
             config = json.loads((self.root / "config.json").read_text())
-        except (OSError, json.JSONDecodeError):
-            pass
         build_mode = config.get("brush_params", {}).get("build_mode", "release")
 
         if build_mode == "source":
@@ -116,8 +111,8 @@ class BrushEngineDep(EngineDependency):
 
     def _install_from_release(self, version: str) -> bool:
         import platform
-        import urllib.request
         import tarfile
+        import urllib.request
         import zipfile
 
         system = platform.system()
@@ -141,9 +136,8 @@ class BrushEngineDep(EngineDependency):
         archive_path = self.engines_dir / f"brush-app-{platform_suffix}"
         try:
             req = urllib.request.Request(release_url)
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                with open(str(archive_path), "wb") as f:
-                    f.write(resp.read())
+            with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as f:
+                f.write(resp.read())
         except Exception as e:
             print(f"⚠️ Download failed: {e}")
             if archive_path.exists():
@@ -188,7 +182,7 @@ class BrushEngineDep(EngineDependency):
         # Find the executable anywhere in the extracted tree
         extracted_bin = None
         bin_names = {"brush-app", "brush_app", "brush-app.exe", "brush_app.exe"}
-        for root_dir, dirs, files in os.walk(str(extract_dir)):
+        for root_dir, _dirs, files in os.walk(str(extract_dir)):
             for f in files:
                 if f in bin_names:
                     extracted_bin = Path(root_dir) / f

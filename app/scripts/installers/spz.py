@@ -12,10 +12,8 @@ and whether the module is importable, so partial or broken installations are det
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 from app.scripts.installers.base import EngineDependency
-
 
 SPZ_REPO = "https://github.com/nianticlabs/spz.git"
 SPZ_TAG = "v3.0.0"

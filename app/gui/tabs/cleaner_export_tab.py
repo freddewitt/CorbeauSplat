@@ -1,12 +1,16 @@
 """Onglet de nettoyage PLY standalone (fichier unique ou batch)."""
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QFrame, QScrollArea, QMessageBox,
-)
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import (
+    QFrame,
+    QMessageBox,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
+from app.core.i18n import tr
 from app.gui.tabs.cleaner_tab import CleanerTab
 from app.gui.workers import CleanerWorker
-from app.core.i18n import tr
 
 
 class CleanerExportTab(QWidget):

@@ -8,8 +8,9 @@ Security decisions (consistent with audit v0.99.3):
 - Only flags in ALLOWED_FLAGS are forwarded; arbitrary user strings are rejected.
 """
 import shutil
+from collections.abc import Callable
 from pathlib import Path
-from typing import Optional, Callable, Dict, Any
+from typing import Any
 
 from .base_engine import BaseEngine
 from .system import resolve_project_root
@@ -38,11 +39,11 @@ class SplatTransformEngine(BaseEngine):
         "--gpu",               # n|cpu — GPU device selection
     }
 
-    def __init__(self, logger_callback: Optional[Callable] = None) -> None:
+    def __init__(self, logger_callback: Callable | None = None) -> None:
         super().__init__("SplatTransform", logger_callback)
         self._bin = self._resolve_bin()
 
-    def _resolve_bin(self) -> Optional[str]:
+    def _resolve_bin(self) -> str | None:
         root = resolve_project_root()
         local_bin = (
             root / "engines" / "splat-transform"
@@ -59,7 +60,7 @@ class SplatTransformEngine(BaseEngine):
         self,
         input_path: str,
         output_path: str,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
     ) -> int:
         """Run splat-transform on a local file.
 
@@ -112,7 +113,7 @@ class SplatTransformEngine(BaseEngine):
         self.log(f"SplatTransform: {safe_in.name} → {safe_out.name}")
         return self._execute_command(cmd)
 
-    def _build_flags(self, params: Dict[str, Any]) -> list:
+    def _build_flags(self, params: dict[str, Any]) -> list:
         flags = []
         for key, val in params.items():
             if key in self.ALLOWED_FLAGS_BOOLEAN:

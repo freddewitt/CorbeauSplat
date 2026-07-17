@@ -1,11 +1,6 @@
 """Tests pour app/core/four_dgs_engine.py — FourDGSEngine."""
-import os
 import sys
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call, ANY
-
-import pytest
-
+from unittest.mock import MagicMock, patch
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tests for module-level functions

@@ -15,9 +15,10 @@ def _set_macos_dock_icon(icon_path: _Path):
 
 
 def _launch_gui():
-    from PyQt6.QtWidgets import QApplication
-    from PyQt6.QtGui import QIcon
     from PyQt6.QtCore import QTimer
+    from PyQt6.QtGui import QIcon
+    from PyQt6.QtWidgets import QApplication
+
     from app.gui.main_window import ColmapGUI
 
     app = QApplication(sys.argv)

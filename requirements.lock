@@ -8,8 +8,8 @@ PyQt6_sip==13.11.1
 numpy==2.4.4
 Pillow==11.3.0
 plyfile==0.9
-pyobjc-core==12.1
-pyobjc-framework-Cocoa==10.3.2
+pyobjc-core==12.1; sys_platform == "darwin"
+pyobjc-framework-Cocoa==10.3.2; sys_platform == "darwin"
 requests==2.33.1
 Send2Trash==1.8.3
 urllib3==2.6.3

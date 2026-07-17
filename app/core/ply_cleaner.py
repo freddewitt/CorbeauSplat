@@ -10,8 +10,10 @@ La géométrie et la couleur des splats conservés sont préservées exactement 
 nous supprimons uniquement des splats entiers, sans jamais altérer les survivants.
 Le fichier original n'est jamais modifié sur place.
 """
-import numpy as np
 from pathlib import Path
+
+import numpy as np
+
 from .base_engine import validate_path_standalone as _validate_path
 
 # Presets de sévérité → (opacity_min sur l'alpha activé, percentile d'échelle, percentile d'outlier)
@@ -144,9 +146,9 @@ def clean_ply(input_path, output_path, strength="medium", overrides=None, log=No
 
 def clean_ply_batch(input_dir, output_dir, strength="medium", overrides=None, log=None, recursive=False):
     """Nettoie tous les fichiers .ply d'un dossier.
-    
+
     Retourne une liste de dictionnaires de statistiques, un par fichier traité.
-    
+
     Paramètres :
     - input_dir : Path ou str — dossier contenant les .ply
     - output_dir : Path ou str — dossier où écrire les fichiers nettoyés
@@ -161,25 +163,25 @@ def clean_ply_batch(input_dir, output_dir, strength="medium", overrides=None, lo
     input_dir = safe_in
     output_dir = safe_out
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     pattern = "**/*.ply" if recursive else "*.ply"
     ply_files = sorted(f for f in input_dir.glob(pattern) if not f.name.startswith('.'))
-    
+
     if not ply_files:
         msg = f"Aucun fichier .ply trouvé dans {input_dir}"
         if log:
             log(msg)
         raise ValueError(msg)
-    
+
     if log:
         log(f"{len(ply_files)} fichier(s) .ply trouvé(s) dans {input_dir}. Début du nettoyage...")
-    
+
     all_stats = []
     for ply_path in ply_files:
         rel = ply_path.relative_to(input_dir)
         out_path = output_dir / rel
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         try:
             stats = clean_ply(ply_path, out_path, strength=strength, overrides=overrides, log=log)
             stats["file"] = str(ply_path.name)
@@ -192,10 +194,10 @@ def clean_ply_batch(input_dir, output_dir, strength="medium", overrides=None, lo
             if log:
                 log(f"❌  {ply_path.name}: erreur ({e})")
             all_stats.append({"file": str(ply_path.name), "error": str(e)})
-    
+
     if log:
         success = sum(1 for s in all_stats if "error" not in s)
         failed = len(all_stats) - success
         log(f"Nettoyage par lots terminé : {success} réussis, {failed} échoués.")
-    
+
     return all_stats

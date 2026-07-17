@@ -1,10 +1,11 @@
 """Tests d'intégration : validation de chemins + i18n (sans subprocess)."""
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 import json
+from pathlib import Path
+
 import pytest
 
 from tests.conftest import _patch_pyqt6
+
 _patch_pyqt6()
 
 ASSETS_LOCALES = Path(__file__).resolve().parent.parent.parent / "assets" / "locales"
@@ -80,7 +81,7 @@ class TestI18n:
 
     def test_language_observer_notified(self):
         """Observer callback is called after set_language()."""
-        from app.core.i18n import set_language, add_language_observer
+        from app.core.i18n import add_language_observer, set_language
 
         calls = []
         def observer():
@@ -92,7 +93,6 @@ class TestI18n:
 
     def test_all_locales_valid_json(self):
         """All 9 locale files are valid JSON and contain required keys."""
-        required_keys = {"tab_config", "tab_brush", "btn_export"}
         locale_dir = ASSETS_LOCALES
 
         assert locale_dir.exists(), f"Locales directory not found: {locale_dir}"
@@ -125,7 +125,7 @@ class TestI18n:
 
     def test_observer_multiple_languages(self):
         """Observer fired for each language change."""
-        from app.core.i18n import set_language, add_language_observer
+        from app.core.i18n import add_language_observer, set_language
 
         calls = []
         def obs():

@@ -7,36 +7,72 @@ for backward compatibility. External code that imports from
 import sys
 from pathlib import Path
 
+from app.core.system import resolve_project_root
+
 # ── Re-export all classes and functions for backward compatibility ──────────
 from app.scripts.installers.base import (
+    DependencyManager,
     EngineDependency,
     PipEngine,
-    DependencyManager,
 )
 from app.scripts.installers.brush import BrushEngineDep
-from app.scripts.installers.sharp import SharpEngineDep
-from app.scripts.installers.mapping import ColmapBrewDep
-from app.scripts.installers.supersplat import SuperSplatEngineDep
 from app.scripts.installers.extractor_360 import Extractor360EngineDep
-from app.scripts.installers.upscayl import UpscaylEngineDep
-from app.scripts.installers.spz import SpzEngineDep
+from app.scripts.installers.mapping import ColmapBrewDep
+from app.scripts.installers.sharp import SharpEngineDep
 from app.scripts.installers.splat_transform import SplatTransformEngineDep
+from app.scripts.installers.spz import SpzEngineDep
+from app.scripts.installers.supersplat import SuperSplatEngineDep
 from app.scripts.installers.tools import (
-    load_config,
-    relax_requirements,
-    get_remote_version,
-    get_local_version,
-    save_local_version,
-    check_cargo,
     check_brew,
-    check_node,
+    check_cargo,
     check_cmake_ninja,
+    check_node,
     check_xcode_tools,
-    install_node_js,
+    get_local_version,
+    get_remote_version,
     install_build_tools,
+    install_node_js,
     install_rust_toolchain,
     install_system_dependencies,
+    load_config,
+    relax_requirements,
+    save_local_version,
 )
+from app.scripts.installers.upscayl import UpscaylEngineDep
+
+__all__ = [
+    "BrushEngineDep",
+    "ColmapBrewDep",
+    "DependencyManager",
+    "EngineDependency",
+    "Extractor360EngineDep",
+    "PipEngine",
+    "SharpEngineDep",
+    "SplatTransformEngineDep",
+    "SpzEngineDep",
+    "SuperSplatEngineDep",
+    "UpscaylEngineDep",
+    "check_brew",
+    "check_cargo",
+    "check_cmake_ninja",
+    "check_node",
+    "check_xcode_tools",
+    "get_local_version",
+    "get_remote_version",
+    "install_build_tools",
+    "install_extractor_360",
+    "install_node_js",
+    "install_rust_toolchain",
+    "install_sharp",
+    "install_system_dependencies",
+    "install_upscale",
+    "load_config",
+    "relax_requirements",
+    "save_local_version",
+    "uninstall_extractor_360",
+    "uninstall_sharp",
+    "uninstall_upscale",
+]
 
 # ── Compatibility wrappers (used by external modules) ──────────────────────
 
@@ -67,7 +103,6 @@ def install_extractor_360():
 
 def get_venv_360_python():
     """Returns path to python executable in .venv_360"""
-    from app.core.system import resolve_project_root
     root = resolve_project_root()
     if sys.platform == "win32":
         return root / ".venv_360" / "Scripts" / "python.exe"
@@ -75,7 +110,6 @@ def get_venv_360_python():
 
 
 # resolve_project_root is imported from app.core.system
-from app.core.system import resolve_project_root
 
 
 # ── Main entry point ──────────────────────────────────────────────────────
@@ -94,7 +128,7 @@ def main():
     manager.register(UpscaylEngineDep())
     manager.register(SpzEngineDep())
     manager.register(SplatTransformEngineDep())
-    
+
     check_only = "--check" in sys.argv
     startup = "--startup" in sys.argv
     manager.main_install(check_only=check_only, startup=startup)

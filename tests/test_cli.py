@@ -1,7 +1,6 @@
 """Tests pour app.cli — CLI dispatch et parsing argparse."""
 import sys
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -244,21 +243,19 @@ class TestCLIDispatch:
 
     def test_main_no_args_launches_gui(self):
         """main() sans argument → _launch_gui() est appelé."""
-        with patch("app.cli._launch_gui") as mock_gui:
-            with patch("app.cli.check_dependencies", return_value=[]):
-                with patch.object(sys, "argv", ["main.py"]):
-                    from app.cli import main
-                    main()
-                    mock_gui.assert_called_once()
+        with patch("app.cli._launch_gui") as mock_gui, patch("app.cli.check_dependencies", return_value=[]):
+            with patch.object(sys, "argv", ["main.py"]):
+                from app.cli import main
+                main()
+                mock_gui.assert_called_once()
 
     def test_main_gui_flag(self):
         """main() avec --gui → _launch_gui() est appelé."""
-        with patch("app.cli._launch_gui") as mock_gui:
-            with patch("app.cli.check_dependencies", return_value=[]):
-                with patch.object(sys, "argv", ["main.py", "--gui"]):
-                    from app.cli import main
-                    main()
-                    mock_gui.assert_called_once()
+        with patch("app.cli._launch_gui") as mock_gui, patch("app.cli.check_dependencies", return_value=[]):
+            with patch.object(sys, "argv", ["main.py", "--gui"]):
+                from app.cli import main
+                main()
+                mock_gui.assert_called_once()
 
     def test_main_pipeline_dispatch(self):
         """main() avec pipeline → run_pipeline est appelé."""
@@ -286,20 +283,18 @@ class TestCLIDispatch:
 
     def test_main_unknown_command_shows_help(self):
         """Commande inconnue → print_help() est appelé."""
-        with patch("app.cli.get_parser") as mock_get_parser:
-            with patch("app.cli.DISPATCH", new_callable=dict) as mock_dispatch:
-                mock_parser = MagicMock()
-                mock_get_parser.return_value = mock_parser
-                mock_args = MagicMock()
-                mock_args.command = "unknown"
-                mock_args.gui = False
-                mock_parser.parse_args.return_value = mock_args
+        with patch("app.cli.get_parser") as mock_get_parser, patch("app.cli.DISPATCH", new_callable=dict):
+            mock_parser = MagicMock()
+            mock_get_parser.return_value = mock_parser
+            mock_args = MagicMock()
+            mock_args.command = "unknown"
+            mock_args.gui = False
+            mock_parser.parse_args.return_value = mock_args
 
-                with patch("app.cli.check_dependencies", return_value=[]):
-                    with patch.object(sys, "exit") as mock_exit:
-                        from app.cli import main
-                        main()
-                        mock_parser.print_help.assert_called_once()
+            with patch("app.cli.check_dependencies", return_value=[]), patch.object(sys, "exit"):
+                from app.cli import main
+                main()
+                mock_parser.print_help.assert_called_once()
 
     def test_main_sharp_dispatch(self):
         """main() avec sharp → run_sharp est appelé."""
@@ -322,7 +317,7 @@ class TestCLIDispatch:
                 with patch("builtins.print") as mock_print:
                     with patch.object(sys, "argv", ["main.py", "pipeline", "-i", "/in", "-o", "/out"]):
                         from app.cli import main
-                        with patch.object(sys, "exit") as mock_exit:
+                        with patch.object(sys, "exit"):
                             main()
                             # Should print about missing deps
                             mock_print.assert_any_call(

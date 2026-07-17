@@ -37,8 +37,8 @@ pytestmark = [
 @pytest.fixture(scope="module")
 def upscale_run(tmp_path_factory) -> dict:
     """Exécute l'upscale réel une seule fois et retourne ses artefacts."""
-    from tests.integration._synthetic_image import generate_upscale_target
     from app.core.upscale_engine import UpscaleEngine
+    from tests.integration._synthetic_image import generate_upscale_target
 
     work = tmp_path_factory.mktemp("upscale_e2e")
     in_img = generate_upscale_target(work / "input.png", w=160, h=120, seed=11)

@@ -1,11 +1,8 @@
 """Sharp engine dependency installer."""
 import shutil
-import subprocess
-from pathlib import Path
 
 from app.scripts.installers.base import PipEngine
 from app.scripts.installers.tools import relax_requirements
-
 
 SHARP_REPO = "https://github.com/apple/ml-sharp.git"
 
@@ -33,8 +30,8 @@ class SharpEngineDep(PipEngine):
             loose = self.target_dir / "requirements_loose.txt"
             relax_requirements(str(req_file), str(loose))
             self.pip_install(["-r", str(loose)], cwd=str(self.target_dir))
-        
+
         if (self.target_dir / "setup.py").exists() or (self.target_dir / "pyproject.toml").exists():
             self.pip_install(["-e", "."], cwd=str(self.target_dir))
-            
+
         self.save_local_version(self.get_remote_version())

@@ -13,7 +13,6 @@ Apple Silicon.
 from __future__ import annotations
 
 import shutil
-from pathlib import Path
 
 import pytest
 
@@ -67,8 +66,8 @@ class TestE2ESharpImage:
     @pytest.fixture(scope="module")
     def sharp_run(self, tmp_path_factory):
         """Run Sharp predict on a synthetic depth image once per module."""
-        from tests.integration._synthetic_image import generate_depth_image
         from app.core.sharp_engine import SharpEngine
+        from tests.integration._synthetic_image import generate_depth_image
 
         tmp = tmp_path_factory.mktemp("sharp_e2e")
         img = generate_depth_image(tmp / "depth_test.png", w=640, h=480, seed=7)

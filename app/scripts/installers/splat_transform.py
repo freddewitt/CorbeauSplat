@@ -9,11 +9,9 @@ The binary is available at:
 import json
 import shutil
 import subprocess
-from pathlib import Path
 
 from app.scripts.installers.base import EngineDependency
 from app.scripts.installers.tools import install_node_js
-
 
 SPLAT_TRANSFORM_PACKAGE = "@playcanvas/splat-transform"
 SPLAT_TRANSFORM_VERSION = "2.7.1"
@@ -45,9 +43,8 @@ class SplatTransformEngineDep(EngineDependency):
         return ""
 
     def install(self):
-        if not shutil.which("node"):
-            if not install_node_js():
-                return
+        if not shutil.which("node") and not install_node_js():
+            return
         if not shutil.which("npm"):
             print("❌ npm not found. Install Node.js first: brew install node")
             return

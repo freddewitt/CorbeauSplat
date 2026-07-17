@@ -1,15 +1,12 @@
 """Utility functions for dependency management — installers, checkers, helpers."""
+import json
 import os
-import re
-import sys
 import shutil
 import subprocess
-import json
+import sys
 from pathlib import Path
 
-from app.core.system import resolve_project_root
 from app.scripts.checksum_verifier import load_expected_checksums, verify_download
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Config and requirements helpers
@@ -19,7 +16,8 @@ def load_config():
     """Loads config.json from project root/cwd"""
     p = Path("config.json")
     if p.exists():
-        try: return json.loads(p.read_text())
+        try:
+            return json.loads(p.read_text())
         except (OSError, json.JSONDecodeError) as e:
             print(f"Warning: Failed to load config.json: {e}")
     return {}
@@ -27,7 +25,7 @@ def load_config():
 
 def relax_requirements(src, dst):
     """Refactor utils: Relax strict torch deps"""
-    with open(src, 'r') as f_in, open(dst, 'w') as f_out:
+    with open(src) as f_in, open(dst, 'w') as f_out:
         for line in f_in:
             if line.strip().startswith('torch==') or line.strip().startswith('torchvision=='):
                 line = line.replace('==', '>=')
@@ -89,7 +87,8 @@ def check_cmake_ninja():
 
 def check_xcode_tools():
     """Checks if Xcode Command Line Tools are installed (macOS only)"""
-    if sys.platform != "darwin": return True
+    if sys.platform != "darwin":
+        return True
     try:
         # xcode-select -p prints the path if installed, or exits with error
         subprocess.check_call(["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -124,8 +123,8 @@ def install_build_tools():
 
 def install_rust_toolchain():
     print("Installing Rust (cargo)...")
-    import urllib.request
     import tempfile
+    import urllib.request
     try:
         rustup_path = Path(tempfile.mkstemp(suffix=".sh")[1])
         req = urllib.request.Request("https://sh.rustup.rs")
@@ -140,7 +139,7 @@ def install_rust_toolchain():
         rustup_path.chmod(0o755)
         subprocess.check_call([str(rustup_path), "-y"])
         rustup_path.unlink()
-        
+
         # Add to current path for this session
         cargo_bin = Path.home() / ".cargo" / "bin"
         if cargo_bin.exists():
@@ -156,8 +155,9 @@ def install_system_dependencies(check_only=False):
     print("--- System Dependency Check (Homebrew) ---")
     missing = []
     for cmd in ["colmap", "ffmpeg"]:
-        if shutil.which(cmd) is None: missing.append(cmd)
-        
+        if shutil.which(cmd) is None:
+            missing.append(cmd)
+
     if sys.platform == "darwin":
         try:
              # Check for libomp and freeimage
@@ -171,7 +171,7 @@ def install_system_dependencies(check_only=False):
     if not missing:
         print("✅ System dependencies present.")
         return True
-        
+
     print(f"Missing: {', '.join(missing)}")
     if check_only:
         print("ℹ️ Audit mode: automatic installation skipped.")
@@ -180,13 +180,17 @@ def install_system_dependencies(check_only=False):
     if shutil.which("brew") is None:
         print("ERROR: Homebrew required.")
         return False
-        
+
     print("Installing via Homebrew...")
     try:
-        if "colmap" in missing: subprocess.check_call(["brew", "install", "colmap"])
-        if "ffmpeg" in missing: subprocess.check_call(["brew", "install", "ffmpeg"])
-        if "libomp" in missing: subprocess.check_call(["brew", "install", "libomp"])
-        if "freeimage" in missing: subprocess.check_call(["brew", "install", "freeimage"])
+        if "colmap" in missing:
+            subprocess.check_call(["brew", "install", "colmap"])
+        if "ffmpeg" in missing:
+            subprocess.check_call(["brew", "install", "ffmpeg"])
+        if "libomp" in missing:
+            subprocess.check_call(["brew", "install", "libomp"])
+        if "freeimage" in missing:
+            subprocess.check_call(["brew", "install", "freeimage"])
         return True
     except subprocess.CalledProcessError as e:
         print(f"System installation failed: {e}")

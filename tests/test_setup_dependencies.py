@@ -1,15 +1,12 @@
 """Tests pour app.scripts.setup_dependencies.py et app/core/system.py.
 Les patches ciblent maintenant app.scripts.installers.* où les fonctions sont définies,
 tandis que les imports restent depuis app.scripts.setup_dependencies (réexportations)."""
-import os
-import sys
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call, ANY
-import tempfile
 import json
+import subprocess
+import sys
+from unittest.mock import patch
 
 import pytest
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tests for checksum_verifier (used by setup_dependencies)
@@ -371,7 +368,3 @@ class TestPipEngine:
             engine.python_bin.parent.mkdir(parents=True)
             engine.python_bin.write_text("python")
             assert engine.is_installed() is True
-
-
-# Import subprocess for xcode test
-import subprocess

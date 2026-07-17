@@ -1,16 +1,28 @@
-import os
 from pathlib import Path
+
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
-    QGroupBox, QFormLayout, QLineEdit, QListWidget, QListWidgetItem,
-    QCheckBox, QMessageBox, QProgressBar, QFrame, QSpinBox, QDoubleSpinBox,
-    QStackedWidget, QSizePolicy
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtCore import pyqtSignal, Qt
-from app.core.i18n import tr, add_language_observer
-from app.gui.workers import ExportWorker
+
+from app.core.i18n import add_language_observer, tr
+from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_name
 from app.gui.widgets.drop_line_edit import DropLineEdit
-from app.gui.widgets.dialog_utils import get_open_file_name, get_existing_directory
+from app.gui.workers import ExportWorker
 
 
 class ExportTab(QWidget):
@@ -216,7 +228,7 @@ class ExportTab(QWidget):
     def get_export_options(self) -> dict:
         """Retourne les options d'export selon le format sélectionné."""
         fmt = self.combo_format.currentData()
-        
+
         if fmt == "spz":
             return {
                 'quantize_positions': self.spz_quantize.isChecked(),
@@ -299,6 +311,7 @@ class ExportTab(QWidget):
 
 if __name__ == "__main__":
     import sys
+
     from PyQt6.QtWidgets import QApplication
     app = QApplication(sys.argv)
     window = ExportTab()

@@ -1,10 +1,8 @@
 """Tests pour app/gui/managers.py — AppLifecycle et SessionManager."""
-import os
-import sys
+import contextlib
 import json
-import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call, ANY
+import sys
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -36,7 +34,7 @@ class TestAppLifecycleResetFactory:
 
         from app.gui.managers import AppLifecycle
 
-        with patch.object(sys, "exit") as mock_exit:
+        with patch.object(sys, "exit"):
             AppLifecycle.reset_factory(deep=False)
             # Should remove 3 dirs
             assert mock_rmtree.call_count == 3
@@ -64,7 +62,7 @@ class TestAppLifecycleResetFactory:
 
         from app.gui.managers import AppLifecycle
 
-        with patch.object(sys, "exit") as mock_exit:
+        with patch.object(sys, "exit"):
             AppLifecycle.reset_factory(deep=True)
             # Should remove 5 items (3 venvs + engines + config.json)
             assert mock_rmtree.call_count >= 4
@@ -82,7 +80,7 @@ class TestAppLifecycleResetFactory:
 
         from app.gui.managers import AppLifecycle
 
-        with patch.object(sys, "exit") as mock_exit:
+        with patch.object(sys, "exit"):
             AppLifecycle.reset_factory(deep=False)
             # Should only try to remove .venv and .venv_sharp (within project_root)
             # Not calling rmtree on paths outside root
@@ -98,7 +96,7 @@ class TestAppLifecycleResetFactory:
 
         from app.gui.managers import AppLifecycle
 
-        with patch.object(sys, "exit") as mock_exit:
+        with patch.object(sys, "exit"):
             AppLifecycle.reset_factory(deep=False)
             # rmtree should not be called for non-existent dirs
             assert mock_rmtree.call_count == 0
@@ -113,7 +111,7 @@ class TestAppLifecycleResetFactory:
 
         from app.gui.managers import AppLifecycle
 
-        with patch.object(sys, "exit") as mock_exit:
+        with patch.object(sys, "exit"):
             # Should not raise despite PermissionError
             AppLifecycle.reset_factory(deep=False)
             mock_rmtree.assert_called_once()
@@ -129,7 +127,7 @@ class TestAppLifecycleResetFactory:
 
         from app.gui.managers import AppLifecycle
 
-        with patch.object(sys, "exit") as mock_exit:
+        with patch.object(sys, "exit"):
             AppLifecycle.reset_factory(deep=False)
             # Should use "open" for run.command
             popen_args = mock_popen.call_args[0][0]
@@ -146,7 +144,7 @@ class TestAppLifecycleResetFactory:
 
         from app.gui.managers import AppLifecycle
 
-        with patch.object(sys, "exit") as mock_exit:
+        with patch.object(sys, "exit"):
             AppLifecycle.reset_factory(deep=False)
             # Should use main.py --gui as fallback
             popen_args = mock_popen.call_args[0][0]
@@ -175,10 +173,8 @@ class TestAppLifecycleRestart:
         with patch.object(sys, "exit") as mock_exit:
             # Prevent actual sys.exit
             mock_exit.side_effect = SystemExit
-            try:
+            with contextlib.suppress(SystemExit):
                 AppLifecycle.restart()
-            except SystemExit:
-                pass
 
             # execv should be called (or Popen as fallback)
             assert mock_execv.call_count >= 0  # might fail on some platforms
@@ -201,10 +197,8 @@ class TestAppLifecycleRestart:
 
         with patch.object(sys, "exit") as mock_exit:
             mock_exit.side_effect = SystemExit
-            try:
+            with contextlib.suppress(SystemExit):
                 AppLifecycle.restart(save_callback=save_cb)
-            except SystemExit:
-                pass
 
             save_cb.assert_called_once()
 

@@ -1,45 +1,44 @@
 import json
 import logging
-import os
-from pathlib import Path
+
 from app.core.system import resolve_project_root
 
 logger = logging.getLogger(__name__)
 
 class LanguageManager:
     _instance = None
-    
+
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(LanguageManager, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance.current_lang = "fr" # Default
             cls._instance._translations = {}
             cls._instance._observers = []
             cls._instance.load_config()
             cls._instance._load_translations()
         return cls._instance
-    
+
     def add_observer(self, callback):
         """Add a callback to be notified when language changes"""
         if callback not in self._observers:
             self._observers.append(callback)
-    
+
     def _load_translations(self):
         """Load translations from JSON for the current language"""
         try:
             locales_dir = resolve_project_root() / "assets" / "locales"
             lang_path = locales_dir / f"{self.current_lang}.json"
-            
+
             # Fallback to English if current lang doesn't exist
             if not lang_path.exists():
                 lang_path = locales_dir / "en.json"
-            
+
             # Final fallback to French if nothing found (core default)
             if not lang_path.exists():
                 lang_path = locales_dir / "fr.json"
-                
+
             if lang_path.exists():
-                with open(lang_path, "r", encoding="utf-8") as f:
+                with open(lang_path, encoding="utf-8") as f:
                     self._translations = json.load(f)
             else:
                 self._translations = {}
@@ -51,7 +50,7 @@ class LanguageManager:
         try:
             config_file = resolve_project_root() / "config.json"
             if config_file.exists():
-                with open(config_file, "r") as f:
+                with open(config_file) as f:
                     config = json.load(f)
                     self.current_lang = config.get("language", "fr")
         except (OSError, json.JSONDecodeError) as e:
@@ -62,7 +61,7 @@ class LanguageManager:
             config_file = resolve_project_root() / "config.json"
             config = {}
             if config_file.exists():
-                with open(config_file, "r") as f:
+                with open(config_file) as f:
                     existing = json.load(f)
                     if isinstance(existing, dict):
                         config = existing

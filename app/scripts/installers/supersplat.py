@@ -6,7 +6,6 @@ from pathlib import Path
 from app.scripts.installers.base import EngineDependency
 from app.scripts.installers.tools import install_node_js
 
-
 SUPERPLAT_REPO = "https://github.com/playcanvas/supersplat.git"
 
 
@@ -49,8 +48,8 @@ class SuperSplatEngineDep(EngineDependency):
         subprocess.check_call(["npm", "install"], cwd=target)
 
     def install(self):
-        if not shutil.which("node"):
-            if not install_node_js(): return
+        if not shutil.which("node") and not install_node_js():
+            return
 
         if self.target_dir.exists() and self._git_is_own_repo():
             try:

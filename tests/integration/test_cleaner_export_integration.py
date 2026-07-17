@@ -1,21 +1,22 @@
 """Tests d'intégration : PlyCleaner → ExportEngine (pure Python, no subprocess)."""
 from pathlib import Path
-from unittest.mock import MagicMock
+
 import pytest
 
 from tests.conftest import _patch_pyqt6
+
 _patch_pyqt6()
 
 
 def _make_synthetic_ply(path: Path, num_points: int = 100, num_junk: int = 20):
     """Create a synthetic binary PLY for Gaussian Splats.
-    
+
     Creates `num_points` valid splats and `num_junk` nearly-zero-opacity splats.
     Opacity is stored as raw logit; sigmoid(-10) ≈ 0.000045 which is well below
     the default opacity_min=0.10, ensuring junk splats are filtered.
     """
     import struct
-    
+
     total = num_points + num_junk
     header = (
         "ply\n"
@@ -40,7 +41,7 @@ def _make_synthetic_ply(path: Path, num_points: int = 100, num_junk: int = 20):
         "property uchar blue\n"
         "end_header\n"
     )
-    
+
     buf = bytearray()
     for i in range(num_points):
         buf.extend(struct.pack('<fff', i * 0.01, i * 0.02, i * 0.03))  # xyz
@@ -49,15 +50,15 @@ def _make_synthetic_ply(path: Path, num_points: int = 100, num_junk: int = 20):
         buf.extend(struct.pack('<ffff', 1.0, 0.0, 0.0, 0.0))  # rot
         buf.extend(struct.pack('<fff', 0.5, 0.5, 0.5))  # f_dc
         buf.extend(struct.pack('<BBB', 255, 0, 0))  # RGB
-    
-    for i in range(num_junk):
+
+    for _ in range(num_junk):
         buf.extend(struct.pack('<fff', 99.0, 99.0, 99.0))  # xyz (far away)
         buf.extend(struct.pack('<f', -10.0))  # opacity logit — sigmoid(-10)≈0.000045 → filtered
         buf.extend(struct.pack('<fff', 0.1, 0.1, 0.1))
         buf.extend(struct.pack('<ffff', 1.0, 0.0, 0.0, 0.0))
         buf.extend(struct.pack('<fff', 0.5, 0.5, 0.5))
         buf.extend(struct.pack('<BBB', 0, 255, 0))
-    
+
     with open(path, 'wb') as f:
         f.write(header.encode('ascii'))
         f.write(bytes(buf))
@@ -82,8 +83,8 @@ class TestCleanerExportIntegration:
 
     def test_clean_export_to_xyz(self, tmp_path):
         """Clean then export to XYZ format, verify output structure."""
-        from app.core.ply_cleaner import clean_ply
         from app.core.export_engine import ExportEngine
+        from app.core.ply_cleaner import clean_ply
 
         src = tmp_path / "input.ply"
         _make_synthetic_ply(src)
@@ -126,8 +127,8 @@ class TestCleanerExportIntegration:
 
     def test_clean_then_export_glb(self, tmp_path):
         """Full pipeline: clean → export to GLB, verify output exists."""
-        from app.core.ply_cleaner import clean_ply
         from app.core.export_engine import ExportEngine
+        from app.core.ply_cleaner import clean_ply
 
         src = tmp_path / "input.ply"
         _make_synthetic_ply(src)

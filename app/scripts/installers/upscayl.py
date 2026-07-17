@@ -1,6 +1,4 @@
 """Upscayl engine dependency installer."""
-import sys
-from pathlib import Path
 
 from app.scripts.installers.base import EngineDependency
 
@@ -25,7 +23,8 @@ class UpscaylEngineDep(EngineDependency):
         return ""
 
     def get_remote_version(self) -> str:
-        import urllib.request, json as _json
+        import json as _json
+        import urllib.request
         try:
             req = urllib.request.Request(
                 "https://api.github.com/repos/upscayl/upscayl-ncnn/releases/latest",

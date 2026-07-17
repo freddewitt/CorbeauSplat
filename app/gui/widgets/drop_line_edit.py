@@ -1,6 +1,7 @@
-from PyQt6.QtWidgets import QLineEdit
-from PyQt6.QtCore import pyqtSignal
 from pathlib import Path
+
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import QLineEdit
 
 
 class DropLineEdit(QLineEdit):

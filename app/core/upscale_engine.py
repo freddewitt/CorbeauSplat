@@ -3,9 +3,10 @@ upscale_engine.py — Thin wrapper around the upscayl-bin CLI.
 
 No Python venv required. upscayl-bin is a standalone NCNN-based binary.
 """
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
+
 from .base_engine import BaseEngine
 
 
@@ -54,7 +55,7 @@ class UpscaleEngine(BaseEngine):
 
         # --- Adaptive tile size based on available RAM ---
         if tile == 0:
-            from .system import get_memory_info, is_apple_silicon
+            from .system import get_memory_info
             mem = get_memory_info()
             total_gb = mem.get("total", 0) / (1024 ** 3)
             pressure = mem.get("percent", 0.0)

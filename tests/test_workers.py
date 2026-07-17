@@ -2,14 +2,17 @@
 import os
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call, ANY
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
 from app.gui.base_worker import BaseWorker
 from app.gui.workers import (
-    ColmapWorker, BrushWorker, SharpWorker,
-    SharpVideoWorker, Extractor360Worker,
+    BrushWorker,
+    ColmapWorker,
+    Extractor360Worker,
+    SharpVideoWorker,
+    SharpWorker,
 )
 
 # Patch send2trash et cv2 pour les workers qui les utilisent indirectement

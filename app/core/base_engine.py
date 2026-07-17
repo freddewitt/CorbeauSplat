@@ -1,11 +1,13 @@
-import os
-import sys
-import signal
-import select as _select
-import subprocess
+import contextlib
 import logging
+import os
+import select as _select
+import signal
+import subprocess
+import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Optional
+
 from .system import get_device, resolve_project_root
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -14,27 +16,27 @@ class IProcessRunner:
     """Interface abstraite pour l'exécution d'un processus systéme (DIP & Testabilité)"""
     def start(self, cmd: list, env: dict = None, **kwargs):
         raise NotImplementedError()
-        
+
     def poll(self):
         raise NotImplementedError()
-        
+
     def wait(self, timeout=None):
         raise NotImplementedError()
-        
+
     def terminate(self):
         raise NotImplementedError()
-        
+
     def stdout_iter(self) -> Iterator[str]:
         raise NotImplementedError()
-        
-    def readline(self, timeout: float = None) -> Optional[str]:
+
+    def readline(self, timeout: float = None) -> str | None:
         """Read a single line from stdout, with optional select-based timeout.
-        
+
         Returns a line string (may be empty or end with newline), or None on timeout,
         or empty string on EOF.
         """
         raise NotImplementedError()
-        
+
     def get_returncode(self) -> int:
         raise NotImplementedError()
 
@@ -42,7 +44,7 @@ class SubprocessRunner(IProcessRunner):
     """Implémentation concrète de l'OS via subprocess"""
     def __init__(self):
         self._process = None
-        
+
     def start(self, cmd: list, env: dict = None, **kwargs):
         base_kwargs = {
             'stdout': subprocess.PIPE,
@@ -50,7 +52,7 @@ class SubprocessRunner(IProcessRunner):
             'text': True,
         }
         base_kwargs.update(kwargs)
-        
+
         # Sécurisation du process group + nice value pour tâches compute
         # os.nice(10) sur macOS donne une priorité "background" au sous-processus :
         #   - Le scheduler préfère les E-cores aux P-cores
@@ -67,20 +69,23 @@ class SubprocessRunner(IProcessRunner):
                     pass  # non-critical, continue
 
             base_kwargs['preexec_fn'] = _preexec_with_nice
-            
+
         self._process = subprocess.Popen(cmd, env=env, **base_kwargs)
         return self._process
-        
+
     def poll(self):
-        if self._process: return self._process.poll()
+        if self._process:
+            return self._process.poll()
         return None
-        
+
     def wait(self, timeout=None):
-        if self._process: return self._process.wait(timeout)
+        if self._process:
+            return self._process.wait(timeout)
         return None
-        
+
     def terminate(self):
-        if not self._process: return
+        if not self._process:
+            return
         try:
             if sys.platform != "win32":
                 os.killpg(os.getpgid(self._process.pid), signal.SIGTERM)
@@ -89,17 +94,15 @@ class SubprocessRunner(IProcessRunner):
             self._process.wait(timeout=5)
         except (ProcessLookupError, PermissionError, OSError, subprocess.TimeoutExpired):
             self._process.kill()
-            try:
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                # unrecoverable zombie — process will be reaped by OS
                 self._process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                pass  # unrecoverable zombie — process will be reaped by OS
-            
+
     def stdout_iter(self) -> Iterator[str]:
         if getattr(self._process, 'stdout', None):
-            for line in self._process.stdout:
-                yield line
-                
-    def readline(self, timeout: float = None) -> Optional[str]:
+            yield from self._process.stdout
+
+    def readline(self, timeout: float = None) -> str | None:
         """Read a single line using select for non-blocking timeout support."""
         if not self._process or not self._process.stdout:
             return ""
@@ -109,9 +112,10 @@ class SubprocessRunner(IProcessRunner):
             if not ready:
                 return None  # timeout — no data available
         return self._process.stdout.readline()
-                
+
     def get_returncode(self) -> int:
-        if self._process: return self._process.returncode
+        if self._process:
+            return self._process.returncode
         return -1
 
 
@@ -134,7 +138,7 @@ class BaseEngine:
         self._check_initial_thermal()
 
         self.logger = logging.getLogger(self.name)
-        
+
         # SOLID-DIP : Injection abstraite pour tests (mockable)
         self.runner = process_runner or SubprocessRunner()
         self.process = None # Retro-compatibilité temporaire
@@ -222,14 +226,15 @@ class BaseEngine:
         thermique Apple Silicon passe à "critical".
         """
         import time as _time
-        
-        if self.stop_requested: return -1
-        
+
+        if self.stop_requested:
+            return -1
+
         self.log(f"Exec: {' '.join(map(str, cmd))}")
         try:
             self.runner.start(cmd, env=env, **kwargs)
             self.process = getattr(self.runner, '_process', None) # Legacy mapping
-            
+
             read_timeout = min(self._THERMAL_CHECK_INTERVAL, 10.0)  # check every N seconds
             start_time = _time.monotonic()
             last_output_time = start_time  # track last stdout activity for inactivity timeout
@@ -237,13 +242,13 @@ class BaseEngine:
                 now = _time.monotonic()
                 elapsed = now - start_time
                 remaining = timeout - elapsed
-                
+
                 # Wall-clock timeout — safety net for runaway processes
                 if remaining <= 0:
                     self.log(f"Timeout after {timeout}s (wall-clock) — forcing termination", level=logging.WARNING)
                     self.runner.terminate()
                     return -1
-                
+
                 # Inactivity timeout — detects frozen/blocked processes
                 if inactivity_timeout > 0:
                     idle = now - last_output_time
@@ -255,9 +260,9 @@ class BaseEngine:
                         )
                         self.runner.terminate()
                         return -1
-                
+
                 line = self.runner.readline(timeout=min(remaining, read_timeout))
-                
+
                 # None = select timeout (no data available yet), keep looping
                 if line is None:
                     pass  # will loop back and re-check elapsed / stop_requested / thermal
@@ -268,18 +273,18 @@ class BaseEngine:
                     if self.stop_requested:
                         self.runner.terminate()
                         return -1
-                    
+
                     # Thermal watchdog every N seconds
                     if self._check_thermal_abort():
                         return -1
-                    
+
                     stripped = line.strip()
                     if stripped:
                         if line_callback:
                             line_callback(stripped)
                         else:
                             self.log(stripped)
-                        
+
             return self.runner.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             self.log(f"Timeout after {timeout}s — forcing termination", level=logging.WARNING)
@@ -324,10 +329,8 @@ class BaseEngine:
         import glob
         for pattern in patterns:
             for f in glob.glob(str(pattern)):
-                try:
+                with contextlib.suppress(OSError):
                     Path(f).unlink()
-                except OSError:
-                    pass
 
 
 def validate_path_standalone(path, project_root=None):

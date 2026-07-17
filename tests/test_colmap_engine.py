@@ -1,10 +1,7 @@
 """Tests pour app/core/engine.py — ColmapEngine."""
-import os
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call, ANY, PropertyMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 # Provide send2trash / cv2 stubs ONLY when the real package is unavailable
 # (headless CI). Injecting a MagicMock unconditionally would clobber a real,
@@ -35,7 +32,7 @@ class TestDeleteProjectContent:
         subdir.mkdir()
 
         with patch("app.core.system.resolve_project_root", return_value=tmp_path):
-            with patch("app.core.engine.send2trash.send2trash") as mock_trash:
+            with patch("app.core.engine.send2trash.send2trash"):
                 result, msg = ColmapEngine.delete_project_content(subdir)
                 assert result is True
                 assert "corbeille" in msg

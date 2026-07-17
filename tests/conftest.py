@@ -20,9 +20,9 @@ class _MockQThread:
 
 class _PyQtSignalMeta(type):
     """Metaclass: pyqtSignal mock is isinstance-able and callable."""
-    def __instancecheck__(self, other):
+    def __instancecheck__(cls, other):
         return isinstance(other, MagicMock)
-    def __call__(self, *args, **kwargs):
+    def __call__(cls, *args, **kwargs):
         return MagicMock()
 
 
@@ -56,7 +56,7 @@ def _patch_pyqt6():
         sys.modules["send2trash"] = MagicMock()
 
     try:
-        import numpy  # noqa: F811 — prevent mocking if real numpy is available (plyfile needs it)
+        import numpy  # noqa: F401,F811 — prevent mocking if real numpy is available (plyfile needs it)
     except ImportError:
         # Headless CI without numpy — provide a mock so ply_cleaner.py can import
         sys.modules["numpy"] = MagicMock()

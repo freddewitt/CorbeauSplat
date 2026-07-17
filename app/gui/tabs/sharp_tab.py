@@ -1,26 +1,43 @@
-from PyQt6.QtCore import pyqtSignal, Qt
-from app.core.i18n import tr, add_language_observer
-from app.gui.widgets.drop_line_edit import DropLineEdit
-from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_name
-from app.scripts.setup_dependencies import install_sharp, uninstall_sharp
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QGroupBox,
-    QFormLayout, QCheckBox, QComboBox, QMessageBox, QProgressDialog, QApplication,
-    QRadioButton, QButtonGroup, QStackedWidget, QSpinBox, QProgressBar,
-    QScrollArea, QFrame
+    QApplication,
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QProgressBar,
+    QProgressDialog,
+    QPushButton,
+    QRadioButton,
+    QScrollArea,
+    QSpinBox,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
+
+from app.core.i18n import add_language_observer, tr
+from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_name
+from app.gui.widgets.drop_line_edit import DropLineEdit
+from app.scripts.setup_dependencies import install_sharp, uninstall_sharp
+
 
 class SharpTab(QWidget):
     """Onglet de configuration Apple ML Sharp"""
-    
+
     predictRequested = pyqtSignal()
     stopRequested = pyqtSignal()
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.init_ui()
         add_language_observer(self.retranslate_ui)
-        
+
     def init_ui(self):
         # Scroll wrapper so the tab adapts to short screens (content reachable
         # by scrolling instead of being clipped off the bottom).
@@ -46,45 +63,45 @@ class SharpTab(QWidget):
         self.chk_activate.setChecked(self.is_installed)
         self.chk_activate.clicked.connect(self.on_toggle_activation)
         layout.addWidget(self.chk_activate)
-        
+
         # Status Label (below Checkbox)
         self.status_lbl = QLabel("") # Will be updated
         layout.addWidget(self.status_lbl)
         self.check_status() # Update text/color
-        
+
         # Mode Selection
         mode_layout = QHBoxLayout()
         self.radio_mode_image = QRadioButton(tr("sharp_mode_image"))
         self.radio_mode_video = QRadioButton(tr("sharp_mode_video"))
         self.radio_mode_image.setChecked(True) # default
-        
+
         mode_layout.addWidget(self.radio_mode_image)
         mode_layout.addWidget(self.radio_mode_video)
         mode_layout.addStretch()
-        
+
         self.mode_group = QButtonGroup(self)
         self.mode_group.addButton(self.radio_mode_image, 0)
         self.mode_group.addButton(self.radio_mode_video, 1)
         self.mode_group.buttonClicked.connect(self.on_mode_changed)
-        
+
         layout.addLayout(mode_layout)
 
         # Stacked Widget for Modes
         self.stacked_widget = QStackedWidget()
-        
+
         # -----------------------------
         # MODE A: Image -> PLY
         # -----------------------------
         self.page_image = QWidget()
         page_image_layout = QVBoxLayout(self.page_image)
         page_image_layout.setContentsMargins(0, 5, 0, 0)
-        
+
         self.path_group = QGroupBox(tr("sharp_group_paths"))
         path_layout = QVBoxLayout()
-        
+
         self.lbl_input = QLabel(tr("sharp_lbl_input"))
         path_layout.addWidget(self.lbl_input)
-        
+
         input_controls = QHBoxLayout()
         self.input_path = DropLineEdit()
         self.input_path.setPlaceholderText(tr("sharp_placeholder_input"))
@@ -92,15 +109,15 @@ class SharpTab(QWidget):
         self.btn_browse_input_dir.clicked.connect(self.browse_input_dir)
         self.btn_browse_input_file = QPushButton(tr("sharp_btn_file"))
         self.btn_browse_input_file.clicked.connect(self.browse_input_file)
-        
+
         input_controls.addWidget(self.input_path)
         input_controls.addWidget(self.btn_browse_input_dir)
         input_controls.addWidget(self.btn_browse_input_file)
         path_layout.addLayout(input_controls)
-        
+
         self.lbl_output = QLabel(tr("sharp_lbl_output"))
         path_layout.addWidget(self.lbl_output)
-        
+
         output_controls = QHBoxLayout()
         self.output_path = DropLineEdit()
         self.output_path.setPlaceholderText(tr("sharp_placeholder_output"))
@@ -109,37 +126,37 @@ class SharpTab(QWidget):
         output_controls.addWidget(self.output_path)
         output_controls.addWidget(self.btn_browse_output)
         path_layout.addLayout(output_controls)
-        
+
         self.path_group.setLayout(path_layout)
         page_image_layout.addWidget(self.path_group)
         self.stacked_widget.addWidget(self.page_image)
-        
+
         # -----------------------------
         # MODE B: Video -> PLY
         # -----------------------------
         self.page_video = QWidget()
         page_video_layout = QVBoxLayout(self.page_video)
         page_video_layout.setContentsMargins(0, 5, 0, 0)
-        
+
         self.video_group = QGroupBox(tr("sharp_group_paths"))
         video_layout = QVBoxLayout()
-        
+
         self.lbl_video_input = QLabel(tr("sharp_lbl_video_input"))
         video_layout.addWidget(self.lbl_video_input)
-        
+
         video_input_controls = QHBoxLayout()
         self.video_path = DropLineEdit()
         self.video_path.setPlaceholderText(tr("sharp_placeholder_video_input"))
         self.btn_browse_video_file = QPushButton(tr("btn_browse"))
         self.btn_browse_video_file.clicked.connect(self.browse_video_file)
-        
+
         video_input_controls.addWidget(self.video_path)
         video_input_controls.addWidget(self.btn_browse_video_file)
         video_layout.addLayout(video_input_controls)
-        
+
         self.lbl_video_output = QLabel(tr("sharp_lbl_output"))
         video_layout.addWidget(self.lbl_video_output)
-        
+
         video_output_controls = QHBoxLayout()
         self.video_output_path = DropLineEdit()
         self.video_output_path.setPlaceholderText(tr("sharp_placeholder_output"))
@@ -148,7 +165,7 @@ class SharpTab(QWidget):
         video_output_controls.addWidget(self.video_output_path)
         video_output_controls.addWidget(self.btn_browse_video_output)
         video_layout.addLayout(video_output_controls)
-        
+
         # Frame skip for video mode
         skip_layout = QHBoxLayout()
         self.lbl_frame_skip = QLabel(tr("sharp_lbl_frame_skip"))
@@ -160,23 +177,23 @@ class SharpTab(QWidget):
         skip_layout.addWidget(self.spin_frame_skip)
         skip_layout.addStretch()
         video_layout.addLayout(skip_layout)
-        
+
         self.lbl_frame_skip_desc = QLabel(tr("sharp_tip_frame_skip"))
         self.lbl_frame_skip_desc.setStyleSheet("color: #888888; font-size: 11px;")
         video_layout.addWidget(self.lbl_frame_skip_desc)
-        
+
         self.video_group.setLayout(video_layout)
         page_video_layout.addWidget(self.video_group)
         self.stacked_widget.addWidget(self.page_video)
 
         layout.addWidget(self.stacked_widget)
-        
+
         # -----------------------------
         # SHARED OPTIONS
         # -----------------------------
         self.opt_group = QGroupBox(tr("group_options"))
         opt_layout = QFormLayout()
-        
+
         # Checkpoint
         ckpt_layout = QHBoxLayout()
         self.ckpt_path = DropLineEdit()
@@ -187,34 +204,34 @@ class SharpTab(QWidget):
         ckpt_layout.addWidget(self.btn_browse_ckpt)
         self.lbl_ckpt = QLabel(tr("sharp_lbl_ckpt"))
         opt_layout.addRow(self.lbl_ckpt, ckpt_layout)
-        
+
         # Device
         self.device_combo = QComboBox()
         self.device_combo.addItems(["default", "mps", "cpu", "cuda"])
         self.device_combo.setMinimumWidth(150)
         self.lbl_device = QLabel(tr("sharp_lbl_device"))
         opt_layout.addRow(self.lbl_device, self.device_combo)
-        
+
         # Verbose
         self.verbose_check = QCheckBox(tr("sharp_check_verbose"))
         opt_layout.addRow("", self.verbose_check)
 
         self.upscale_check = QCheckBox(tr("upscale_check_sharp"))
         opt_layout.addRow("", self.upscale_check)
-        
+
         self.opt_group.setLayout(opt_layout)
         layout.addWidget(self.opt_group)
-        
+
         # Actions
         action_layout = QHBoxLayout()
-        
+
         self.btn_run = QPushButton(tr("sharp_btn_run"))
         self.btn_run.setMinimumHeight(40)
         self.btn_run.setStyleSheet("background-color: #2a82da; color: white; font-weight: bold;")
         self.btn_run.clicked.connect(self.predictRequested.emit)
-            
+
         action_layout.addWidget(self.btn_run)
-        
+
         self.btn_stop = QPushButton(tr("btn_stop"))
         self.btn_stop.setMinimumHeight(40)
         self.btn_stop.setEnabled(False)
@@ -232,7 +249,7 @@ class SharpTab(QWidget):
         layout.addWidget(self.progress_bar)
 
         layout.addStretch()
-        
+
     def on_mode_changed(self, button):
         mode_idx = self.mode_group.id(button)
         self.stacked_widget.setCurrentIndex(mode_idx)
@@ -269,22 +286,22 @@ class SharpTab(QWidget):
         path, _ = get_open_file_name(self, tr("sharp_dlg_input_file"), "", "Images (*.png *.jpg *.jpeg *.tif *.tiff)")
         if path:
             self.input_path.setText(path)
-            
+
     def browse_output(self):
         path = get_existing_directory(self, tr("sharp_dlg_output"))
         if path:
             self.output_path.setText(path)
-            
+
     def browse_video_file(self):
         path, _ = get_open_file_name(self, tr("sharp_dlg_video_file"), "", "Videos (*.mp4 *.mov *.avi *.mkv)")
         if path:
             self.video_path.setText(path)
-            
+
     def browse_video_output(self):
         path = get_existing_directory(self, tr("sharp_dlg_output"))
         if path:
             self.video_output_path.setText(path)
-            
+
     def browse_ckpt(self):
         path, _ = get_open_file_name(self, tr("sharp_dlg_ckpt"), "", "PyTorch Model (*.pt)")
         if path:
@@ -336,7 +353,7 @@ class SharpTab(QWidget):
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.show()
         QApplication.processEvents()
-        
+
         try:
             success = install_sharp()
             if success:
@@ -358,7 +375,7 @@ class SharpTab(QWidget):
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.show()
         QApplication.processEvents()
-        
+
         try:
             success = uninstall_sharp()
             if success:
@@ -387,13 +404,14 @@ class SharpTab(QWidget):
         }
 
     def set_params(self, params):
-        if not params: return
-        
+        if not params:
+            return
+
         if "enabled" in params:
              enabled = params["enabled"]
              self.chk_activate.setChecked(enabled)
              self.enable_controls(enabled)
-             
+
         if "mode" in params:
             if params["mode"] == "video":
                 self.radio_mode_video.setChecked(True)
@@ -401,21 +419,30 @@ class SharpTab(QWidget):
             else:
                 self.radio_mode_image.setChecked(True)
                 self.stacked_widget.setCurrentIndex(0)
-             
-        if "input_path" in params: self.input_path.setText(params["input_path"])
-        if "output_path" in params: self.output_path.setText(params["output_path"])
-        if "video_path" in params: self.video_path.setText(params["video_path"])
-        if "video_output_path" in params: self.video_output_path.setText(params["video_output_path"])
-        if "skip_frames" in params: self.spin_frame_skip.setValue(params["skip_frames"])
-            
-        if "checkpoint" in params: self.ckpt_path.setText(params["checkpoint"])
-        if "device" in params: self.device_combo.setCurrentText(params["device"])
-        if "verbose" in params: self.verbose_check.setChecked(params["verbose"])
-        if "upscale" in params: self.upscale_check.setChecked(params["upscale"])
+
+        if "input_path" in params:
+            self.input_path.setText(params["input_path"])
+        if "output_path" in params:
+            self.output_path.setText(params["output_path"])
+        if "video_path" in params:
+            self.video_path.setText(params["video_path"])
+        if "video_output_path" in params:
+            self.video_output_path.setText(params["video_output_path"])
+        if "skip_frames" in params:
+            self.spin_frame_skip.setValue(params["skip_frames"])
+
+        if "checkpoint" in params:
+            self.ckpt_path.setText(params["checkpoint"])
+        if "device" in params:
+            self.device_combo.setCurrentText(params["device"])
+        if "verbose" in params:
+            self.verbose_check.setChecked(params["verbose"])
+        if "upscale" in params:
+            self.upscale_check.setChecked(params["upscale"])
 
     def get_state(self):
         return self.get_params()
-        
+
     def set_state(self, state):
         self.set_params(state)
 
@@ -423,20 +450,20 @@ class SharpTab(QWidget):
         """Update texts when language changes"""
         self.chk_activate.setText(tr("sharp_activate"))
         self.check_status() # Updates status_lbl text
-        
+
         self.radio_mode_image.setText(tr("sharp_mode_image"))
         self.radio_mode_video.setText(tr("sharp_mode_video"))
-        
+
         self.path_group.setTitle(tr("sharp_group_paths"))
         self.lbl_input.setText(tr("sharp_lbl_input"))
         self.input_path.setPlaceholderText(tr("sharp_placeholder_input"))
         self.btn_browse_input_dir.setText(tr("sharp_btn_folder"))
         self.btn_browse_input_file.setText(tr("sharp_btn_file"))
-        
+
         self.lbl_output.setText(tr("sharp_lbl_output"))
         self.output_path.setPlaceholderText(tr("sharp_placeholder_output"))
         self.btn_browse_output.setText(tr("btn_browse"))
-        
+
         self.video_group.setTitle(tr("sharp_group_paths"))
         self.lbl_video_input.setText(tr("sharp_lbl_video_input"))
         self.video_path.setPlaceholderText(tr("sharp_placeholder_video_input"))
@@ -445,13 +472,13 @@ class SharpTab(QWidget):
         self.video_output_path.setPlaceholderText(tr("sharp_placeholder_output"))
         self.btn_browse_video_output.setText(tr("btn_browse"))
         self.lbl_frame_skip.setText(tr("sharp_lbl_frame_skip"))
-        
+
         frame_skip_tip = tr("sharp_tip_frame_skip")
         self.lbl_frame_skip.setToolTip(frame_skip_tip)
         self.spin_frame_skip.setToolTip(frame_skip_tip)
         if hasattr(self, 'lbl_frame_skip_desc'):
             self.lbl_frame_skip_desc.setText(frame_skip_tip)
-        
+
         self.opt_group.setTitle(tr("group_options"))
         self.lbl_ckpt.setText(tr("sharp_lbl_ckpt"))
         self.ckpt_path.setPlaceholderText(tr("sharp_placeholder_ckpt"))
@@ -459,7 +486,7 @@ class SharpTab(QWidget):
         self.lbl_device.setText(tr("sharp_lbl_device"))
         self.verbose_check.setText(tr("sharp_check_verbose"))
         self.upscale_check.setText(tr("upscale_check_sharp"))
-        
+
         # update button run according to mode? well, keep it simple and just let it say "Lancer predict"/"Lancer la conversion".
         # actually, let's keep "sharp_btn_run" for both or separate it.
         # sharp_btn_run works well. The requirement originally said "Bouton Lancer la conversion" for video.
@@ -468,5 +495,5 @@ class SharpTab(QWidget):
             self.btn_run.setText(tr("sharp_btn_run_video"))
         else:
             self.btn_run.setText(tr("sharp_btn_run"))
-        
+
         self.btn_stop.setText(tr("btn_stop"))

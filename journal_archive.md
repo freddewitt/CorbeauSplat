@@ -174,3 +174,11 @@ Reprise session 2026-07-10 (feature checkpoints Brush, working tree non committ�
 **Corrections** par @optimiseur : engine.py (timeout 14400s, delete retourne status) ; four_dgs_engine.py (14400s) ; workers.py (symlink + copytree repli) ; upscayl_manager.py (SHA256 → RuntimeError) ; sharp_engine.py (FFmpeg via runner) ; main_window.py (on_finished via sender()) ; tests adapté. 292 pass, 1 skip, 0 fail.
 
 **État** : changements appliqués, arbre modifié, non committé avant archiviste. P3–P5 e2e + M1–M8 mineurs pour future passe.
+
+**2026-07-17 (session 5)** — Diagnostic CI complet (run 29564984659, commit 611f216).
+Causes identifiées, aucune correction appliquée, plan priorisé en attente exécution.
+4 blocages : (1) lint ruff sans scope → 1483 erreurs (verify_imports.py script debug + app/cli/__init__.py I001/F401) ;
+(2) audit pyobjc-framework-Cocoa sans marker darwin → compile Linux → ModuleNotFoundError pkg_resources ;
+(3) test_colmap_pipeline mock image vide (régression 611f216) ; (4) ci.yml ruff/mypy/pip-audit sans version figée.
+Plan validé utilisateur : restreindre lint scope app/, ruff --fix + manual, marker darwin pyobjc, corriger fixture, pin versions ci.yml.
+Priorité absolue : résoudre 4 blocages CI avant tout commit. P3-P5 e2e + mineurs M1-M8 inchangés.

@@ -3,9 +3,6 @@
 Tous les binaires externes (colmap, ffmpeg) sont mockés ;
 seule la logique d'orchestration du pipeline est testée.
 """
-import subprocess
-from pathlib import Path
-from unittest.mock import MagicMock, call
 
 
 class TestColmapPipeline:

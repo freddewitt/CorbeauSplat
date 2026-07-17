@@ -1,9 +1,6 @@
 """Extractor 360 engine dependency installer."""
-import subprocess
-from pathlib import Path
 
 from app.scripts.installers.base import PipEngine
-
 
 EXTRACTOR_360_REPO = "https://github.com/nicolasdiolez/360Extractor"
 

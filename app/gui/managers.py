@@ -1,13 +1,15 @@
+import json
 import logging
 import os
-import sys
-import json
 import subprocess
+import sys
 from pathlib import Path
-from app.core.system import resolve_project_root
-from app.core.params import ColmapParams
-from PyQt6.QtWidgets import QApplication
+
 from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QApplication
+
+from app.core.params import ColmapParams
+from app.core.system import resolve_project_root
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ class SessionManager:
         state = {
             "language": self.mw.config_tab.combo_lang.currentData(),
         }
-        
+
         tab_mapping = {
             "config": self.mw.config_tab,
             "colmap_params": self.mw.params_tab,
@@ -46,7 +48,7 @@ class SessionManager:
             "four_dgs_params": self.mw.four_dgs_tab,
             "superplat_params": self.mw.superplat_tab,
         }
-        
+
         for key, tab in tab_mapping.items():
             if hasattr(tab, 'get_state'):
                 state[key] = tab.get_state()
@@ -65,11 +67,11 @@ class SessionManager:
         session_file = self.get_session_file()
         if not session_file.exists():
             return
-            
+
         try:
-            with open(session_file, 'r') as f:
+            with open(session_file) as f:
                 state = json.load(f)
-                
+
             tab_mapping = {
                 "config": self.mw.config_tab,
                 "colmap_params": self.mw.params_tab,
@@ -81,7 +83,7 @@ class SessionManager:
                 "four_dgs_params": self.mw.four_dgs_tab,
                 "superplat_params": self.mw.superplat_tab,
             }
-            
+
             for key, tab in tab_mapping.items():
                 if key in state:
                     if hasattr(tab, 'set_state'):
@@ -146,23 +148,23 @@ class AppLifecycle:
         subprocess.Popen(args, cwd=str(root_dir), **kwargs)
         QApplication.quit()
         sys.exit(0)
-        
+
     @staticmethod
     def reset_factory(deep=False):
         QApplication.quit()
-        
+
         root_dir = resolve_project_root().resolve()
         run_cmd = root_dir / "run.command"
-        
+
         # Collect deletion targets (relative names only)
         targets_rel = [".venv", ".venv_sharp", ".venv_360"]
-        
+
         if deep:
             targets_rel.append("engines")
             targets_rel.append("config.json")
-        
+
         logger.info("Reset Factory %s initié sur: %s", "DEEP" if deep else "LIGHT", root_dir)
-        
+
         # Validate containment: every target must resolve inside project root
         import shutil as _shutil
         for rel in list(targets_rel):
@@ -184,7 +186,7 @@ class AppLifecycle:
                         target.unlink()
                 except OSError as e:
                     logger.warning("Reset: could not remove %s — %s", target, e)
-        
+
         # Also clean deep sync-conflict files
         if deep:
             for p in root_dir.glob("config.sync-conflict-*"):
@@ -194,7 +196,7 @@ class AppLifecycle:
                     p.unlink()
                 except (ValueError, OSError):
                     pass
-        
+
         # Relaunch via run.command
         if run_cmd.exists():
             logger.info("Reset: relaunching via %s", run_cmd)

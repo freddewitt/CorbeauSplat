@@ -1,4 +1,7 @@
+import contextlib
+
 from PyQt6.QtCore import QThread, pyqtSignal
+
 
 class BaseWorker(QThread):
     """Classe de base pour les workers avec signaux standardisés"""
@@ -6,7 +9,7 @@ class BaseWorker(QThread):
     progress_signal = pyqtSignal(int)
     status_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(bool, str)
-    
+
     def __init__(self):
         super().__init__()
         self.is_running = True
@@ -18,10 +21,8 @@ class BaseWorker(QThread):
         self.is_running = False
         self.stopped_by_user = True
         if self.process:
-            try:
+            with contextlib.suppress(OSError):
                 self.process.terminate()
-            except OSError:
-                pass
         self.requestInterruption()
 
     def parse_line(self, line):

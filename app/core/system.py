@@ -1,9 +1,11 @@
-import platform
+import contextlib
+import functools
 import os
+import platform
 import shutil
 import subprocess
-import functools
 from pathlib import Path
+
 
 @functools.cache
 def resolve_project_root() -> Path:
@@ -84,19 +86,19 @@ def resolve_binary(name):
     """
     # 1. Chercher dans le dossier engines à la racine du projet
     engines_dir = resolve_project_root() / "engines"
-    
+
     local_path = engines_dir / name
-    
+
     # Cas binaire direct
     if local_path.exists() and os.access(local_path, os.X_OK):
         return str(local_path)
-        
+
     # Cas macOS .app bundle pour COLMAP
     if name == "colmap":
         colmap_app = engines_dir / "COLMAP.app" / "Contents" / "MacOS" / "colmap"
         if colmap_app.exists() and os.access(colmap_app, os.X_OK):
             return str(colmap_app)
-            
+
     # 2. Chercher dans le PATH système
     return shutil.which(name)
 
@@ -144,10 +146,8 @@ def get_memory_info() -> dict:
                     if ":" in line:
                         key, val = line.split(":", 1)
                         key = key.strip().strip('"')
-                        try:
+                        with contextlib.suppress(ValueError):
                             pages[key] = int(val.strip().rstrip("."))
-                        except ValueError:
-                            pass
                 # Page size detection
                 if "page size of" in result.stdout:
                     for token in result.stdout.split():
@@ -273,13 +273,11 @@ def is_amx_available() -> bool:
     No user-space configuration is needed — this is purely informational
     for feature gating and logging.
     """
-    if not is_apple_silicon():
-        return False
     # All Apple Silicon chips have AMX blocks.  The AMX instruction set
     # is accessed exclusively through Accelerate.framework (not directly
     # by user code), so there is no sysctl key to query.  We return True
     # for any arm64 Darwin system.
-    return True
+    return is_apple_silicon()
 
 
 def has_neural_engine() -> bool:
@@ -293,13 +291,11 @@ def has_neural_engine() -> bool:
     On macOS, there is no official sysctl key to query ANE presence,
     so we check for Apple Silicon as a proxy (all M-series chips have one).
     """
-    if not is_apple_silicon():
-        return False
     # M1 and later all include a Neural Engine. The exact core count
     # varies (M1: 16-core, M2: 16-core, M3: 16-core, M4: 16-core,
     # M1 Pro/Max: 16-core, M2 Pro/Max: 16-core, M3 Pro/Max: 16-core,
     # M4 Pro/Max: 16-core). No user-space API exposes the count.
-    return True
+    return is_apple_silicon()
 
 
 def log_numpy_backend() -> None:
@@ -311,11 +307,13 @@ def log_numpy_backend() -> None:
     Accelerate is active.
     """
     try:
+        import contextlib
+        import io
+
         import numpy as np
-        import io, contextlib
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            config = np.show_config()
+            np.show_config()
         config_text = buf.getvalue()
         if "accelerate" in config_text.lower():
             print("🔢 NumPy BLAS: Apple Accelerate (optimal)")
@@ -392,11 +390,11 @@ def check_dependencies():
     check_ffmpeg_videotoolbox()
 
     missing = []
-    
+
     # Check ffmpeg
     if resolve_binary('ffmpeg') is None:
         missing.append('ffmpeg')
-        
+
     # Check colmap
     if resolve_binary('colmap') is None:
         missing.append('colmap')

@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """CLI command handlers for CorbeauSplat."""
-import sys
 import os
+import sys
 import time
 from pathlib import Path as _Path
 
-from app.core.i18n import tr
-from app.core.params import ColmapParams, FEATURE_TO_DEFAULT_MATCHING
-from app.core.engine import ColmapEngine
 from app.core.brush_engine import BrushEngine
+from app.core.engine import ColmapEngine
+from app.core.i18n import tr
+from app.core.params import FEATURE_TO_DEFAULT_MATCHING, ColmapParams
+from app.core.ply_cleaner import clean_ply, clean_ply_batch
 from app.core.sharp_engine import SharpEngine
 from app.core.superplat_engine import SuperSplatEngine
 from app.core.system import get_brush_build_mode
-from app.core.ply_cleaner import clean_ply, clean_ply_batch
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Brush defaults and presets
@@ -133,22 +132,34 @@ def run_brush(args):
         params.update(BRUSH_PRESETS[args.preset])
 
     # Explicit args override preset (only when provided by user)
-    if args.iterations is not None:           params["total_steps"] = args.iterations
-    if args.sh_degree is not None:            params["sh_degree"] = args.sh_degree
-    if args.start_iter is not None:           params["start_iter"] = args.start_iter
-    if args.refine_every is not None:         params["refine_every"] = args.refine_every
-    if args.growth_grad_threshold is not None: params["growth_grad_threshold"] = args.growth_grad_threshold
-    if args.growth_select_fraction is not None: params["growth_select_fraction"] = args.growth_select_fraction
-    if args.growth_stop_iter is not None:     params["growth_stop_iter"] = args.growth_stop_iter
-    if args.max_splats is not None:           params["max_splats"] = args.max_splats
-    if args.checkpoint_interval is not None:  params["checkpoint_interval"] = args.checkpoint_interval
-    if args.max_resolution is not None:       params["max_resolution"] = args.max_resolution
+    if args.iterations is not None:
+        params["total_steps"] = args.iterations
+    if args.sh_degree is not None:
+        params["sh_degree"] = args.sh_degree
+    if args.start_iter is not None:
+        params["start_iter"] = args.start_iter
+    if args.refine_every is not None:
+        params["refine_every"] = args.refine_every
+    if args.growth_grad_threshold is not None:
+        params["growth_grad_threshold"] = args.growth_grad_threshold
+    if args.growth_select_fraction is not None:
+        params["growth_select_fraction"] = args.growth_select_fraction
+    if args.growth_stop_iter is not None:
+        params["growth_stop_iter"] = args.growth_stop_iter
+    if args.max_splats is not None:
+        params["max_splats"] = args.max_splats
+    if args.checkpoint_interval is not None:
+        params["checkpoint_interval"] = args.checkpoint_interval
+    if args.max_resolution is not None:
+        params["max_resolution"] = args.max_resolution
 
     params["device"] = args.device
     params["refine_mode"] = args.refine_mode
     params["with_viewer"] = args.with_viewer
-    if args.custom_args: params["custom_args"] = args.custom_args
-    if args.ply_name:    params["ply_name"] = args.ply_name
+    if args.custom_args:
+        params["custom_args"] = args.custom_args
+    if args.ply_name:
+        params["ply_name"] = args.ply_name
 
     print(tr("cli_start_brush"))
     print(tr("cli_input", args.input))
@@ -380,7 +391,7 @@ def run_clean(args):
         print(f"  Récursif : {'oui' if args.recursive else 'non'}")
         if overrides:
             print(f"  Surcharges : {overrides}")
-        
+
         try:
             all_stats = clean_ply_batch(
                 input_path, output_path,
@@ -434,7 +445,7 @@ def run_clean(args):
             export_root = _Path(export_output) if export_output else _Path(args.output).parent
             msg_sources = str(args.output)
 
-        print(f"\n── Chaînage Clean → Export ──")
+        print("\n── Chaînage Clean → Export ──")
         print(f"  Format   : {then_format}")
         print(f"  Sources  : {msg_sources}")
         print(f"  Destin.  : {export_root}")
@@ -556,7 +567,8 @@ def run_extract360(args):
 def run_pipeline(args):
     """Pipeline complet COLMAP → Brush."""
 
-    _sep = lambda title: print(f"\n{'─' * 50}\n  {title}\n{'─' * 50}")
+    def _sep(title):
+        return print(f"\n{'─' * 50}\n  {title}\n{'─' * 50}")
 
     # ── Étape 1 : COLMAP ──────────────────────────────────────────────────────
     _sep("Étape 1/2 — Reconstruction COLMAP")
@@ -614,12 +626,16 @@ def run_pipeline(args):
     if args.preset != "default":
         brush_params.update(BRUSH_PRESETS[args.preset])
 
-    if args.iterations is not None: brush_params["total_steps"] = args.iterations
-    if args.sh_degree is not None:  brush_params["sh_degree"] = args.sh_degree
-    if args.max_resolution is not None: brush_params["max_resolution"] = args.max_resolution
+    if args.iterations is not None:
+        brush_params["total_steps"] = args.iterations
+    if args.sh_degree is not None:
+        brush_params["sh_degree"] = args.sh_degree
+    if args.max_resolution is not None:
+        brush_params["max_resolution"] = args.max_resolution
     brush_params["device"] = args.device
     brush_params["with_viewer"] = args.with_viewer
-    if args.ply_name: brush_params["ply_name"] = args.ply_name
+    if args.ply_name:
+        brush_params["ply_name"] = args.ply_name
 
     print(f"  Dataset     : {dataset_path}")
     print(f"  Preset      : {args.preset}")

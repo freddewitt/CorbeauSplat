@@ -1,4 +1,4 @@
-from dataclasses import dataclass, asdict, fields
+from dataclasses import asdict, dataclass, fields
 
 FEATURE_TYPES = ['SIFT', 'ALIKED_N16ROT', 'ALIKED_N32']
 MATCHING_TYPES = ['SIFT_BRUTEFORCE', 'ALIKED_BRUTEFORCE', 'SIFT_LIGHTGLUE', 'ALIKED_LIGHTGLUE']
@@ -52,7 +52,7 @@ class ColmapParams:
 
     def to_dict(self):
         return asdict(self)
-    
+
     @classmethod
     def from_dict(cls, data):
         # Filtrer les clés inconnues pour éviter les erreurs si le json est vieux

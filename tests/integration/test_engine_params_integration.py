@@ -1,9 +1,8 @@
 """Tests d'intégration : ColmapParams + command building (no subprocess)."""
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 import pytest
 
 from tests.conftest import _patch_pyqt6
+
 _patch_pyqt6()
 
 
@@ -41,7 +40,7 @@ class TestColmapParamsRoundtrip:
         assert d["max_num_features"] == 8192
         assert d["matcher_type"] == "sequential"
         assert d["feature_type"] == "ALIKED_N32"
-        assert d["ba_refine_focal_length"] == False
+        assert not d["ba_refine_focal_length"]
 
     def test_defaults_reasonable(self):
         """Verify default values are not None for critical fields."""
@@ -81,7 +80,7 @@ class TestBrushCommandBuilding:
             output_path=tmp_path / "output",
             params={"preset": "dense"},
         )
-        cmd_str = " ".join(cmd) if isinstance(cmd, list) else cmd
+        " ".join(cmd) if isinstance(cmd, list) else cmd
         # Should not crash and return something meaningful
         assert cmd is not None
 
@@ -124,8 +123,8 @@ class TestColmapCommandBuilding:
 
     def test_build_feature_extractor_command(self, tmp_path):
         """Building a feature_extractor command should produce valid args."""
-        from app.core.params import ColmapParams
         from app.core.engine import ColmapEngine
+        from app.core.params import ColmapParams
 
         params = ColmapParams(max_num_features=4096)
         logs = []

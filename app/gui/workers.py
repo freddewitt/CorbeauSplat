@@ -1,16 +1,19 @@
+import contextlib
 import os
-import shutil
 import re
-import subprocess
+import shutil
 import time
 import traceback
 from pathlib import Path
-from app.core.engine import ColmapEngine
+
 from app.core.brush_engine import BrushEngine
-from app.core.i18n import tr
-from app.gui.base_worker import BaseWorker
+from app.core.engine import ColmapEngine
 from app.core.extractor_360_engine import Extractor360Engine
+from app.core.four_dgs_engine import FourDGSEngine
+from app.core.i18n import tr
 from app.core.ply_cleaner import clean_ply
+from app.gui.base_worker import BaseWorker
+
 
 class Extractor360Worker(BaseWorker):
     """Thread worker pour exécuter 360Extractor"""
@@ -36,14 +39,14 @@ class Extractor360Worker(BaseWorker):
 
         # Use engine to construct/run instead of manual cmd construction
         success = self.engine.run_extraction(
-            self.input_path, 
-            self.output_path, 
+            self.input_path,
+            self.output_path,
             self.params,
             progress_callback=self.progress_signal.emit,
             log_callback=self.log_signal.emit,
             check_cancel_callback=self.isInterruptionRequested
         )
-        
+
         if success:
             self.finished_signal.emit(True, tr("status_360_done", "Extraction terminée avec succès."))
         else:
@@ -60,7 +63,7 @@ class Extractor360Worker(BaseWorker):
 
 class ColmapWorker(BaseWorker):
     """Thread worker pour exécuter COLMAP via le moteur"""
-    
+
     def __init__(self, params, input_path, output_path, input_type, fps, project_name="Untitled", upscale_params=None, extractor_360_params=None, engine=None):
         super().__init__()
         self.upscale_params = upscale_params
@@ -75,30 +78,30 @@ class ColmapWorker(BaseWorker):
             check_cancel_callback=self.isInterruptionRequested
         )
 
-        
+
     def stop(self):
         if self.extractor_engine:
             self.extractor_engine.stop()
         self.engine.stop()
         super().stop()
-        
+
     def run(self):
         # 1. Check 360 Extractor
         if self.extractor_360_params and self.extractor_360_params.get("enabled", False):
             from app.core.extractor_360_engine import Extractor360Engine
             self.extractor_engine = Extractor360Engine()
-            
+
             if not self.extractor_engine.is_installed():
                 self.log_signal.emit(tr("err_360_not_installed_colmap", "ERREUR: 360 Extractor activé mais non installé."))
                 self.finished_signal.emit(False, tr("err_360_missing", "Dépendances 360 manquantes"))
                 return
 
             self.log_signal.emit(tr("status_360_pre", "--- Démarrage 360 Extractor (Pré-traitement) ---"))
-            
+
             # Output images to project/images
             images_dir = self.engine.project_path / "images"
             images_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Run extraction
             success = self.extractor_engine.run_extraction(
                 self.engine.input_path, # Video path
@@ -108,13 +111,13 @@ class ColmapWorker(BaseWorker):
                 log_callback=self.log_signal.emit,
                 check_cancel_callback=self.isInterruptionRequested
             )
-            
+
             if not success:
                 self.finished_signal.emit(False, tr("err_360_failed", "Echec de l'extraction 360."))
                 return
-                
+
             self.log_signal.emit(tr("status_360_colmap", "Extraction 360 terminée. Passage à COLMAP..."))
-            
+
             self.engine = ColmapEngine(
                 self.engine.params, images_dir, self.engine.output_path, "images",
                 self.engine.fps, self.engine.project_name,
@@ -123,13 +126,13 @@ class ColmapWorker(BaseWorker):
                 status_callback=self.status_signal.emit,
                 check_cancel_callback=self.isInterruptionRequested
             )
-    
 
-        # 2. Check Upscale 
+
+        # 2. Check Upscale
         if self.upscale_params and self.upscale_params.get("active", False):
             self.engine.upscale_config = self.upscale_params
             self.log_signal.emit(tr("status_upscale_colmap", "--- Upscale activé pour COLMAP ---"))
-        
+
         success, message = self.engine.run()
         self.finished_signal.emit(success, message)
 
@@ -146,7 +149,7 @@ class BrushWorker(BaseWorker):
         self.params = params
         self.project_name = project_name
         self.keep_only_latest = keep_only_latest
-        
+
     def resolve_dataset_root(self, path: Path) -> Path:
         """
         Tente de resoudre la racine du dataset si l'utilisateur a selectionne
@@ -155,40 +158,40 @@ class BrushWorker(BaseWorker):
         # Cas sparse/0 -> remonter de 2 niveaux
         if path.name == "0" and path.parent.name == "sparse":
             return path.parent.parent
-            
+
         # Cas sparse -> remonter de 1 niveau
         if path.name == "sparse":
             return path.parent
-            
+
         return path
 
     def stop(self):
         self.engine.stop()
         super().stop()
-        
+
     def run(self):
         try:
-            self.log_signal.emit(f"Initialisation BrushWorker...")
+            self.log_signal.emit("Initialisation BrushWorker...")
             self.log_signal.emit(f"Input: {self.input_path}")
             self.log_signal.emit(f"Output: {self.output_path}")
 
             # Resolution automatique du chemin dataset
             resolved_input = self.resolve_dataset_root(Path(self.input_path))
-            
+
             if str(resolved_input) != str(self.input_path):
                 self.log_signal.emit(f"Chemin ajusté: {self.input_path} -> {resolved_input}")
-            
+
             if not resolved_input.exists():
                 self.finished_signal.emit(False, f"Le dossier dataset n'existe pas: {resolved_input}")
                 return
 
             # Gestion Refine Auto (Prioritaire sur Init PLY manuel)
             refine_mode = self.params.get("refine_mode")
-            
+
             if refine_mode:
                 self.log_signal.emit("Mode Raffinement (Refine) activé...")
                 checkpoints_dir = resolved_input / "checkpoints"
-                
+
                 # 1. Trouver le dernier PLY
                 latest_ply = None
                 last_mtime = 0
@@ -199,24 +202,24 @@ class BrushWorker(BaseWorker):
                         if mt > last_mtime:
                             last_mtime = mt
                             latest_ply = ply_path
-                
+
                 if latest_ply:
                     self.log_signal.emit(f"Checkpoint trouvé: {latest_ply.name}")
-                    
+
                     # 2. Créer dossier Refine
                     refine_dir = resolved_input / "Refine"
                     self.log_signal.emit(f"Préparation du dossier de raffinement: {refine_dir}")
-                    
+
                     # Safety check: Ensure refine_dir is inside resolved_input
                     try:
                         if refine_dir.exists():
-                            shutil.rmtree(refine_dir) 
+                            shutil.rmtree(refine_dir)
                         refine_dir.mkdir(parents=True, exist_ok=True)
                     except Exception as e:
                         self.log_signal.emit(f"ERREUR lors de la préparation du dossier Refine: {e}")
                         self.finished_signal.emit(False, f"Erreur dossier Refine: {e}")
                         return
-                    
+
                     # 3. Copier init.ply
                     dest_init = refine_dir / "init.ply"
                     try:
@@ -226,7 +229,7 @@ class BrushWorker(BaseWorker):
                         self.log_signal.emit(f"ERREUR lors de la copie de init.ply: {e}")
                         self.finished_signal.emit(False, f"Erreur copie init.ply: {e}")
                         return
-                    
+
                     # 4. Symlinks sparse & images
                     try:
                         self.log_signal.emit("Création des liens symboliques pour sparse et images...")
@@ -242,24 +245,24 @@ class BrushWorker(BaseWorker):
                             shutil.copytree(resolved_input / "images", refine_dir / "images")
 
                         self.log_signal.emit("Liens symboliques/copies terminés.")
-                        
+
                         # 5. Rediriger l'entraînement
                         resolved_input = refine_dir
                         self.output_path = refine_dir / "checkpoints"
                         self.output_path.mkdir(parents=True, exist_ok=True)
                         self.log_signal.emit(f"Dossier de travail redirigé vers: {refine_dir}")
-                        
+
                     except Exception as e:
                         self.log_signal.emit(f"Erreur fatale lors de la création de l'environnement Refine: {e}")
                         self.finished_signal.emit(False, f"Erreur env Refine: {e}")
                         return
-                        
+
                     if self.params.get("start_iter", 0) == 0:
                         detected_iter = self.params.get("total_steps", 30000)
                         match = re.search(r"iteration_(\d+)", latest_ply.name)
                         if match:
                             detected_iter = int(match.group(1))
-                        
+
                         self.params["start_iter"] = detected_iter
                         self.log_signal.emit(f"Refine: Start Iteration réglé sur {detected_iter}")
                 else:
@@ -288,10 +291,10 @@ class BrushWorker(BaseWorker):
             self.log_signal.emit("Lancement de la commande Brush...")
             # Use refactored train method (Template Method)
             returncode = self.engine.train(resolved_input, self.output_path, self.params)
-            
+
             # Delegate handling to Template Method return logic
             success = (returncode == 0)
-            
+
             if success:
                 self.handle_ply_rename()
                 if self.project_name:
@@ -301,7 +304,7 @@ class BrushWorker(BaseWorker):
                 self.finished_signal.emit(True, "Entrainement Brush terminé avec succès")
             else:
                 self.finished_signal.emit(False, "Brush a retourné une erreur (voir logs ci-dessus).")
-                
+
         except Exception as e:
             self.log_signal.emit(f"EXCEPTION dans BrushWorker: {e}\n{traceback.format_exc()}")
             self.finished_signal.emit(False, f"Exception: {e}")
@@ -316,24 +319,25 @@ class BrushWorker(BaseWorker):
         ply_name = Path(ply_name).name
         if not ply_name.endswith('.ply'):
             ply_name += '.ply'
-            
+
         output_path = Path(self.output_path)
-            
+
         last_iter = self.params.get("total_steps", 30000)
         search_paths = [
             output_path,
             output_path / "point_cloud" / f"iteration_{last_iter}",
             output_path / "point_cloud" / f"iteration_{last_iter // 2}",
         ]
-        
+
         found_ply = None
         last_mtime = 0
-        
+
         # Helper to check a dir
         def check_dir(directory: Path):
             nonlocal found_ply, last_mtime
-            if not directory.exists(): return
-            
+            if not directory.exists():
+                return
+
             for file_path in directory.iterdir():
                 if file_path.is_file() and file_path.suffix == '.ply' and file_path.name != ply_name:
                     mt = file_path.stat().st_mtime
@@ -344,7 +348,7 @@ class BrushWorker(BaseWorker):
         # 1. Check likely paths first
         for path in search_paths:
             check_dir(path)
-            
+
         # 2. If nothing found, fallback to walk
         if not found_ply:
             for ply_file_path in output_path.rglob("*.ply"):
@@ -402,10 +406,8 @@ class BrushWorker(BaseWorker):
         # Supprimer les sous-dossiers désormais vides (du plus profond au plus superficiel)
         for d in sorted(output_path.rglob("*"), key=lambda p: len(p.parts), reverse=True):
             if d.is_dir():
-                try:
+                with contextlib.suppress(OSError):
                     d.rmdir()
-                except OSError:
-                    pass
 
         if removed:
             self.log_signal.emit(
@@ -414,7 +416,7 @@ class BrushWorker(BaseWorker):
 
 class SharpWorker(BaseWorker):
     """Thread worker pour exécuter Apple ML Sharp"""
-    
+
     def __init__(self, input_path, output_path, params, engine=None):
         super().__init__()
         # On importe ici pour eviter les cycles si besoin, ou juste par proprete
@@ -425,16 +427,16 @@ class SharpWorker(BaseWorker):
         self.input_path = input_path
         self.output_path = output_path
         self.params = params
-        
+
     def stop(self):
         self.engine.stop()
         super().stop()
-        
+
     def run(self):
         try:
             # Handle Upscale
             if self.params.get("upscale", False):
-                from app.upscayl_manager import run_upscayl, find_binary
+                from app.upscayl_manager import find_binary, run_upscayl
                 if find_binary():
                     self.log_signal.emit(tr("status_upscaling", "--- Upscale Image ---"))
                     input_path = Path(self.input_path)
@@ -445,8 +447,8 @@ class SharpWorker(BaseWorker):
                         fmt = self.params.get("format", "png")
                         model_id = self.params.get("model_id") or ""
                         if not model_id:
-                            from app.upscayl_models import get_downloaded_models
                             from app.upscayl_manager import get_models_dir
+                            from app.upscayl_models import get_downloaded_models
                             _dl = get_downloaded_models(get_models_dir())
                             model_id = _dl[0].id if _dl else ""
                         if model_id:
@@ -479,21 +481,21 @@ class SharpWorker(BaseWorker):
                         self.log_signal.emit(tr("err_upscale_folder", "Folder upscale not supported in Sharp mode."))
                 else:
                     self.log_signal.emit(tr("err_upscale_missing", "Error: Upscale requested but upscayl-bin not found."))
-            
+
             # Use refactored predict method
             self.status_signal.emit(tr("status_sharp", "Amélioration avec ML Sharp..."))
-            
+
             # Délégation à la Template Method
             returncode = self.engine.predict(self.input_path, self.output_path, self.params)
             success = (returncode == 0)
-            
+
             self.finished_signal.emit(success, "Prédiction Sharp terminée." if success else "Sharp a retourné une erreur (voir logs).")
         except Exception as e:
             self.finished_signal.emit(False, str(e))
 
 class SharpVideoWorker(BaseWorker):
     """Thread worker for executing Apple ML Sharp on a sequence of frames from a video."""
-    
+
     def __init__(self, video_path, output_path, params, engine=None):
         super().__init__()
         from app.core.sharp_engine import SharpEngine
@@ -502,17 +504,17 @@ class SharpVideoWorker(BaseWorker):
         self.video_path = video_path
         self.output_path = output_path
         self.params = params
-        
+
     def stop(self):
         self.engine.stop()
         super().stop()
-        
+
     def run(self):
         """Process video frames using the shared SharpEngine.process_video_frames pipeline."""
         try:
             self.status_signal.emit(tr("sharp_msg_extract_frames"))
             self.log_signal.emit(tr("sharp_msg_extract_frames"))
-            
+
             success_count = self.engine.process_video_frames(
                 video_path=self.video_path,
                 output_dir=self.output_path,
@@ -522,7 +524,7 @@ class SharpVideoWorker(BaseWorker):
                 progress_callback=self.progress_signal.emit,
                 cancel_check=self.isInterruptionRequested,
             )
-            
+
             if success_count > 0:
                 self.finished_signal.emit(True, f"Conversion Video -> PLY terminée. {success_count} frames traitées avec succès.")
             else:
@@ -657,7 +659,7 @@ class SplatTransformWorker(BaseWorker):
 # ---------------------------------------------------------------------
 # 4DGS WORKER
 # ---------------------------------------------------------------------
-from app.core.four_dgs_engine import FourDGSEngine
+
 
 class FourDGSWorker(BaseWorker):
     def __init__(self, videos_dir, output_dir, fps=5, engine=None):
@@ -675,14 +677,15 @@ class FourDGSWorker(BaseWorker):
     def run(self):
         self.log_signal.emit("--- Démarrage 4DGS ---")
 
-        
+
         try:
-            if self.videos_dir:
-                success = self.engine.process_dataset(self.videos_dir, self.output_dir, self.fps)
-            else:
-                # COLMAP ONLY MODE
-                success = self.engine.run_colmap(self.output_dir)
-                
+            # COLMAP ONLY MODE si pas de vidéos
+            success = (
+                self.engine.process_dataset(self.videos_dir, self.output_dir, self.fps)
+                if self.videos_dir
+                else self.engine.run_colmap(self.output_dir)
+            )
+
             self.finished_signal.emit(success, "Dataset 4DGS créé avec succès." if success else "Échec du traitement 4DGS.")
         except Exception as e:
             self.finished_signal.emit(False, str(e))

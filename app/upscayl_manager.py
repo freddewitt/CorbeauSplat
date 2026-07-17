@@ -149,9 +149,8 @@ def download_binary(log_callback=None) -> Path:
     archive_path = bin_dir / asset["name"]
 
     req = urllib.request.Request(asset["browser_download_url"])
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        with open(str(archive_path), "wb") as f:
-            f.write(resp.read())
+    with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as f:
+        f.write(resp.read())
 
     checksums = load_expected_checksums()
     checksum_key = "darwin_upscayl" if platform.system() == "Darwin" else "linux_upscayl"

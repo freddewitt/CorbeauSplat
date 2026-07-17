@@ -1,9 +1,13 @@
-import subprocess
+import contextlib
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFrame,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
 )
 
 
@@ -55,10 +59,11 @@ class TestWorker(QThread):
 
     def run(self):
         try:
-            from app.upscayl_manager import run_upscayl, find_binary, resize_to_original
-            from app.upscayl_models import get_model
             import shutil as _shutil
             import tempfile as _tempfile
+
+            from app.upscayl_manager import find_binary, resize_to_original, run_upscayl
+            from app.upscayl_models import get_model
 
             model_id = self.params.get("model_id", "")
             if not model_id:
@@ -176,10 +181,8 @@ class ModelCard(QFrame):
             self.lbl_status.setStyleSheet("color: #44aa44; font-size: 11px;")
             self.btn_action.setText("Delete")
             self.btn_action.setStyleSheet("color: #cc4444;")
-            try:
+            with contextlib.suppress(TypeError, RuntimeError):
                 self.btn_action.clicked.disconnect()
-            except (TypeError, RuntimeError):
-                pass
             self.btn_action.clicked.connect(
                 lambda: self.delete_requested.emit(self.model.id)
             )
@@ -194,10 +197,8 @@ class ModelCard(QFrame):
             self.lbl_status.setStyleSheet("color: #888; font-size: 11px;")
             self.btn_action.setText("Download")
             self.btn_action.setStyleSheet("")
-            try:
+            with contextlib.suppress(TypeError, RuntimeError):
                 self.btn_action.clicked.disconnect()
-            except (TypeError, RuntimeError):
-                pass
             self.btn_action.clicked.connect(
                 lambda: self.download_requested.emit(self.model.id)
             )

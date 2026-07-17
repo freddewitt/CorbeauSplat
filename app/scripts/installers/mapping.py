@@ -1,9 +1,9 @@
 """COLMAP engine dependency installer."""
-import re
-import sys
 import json
+import re
 import shutil
 import subprocess
+import sys
 
 from app.scripts.installers.base import EngineDependency
 

@@ -1,35 +1,48 @@
-import os
 import subprocess
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit,
-    QGroupBox, QFormLayout, QSpinBox, QCheckBox, QComboBox, QDoubleSpinBox,
-    QScrollArea, QFrame, QMessageBox
-)
-from pathlib import Path
+
 from PyQt6.QtCore import pyqtSignal
-from app.core.i18n import tr, add_language_observer
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
+
+from app.core.i18n import add_language_observer, tr
 from app.core.system import resolve_binary
-from app.gui.widgets.drop_line_edit import DropLineEdit
 from app.gui.widgets.dialog_utils import get_existing_directory
+from app.gui.widgets.drop_line_edit import DropLineEdit
+
 
 class BrushTab(QWidget):
     """Onglet de configuration Brush"""
-    
+
     trainRequested = pyqtSignal()
     stopRequested = pyqtSignal()
     restartRequested = pyqtSignal()
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.init_ui()
         add_language_observer(self.retranslate_ui)
-        
+
     def init_ui(self):
         # Layout principal (contient Status + Scroll + Boutons)
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
-        
+
         # 1. Status Check (Fixe en haut)
         self.bin_path = resolve_binary("brush")
         status_layout = QHBoxLayout()
@@ -41,44 +54,44 @@ class BrushTab(QWidget):
             self.status_lbl.setText(tr("brush_not_found"))
             self.status_lbl.setStyleSheet("color: #aa4444; font-weight: bold;")
         status_layout.addWidget(self.status_lbl)
-        
+
         self.btn_reinstall_brush = QPushButton(tr("btn_reinstall_brush"))
         self.btn_reinstall_brush.clicked.connect(self.on_reinstall_clicked)
-        
+
         self.combo_build_mode = QComboBox()
         self.combo_build_mode.addItem(tr("brush_build_release"), "release")
         self.combo_build_mode.addItem(tr("brush_build_compile"), "source")
-        
+
         status_layout.addStretch()
         lbl_build_mode = QLabel(tr("brush_lbl_build_mode"))
         status_layout.addWidget(lbl_build_mode)
         status_layout.addWidget(self.combo_build_mode)
         status_layout.addWidget(self.btn_reinstall_brush)
-        
+
         main_layout.addLayout(status_layout)
-        
+
         # 2. Zone de défilement pour les paramètres
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setStyleSheet("QScrollArea { background-color: transparent; }")
-        
+
         container = QWidget()
         container.setStyleSheet("background-color: transparent;")
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 10, 0) # Marge droite pour la scrollbar
-        
+
         # --- Contenu des paramètres ---
-        
+
         # A. Core Parameters Group (Paramètres principaux)
         self.param_group = QGroupBox(tr("brush_params"))
         param_layout = QFormLayout()
-        
+
         # Total Steps (Moved to top as requested)
         self.spin_total_steps = self.create_spin(30000, 1000, 200000, 1000, tr("brush_lbl_steps"))
         self.lbl_steps = QLabel(tr("brush_lbl_steps"))
         param_layout.addRow(self.lbl_steps, self.spin_total_steps)
-        
+
         # SH Degree
         self.sh_spin = QSpinBox()
         self.sh_spin.setRange(1, 4)
@@ -86,20 +99,20 @@ class BrushTab(QWidget):
         self.sh_spin.setMinimumWidth(100)
         self.lbl_sh = QLabel(tr("brush_sh_degree"))
         param_layout.addRow(self.lbl_sh, self.sh_spin)
-        
+
         # Device
         self.device_combo = QComboBox()
         self.device_combo.addItems(["mps", "cuda", "cpu", "auto"])
         self.device_combo.setMinimumWidth(150)
         self.lbl_device = QLabel(tr("brush_device"))
         param_layout.addRow(self.lbl_device, self.device_combo)
-        
+
         # Custom Args
         self.custom_args_edit = QLineEdit()
         self.custom_args_edit.setPlaceholderText("--refine_pose ...")
         self.lbl_args = QLabel(tr("brush_args"))
         param_layout.addRow(self.lbl_args, self.custom_args_edit)
-        
+
         # Max Resolution Manual
         res_layout = QHBoxLayout()
         self.max_resolution_spin = QSpinBox()
@@ -108,10 +121,10 @@ class BrushTab(QWidget):
         self.max_resolution_spin.setSpecialValueText(tr("brush_res_default"))
         self.max_resolution_spin.setMinimumWidth(120)
         self.max_resolution_spin.setToolTip(tr("brush_tip_res"))
-        
+
         self.res_warn_label = QLabel(tr("brush_res_warn"))
         self.res_warn_label.setStyleSheet("color: #888888; font-size: 11px;")
-        
+
         self.lbl_res = QLabel(tr("brush_lbl_res"))
         res_layout.addWidget(self.lbl_res)
         res_layout.addWidget(self.max_resolution_spin)
@@ -123,19 +136,19 @@ class BrushTab(QWidget):
         self.check_viewer = QCheckBox(tr("brush_viewer"))
         self.check_viewer.setChecked(True)
         param_layout.addRow("", self.check_viewer)
-        
+
         self.param_group.setLayout(param_layout)
         layout.addWidget(self.param_group)
-        
+
         # B. Workflow Configuration
         # 1. Independent Checkbox
         self.check_independent = QCheckBox(tr("check_brush_independent"))
         self.check_independent.toggled.connect(self.on_manual_toggled)
         layout.addWidget(self.check_independent)
-        
+
         # 2. Training Mode
         workflow_form = QFormLayout()
-        
+
         self.combo_mode = QComboBox()
         self.combo_mode.addItem(tr("brush_mode_new"), "new")
         self.combo_mode.addItem(tr("brush_mode_refine"), "refine")
@@ -156,12 +169,12 @@ class BrushTab(QWidget):
         workflow_form.addRow(self.lbl_preset, self.combo_preset)
 
         layout.addLayout(workflow_form)
-        
+
         # 4. Manual Dataset Path (Visible only if Independent)
         self.lbl_paths_group = tr("brush_group_paths")
         self.manual_group = QGroupBox(self.lbl_paths_group)
         manual_layout = QFormLayout()
-        
+
         input_layout = QHBoxLayout()
         self.input_path = DropLineEdit()
         self.btn_browse_input = QPushButton("...")
@@ -171,7 +184,7 @@ class BrushTab(QWidget):
         input_layout.addWidget(self.btn_browse_input)
         self.lbl_dataset = QLabel(tr("brush_lbl_input"))
         manual_layout.addRow(self.lbl_dataset, input_layout)
-        
+
         output_layout = QHBoxLayout()
         self.output_path = DropLineEdit()
         self.btn_browse_output = QPushButton("...")
@@ -181,12 +194,12 @@ class BrushTab(QWidget):
         output_layout.addWidget(self.btn_browse_output)
         self.lbl_export = QLabel(tr("brush_lbl_output"))
         manual_layout.addRow(self.lbl_export, output_layout)
-        
+
         self.ply_name_edit = QLineEdit()
         self.ply_name_edit.setPlaceholderText("output.ply")
         self.lbl_ply_manual = QLabel(tr("brush_lbl_ply"))
         manual_layout.addRow(self.lbl_ply_manual, self.ply_name_edit)
-        
+
         self.manual_group.setLayout(manual_layout)
         layout.addWidget(self.manual_group)
 
@@ -200,16 +213,16 @@ class BrushTab(QWidget):
         self.check_details = QCheckBox(tr("brush_check_details"))
         self.check_details.toggled.connect(self.update_visibility)
         layout.addWidget(self.check_details)
-        
+
         # C. Advanced Params Container (Visible only if check_details)
         self.details_container = QWidget()
         details_layout = QVBoxLayout(self.details_container)
         details_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         # Advanced Params Grid
         grid_layout = QVBoxLayout()
-        
-        # Row 1: Start Iter 
+
+        # Row 1: Start Iter
         row1 = QHBoxLayout()
         self.spin_start_iter = self.create_spin(0, 0, 200000, 1000, tr("brush_lbl_start"))
         self.lbl_start = QLabel(tr("brush_lbl_start"))
@@ -217,7 +230,7 @@ class BrushTab(QWidget):
         row1.addWidget(self.spin_start_iter)
         row1.addStretch()
         grid_layout.addLayout(row1)
-        
+
         # Row 2: Refine Every & Growth Stop
         row2 = QHBoxLayout()
         self.spin_refine = self.create_spin(200, 50, 5000, 50, tr("brush_lbl_refine"))
@@ -230,7 +243,7 @@ class BrushTab(QWidget):
         row2.addWidget(self.lbl_stop)
         row2.addWidget(self.spin_growth_stop)
         grid_layout.addLayout(row2)
-        
+
         # Row 3: Threshold & Fraction
         row3 = QHBoxLayout()
         self.spin_threshold = self.create_double_spin(0.003, 0.0001, 0.1, 4, 0.0001, tr("brush_lbl_threshold"))
@@ -243,44 +256,44 @@ class BrushTab(QWidget):
         row3.addWidget(self.lbl_fraction)
         row3.addWidget(self.spin_fraction)
         grid_layout.addLayout(row3)
-        
+
         # Row 4: Max Splats & Checkpoint Interval
         row4 = QHBoxLayout()
         self.spin_max_splats = self.create_spin(10000000, 100000, 100000000, 100000, tr("brush_lbl_max_splats"))
         self.spin_checkpoint_interval = self.create_spin(7000, 0, 50000, 1000, tr("brush_lbl_ckpt_interval"))
-        
+
         self.lbl_max_splats = QLabel(tr("brush_lbl_max_splats"))
         self.lbl_ckpt_interval = QLabel(tr("brush_lbl_ckpt_interval"))
-        
+
         row4.addWidget(self.lbl_max_splats)
         row4.addWidget(self.spin_max_splats)
         row4.addSpacing(10)
         row4.addWidget(self.lbl_ckpt_interval)
         row4.addWidget(self.spin_checkpoint_interval)
         grid_layout.addLayout(row4)
-        
+
         details_layout.addLayout(grid_layout)
-        
+
         layout.addWidget(self.details_container)
 
         layout.addStretch() # Pousse le contenu vers le haut
-        
+
         # Fin de la zone scrollable
         scroll.setWidget(container)
         main_layout.addWidget(scroll)
-        
+
         # 3. Actions (Fixe en bas)
         action_layout = QHBoxLayout()
-        
+
         self.btn_train = QPushButton(tr("btn_train_brush"))
         self.btn_train.setMinimumHeight(40)
         self.btn_train.setStyleSheet("background-color: #2a82da; color: white; font-weight: bold; border-radius: 4px;")
         self.btn_train.clicked.connect(self.trainRequested.emit)
         if not self.bin_path:
             self.btn_train.setEnabled(False)
-            
+
         action_layout.addWidget(self.btn_train)
-        
+
         self.btn_run_standalone = QPushButton(tr("btn_brush_standalone", "Lancer Brush uniquement"))
         self.btn_run_standalone.setMinimumHeight(40)
         self.btn_run_standalone.setStyleSheet("background-color: #555555; color: white; font-weight: bold; border-radius: 4px;")
@@ -288,16 +301,16 @@ class BrushTab(QWidget):
         if not self.bin_path:
             self.btn_run_standalone.setEnabled(False)
         action_layout.addWidget(self.btn_run_standalone)
-        
+
         self.btn_stop = QPushButton(tr("btn_stop"))
         self.btn_stop.setMinimumHeight(40)
         self.btn_stop.setStyleSheet("background-color: #555555; color: white; font-weight: bold; border-radius: 4px;")
         self.btn_stop.setEnabled(False)
         self.btn_stop.clicked.connect(self.stopRequested.emit)
         action_layout.addWidget(self.btn_stop)
-        
+
         main_layout.addLayout(action_layout)
-        
+
         # Initial state update
         self.update_visibility()
 
@@ -317,7 +330,7 @@ class BrushTab(QWidget):
         s.setSingleStep(step)
         s.setToolTip(tooltip)
         return s
-        
+
     def apply_preset(self, index):
         data = self.combo_preset.currentData()
         if data == "default":
@@ -344,12 +357,13 @@ class BrushTab(QWidget):
             self.spin_threshold.setValue(0.0005) # Aggressive
             self.spin_fraction.setValue(0.6)
             self.spin_growth_stop.setValue(40000) # Late stop
-            
+
     def on_manual_toggled(self, checked):
         """Force 'New' mode when entering manual mode"""
         if checked:
             idx = self.combo_mode.findData("new")
-            if idx >= 0: self.combo_mode.setCurrentIndex(idx)
+            if idx >= 0:
+                self.combo_mode.setCurrentIndex(idx)
         self.update_visibility()
 
     def browse_input(self):
@@ -366,11 +380,11 @@ class BrushTab(QWidget):
         # 1. Manual Path visibility
         independent = self.check_independent.isChecked()
         self.manual_group.setVisible(independent)
-        
+
         # 2. Advanced Details visibility
         details = self.check_details.isChecked()
         self.details_container.setVisible(details)
-        
+
     def set_processing_state(self, is_processing):
         self.btn_train.setEnabled(not is_processing and bool(self.bin_path))
         if hasattr(self, 'btn_run_standalone'):
@@ -395,7 +409,7 @@ class BrushTab(QWidget):
             "max_splats": self.spin_max_splats.value(),
             "checkpoint_interval": self.spin_checkpoint_interval.value(),
             "refine_mode": (self.combo_mode.currentData() == "refine"),
-            
+
             "sh_degree": self.sh_spin.value(),
             "device": self.device_combo.currentText(),
             "custom_args": self.custom_args_edit.text(),
@@ -409,43 +423,65 @@ class BrushTab(QWidget):
             "build_mode": self.combo_build_mode.currentData(),
 
         }
-        
+
     def set_params(self, params):
         """Restaure les parametres"""
-        if not params: return
-        
-        if "total_steps" in params: self.spin_total_steps.setValue(params["total_steps"])
-        elif "iterations" in params: self.spin_total_steps.setValue(params["iterations"]) # Fallback
-        
-        if "start_iter" in params: self.spin_start_iter.setValue(params["start_iter"])
-        if "refine_every" in params: self.spin_refine.setValue(params["refine_every"])
-        if "growth_grad_threshold" in params: self.spin_threshold.setValue(params["growth_grad_threshold"])
-        if "growth_select_fraction" in params: self.spin_fraction.setValue(params["growth_select_fraction"])
-        if "growth_stop_iter" in params: self.spin_growth_stop.setValue(params["growth_stop_iter"])
-        if "max_splats" in params: self.spin_max_splats.setValue(params["max_splats"])
-        if "checkpoint_interval" in params: self.spin_checkpoint_interval.setValue(params["checkpoint_interval"])
+        if not params:
+            return
+
+        if "total_steps" in params:
+            self.spin_total_steps.setValue(params["total_steps"])
+        elif "iterations" in params:
+            self.spin_total_steps.setValue(params["iterations"]) # Fallback
+
+        if "start_iter" in params:
+            self.spin_start_iter.setValue(params["start_iter"])
+        if "refine_every" in params:
+            self.spin_refine.setValue(params["refine_every"])
+        if "growth_grad_threshold" in params:
+            self.spin_threshold.setValue(params["growth_grad_threshold"])
+        if "growth_select_fraction" in params:
+            self.spin_fraction.setValue(params["growth_select_fraction"])
+        if "growth_stop_iter" in params:
+            self.spin_growth_stop.setValue(params["growth_stop_iter"])
+        if "max_splats" in params:
+            self.spin_max_splats.setValue(params["max_splats"])
+        if "checkpoint_interval" in params:
+            self.spin_checkpoint_interval.setValue(params["checkpoint_interval"])
         if "refine_mode" in params:
              idx = self.combo_mode.findData("refine" if params["refine_mode"] else "new")
-             if idx >= 0: self.combo_mode.setCurrentIndex(idx)
-        
-        if "sh_degree" in params: self.sh_spin.setValue(params["sh_degree"])
-        if "device" in params: self.device_combo.setCurrentText(params["device"])
-        if "custom_args" in params: self.custom_args_edit.setText(params["custom_args"])
-        if "max_resolution" in params: self.max_resolution_spin.setValue(params["max_resolution"])
-        if "with_viewer" in params: self.check_viewer.setChecked(params["with_viewer"])
-        if "independent" in params: self.check_independent.setChecked(params["independent"])
-        
+             if idx >= 0:
+                 self.combo_mode.setCurrentIndex(idx)
+
+        if "sh_degree" in params:
+            self.sh_spin.setValue(params["sh_degree"])
+        if "device" in params:
+            self.device_combo.setCurrentText(params["device"])
+        if "custom_args" in params:
+            self.custom_args_edit.setText(params["custom_args"])
+        if "max_resolution" in params:
+            self.max_resolution_spin.setValue(params["max_resolution"])
+        if "with_viewer" in params:
+            self.check_viewer.setChecked(params["with_viewer"])
+        if "independent" in params:
+            self.check_independent.setChecked(params["independent"])
+
         # Details state
-        if "show_details" in params: self.check_details.setChecked(params["show_details"])
-        
+        if "show_details" in params:
+            self.check_details.setChecked(params["show_details"])
+
         if "build_mode" in params:
             idx = self.combo_build_mode.findData(params["build_mode"])
-            if idx >= 0: self.combo_build_mode.setCurrentIndex(idx)
+            if idx >= 0:
+                self.combo_build_mode.setCurrentIndex(idx)
 
         # Manual paths
-        if "input_path" in params: self.input_path.setText(params["input_path"])
-        if "output_path" in params: self.output_path.setText(params["output_path"])
-        if "ply_name" in params: self.ply_name_edit.setText(params["ply_name"])
+        if "input_path" in params:
+            self.input_path.setText(params["input_path"])
+        if "output_path" in params:
+            self.output_path.setText(params["output_path"])
+        if "ply_name" in params:
+            self.ply_name_edit.setText(params["ply_name"])
 
         self.update_visibility()
 
@@ -456,7 +492,7 @@ class BrushTab(QWidget):
             self.status_lbl.setText(tr("brush_detected", self.bin_path))
         else:
             self.status_lbl.setText(tr("brush_not_found"))
-            
+
         self.param_group.setTitle(tr("brush_params"))
         self.lbl_steps.setText(tr("brush_lbl_steps"))
         self.lbl_sh.setText(tr("brush_sh_degree"))
@@ -464,39 +500,39 @@ class BrushTab(QWidget):
         self.lbl_args.setText(tr("brush_args"))
         self.lbl_res.setText(tr("brush_lbl_res"))
         self.res_warn_label.setText(tr("brush_res_warn"))
-        
+
         self.max_resolution_spin.setSpecialValueText(tr("brush_res_default"))
         self.max_resolution_spin.setToolTip(tr("brush_tip_res"))
         self.check_viewer.setText(tr("brush_viewer"))
         self.check_independent.setText(tr("check_brush_independent"))
-        
+
         self.btn_reinstall_brush.setText(tr("btn_reinstall_brush"))
-        
+
         self.combo_build_mode.setItemText(0, tr("brush_build_release"))
         self.combo_build_mode.setItemText(1, tr("brush_build_compile"))
-        
+
         # ComboBoxes
         self.combo_mode.setItemText(0, tr("brush_mode_new"))
         self.combo_mode.setItemText(1, tr("brush_mode_refine"))
         self.combo_mode.setToolTip(tr("brush_tip_mode"))
         self.lbl_mode.setText(tr("brush_lbl_mode"))
-        
+
         self.combo_preset.setItemText(0, tr("brush_preset_default"))
         self.combo_preset.setItemText(1, tr("brush_preset_fast"))
         self.combo_preset.setItemText(2, tr("brush_preset_std"))
         self.combo_preset.setItemText(3, tr("brush_preset_dense"))
         self.lbl_preset.setText(tr("brush_lbl_preset"))
-        
+
         self.manual_group.setTitle(tr("brush_group_paths"))
         self.lbl_dataset.setText(tr("brush_lbl_input"))
         self.lbl_export.setText(tr("brush_lbl_output"))
         self.lbl_ply_manual.setText(tr("brush_lbl_ply"))
-        
+
         self.btn_train.setText(tr("btn_train_brush") if self.btn_train.isEnabled() else tr("btn_stop"))
         if hasattr(self, 'btn_run_standalone'):
             self.btn_run_standalone.setText(tr("btn_brush_standalone", "Lancer Brush uniquement"))
         self.btn_stop.setText(tr("btn_stop"))
-        
+
         self.check_details.setText(tr("brush_check_details"))
         self.lbl_start.setText(tr("brush_lbl_start"))
         self.lbl_refine.setText(tr("brush_lbl_refine"))
@@ -509,7 +545,7 @@ class BrushTab(QWidget):
 
     def get_state(self):
         return self.get_params()
-        
+
     def set_state(self, state):
         self.set_params(state)
 
@@ -526,13 +562,13 @@ class BrushTab(QWidget):
             root = resolve_project_root()
             brush_bin = root / "engines" / "brush"
             brush_version = root / "engines" / "brush.version"
-            
+
             try:
                 if brush_bin.exists():
                     brush_bin.unlink()
                 if brush_version.exists():
                     brush_version.unlink()
-                    
+
                 QMessageBox.information(
                     self,
                     tr("btn_reinstall_brush"),
@@ -543,24 +579,24 @@ class BrushTab(QWidget):
                 QMessageBox.critical(self, tr("msg_error"), f"Erreur lors de la suppression de Brush: {e}")
 
     def run_standalone(self):
-        from app.core.system import resolve_binary
         from app.core.brush_engine import BrushEngine
-        
+        from app.core.system import resolve_binary
+
         bin_path = resolve_binary("brush")
         if not bin_path:
             QMessageBox.critical(self, tr("msg_error"), tr("err_brush_missing", "Exécutable brush introuvable."))
             return
-        
+
         input_path = self.input_path.text().strip()
         output_path = self.output_path.text().strip()
-        
+
         if not input_path:
             QMessageBox.warning(self, tr("msg_warning"), tr("err_brush_no_input", "Veuillez spécifier un dossier de dataset."))
             return
         if not output_path:
             QMessageBox.warning(self, tr("msg_warning"), tr("err_brush_no_output", "Veuillez spécifier un dossier de sortie."))
             return
-            
+
         try:
             # Use BrushEngine.build_command() to respect build_mode, sh_degree, refine_every, etc.
             engine = BrushEngine()

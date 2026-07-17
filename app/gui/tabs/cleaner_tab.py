@@ -1,19 +1,28 @@
 """Onglet de nettoyage des splats (PLY Cleaner)."""
 import os
-from pathlib import Path
 
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QGroupBox, QComboBox, QDoubleSpinBox,
-    QMessageBox, QProgressBar, QFormLayout, QCheckBox,
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
-from app.gui.widgets.dialog_utils import (
-    get_open_file_name, get_existing_directory, get_save_file_name,
-)
-from PyQt6.QtCore import pyqtSignal, Qt
 
-from app.core.ply_cleaner import PRESETS, resolve_params
 from app.core.i18n import tr
+from app.core.ply_cleaner import PRESETS, resolve_params
+from app.gui.widgets.dialog_utils import (
+    get_existing_directory,
+    get_open_file_name,
+    get_save_file_name,
+)
 
 
 class CleanerTab(QWidget):

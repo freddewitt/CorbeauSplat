@@ -2,23 +2,40 @@
 """CorbeauSplat CLI package — command-line interface and GUI launcher."""
 import sys
 
-from .parser import get_parser
+from app.core.system import check_dependencies
+
 from .commands import (
-    run_colmap,
-    run_brush,
-    run_sharp,
-    run_clean,
-    run_supersplat,
-    run_upscale,
-    run_4dgs,
-    run_extract360,
-    run_pipeline,
-    DISPATCH,
     BRUSH_DEFAULTS,
     BRUSH_PRESETS,
+    DISPATCH,
+    run_4dgs,
+    run_brush,
+    run_clean,
+    run_colmap,
+    run_extract360,
+    run_pipeline,
+    run_sharp,
+    run_supersplat,
+    run_upscale,
 )
 from .launcher import _launch_gui
-from app.core.system import check_dependencies
+from .parser import get_parser
+
+__all__ = [
+    "BRUSH_DEFAULTS",
+    "BRUSH_PRESETS",
+    "DISPATCH",
+    "main",
+    "run_4dgs",
+    "run_brush",
+    "run_clean",
+    "run_colmap",
+    "run_extract360",
+    "run_pipeline",
+    "run_sharp",
+    "run_supersplat",
+    "run_upscale",
+]
 
 
 def main():

@@ -1,11 +1,7 @@
 """Tests pour app/core/sharp_engine.py — SharpEngine."""
-import os
 import sys
-import shutil
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call, ANY
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 # Patch missing modules at module level
 for _mod_name in ["cv2", "send2trash"]:

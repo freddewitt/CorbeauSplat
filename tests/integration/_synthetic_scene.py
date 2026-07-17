@@ -41,8 +41,10 @@ def _make_texture(seed: int, size: int = 512) -> np.ndarray:
 
 
 def _look_at(eye: np.ndarray, target: np.ndarray,
-             up: np.ndarray = np.array([0.0, 0.0, 1.0])) -> tuple[np.ndarray, np.ndarray]:
+             up: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Rotation/translation monde→caméra (convention OpenCV : +Z avant, +Y bas)."""
+    if up is None:
+        up = np.array([0.0, 0.0, 1.0])
     fwd = target - eye
     fwd = fwd / np.linalg.norm(fwd)
     right = np.cross(fwd, up)
@@ -62,7 +64,7 @@ def _project(pts_w: np.ndarray, R: np.ndarray, t: np.ndarray,
 def _homography(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
     """Homographie DLT envoyant src[i] → dst[i] (4 correspondances)."""
     A = []
-    for (x, y), (u, v) in zip(src, dst):
+    for (x, y), (u, v) in zip(src, dst, strict=False):
         A.append([-x, -y, -1, 0, 0, 0, u * x, u * y, u])
         A.append([0, 0, 0, -x, -y, -1, v * x, v * y, v])
     _, _, Vt = np.linalg.svd(np.array(A, float))

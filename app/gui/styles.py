@@ -1,14 +1,15 @@
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtGui import QPalette, QColor
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtWidgets import QApplication
+
 
 def set_dark_theme(app_instance=None):
     """Applique un thème sombre"""
     if app_instance is None:
         app_instance = QApplication.instance()
-        
+
     dark_palette = QPalette()
-    
+
     # Couleurs de base
     dark_palette.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
     dark_palette.setColor(QPalette.ColorRole.WindowText, Qt.GlobalColor.white)
@@ -23,27 +24,27 @@ def set_dark_theme(app_instance=None):
     dark_palette.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
     dark_palette.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
     dark_palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.black)
-    
+
     app_instance.setPalette(dark_palette)
     app_instance.setStyleSheet("""
-        QToolTip { 
-            color: #ffffff; 
-            background-color: #2a82da; 
-            border: 1px solid white; 
+        QToolTip {
+            color: #ffffff;
+            background-color: #2a82da;
+            border: 1px solid white;
         }
-        QGroupBox { 
-            border: 1px solid #76797C; 
-            margin-top: 1.5em; 
+        QGroupBox {
+            border: 1px solid #76797C;
+            margin-top: 1.5em;
             border-radius: 4px;
         }
-        QGroupBox::title { 
-            subcontrol-origin: margin; 
-            subcontrol-position: top center; 
-            padding: 0 3px; 
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top center;
+            padding: 0 3px;
             color: #ffffff;
         }
-        QTabWidget::pane { 
-            border: 1px solid #76797C; 
+        QTabWidget::pane {
+            border: 1px solid #76797C;
         }
         QTabBar::tab {
             background: #353535;
