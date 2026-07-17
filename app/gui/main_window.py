@@ -367,7 +367,11 @@ class ColmapGUI(QMainWindow):
                 QMessageBox.information(self, tr("msg_success"),
                                         f"{message}\n\n{tr('success_open_brush')}")
         else:
-            if not (self.worker and self.worker.stopped_by_user):
+            # on_finished est branché sur plusieurs workers (COLMAP, 4DGS) : il faut
+            # vérifier stopped_by_user sur l'émetteur réel du signal, pas sur
+            # self.worker qui peut être obsolète/None en mode 4DGS.
+            sender = self.sender()
+            if not (sender and getattr(sender, 'stopped_by_user', False)):
                 QMessageBox.warning(self, tr("msg_error"), f"{tr('msg_error')}:\n{message}")
             
     def delete_dataset(self):
@@ -449,7 +453,15 @@ class ColmapGUI(QMainWindow):
                 output_path = Path(output_path_str)
             else:
                 output_path = input_path / "checkpoints"
-            output_path.mkdir(parents=True, exist_ok=True)
+            try:
+                output_path.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                QMessageBox.critical(
+                    self, tr("msg_error"),
+                    f"Impossible de créer le dossier de sortie :\n{output_path}\n\n"
+                    f"Vérifiez que le disque est bien connecté.\n({e})"
+                )
+                return
             self._last_brush_output_path = output_path
 
         else:
@@ -481,9 +493,17 @@ class ColmapGUI(QMainWindow):
                 keep_only_latest = True
             else:
                 output_path = dataset_path / "checkpoints"
-            output_path.mkdir(parents=True, exist_ok=True)
+            try:
+                output_path.mkdir(parents=True, exist_ok=True)
+            except OSError as e:
+                QMessageBox.critical(
+                    self, tr("msg_error"),
+                    f"Impossible de créer le dossier de sortie :\n{output_path}\n\n"
+                    f"Vérifiez que le disque est bien connecté.\n({e})"
+                )
+                return
             self._last_brush_output_path = output_path
-        
+
         self.brush_tab.set_processing_state(True)
         self.logs_tab.append_log(tr("msg_brush_start", str(input_path)))
         self.logs_tab.append_log(tr("msg_brush_out", str(output_path)))

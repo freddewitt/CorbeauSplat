@@ -230,7 +230,11 @@ class BrushWorker(BaseWorker):
                     # 4. Symlinks sparse & images
                     try:
                         self.log_signal.emit("Création des liens symboliques pour sparse et images...")
-                        os.symlink(resolved_input / "sparse", refine_dir / "sparse")
+                        try:
+                            os.symlink(resolved_input / "sparse", refine_dir / "sparse")
+                        except OSError as e:
+                            self.log_signal.emit(f"Symlink sparse échoué ({e}), tentative copie (plus lent)...")
+                            shutil.copytree(resolved_input / "sparse", refine_dir / "sparse")
                         try:
                             os.symlink(resolved_input / "images", refine_dir / "images")
                         except OSError as e:

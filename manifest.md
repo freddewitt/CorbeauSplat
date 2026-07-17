@@ -29,7 +29,7 @@ python3 main.py clean -i noisy.ply -o cleaned.ply --then-export spz
 
 ## Architecture
 
-Vue d'ensemble : `main.py` (entry) → `app/cli/` (dispatch CLI) et `app/gui/` (PyQt6, `main_window.py` orchestrateur + `tabs/` par moteur) s'appuient tous deux sur `app/core/` (moteurs, tous héritant de `base_engine.py`/BaseEngine : `engine.py`/ColmapEngine, `brush_engine.py`, `sharp_engine.py`, `upscale_engine.py`, `superplat_engine.py`, `four_dgs_engine.py`, `extractor_360_engine.py`, `export_engine.py`, `ply_cleaner.py`, `splat_transform_engine.py`). `app/scripts/installers/` installe les binaires externes dans `engines/`.
+Vue d'ensemble : `main.py` (entry) → `app/cli/` (dispatch CLI) et `app/gui/` (PyQt6, `main_window.py` orchestrateur + `tabs/` par moteur) s'appuient tous deux sur `app/core/` (moteurs, tous héritant de `base_engine.py`/BaseEngine : `engine.py`/ColmapEngine, `brush_engine.py`, `sharp_engine.py`, `upscale_engine.py`, `superplat_engine.py`, `four_dgs_engine.py`, `extractor_360_engine.py`, `export_engine.py`, `ply_cleaner.py`, `splat_transform_engine.py`). `colmap_commands.py` isole la construction des argv COLMAP (SRP, extrait de ColmapEngine — v1.2.3). `app/scripts/installers/` installe les binaires externes dans `engines/`.
 
 Détail (fichiers, classes, patterns, moteurs, dépendances, sécurité) → `graphify query "<question>"` ou `graphify explain "<concept>"`. Ne pas dupliquer ici ce que le graphe retrouve déjà.
 
@@ -83,10 +83,11 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 
 ## RESTE À FAIRE (priorisé)
 
-1. **Commit** working tree (checkpoints Brush + bugfix SplatTransform + tests e2e P0-P2)
-2. **E2E 360 Extractor** (`.venv_360` requis, générateur équirectangulaire à créer)
-3. **E2E Sharp vidéo** (ffmpeg + Sharp predict par frame)
-4. **E2E 4DGS** (ffmpeg + COLMAP + nerfstudio, coûteux)
+1. **E2E 360 Extractor** (`.venv_360` requis, générateur équirectangulaire à créer)
+2. **E2E Sharp vidéo** (ffmpeg + Sharp predict par frame)
+3. **E2E 4DGS** (ffmpeg + COLMAP + nerfstudio, coûteux)
+
+> Résolu : **audit SRP `ColmapEngine`** — session 2026-07-15. Construction des commandes CLI COLMAP (feature_extraction/matching/mapper/undistorter) extraite vers `app/core/colmap_commands.py` (fonctions pures) ; orchestration du pipeline inchangée dans `ColmapEngine`. 292 tests passent sans modification, vérifié en exécution réelle sur Apple Silicon. Commits `12f260f` (checkpoints Brush + bugfix SplatTransform + e2e P0-P2 + manifest allégé) et `3f8e51d` (extraction colmap_commands.py).
 
 > Résolu : **manifest.md allégé** (détail archi renvoyé vers `graphify query`) — session 2026-07-15. **`test_export_spz_created`** revérifié (isolé + suite complète + suite e2e) : passe systématiquement, l'échec signalé était obsolète — session 2026-07-15.
 

@@ -64,7 +64,8 @@ class FourDGSEngine(BaseEngine):
         ])
         
         # Template Method : Délégation à _execute_command centralisé
-        return self._execute_command(cmd) == 0
+        # Grosses vidéos / disques externes lents : même palier que Brush (4h).
+        return self._execute_command(cmd, timeout=14400) == 0
 
     def run_colmap(self, dataset_root):
         """Lance le pipeline COLMAP : Feature Extractor -> Matcher -> Mapper"""
@@ -87,8 +88,8 @@ class FourDGSEngine(BaseEngine):
             "--ImageReader.single_camera", "1" 
         ]
         
-        if self._execute_command(cmd_extract) != 0: return False
-        
+        if self._execute_command(cmd_extract, timeout=14400) != 0: return False
+
         self.log("--- COLMAP: Feature Matching ---")
         self.status("Matching des features...")
         cmd_match = [
@@ -96,7 +97,7 @@ class FourDGSEngine(BaseEngine):
             "--database_path", str(db_path),
         ]
 
-        if self._execute_command(cmd_match) != 0: return False
+        if self._execute_command(cmd_match, timeout=14400) != 0: return False
         
         # 3. Mapper
         self.log("--- COLMAP: Mapper (Sparse Reconstruction) ---")
@@ -111,7 +112,7 @@ class FourDGSEngine(BaseEngine):
         threads = str(get_optimal_threads())
         cmd_mapper.append(f"--Mapper.num_threads={threads}")
 
-        if self._execute_command(cmd_mapper) != 0: return False
+        if self._execute_command(cmd_mapper, timeout=14400) != 0: return False
         
         return True
 

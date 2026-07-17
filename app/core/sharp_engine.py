@@ -174,23 +174,28 @@ class SharpEngine(BaseEngine):
         
         if log_callback:
             log_callback(f"Running: {' '.join(ffmpeg_cmd)}")
-        
-        try:
-            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=3600)
-        except subprocess.TimeoutExpired:
+
+        # Délégation au runner standard (Template Method) : rend l'extraction
+        # annulable via self.stop() / self.runner.terminate(), contrairement à
+        # un subprocess.run() bloquant.
+        extraction_log = []
+
+        def _ffmpeg_line(line_str):
+            extraction_log.append(line_str)
             if log_callback:
-                log_callback("FFmpeg timed out after 3600s — aborting frame extraction.")
+                log_callback(line_str)
+
+        returncode = self._execute_command(ffmpeg_cmd, line_callback=_ffmpeg_line, timeout=3600)
+
+        if self.stop_requested:
+            if log_callback:
+                log_callback("--- Arrêté par l'utilisateur ---")
             shutil.rmtree(frames_dir, ignore_errors=True)
             return 0
-        except FileNotFoundError:
+
+        if returncode != 0:
             if log_callback:
-                log_callback("Erreur : FFmpeg introuvable.")
-            shutil.rmtree(frames_dir, ignore_errors=True)
-            return 0
-        
-        if result.returncode != 0:
-            if log_callback:
-                log_callback(f"FFmpeg error: {result.stderr}")
+                log_callback(f"FFmpeg error (code {returncode}): {' | '.join(extraction_log[-5:])}")
             shutil.rmtree(frames_dir, ignore_errors=True)
             return 0
         

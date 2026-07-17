@@ -156,7 +156,11 @@ def download_binary(log_callback=None) -> Path:
     checksums = load_expected_checksums()
     checksum_key = "darwin_upscayl" if platform.system() == "Darwin" else "linux_upscayl"
     if not verify_download(archive_path, checksums.get(checksum_key, "")):
-        log(f"⚠️ upscayl archive SHA256 mismatch (checksum key: {checksum_key}). Continuing anyway.")
+        archive_path.unlink(missing_ok=True)
+        raise RuntimeError(
+            f"upscayl archive SHA256 mismatch (checksum key: {checksum_key}) — "
+            f"installation refusée pour éviter d'exécuter un binaire non vérifié."
+        )
 
     log("Extracting...")
 

@@ -30,30 +30,25 @@ class TestProcessVideoFrames:
         engine.runner.wait.return_value = 0
         return engine
 
-    @patch("shutil.which")
-    @patch("subprocess.run")
-    def test_successful_frame_processing(self, mock_subprocess_run, mock_which, tmp_path):
+    def test_successful_frame_processing(self, tmp_path):
         """Traitement vidéo réussi avec extraction FFmpeg et prédiction Sharp."""
-        mock_which.return_value = "/usr/local/bin/ffmpeg"
-
         output_dir = tmp_path / "output"
         frames_dir = output_dir / "temp_frames"
-
-        # Mock FFmpeg success by creating frame files as side effect
-        def ffmpeg_side_effect(cmd, **kwargs):
-            # This simulates what FFmpeg would do: create the frames
-            frames_dir.mkdir(parents=True, exist_ok=True)
-            for i in range(1, 4):
-                (frames_dir / f"frame_{i:04d}.png").write_bytes(b"fake_png")
-            mock_result = MagicMock()
-            mock_result.returncode = 0
-            return mock_result
-
-        mock_subprocess_run.side_effect = ffmpeg_side_effect
 
         from app.core.sharp_engine import SharpEngine
 
         engine = SharpEngine(logger_callback=print)
+        engine.runner = MagicMock()
+
+        # Mock FFmpeg success by creating frame files as side effect of start()
+        def ffmpeg_side_effect(cmd, env=None, **kwargs):
+            frames_dir.mkdir(parents=True, exist_ok=True)
+            for i in range(1, 4):
+                (frames_dir / f"frame_{i:04d}.png").write_bytes(b"fake_png")
+
+        engine.runner.start.side_effect = ffmpeg_side_effect
+        engine.runner.readline.return_value = ""  # EOF immédiat
+        engine.runner.wait.return_value = 0
 
         # Mock the predict method to return 0 and create PLY files
         with patch.object(engine, 'predict', return_value=0) as mock_predict:
@@ -77,15 +72,13 @@ class TestProcessVideoFrames:
 
             assert result == 3  # 3 frames processed
 
-    @patch("app.core.sharp_engine.shutil.which")
-    @patch("app.core.sharp_engine.subprocess.run")
-    def test_ffmpeg_not_found(self, mock_subprocess_run, mock_which, tmp_path):
+    def test_ffmpeg_not_found(self, tmp_path):
         """FFmpeg introuvable → retourne 0."""
-        mock_which.return_value = None  # ffmpeg not found
-
         from app.core.sharp_engine import SharpEngine
 
         engine = SharpEngine(logger_callback=print)
+        engine.runner = MagicMock()
+        engine.runner.start.side_effect = FileNotFoundError("ffmpeg not found")
 
         result = engine.process_video_frames(
             video_path=str(tmp_path / "input.mp4"),
@@ -95,20 +88,14 @@ class TestProcessVideoFrames:
         )
         assert result == 0
 
-    @patch("app.core.sharp_engine.shutil.which")
-    @patch("app.core.sharp_engine.subprocess.run")
-    def test_ffmpeg_error(self, mock_subprocess_run, mock_which, tmp_path):
+    def test_ffmpeg_error(self, tmp_path):
         """FFmpeg retourne une erreur → retourne 0."""
-        mock_which.return_value = "/usr/local/bin/ffmpeg"
-
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stderr = "Error processing file"
-        mock_subprocess_run.return_value = mock_result
-
         from app.core.sharp_engine import SharpEngine
 
         engine = SharpEngine(logger_callback=print)
+        engine.runner = MagicMock()
+        engine.runner.readline.return_value = ""  # EOF immédiat
+        engine.runner.wait.return_value = 1
 
         result = engine.process_video_frames(
             video_path=str(tmp_path / "input.mp4"),
@@ -118,19 +105,14 @@ class TestProcessVideoFrames:
         )
         assert result == 0
 
-    @patch("app.core.sharp_engine.shutil.which")
-    @patch("app.core.sharp_engine.subprocess.run")
-    def test_no_frames_extracted(self, mock_subprocess_run, mock_which, tmp_path):
+    def test_no_frames_extracted(self, tmp_path):
         """Aucune frame extraite → retourne 0."""
-        mock_which.return_value = "/usr/local/bin/ffmpeg"
-
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_subprocess_run.return_value = mock_result
-
         from app.core.sharp_engine import SharpEngine
 
         engine = SharpEngine(logger_callback=print)
+        engine.runner = MagicMock()
+        engine.runner.readline.return_value = ""  # EOF immédiat
+        engine.runner.wait.return_value = 0
 
         # No frames in the temp_frames dir (let process_video_frames create it empty)
         result = engine.process_video_frames(
@@ -141,29 +123,25 @@ class TestProcessVideoFrames:
         )
         assert result == 0
 
-    @patch("shutil.which")
-    @patch("subprocess.run")
-    def test_cancel_callback_stops_processing(self, mock_subprocess_run, mock_which, tmp_path):
+    def test_cancel_callback_stops_processing(self, tmp_path):
         """Callback d'annulation → arrêt après la frame en cours."""
-        mock_which.return_value = "/usr/local/bin/ffmpeg"
-
         output_dir = tmp_path / "output"
         frames_dir = output_dir / "temp_frames"
-
-        # Mock FFmpeg success: create 5 frames
-        def ffmpeg_side_effect(cmd, **kwargs):
-            frames_dir.mkdir(parents=True, exist_ok=True)
-            for i in range(1, 6):
-                (frames_dir / f"frame_{i:04d}.png").write_bytes(b"fake_png")
-            mock_result = MagicMock()
-            mock_result.returncode = 0
-            return mock_result
-
-        mock_subprocess_run.side_effect = ffmpeg_side_effect
 
         from app.core.sharp_engine import SharpEngine
 
         engine = SharpEngine(logger_callback=print)
+        engine.runner = MagicMock()
+
+        # Mock FFmpeg success: create 5 frames
+        def ffmpeg_side_effect(cmd, env=None, **kwargs):
+            frames_dir.mkdir(parents=True, exist_ok=True)
+            for i in range(1, 6):
+                (frames_dir / f"frame_{i:04d}.png").write_bytes(b"fake_png")
+
+        engine.runner.start.side_effect = ffmpeg_side_effect
+        engine.runner.readline.return_value = ""  # EOF immédiat
+        engine.runner.wait.return_value = 0
 
         # Cancel after the 2nd frame
         cancel_count = [0]
@@ -192,19 +170,14 @@ class TestProcessVideoFrames:
             assert result < 5
             assert result >= 1  # at least 1 before cancellation
 
-    @patch("app.core.sharp_engine.shutil.which")
-    @patch("app.core.sharp_engine.subprocess.run")
-    def test_skip_frames_param(self, mock_subprocess_run, mock_which, tmp_path):
+    def test_skip_frames_param(self, tmp_path):
         """skip_frames modifie la commande FFmpeg."""
-        mock_which.return_value = "/usr/local/bin/ffmpeg"
-
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_subprocess_run.return_value = mock_result
-
         from app.core.sharp_engine import SharpEngine
 
         engine = SharpEngine(logger_callback=print)
+        engine.runner = MagicMock()
+        engine.runner.readline.return_value = ""  # EOF immédiat
+        engine.runner.wait.return_value = 0
         output_dir = tmp_path / "output"
 
         with patch.object(engine, 'predict', return_value=0):
@@ -218,7 +191,7 @@ class TestProcessVideoFrames:
             )
 
             # Check the ffmpeg command that was built
-            cmd_args = mock_subprocess_run.call_args[0][0]
+            cmd_args = engine.runner.start.call_args[0][0]
             assert "select=not(mod(n\\,3))" in cmd_args or "select=not(mod(n,3))" in cmd_args
 
 

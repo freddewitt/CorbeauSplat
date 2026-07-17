@@ -607,7 +607,8 @@ class ColmapEngine(BaseEngine):
                         self.logger.debug("Failed to parse frame number: %s", e)
                         
         try:
-            returncode = self._execute_command(cmd, line_callback=_ffmpeg_parser)
+            # Grosses vidéos / disques externes lents : même palier que Brush (4h).
+            returncode = self._execute_command(cmd, line_callback=_ffmpeg_parser, timeout=14400)
             if self.is_cancelled(): return None
             
             if returncode == 0:
@@ -655,7 +656,8 @@ class ColmapEngine(BaseEngine):
                         self.status(f"{status_prefix} : image {parts[1].strip()}")
                         
         try:
-            returncode = self._execute_command(cmd, env=env, line_callback=_colmap_parser)
+            # Grandes scènes : matching/mapper peuvent dépasser 1h — aligné sur Brush (4h).
+            returncode = self._execute_command(cmd, env=env, line_callback=_colmap_parser, timeout=14400)
             if self.is_cancelled(): return False
                 
             if returncode == 0:
@@ -888,6 +890,7 @@ class ColmapEngine(BaseEngine):
             return False, "Le dossier n'existe pas"
             
         try:
+            failed = []
             for item in target_path.iterdir():
                 if item.name == "images":
                     continue
@@ -895,6 +898,9 @@ class ColmapEngine(BaseEngine):
                     send2trash.send2trash(str(item))
                 except Exception as e:
                     logging.getLogger(__name__).error("Failed to trash %s. Reason: %s", item, e)
+                    failed.append(item.name)
+            if failed:
+                return False, f"Échec de suppression : {', '.join(failed)}"
             return True, "Contenu mis à la corbeille"
         except Exception as e:
             logging.getLogger(__name__).error("Error during project cleanup: %s", e)
