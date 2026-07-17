@@ -136,8 +136,8 @@ class BrushEngineDep(EngineDependency):
         archive_path = self.engines_dir / f"brush-app-{platform_suffix}"
         try:
             req = urllib.request.Request(release_url)
-            with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as f:
-                f.write(resp.read())
+            with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as out_f:
+                out_f.write(resp.read())
         except Exception as e:
             print(f"⚠️ Download failed: {e}")
             if archive_path.exists():
@@ -166,11 +166,11 @@ class BrushEngineDep(EngineDependency):
                         zf.extract(member, extract_dir)
             else:
                 with tarfile.open(archive_path, 'r:xz') as tf:
-                    for member in tf.getmembers():
-                        if not _is_safe_member(member.name, dest_resolved):
-                            print(f"⚠️ Rejected unsafe archive member: {member.name}")
+                    for tar_member in tf.getmembers():
+                        if not _is_safe_member(tar_member.name, dest_resolved):
+                            print(f"⚠️ Rejected unsafe archive member: {tar_member.name}")
                             continue
-                        tf.extract(member, extract_dir)
+                        tf.extract(tar_member, extract_dir)
         except Exception as e:
             print(f"⚠️ Extraction failed: {e}")
             archive_path.unlink(missing_ok=True)

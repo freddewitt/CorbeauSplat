@@ -7,7 +7,7 @@ PyQt6-Qt6==6.11.0
 PyQt6_sip==13.11.1
 numpy==2.4.4
 opencv-python-headless==4.13.0.92
-Pillow==11.3.0
+Pillow==12.3.0
 plyfile==0.9
 pyobjc-core==12.1; sys_platform == "darwin"
 pyobjc-framework-Cocoa==10.3.2; sys_platform == "darwin"

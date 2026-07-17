@@ -45,13 +45,13 @@ if sys.platform == "darwin":
     try:
         import ctypes
         _libc = ctypes.CDLL("libSystem.B.dylib")
-        _clonefile = _libc.clonefile
+        _clonefile: Any = _libc.clonefile
         _clonefile.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
         _clonefile.restype = ctypes.c_int
         # Quick check: call clonefile with a non-existent src to verify
         # the symbol exists (expected to fail with ENOENT, not ENOSYS)
         _clonefile(b"/nonexistent/path", b"/tmp/test_clone", 0)
-    except (AttributeError, OSError, ctypes.CDLLError):
+    except (AttributeError, OSError):
         _clonefile = None
     else:
         _CLONEFILE_SUPPORTED = True
@@ -359,7 +359,7 @@ class ColmapEngine(BaseEngine):
             return False, tr("USER_CANCELLED")
 
         self.status(tr("status_reconstruction", "Création de la scène 3D..."))
-        if not self.mapper(str(database_path), str(images_dir), str(sparse_dir)):
+        if not self.mapper(str(database_path), str(images_dir), sparse_dir):
             return False, "Échec reconstruction"
 
         self.progress(90)
@@ -468,8 +468,8 @@ class ColmapEngine(BaseEngine):
                     _apfs_copy(file_path, target_path)
 
                     if i % 10 == 0 or i == total_files - 1:
-                        p = 5 + int((i / total_files) * 15)
-                        self.progress(p)
+                        pct = 5 + int((i / total_files) * 15)
+                        self.progress(pct)
                         self.status(f"Copie des images : {i+1} / {total_files}")
 
                 self.log(f"✅ {total_files} images copiées vers {images_dir}")
@@ -499,12 +499,13 @@ class ColmapEngine(BaseEngine):
                 shutil.move(str(images_dir), str(images_sources_dir))
                 images_dir.mkdir(parents=True, exist_ok=True)
 
-                model_id    = self.upscale_config.get("model_id") or _first_available_model()
-                scale       = self.upscale_config.get("scale", 4)
-                out_format  = self.upscale_config.get("format", "png")
-                tile        = self.upscale_config.get("tile", 0)
-                tta         = self.upscale_config.get("tta", False)
-                compression = self.upscale_config.get("compression", 0)
+                upscale_conf = getattr(self, 'upscale_config', {}) or {}
+                model_id    = upscale_conf.get("model_id") or _first_available_model()
+                scale       = upscale_conf.get("scale", 4)
+                out_format  = upscale_conf.get("format", "png")
+                tile        = upscale_conf.get("tile", 0)
+                tta         = upscale_conf.get("tta", False)
+                compression = upscale_conf.get("compression", 0)
 
                 self.log(f"Upscaling x{scale} with model '{model_id}'...")
                 success, msg = upscaler.upscale_folder(

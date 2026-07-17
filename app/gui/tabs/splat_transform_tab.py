@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
@@ -268,7 +269,7 @@ class SplatTransformTab(QWidget):
         self.transformRequested.emit(input_p, output_file, params)
 
     def _build_params(self) -> dict:
-        params = {}
+        params: dict[str, Any] = {}
         if self.check_filter_nan.isChecked():
             params["--filter-nan"] = True
         if self.check_morton.isChecked():

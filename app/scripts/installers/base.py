@@ -137,7 +137,7 @@ class PipEngine(EngineDependency):
 class DependencyManager:
     def __init__(self, engines_dir: Path):
         self.engines_dir = engines_dir
-        self.engines = {}
+        self.engines: dict[str, EngineDependency] = {}
 
     def register(self, engine: EngineDependency):
         self.engines[engine.name] = engine

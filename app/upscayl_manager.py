@@ -218,7 +218,10 @@ def _extract_archive(archive: Path, bin_dest: Path, models_dest: Path, log):
         with tarfile.open(archive, "r:gz") as tf:
             for member in tf.getmembers():
                 if member.isfile():
-                    handle_member(member.name, lambda m=member: tf.extractfile(m).read())
+                    def _read_member(m=member):
+                        f = tf.extractfile(m)
+                        return f.read() if f else b""
+                    handle_member(member.name, _read_member)
     else:
         log(f"Unknown archive format: {archive.name}")
 

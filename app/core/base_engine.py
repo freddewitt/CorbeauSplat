@@ -7,6 +7,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 from .system import get_device, resolve_project_root
 
@@ -14,7 +15,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 
 class IProcessRunner:
     """Interface abstraite pour l'exécution d'un processus systéme (DIP & Testabilité)"""
-    def start(self, cmd: list, env: dict = None, **kwargs):
+    def start(self, cmd: list, env: dict | None = None, **kwargs):
         raise NotImplementedError()
 
     def poll(self):
@@ -29,7 +30,7 @@ class IProcessRunner:
     def stdout_iter(self) -> Iterator[str]:
         raise NotImplementedError()
 
-    def readline(self, timeout: float = None) -> str | None:
+    def readline(self, timeout: float | None = None) -> str | None:
         """Read a single line from stdout, with optional select-based timeout.
 
         Returns a line string (may be empty or end with newline), or None on timeout,
@@ -45,8 +46,8 @@ class SubprocessRunner(IProcessRunner):
     def __init__(self):
         self._process = None
 
-    def start(self, cmd: list, env: dict = None, **kwargs):
-        base_kwargs = {
+    def start(self, cmd: list, env: dict | None = None, **kwargs):
+        base_kwargs: dict[str, Any] = {
             'stdout': subprocess.PIPE,
             'stderr': subprocess.STDOUT,
             'text': True,
@@ -102,7 +103,7 @@ class SubprocessRunner(IProcessRunner):
         if getattr(self._process, 'stdout', None):
             yield from self._process.stdout
 
-    def readline(self, timeout: float = None) -> str | None:
+    def readline(self, timeout: float | None = None) -> str | None:
         """Read a single line using select for non-blocking timeout support."""
         if not self._process or not self._process.stdout:
             return ""
@@ -125,7 +126,7 @@ class BaseEngine:
     """
     _THERMAL_CHECK_INTERVAL = 30  # seconds between thermal state checks
 
-    def __init__(self, name, logger_callback=None, process_runner: IProcessRunner = None, thermal_throttling: bool = False):
+    def __init__(self, name, logger_callback=None, process_runner: IProcessRunner | None = None, thermal_throttling: bool = False):
         self.name = name
         self.logger_callback = logger_callback
         self.device = get_device()
@@ -205,7 +206,7 @@ class BaseEngine:
         self.runner.terminate()
         self._kill_process(self.process) # Legacy cleanup
 
-    def _execute_command(self, cmd: list, env: dict = None, line_callback=None,
+    def _execute_command(self, cmd: list, env: dict | None = None, line_callback=None,
                          timeout: float = 3600, inactivity_timeout: float = 0, **kwargs) -> int:
         """
         GoF-Template Method : Exécution générique centralisée de processus

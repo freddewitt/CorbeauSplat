@@ -19,7 +19,7 @@ class UpscaleEngine(BaseEngine):
         from app.upscayl_manager import find_binary
         return find_binary()
 
-    def _models_dir(self) -> Path:
+    def _models_dir(self) -> Path | None:
         from app.upscayl_manager import get_effective_models_dir
         return get_effective_models_dir()
 

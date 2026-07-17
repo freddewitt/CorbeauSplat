@@ -24,7 +24,7 @@ class ExportEngine(BaseEngine):
         output_path: str,
         output_format: str,
         scale: float = 1.0,
-        options: dict = None,
+        options: dict | None = None,
     ) -> bool:
         """Export PLY to target format.
 
