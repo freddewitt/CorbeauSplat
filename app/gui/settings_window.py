@@ -64,6 +64,8 @@ class SettingsWindow(QDialog):
 
         # Thème (fonctionnel)
         self.combo_theme = QComboBox()
+        self.combo_theme.setMinimumWidth(200)
+        self.combo_theme.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         for code, label in _THEMES:
             self.combo_theme.addItem(label, code)
         idx = self.combo_theme.findData(get_saved_theme())
@@ -75,6 +77,8 @@ class SettingsWindow(QDialog):
 
         # Langue (fonctionnel)
         self.combo_lang = QComboBox()
+        self.combo_lang.setMinimumWidth(200)
+        self.combo_lang.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         for code, label in _LANGUAGES:
             self.combo_lang.addItem(label, code)
         idx = self.combo_lang.findData(get_current_lang())
@@ -105,6 +109,9 @@ class SettingsWindow(QDialog):
         layout.addLayout(form)
 
         # Charger / Sauvegarder la configuration complète (câblage Lot 6)
+        self.lbl_current_config = QLabel(tr("settings_current_config", "Paramètres actuels"))
+        self.lbl_current_config.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self.lbl_current_config)
         cfg_row = QHBoxLayout()
         self.btn_load = QPushButton(tr("settings_load", "Charger…"))
         self.btn_load.clicked.connect(self.loadRequested.emit)
@@ -148,6 +155,7 @@ class SettingsWindow(QDialog):
 
     def retranslate_ui(self):
         self.setWindowTitle(tr("settings_title", "Réglages généraux"))
+        self.lbl_current_config.setText(tr("settings_current_config", "Paramètres actuels"))
         self.lbl_theme.setText(tr("theme_change", "Thème"))
         self.lbl_lang.setText(tr("lang_change", "Langue"))
         self.lbl_build_mode.setText(tr("settings_build_mode", "Mode de build Brush"))

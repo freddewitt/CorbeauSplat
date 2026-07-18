@@ -309,7 +309,7 @@ class EntrainementPanel:
         self.lbl_dataset.setText(tr("brush_lbl_input", "Dossier dataset (sparse + images)"))
         self.lbl_export.setText(tr("brush_lbl_output", "Dossier export"))
         self.lbl_ply.setText(tr("brush_lbl_ply", "Nom du fichier PLY (optionnel)"))
-        self.chk_visualiser.setText(tr("chain_view_after", "Visualiser après"))
+        self.chk_visualiser.setText(tr("chain_view_after", "Lancer dans SuperSplat"))
         self.lbl_preset.setText(tr("brush_lbl_preset", "Preset"))
         self.btn_save_preset.setToolTip(tr("brush_save_preset", "Enregistrer la config comme preset"))
         self.lbl_steps.setText(tr("brush_lbl_steps", "Steps total"))

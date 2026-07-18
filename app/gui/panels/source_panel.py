@@ -14,6 +14,7 @@ Reconstruction → Entraînement) est câblé au sous-lot 3c, une fois les 3 pan
 présents.
 """
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -116,23 +118,30 @@ class SourcePanel:
     # ── Barre de droite (essentiel / avancé) ────────────────────────────────────
     def _build_right(self):
         w = QWidget()
-        layout = QVBoxLayout(w)
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        content = QWidget()
+        layout = QVBoxLayout(content)
 
-        # Essentiels
+        # ── Automatisation (chaînage) ─── ordre : Brush → Nettoyage → Export → Vue
+        self.lbl_automation = QLabel()
+        self.lbl_automation.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self.lbl_automation)
+
         self.chk_entrainement = QCheckBox()
         self._bind(self.chk_entrainement, "entrainement_apres")
         layout.addWidget(self.chk_entrainement)
 
-        self.chk_visualiser = QCheckBox()
-        self._bind(self.chk_visualiser, "visualiser_apres")
-        layout.addWidget(self.chk_visualiser)
-
-        # Nettoyer après (n'ouvre rien de plus ici — réglages dans l'étape Nettoyage)
+        # Nettoyer (n'ouvre rien de plus ici — réglages dans l'étape Nettoyage)
         self.chk_nettoyer = QCheckBox()
         self._bind(self.chk_nettoyer, "nettoyer_apres")
         layout.addWidget(self.chk_nettoyer)
 
-        # Exporter après → révèle dossier + format
+        # Exporter → révèle dossier + format
         self.chk_exporter = QCheckBox()
         self._bind(self.chk_exporter, "exporter_apres")
         layout.addWidget(self.chk_exporter)
@@ -148,6 +157,10 @@ class SourcePanel:
         self.export_group.setVisible(False)
         self.chk_exporter.toggled.connect(self.export_group.setVisible)
         layout.addWidget(self.export_group)
+
+        self.chk_visualiser = QCheckBox()
+        self._bind(self.chk_visualiser, "visualiser_apres")
+        layout.addWidget(self.chk_visualiser)
 
         # Bouton Avancé (mémorisé plus tard, Lot 3 hiérarchie)
         self.btn_advanced = QPushButton()
@@ -179,6 +192,8 @@ class SourcePanel:
         layout.addWidget(self.advanced_group)
 
         layout.addStretch(1)
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
         return w
 
     def _bind(self, checkbox, flag):
@@ -232,10 +247,11 @@ class SourcePanel:
         self.lbl_ckpt.setText(tr("source_checkpoint_dest", "Destination des checkpoints (optionnel)"))
         self.lbl_fps.setText(tr("label_fps", "Images/s (vidéo)"))
         self.btn_delete_dataset.setText(tr("source_delete_dataset", "Supprimer le dataset existant"))
-        self.chk_entrainement.setText(tr("chain_train_after", "Entraînement après"))
-        self.chk_visualiser.setText(tr("chain_view_after", "Visualiser après"))
-        self.chk_nettoyer.setText(tr("chain_clean_after", "Nettoyer après"))
-        self.chk_exporter.setText(tr("chain_export_after", "Exporter après"))
+        self.lbl_automation.setText(tr("automation_title", "Automatisation"))
+        self.chk_entrainement.setText(tr("chain_train_after", "Lancer Brush"))
+        self.chk_nettoyer.setText(tr("chain_clean_after", "Nettoyage"))
+        self.chk_exporter.setText(tr("chain_export_after", "Exporter"))
+        self.chk_visualiser.setText(tr("chain_view_after", "Lancer dans SuperSplat"))
         self.export_group.setTitle(tr("source_export_options", "Options d'export"))
         self.btn_advanced.setText(tr("toggle_advanced", "Avancé"))
         self.chk_upscale.setText(tr("source_upscale", "Upscaler les images"))
