@@ -347,6 +347,10 @@ class ReconstructionPanel:
     def get_state(self):
         return self.get_params().to_dict()
 
+    def set_state(self, state):
+        if state:
+            self.set_params(ColmapParams.from_dict(state))
+
     # ── i18n ────────────────────────────────────────────────────────────────────
     def retranslate_ui(self):
         self.info_label.setText(tr("info_cpu", get_optimal_threads()))

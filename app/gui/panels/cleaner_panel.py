@@ -146,6 +146,35 @@ class CleanerPanel:
             return resolve_params(strength, overrides)
         return resolve_params(strength)
 
+    def get_state(self):
+        return {
+            "mode": self.combo_mode.currentData(),
+            "strength": self.combo_strength.currentData(),
+            "advanced": self.advanced_group.isChecked(),
+            "opacity_min": self.spin_opacity.value(),
+            "scale_pct": self.spin_scale.value(),
+            "outlier_pct": self.spin_outlier.value(),
+        }
+
+    def set_state(self, state):
+        if not state:
+            return
+        if state.get("mode"):
+            idx = self.combo_mode.findData(state["mode"])
+            if idx >= 0:
+                self.combo_mode.setCurrentIndex(idx)
+        if state.get("strength"):
+            idx = self.combo_strength.findData(state["strength"])
+            if idx >= 0:
+                self.combo_strength.setCurrentIndex(idx)
+        self.advanced_group.setChecked(state.get("advanced", False))
+        if "opacity_min" in state:
+            self.spin_opacity.setValue(state["opacity_min"])
+        if "scale_pct" in state:
+            self.spin_scale.setValue(state["scale_pct"])
+        if "outlier_pct" in state:
+            self.spin_outlier.setValue(state["outlier_pct"])
+
     def _browse_input(self):
         if self.is_batch():
             path = get_existing_directory(self.center, tr("btn_browse", "Parcourir"))

@@ -14,14 +14,18 @@ from PySide6.QtWidgets import (
     QApplication,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from app import VERSION
+from app.core import notifications
+from app.core.config_io import ChainConfig, list_configs, load_config, save_config
 from app.core.i18n import add_language_observer, tr
 from app.core.run_state import PIPELINE_STEPS, RunState, StepStatus
 from app.gui.logbar import LogBar
@@ -56,6 +60,7 @@ class StudioWindow(QMainWindow):
         self.nav = PageRegistry(_PAGE_KEYS)   # mapping pages + sélection courante
         self._auto_follow = True              # suit l'étape active (désaccouplé au clic manuel)
         self.current_plan = []
+        self._notifications_enabled = False
         self._settings_window = None
         self.init_ui()
         set_dark_theme(QApplication.instance())
@@ -180,9 +185,12 @@ class StudioWindow(QMainWindow):
     # ── Navigation ──────────────────────────────────────────────────────────────
     def on_rail_selected(self, key):
         """Sélection manuelle depuis le rail : désaccouple l'auto-follow (même
-        logique que le verrou d'auto-scroll des logs) et change la page."""
+        logique que le verrou d'auto-scroll des logs) et change la page. Si
+        l'étape est en erreur, déplie la barre de logs (clic sur l'icône rouge)."""
         self._auto_follow = False
         self._show_page(key)
+        if key in PIPELINE_STEPS and self.run_state.get_status(key) == StepStatus.ERROR:
+            self.logbar.set_collapsed(False)
 
     def _show_page(self, key):
         index = self.nav.select(key)
@@ -226,11 +234,75 @@ class StudioWindow(QMainWindow):
     def update_breadcrumb(self, plan):
         self.breadcrumb.setText(" → ".join(plan))
 
+    # ── Configuration nommée (Charger / Sauvegarder) ────────────────────────────
+    def collect_config(self) -> ChainConfig:
+        """Agrège l'état des panneaux + drapeaux en une ChainConfig sérialisable."""
+        def state_of(key):
+            panel = self.panels.get(key)
+            return panel.get_state() if panel and hasattr(panel, "get_state") else {}
+        return ChainConfig(
+            source=state_of("source"),
+            colmap=state_of("reconstruction"),
+            brush=state_of("entrainement"),
+            cleaning=state_of("nettoyage"),
+            export=state_of("export"),
+            flags=self.run_state.to_dict(),
+        )
+
+    def apply_config(self, cfg: ChainConfig):
+        """Applique une ChainConfig aux panneaux et aux drapeaux partagés."""
+        mapping = {
+            "source": cfg.source, "reconstruction": cfg.colmap,
+            "entrainement": cfg.brush, "nettoyage": cfg.cleaning, "export": cfg.export,
+        }
+        for key, state in mapping.items():
+            panel = self.panels.get(key)
+            if panel and hasattr(panel, "set_state"):
+                panel.set_state(state)
+        self.run_state.load_dict(cfg.flags or {})
+
+    def save_config_dialog(self):
+        name, ok = QInputDialog.getText(self, tr("settings_save", "Sauvegarder"),
+                                        tr("config_name", "Nom de la configuration"))
+        if ok and name.strip():
+            try:
+                save_config(name.strip(), self.collect_config())
+                self.logbar.append_log(tr("config_saved", "Configuration sauvegardée : ") + name.strip())
+            except (ValueError, OSError) as e:
+                QMessageBox.warning(self, tr("msg_error", "Erreur"), str(e))
+
+    def load_config_dialog(self):
+        names = list_configs()
+        if not names:
+            QMessageBox.information(self, tr("settings_load", "Charger"),
+                                   tr("config_none", "Aucune configuration sauvegardée."))
+            return
+        name, ok = QInputDialog.getItem(self, tr("settings_load", "Charger"),
+                                        tr("config_choose", "Configuration :"), names, 0, False)
+        if ok and name:
+            try:
+                self.apply_config(load_config(name))
+                self.logbar.append_log(tr("config_loaded", "Configuration chargée : ") + name)
+            except (ValueError, OSError) as e:
+                QMessageBox.warning(self, tr("msg_error", "Erreur"), str(e))
+
+    # ── Notifications ───────────────────────────────────────────────────────────
+    def set_notifications_enabled(self, enabled: bool):
+        self._notifications_enabled = bool(enabled)
+
+    def notify(self, title, message):
+        """Notifie l'utilisateur si les notifications sont activées."""
+        if self._notifications_enabled:
+            notifications.notify(title, message)
+
     # ── Réglages ──────────────────────────────────────────────────────────────
     def open_settings(self):
         if self._settings_window is None:
             self._settings_window = SettingsWindow(self)
             self._settings_window.quitRequested.connect(self.close)
+            self._settings_window.saveRequested.connect(self.save_config_dialog)
+            self._settings_window.loadRequested.connect(self.load_config_dialog)
+            self._settings_window.notificationsToggled.connect(self.set_notifications_enabled)
         self._settings_window.show()
         self._settings_window.raise_()
 

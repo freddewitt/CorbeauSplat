@@ -4,7 +4,8 @@
 > **En cas de reprise (`/reprise`), lire CE fichier en premier.** 1 commit par lot, journal mis à jour en fin de lot.
 
 ## ⏯️ Reprendre ici
-- **Lot courant** : Lots 3, 4 & 5 **terminés côté UI** (13 panneaux). Prochain : **Lot 6** (sauvegarde/chargement config_io, UI preset Brush, notifications macOS, passe i18n 9 locales) ou **câblage moteurs réels** = phase Apple Silicon.
+- **Lot courant** : Lots 3, 4, 5 & 6 **terminés côté UI**. Prochain : **Lot 7** (nettoyage final + bascule `main.py` vers StudioWindow) ou **câblage moteurs réels** = phase Apple Silicon.
+- **Décisions actées (Lot 6)** : notifications macOS via **pyobjc NSUserNotificationCenter** (zéro dépendance) ; i18n **9 langues traduites** (610 clés/fichier, parité vérifiée).
 - **⚠️ RESTE : câblage moteurs réels (phase Apple Silicon)** — commun aux Lots 3 et 4. Les panneaux + `launch()` pilotent l'UI (plan, breadcrumb, rail, statuts) mais **n'exécutent pas les moteurs**. À brancher : `ColmapWorker`/`BrushWorker`/`PostTrainingWorker` dans `launch()` (réutiliser logique `main_window.py`), boutons locaux Nettoyage(`CleanerWorker`)/Export(`ExportWorker`)/Visualiser(`SuperSplatEngine.start_data_server`/`stop_all` + `stop_all()` au `closeEvent`). Signaux → `logbar`/`rail.set_step_status`/breadcrumb.
 - **Prochaine action (Lot 5)** : modules OUTILS (Brush, ML Sharp, SuperSplat, Upscale, SplatTransform, 4DGS, 360) — panneaux plain dans `StudioWindow.panels` sur les clés TOOL_KEYS (déjà des placeholders). Réutiliser panneaux existants où identiques (Brush≈Entraînement mode manuel, SuperSplat≈Visualiser).
 - **Pattern panneau établi (3a)** : classe plain exposant `.center`/`.right` (QWidget), insérée dans `StudioWindow.panels[key]`. Toggles de chaînage via `bind_flag_checkbox(chk, run_state, flag)` (`app/gui/run_state_binding.py`) = source de vérité unique. Persistance via `get_state()`.
@@ -22,7 +23,7 @@
 | 3 | Pipeline Gsplat : Source / Reconstruction / Entraînement | ✅ UI+plan (reste câblage moteurs) | — |
 | 4 | Nettoyage / Export / Visualiser | ✅ UI (reste câblage moteurs) | — |
 | 5 | Modules OUTILS (7) | ✅ UI (reste câblage moteurs) | — |
-| 6 | Sauvegarde/chargement, presets, notifications, i18n | ☐ | — |
+| 6 | Sauvegarde/chargement, presets, notifications, i18n | ✅ (reste déclenchement notif dans câblage moteurs) | — |
 | 7 | Nettoyage final + bascule studio_window | ☐ | — |
 
 ## Résultat audit Lot 0 (écarts spec/prompt vs code réel à HEAD=d3352d6, v1.5.1)

@@ -111,6 +111,19 @@ class ExportPanel:
     def get_scale(self):
         return self.spin_scale.value()
 
+    def get_state(self):
+        return {"format": self.get_format(), "scale": self.get_scale()}
+
+    def set_state(self, state):
+        if not state:
+            return
+        if state.get("format"):
+            idx = self.combo_format.findData(state["format"])
+            if idx >= 0:
+                self.combo_format.setCurrentIndex(idx)
+        if "scale" in state:
+            self.spin_scale.setValue(state["scale"])
+
     def _update_warning(self, *_):
         # GLB nécessite une dépendance optionnelle (trimesh/open3d/assimp/blender).
         if self.get_format() == "glb":

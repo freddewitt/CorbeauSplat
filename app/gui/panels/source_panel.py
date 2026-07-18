@@ -240,6 +240,28 @@ class SourcePanel:
             "export_format": self.combo_export_format.currentData(),
         }
 
+    def set_state(self, state):
+        if not state:
+            return
+        self.input_project_name.setText(state.get("project_name", ""))
+        self.input_path.setText(state.get("input_path", ""))
+        self.output_path.setText(state.get("output_path", ""))
+        self.checkpoint_dest.setText(state.get("checkpoint_dest", ""))
+        if "fps" in state:
+            self.fps_spin.setValue(state["fps"])
+        self.chk_upscale.setChecked(state.get("upscale", False))
+        self.chk_filter_blur.setChecked(state.get("filter_blur", False))
+        if state.get("blur_strength"):
+            idx = self.combo_blur.findData(state["blur_strength"])
+            if idx >= 0:
+                self.combo_blur.setCurrentIndex(idx)
+        self.chk_stabilized.setChecked(state.get("stabilized", False))
+        self.export_dir.setText(state.get("export_dir", ""))
+        if state.get("export_format"):
+            idx = self.combo_export_format.findData(state["export_format"])
+            if idx >= 0:
+                self.combo_export_format.setCurrentIndex(idx)
+
     # ── i18n ────────────────────────────────────────────────────────────────────
     def retranslate_ui(self):
         self.lbl_project.setText(tr("label_project_name", "Nom du projet"))
