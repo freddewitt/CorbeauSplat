@@ -104,7 +104,7 @@ class StudioWindow(QMainWindow):
         # Barre de droite : largeur suffisante pour les accordéons de params, et
         # chaque panneau y gère son propre défilement vertical.
         self.right_stack = QStackedWidget()
-        self.right_stack.setFixedWidth(300)
+        self.right_stack.setFixedWidth(400)
         body.addWidget(self.right_stack)
 
         # Panneaux réels disponibles (les autres clés restent des placeholders,
