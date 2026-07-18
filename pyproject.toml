@@ -1,6 +1,6 @@
 [project]
 name = "corbeausplat"
-version = "1.5.0"
+version = "1.5.1"
 description = "Gaussian Splatting toolkit with GUI"
 requires-python = ">=3.10"
 

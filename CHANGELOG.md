@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.5.1] - 2026-07-18
+
+### 🐛 Fixes (technical debt cleanup)
+- **`guided_matching` (ColmapParams)**: the checkbox was permanently disabled in the UI and never written back by `set_params()`, so a saved `True` value was silently lost on reload. Re-enabled the checkbox and fixed `set_params()` to restore it.
+- **`sequential_overlap` (ColmapParams)**: the field existed in the dataclass and was consumed by `colmap_commands.py`, but had no UI control anywhere — `matcher_type="sequential"` was selectable with no way to configure its overlap. Added the missing spinbox, wired into `get_params()`/`set_params()`, translated in all 9 locales.
+- **`blur_factor` mapping duplicated**: the light/medium/strong → float conversion was implemented independently in `main_window.py` (GUI) and `app/cli/commands.py` (CLI), risking drift. Unified into a single `blur_factor_from_strength()` in `app/core/params.py`.
+- **Dead `ExportTab` removed**: `app/gui/tabs/export_tab.py` was never instantiated by `main_window.py` — dead code. Removed (the underlying `ExportEngine`/`ExportWorker`, still used by the post-training export chain, are untouched).
+- **"Run Brush only" (standalone) now logged and stoppable**: previously launched a detached `subprocess.Popen` with no logs, no progress, and no way to stop it from the UI. Now goes through `BrushWorker` like the orchestrated training path, with its own completion handler so it doesn't trigger the post-training clean/export meant for the full pipeline.
+- **FourDGS / 360 Extractor duplicate worker instantiation**: `FourDGSTab` and `Extractor360Tab` each instantiated their own worker independently of the mode-driven pipeline in `main_window.py`. Their standalone buttons now emit signals to `main_window`, which is the single instantiation point. (The 360 mode selector in the Training tab and the tab's "extract only" button remain intentionally distinct — the former chains into full COLMAP reconstruction afterward, the latter doesn't.)
+
 ## [1.5.0] - 2026-07-18
 
 ### 🔁 Qt binding migration
