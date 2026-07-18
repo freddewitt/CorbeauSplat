@@ -87,6 +87,7 @@ class SourcePanel:
 
         # Destination checkpoints (optionnel)
         self.lbl_ckpt = QLabel()
+        self.lbl_ckpt.setWordWrap(True)
         layout.addWidget(self.lbl_ckpt)
         ck_row = QHBoxLayout()
         self.checkpoint_dest = QLineEdit()

@@ -70,11 +70,13 @@ class ReconstructionPanel:
 
         # Bannière Apple Silicon (reprise telle quelle de ParamsTab)
         self.info_label = QLabel()
+        self.info_label.setWordWrap(True)
         self.info_label.setVisible(is_apple_silicon())
         layout.addWidget(self.info_label)
 
         # Reprise de COLMAP (dossier existant OU dossier externe → nouveau projet)
         self.lbl_resume = QLabel()
+        self.lbl_resume.setWordWrap(True)
         layout.addWidget(self.lbl_resume)
         resume_row = QHBoxLayout()
         self.resume_path = QLineEdit()
@@ -85,6 +87,7 @@ class ReconstructionPanel:
         resume_row.addWidget(self.btn_browse_resume)
         layout.addLayout(resume_row)
         self.lbl_resume_status = QLabel()
+        self.lbl_resume_status.setWordWrap(True)
         layout.addWidget(self.lbl_resume_status)
 
         # Nom projet / dossier de sortie (si pas déjà connus du contexte)
