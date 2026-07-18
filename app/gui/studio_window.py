@@ -24,6 +24,7 @@ from app import VERSION
 from app.core.i18n import add_language_observer, tr
 from app.core.run_state import PIPELINE_STEPS, RunState
 from app.gui.logbar import LogBar
+from app.gui.panels.reconstruction_panel import ReconstructionPanel
 from app.gui.panels.source_panel import SourcePanel
 from app.gui.rail import TOOL_KEYS, Rail
 from app.gui.settings_window import SettingsWindow
@@ -77,7 +78,10 @@ class StudioWindow(QMainWindow):
 
         # Panneaux réels disponibles (les autres clés restent des placeholders,
         # remplacés aux sous-lots 3b/3c/4/5).
-        self.panels = {"source": SourcePanel(self.run_state)}
+        self.panels = {
+            "source": SourcePanel(self.run_state),
+            "reconstruction": ReconstructionPanel(self.run_state),
+        }
 
         # Pages ajoutées dans l'ordre de _PAGE_KEYS : leur index correspond à
         # celui de PageRegistry (compteur), déterministe même sous mock PySide6.
