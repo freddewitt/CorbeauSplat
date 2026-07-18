@@ -55,7 +55,15 @@ class StudioWindow(QMainWindow):
 
     def init_ui(self):
         self.setWindowTitle(tr("app_title"))
-        self.setMinimumSize(900, 600)
+        # Taille min réduite pour pouvoir tenir sur petit écran ; taille initiale
+        # ajustée à l'écran (comme ColmapGUI) pour éviter que la fenêtre s'ouvre
+        # plus large que l'écran et que la barre de droite déborde.
+        self.setMinimumSize(820, 560)
+        screen = QApplication.primaryScreen()
+        if screen:
+            geo = screen.availableGeometry()
+            self.resize(int(geo.width() * 0.9), int(geo.height() * 0.9))
+            self.move(geo.topLeft())
 
         central = QWidget()
         self.setCentralWidget(central)
