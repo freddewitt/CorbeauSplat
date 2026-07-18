@@ -22,10 +22,12 @@ from PySide6.QtWidgets import (
 
 from app import VERSION
 from app.core.i18n import add_language_observer, tr
-from app.core.run_state import PIPELINE_STEPS, RunState
+from app.core.run_state import PIPELINE_STEPS, RunState, StepStatus
 from app.gui.logbar import LogBar
+from app.gui.panels.entrainement_panel import EntrainementPanel
 from app.gui.panels.reconstruction_panel import ReconstructionPanel
 from app.gui.panels.source_panel import SourcePanel
+from app.gui.pipeline_planner import plan_pipeline
 from app.gui.rail import TOOL_KEYS, Rail
 from app.gui.settings_window import SettingsWindow
 from app.gui.studio_nav import PageRegistry
@@ -43,6 +45,8 @@ class StudioWindow(QMainWindow):
         super().__init__()
         self.run_state = RunState()
         self.nav = PageRegistry(_PAGE_KEYS)   # mapping pages + sélection courante
+        self._auto_follow = True              # suit l'étape active (désaccouplé au clic manuel)
+        self.current_plan = []
         self._settings_window = None
         self.init_ui()
         set_dark_theme(QApplication.instance())
@@ -60,6 +64,7 @@ class StudioWindow(QMainWindow):
         # ── Top bar ───────────────────────────────────────────────────────────
         self.topbar = TopBar()
         self.topbar.settingsRequested.connect(self.open_settings)
+        self.topbar.launchRequested.connect(self.launch)
         root.addWidget(self.topbar)
 
         # ── Corps : rail | centre | barre de droite ───────────────────────────
@@ -69,8 +74,14 @@ class StudioWindow(QMainWindow):
         self.rail.setFixedWidth(220)
         body.addWidget(self.rail)
 
+        # Colonne centre : breadcrumb de flux + pile de panneaux.
+        center_col = QVBoxLayout()
+        self.breadcrumb = QLabel("")
+        self.breadcrumb.setStyleSheet("color: #9aa5ce; padding: 4px 8px;")
+        center_col.addWidget(self.breadcrumb)
         self.center_stack = QStackedWidget()
-        body.addWidget(self.center_stack, stretch=3)
+        center_col.addWidget(self.center_stack, stretch=1)
+        body.addLayout(center_col, stretch=3)
 
         self.right_stack = QStackedWidget()
         self.right_stack.setFixedWidth(280)
@@ -81,6 +92,7 @@ class StudioWindow(QMainWindow):
         self.panels = {
             "source": SourcePanel(self.run_state),
             "reconstruction": ReconstructionPanel(self.run_state),
+            "entrainement": EntrainementPanel(self.run_state),
         }
 
         # Pages ajoutées dans l'ordre de _PAGE_KEYS : leur index correspond à
@@ -105,10 +117,10 @@ class StudioWindow(QMainWindow):
         version_label.setStyleSheet("color: #666666; font-size: 10px; padding: 2px;")
         self.statusBar().addPermanentWidget(version_label)
 
-        # Sélection initiale : première étape.
+        # Sélection initiale : première étape (programmatique, sans désaccoupler).
         if _PAGE_KEYS:
             self.rail.select(_PAGE_KEYS[0])
-            self.on_rail_selected(_PAGE_KEYS[0])
+            self._show_page(_PAGE_KEYS[0])
 
     def _placeholder(self, key, zone):
         """Page provisoire (remplacée par le vrai panneau aux lots 3-5)."""
@@ -118,15 +130,52 @@ class StudioWindow(QMainWindow):
 
     # ── Navigation ──────────────────────────────────────────────────────────────
     def on_rail_selected(self, key):
-        """Change la page affichée au centre et à droite selon l'item du rail."""
+        """Sélection manuelle depuis le rail : désaccouple l'auto-follow (même
+        logique que le verrou d'auto-scroll des logs) et change la page."""
+        self._auto_follow = False
+        self._show_page(key)
+
+    def _show_page(self, key):
         index = self.nav.select(key)
         if index is None:
             return
         self.center_stack.setCurrentIndex(index)
         self.right_stack.setCurrentIndex(index)
 
+    def follow_step(self, key):
+        """Suit l'étape active pendant un run, tant que l'auto-follow n'a pas été
+        désaccouplé par un clic manuel."""
+        if self._auto_follow:
+            self.rail.select(key)
+            self._show_page(key)
+
     def current_page_key(self):
         return self.nav.current
+
+    # ── Lancement (dispatch orchestré) ──────────────────────────────────────────
+    def launch(self):
+        """Calcule le plan de run selon le mode + les toggles run_state, puis
+        pilote le rail (statuts + auto-follow) et le breadcrumb.
+
+        Note : le câblage des moteurs/workers réels (ColmapWorker/BrushWorker/
+        PostTrainingWorker) est la surface validée sur Apple Silicon — voir
+        REFONTE_UI_PROGRESS.md. Ici on établit le plan et le pilotage UI."""
+        mode = self.topbar.current_mode()
+        plan = plan_pipeline(mode, self.run_state)
+        self.current_plan = plan
+        self._auto_follow = True
+        self.run_state.reset_status()
+        self.update_breadcrumb(plan)
+        self.logbar.append_log(tr("run_plan", "Plan : ") + " → ".join(plan))
+        if plan:
+            first = plan[0]
+            self.run_state.set_status(first, StepStatus.RUNNING)
+            self.rail.set_step_status(first, StepStatus.RUNNING)
+            self.follow_step(first)
+        return plan
+
+    def update_breadcrumb(self, plan):
+        self.breadcrumb.setText(" → ".join(plan))
 
     # ── Réglages ──────────────────────────────────────────────────────────────
     def open_settings(self):

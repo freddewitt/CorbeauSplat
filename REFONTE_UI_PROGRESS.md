@@ -4,8 +4,9 @@
 > **En cas de reprise (`/reprise`), lire CE fichier en premier.** 1 commit par lot, journal mis à jour en fin de lot.
 
 ## ⏯️ Reprendre ici
-- **Lot courant** : Lot 3 découpé en 3a/3b/3c. **3a Source ✅ · 3b Reconstruction ✅.** Prochain : **3c Entraînement + dispatch**.
-- **Prochaine action (3c)** : orienter via graphify sur `BrushTab` (mode manuel, preset dropdown, standaloneRunRequested) + `BrushWorker`/`PostTrainingWorker`. Créer `app/gui/panels/entrainement_panel.py` (plain center+right) branché sur `BrushParams` (Lot 1, `to_engine_params()`) + presets via `merge_presets(BRUSH_PRESETS)` (Lot 1) + bouton « Enregistrer preset ». Visualiser après bindé run_state. **Puis le DISPATCH** : bouton Lancer top bar → orchestration Source→Reconstruction→Entraînement selon les toggles run_state, câblage signaux workers → breadcrumb/logbar/rail (statut + auto-follow). ⚠️ vérif Apple Silicon (pipeline COLMAP→Brush réel) à la fin de 3c.
+- **Lot courant** : Lot 3 (3a/3b/3c) **terminé côté UI + planification**. Prochain : **câblage moteurs réels du dispatch** (voir ci-dessous) puis **Lot 4** (Nettoyage/Export/Visualiser).
+- **⚠️ RESTE dans le dispatch (à faire avant/pendant vérif Apple Silicon)** : `StudioWindow.launch()` calcule le plan + pilote rail/breadcrumb/auto-follow, mais **n'exécute pas encore les moteurs réels**. Il faut brancher, par étape du plan, les workers existants (`ColmapWorker`, `BrushWorker`, `PostTrainingWorker`, `SuperSplatEngine`) en réutilisant la logique de `main_window.py` (`process`/`train_brush`/`on_brush_finished`/`PostTrainingWorker`), signaux → `logbar`/`rail.set_step_status`/breadcrumb. C'est LA surface de vérif Apple Silicon (pipeline COLMAP→Brush réel).
+- **Prochaine action (Lot 4)** : panneaux Nettoyage (`CleanerExportTab`/`ply_cleaner`), Export (**sur `ExportEngine`/`ExportWorker`**, cf. écart audit Lot 0 — pas de résurrection ExportTab), Visualiser (`SuperSplatEngine`, bouton local Démarrer/Arrêter + `stop_all()` au closeEvent).
 - **Pattern panneau établi (3a)** : classe plain exposant `.center`/`.right` (QWidget), insérée dans `StudioWindow.panels[key]`. Toggles de chaînage via `bind_flag_checkbox(chk, run_state, flag)` (`app/gui/run_state_binding.py`) = source de vérité unique. Persistance via `get_state()`.
 - **Acquis Lot 1** : `run_state.py`, `config_io.py`, `brush_params.py` (`to_engine_params()`), `brush_presets.py` (`merge_presets`).
 - **Acquis Lot 2** : `studio_window.py` (StudioWindow, 4 zones, QStackedWidget centre+droite), `topbar.py`, `rail.py` (13 items, OUTILS repliée par défaut, statut par étape), `logbar.py` (encapsule LogsTab, repliée), `settings_window.py` (thème/langue fonctionnels, reste en signaux), `studio_nav.py` (PageRegistry/CollapseState — logique testable hors Qt). **Placeholders centre/droite** = `StudioWindow._placeholder()`, à remplacer par les vrais panneaux.
@@ -18,7 +19,7 @@
 | 0 | Audit état réel (pas de code) | ✅ fait | (rapport, pas de commit) |
 | 1 | État partagé & plomberie backend | ✅ fait | (voir git log — lot 1) |
 | 2 | Squelette PySide6 4 zones | ✅ fait | (voir git log — lot 2) |
-| 3 | Pipeline Gsplat : Source / Reconstruction / Entraînement | 🔄 3a ✅ · 3b ✅ · 3c à faire | — |
+| 3 | Pipeline Gsplat : Source / Reconstruction / Entraînement | 🔄 3a✅ 3b✅ 3c✅ (UI+plan) · reste câblage moteurs dispatch | — |
 | 4 | Nettoyage / Export / Visualiser | ☐ | — |
 | 5 | Modules OUTILS (7) | ☐ | — |
 | 6 | Sauvegarde/chargement, presets, notifications, i18n | ☐ | — |
