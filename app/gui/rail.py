@@ -28,15 +28,15 @@ from app.gui.studio_nav import CollapseState
 # Modules OUTILS, dans l'ordre du rail.
 TOOL_KEYS = ("brush", "sharp", "supersplat", "upscale", "splattransform", "4dgs", "360")
 
-# Icônes stand-in (emoji) — remplacées par des assets dédiés dans un lot ultérieur.
-# L'exigence « icône + libellé toujours ensemble » est satisfaite structurellement.
+# Icônes minimalistes : glyphes géométriques monochromes (pas d'emoji couleur),
+# qui héritent de la couleur du texte. « icône + libellé toujours ensemble ».
 _STEP_ICONS = {
-    "source": "📥", "reconstruction": "🧩", "entrainement": "🎯",
-    "nettoyage": "🧹", "export": "📦", "visualiser": "👁",
+    "source": "↧", "reconstruction": "▦", "entrainement": "◆",
+    "nettoyage": "◈", "export": "↥", "visualiser": "◉",
 }
 _TOOL_ICONS = {
-    "brush": "🖌", "sharp": "✨", "supersplat": "👁", "upscale": "🔍",
-    "splattransform": "🔄", "4dgs": "🎞", "360": "🌐",
+    "brush": "◐", "sharp": "◇", "supersplat": "⊙", "upscale": "⤢",
+    "splattransform": "⇄", "4dgs": "▷", "360": "◍",
 }
 _STEP_LABEL_KEYS = {
     "source": ("rail_step_source", "Source"),
@@ -55,6 +55,14 @@ _TOOL_LABEL_KEYS = {
     "4dgs": ("rail_tool_4dgs", "4DGS"),
     "360": ("rail_tool_360", "360 Extractor"),
 }
+
+# Style commun des items : alignés à gauche, compacts, minimalistes. La sélection
+# et le survol se traduisent par un léger fond (pas de bordure).
+_ITEM_STYLE = (
+    "QPushButton { text-align: left; padding: 3px 8px; border: none; background: transparent; }"
+    "QPushButton:checked { background: rgba(122,162,247,0.20); border-radius: 4px; }"
+    "QPushButton:hover { background: rgba(255,255,255,0.06); border-radius: 4px; }"
+)
 
 # Marqueur d'état préfixé au libellé d'une étape PIPELINE.
 _STATUS_MARKER = {
@@ -88,6 +96,7 @@ class Rail(QWidget):
         container = QWidget()
         self._layout = QVBoxLayout(container)
         self._layout.setContentsMargins(4, 4, 4, 4)
+        self._layout.setSpacing(2)
 
         # ── Section PIPELINE ──────────────────────────────────────────────────
         self.lbl_pipeline = QLabel(tr("rail_section_pipeline", "PIPELINE"))
@@ -103,12 +112,14 @@ class Rail(QWidget):
         self.btn_outils_header = QPushButton()
         self.btn_outils_header.setCheckable(True)
         self.btn_outils_header.setChecked(not self._outils.collapsed)
+        self.btn_outils_header.setStyleSheet(_ITEM_STYLE)
         self.btn_outils_header.clicked.connect(self._on_outils_header)
         self._layout.addWidget(self.btn_outils_header)
 
         self.outils_container = QWidget()
         outils_layout = QVBoxLayout(self.outils_container)
         outils_layout.setContentsMargins(0, 0, 0, 0)
+        outils_layout.setSpacing(2)
         for key in TOOL_KEYS:
             self._add_item(key, outils_layout)
         self.outils_container.setVisible(not self._outils.collapsed)
@@ -122,6 +133,7 @@ class Rail(QWidget):
     def _add_item(self, key, layout):
         btn = QPushButton()
         btn.setCheckable(True)
+        btn.setStyleSheet(_ITEM_STYLE)
         btn.clicked.connect(lambda _checked=False, k=key: self._on_item_clicked(k))
         self._group.addButton(btn)
         self._buttons[key] = btn
