@@ -107,6 +107,13 @@ class ParamsTab(QWidget):
         self.lbl_match_type = QLabel(tr("lbl_match_type"))
         match_layout.addRow(self.lbl_match_type, self.matcher_type_combo)
 
+        self.sequential_overlap_spin = QSpinBox()
+        self.sequential_overlap_spin.setRange(1, 100)
+        self.sequential_overlap_spin.setValue(30)
+        self.sequential_overlap_spin.setMinimumWidth(100)
+        self.lbl_sequential_overlap = QLabel(tr("lbl_sequential_overlap"))
+        match_layout.addRow(self.lbl_sequential_overlap, self.sequential_overlap_spin)
+
         self.matching_algo_combo = QComboBox()
         self.matching_algo_combo.addItems(MATCHING_TYPES)
         self.matching_algo_combo.setCurrentText('SIFT_BRUTEFORCE')
@@ -136,7 +143,6 @@ class ParamsTab(QWidget):
         match_layout.addRow(self.lbl_cross, self.cross_check_check)
 
         self.guided_match_check = QCheckBox()
-        self.guided_match_check.setEnabled(False)
         self.lbl_guided = QLabel(tr("check_guided"))
         match_layout.addRow(self.lbl_guided, self.guided_match_check)
 
@@ -218,6 +224,7 @@ class ParamsTab(QWidget):
             ba_refine_extra_params=self.refine_extra_check.isChecked(),
             min_num_matches=self.min_matches_spin.value(),
             matcher_type=self.matcher_type_combo.currentText(),
+            sequential_overlap=self.sequential_overlap_spin.value(),
             undistort_images=False, # Géré par ConfigTab pour l'instant, ou on peut le passer ici si on veut
             use_view_graph_calibration=self.view_graph_calibration_check.isChecked(),
             ignore_watermarks=self.ignore_watermarks_check.isChecked(),
@@ -241,6 +248,8 @@ class ParamsTab(QWidget):
         self.max_ratio_spin.setValue(params.max_ratio)
         self.max_distance_spin.setValue(params.max_distance)
         self.cross_check_check.setChecked(params.cross_check)
+        self.guided_match_check.setChecked(getattr(params, 'guided_matching', False))
+        self.sequential_overlap_spin.setValue(getattr(params, 'sequential_overlap', 30))
         self.refine_focal_check.setChecked(params.ba_refine_focal_length)
         self.refine_principal_check.setChecked(params.ba_refine_principal_point)
         self.refine_extra_check.setChecked(params.ba_refine_extra_params)
@@ -273,6 +282,7 @@ class ParamsTab(QWidget):
 
         self.match_group.setTitle(tr("group_match"))
         self.lbl_match_type.setText(tr("lbl_match_type"))
+        self.lbl_sequential_overlap.setText(tr("lbl_sequential_overlap"))
         self.lbl_matching_algo.setText(tr("lbl_matching_algo"))
         self.lbl_max_ratio.setText(tr("lbl_max_ratio"))
         self.lbl_max_dist.setText(tr("lbl_max_dist"))

@@ -40,6 +40,7 @@
     "lbl_matching_algo": "خوارزمية المطابقة:",
     "group_match": "مطابقة المعالم",
     "lbl_match_type": "نوع المطابقة:",
+    "lbl_sequential_overlap": "التداخل المتسلسل :",
     "lbl_max_ratio": "أقصى نسبة:",
     "lbl_max_dist": "أقصى مسافة:",
     "check_cross": "تقاطع:",

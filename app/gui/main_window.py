@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QT
 from app import VERSION
 from app.core.engine import ColmapEngine
 from app.core.i18n import add_language_observer, tr
+from app.core.params import blur_factor_from_strength
 from app.gui.managers import AppLifecycle, SessionManager
 from app.gui.styles import set_dark_theme
 from app.gui.tabs.brush_tab import BrushTab
@@ -23,6 +24,7 @@ from app.gui.tabs.upscale_tab import UpscaleTab
 from app.gui.workers import (
     BrushWorker,
     ColmapWorker,
+    Extractor360Worker,
     FourDGSWorker,
     PostTrainingWorker,
     SharpVideoWorker,
@@ -39,7 +41,10 @@ class ColmapGUI(QMainWindow):
         self.sharp_worker = None
         self.splat_transform_worker = None
         self.post_training_worker = None
+        self.fourdgs_worker = None
+        self.extractor_360_worker = None
         self._last_brush_output_path = None
+        self._standalone_brush_output_path = None
         # cleaner_worker est géré par CleanerExportTab
         self.cleaner_export_tab = None  # initialisé dans init_ui
 
@@ -122,11 +127,17 @@ class ColmapGUI(QMainWindow):
         self.brush_tab.trainRequested.connect(self.train_brush)
         self.brush_tab.stopRequested.connect(self.stop_brush)
         self.brush_tab.restartRequested.connect(self.restart_application)
+        self.brush_tab.standaloneRunRequested.connect(self.run_brush_standalone)
 
 
 
         self.sharp_tab.predictRequested.connect(self.run_sharp)
         self.sharp_tab.stopRequested.connect(self.stop_sharp)
+
+        self.four_dgs_tab.runRequested.connect(self.run_four_dgs_standalone)
+        self.four_dgs_tab.stopRequested.connect(self.stop_four_dgs_standalone)
+
+        self.extractor_360_tab.extractRequested.connect(self.run_extractor_360_standalone)
 
         self.cleaner_export_tab.log_signal.connect(self.logs_tab.append_log)
 
@@ -193,9 +204,7 @@ class ColmapGUI(QMainWindow):
         params = self.params_tab.get_params()
         params.undistort_images = self.config_tab.get_undistort()
         params.filter_blurry = self.config_tab.get_filter_blur()
-        params.blur_factor = {"light": 0.5, "medium": 0.7, "strong": 0.9}.get(
-            self.config_tab.get_blur_strength(), 0.7
-        )
+        params.blur_factor = blur_factor_from_strength(self.config_tab.get_blur_strength())
         if self.config_tab.get_robust():
             from app.cli.commands import _apply_robust
             params = _apply_robust(params)
@@ -290,12 +299,47 @@ class ColmapGUI(QMainWindow):
 
         elif mode == "4dgs":
             self.logs_tab.append_log(tr("msg_processing") + " (4DGS)")
-            self.fourdgs_worker = FourDGSWorker(input_path, output_path, self.config_tab.get_fps())
-            self.fourdgs_worker.log_signal.connect(self.logs_tab.append_log)
+            self.fourdgs_worker = self._create_fourdgs_worker(input_path, output_path, self.config_tab.get_fps())
             self.fourdgs_worker.progress_signal.connect(self.config_tab.progress_bar.setValue)
             self.fourdgs_worker.status_signal.connect(self.config_tab.lbl_status.setText)
             self.fourdgs_worker.finished_signal.connect(self.on_finished)
             self.fourdgs_worker.start()
+
+    def _create_fourdgs_worker(self, src, dst, fps):
+        """Point d'instanciation unique de FourDGSWorker (partagé par le mode Config et l'onglet 4DGS)."""
+        worker = FourDGSWorker(src or None, dst, fps)
+        worker.log_signal.connect(self.logs_tab.append_log)
+        return worker
+
+    def run_four_dgs_standalone(self, src, dst, fps):
+        """Lance 4DGS depuis l'onglet dédié (dossier arbitraire, hors sélecteur de mode Config)."""
+        self.fourdgs_worker = self._create_fourdgs_worker(src, dst, fps)
+        self.fourdgs_worker.log_signal.connect(self.four_dgs_tab.append_log)
+        self.fourdgs_worker.finished_signal.connect(self.on_four_dgs_standalone_finished)
+        self.fourdgs_worker.start()
+
+    def stop_four_dgs_standalone(self):
+        if self.fourdgs_worker and self.fourdgs_worker.isRunning():
+            self.fourdgs_worker.stop()
+
+    def on_four_dgs_standalone_finished(self, success, message):
+        stopped_by_user = bool(self.fourdgs_worker and self.fourdgs_worker.stopped_by_user)
+        self.four_dgs_tab.on_process_finished(success, message, stopped_by_user)
+
+    def run_extractor_360_standalone(self, input_path, output_dir, params):
+        """Lance l'extraction 360 depuis l'onglet dédié (extraction seule, hors pipeline COLMAP)."""
+        self.extractor_360_worker = Extractor360Worker(
+            input_path=input_path,
+            output_path=output_dir,
+            params=params,
+        )
+        self.extractor_360_worker.log_signal.connect(self.logs_tab.append_log)
+        self.extractor_360_worker.progress_signal.connect(self.extractor_360_tab.progress_bar.setValue)
+        self.extractor_360_worker.finished_signal.connect(self.on_extractor_360_standalone_finished)
+        self.extractor_360_worker.start()
+
+    def on_extractor_360_standalone_finished(self, success, message):
+        self.extractor_360_tab.on_extraction_finished(success, message)
 
     def resume_colmap(self):
         """Relance COLMAP en réutilisant les images déjà extraites (saute extraction/upscale).
@@ -555,6 +599,32 @@ class ColmapGUI(QMainWindow):
         else:
             if not (self.brush_worker and self.brush_worker.stopped_by_user):
                 QMessageBox.warning(self, tr("brush_error_title"), tr("brush_error_body"))
+
+    def run_brush_standalone(self, input_path, output_path, params):
+        """Lance Brush sur un dossier arbitraire (mode standalone, hors pipeline COLMAP)."""
+        self._standalone_brush_output_path = output_path
+
+        self.brush_tab.set_processing_state(True)
+        self.logs_tab.append_log(tr("msg_brush_start", input_path))
+        self.logs_tab.append_log(tr("msg_brush_out", output_path))
+
+        self.brush_worker = BrushWorker(input_path, output_path, params)
+        self.brush_worker.log_signal.connect(self.logs_tab.append_log)
+        self.brush_worker.finished_signal.connect(self.on_brush_standalone_finished)
+        self.brush_worker.start()
+
+        # Focus logs tab
+        self.tabs.setCurrentWidget(self.logs_tab)
+
+    def on_brush_standalone_finished(self, success, message):
+        """Fin de l'entrainement Brush standalone (pas de post-traitement chaîné : dossier arbitraire hors projet COLMAP)."""
+        self.brush_tab.set_processing_state(False)
+        self.logs_tab.append_log(message)
+
+        if success:
+            self._show_training_done_dialog(self._standalone_brush_output_path)
+        elif not (self.brush_worker and self.brush_worker.stopped_by_user):
+            QMessageBox.warning(self, tr("brush_error_title"), tr("brush_error_body"))
 
     def _run_post_training(self, output_path, clean, strength, export, fmt):
         self.brush_tab.set_processing_state(True)

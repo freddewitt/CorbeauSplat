@@ -42,6 +42,8 @@ class InstallWorker(QThread):
             self.finished_signal.emit(False, str(e))
 
 class Extractor360Tab(QWidget):
+    extractRequested = Signal(str, str, dict)
+
     def __init__(self):
         super().__init__()
         self.engine = Extractor360Engine()
@@ -250,17 +252,7 @@ class Extractor360Tab(QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
 
-        from app.gui.workers import Extractor360Worker
-        self.extract_worker = Extractor360Worker(
-            input_path=input_path,
-            output_path=output_dir,
-            params=self.get_params(),
-            engine=self.engine
-        )
-
-        self.extract_worker.progress_signal.connect(self.progress_bar.setValue)
-        self.extract_worker.finished_signal.connect(self.on_extraction_finished)
-        self.extract_worker.start()
+        self.extractRequested.emit(input_path, output_dir, self.get_params())
 
     def on_extraction_finished(self, success, message):
         self.set_processing_state(False)

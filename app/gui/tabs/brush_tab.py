@@ -1,5 +1,3 @@
-import subprocess
-
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -31,6 +29,7 @@ class BrushTab(QWidget):
     trainRequested = Signal()
     stopRequested = Signal()
     restartRequested = Signal()
+    standaloneRunRequested = Signal(str, str, dict)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -579,7 +578,6 @@ class BrushTab(QWidget):
                 QMessageBox.critical(self, tr("msg_error"), f"Erreur lors de la suppression de Brush: {e}")
 
     def run_standalone(self):
-        from app.core.brush_engine import BrushEngine
         from app.core.system import resolve_binary
 
         bin_path = resolve_binary("brush")
@@ -597,12 +595,4 @@ class BrushTab(QWidget):
             QMessageBox.warning(self, tr("msg_warning"), tr("err_brush_no_output", "Veuillez spécifier un dossier de sortie."))
             return
 
-        try:
-            # Use BrushEngine.build_command() to respect build_mode, sh_degree, refine_every, etc.
-            engine = BrushEngine()
-            params = self.get_params()
-            cmd, env = engine.build_command(input_path, output_path, params)
-            # Lancement détaché (pas de blocage de l'UI)
-            subprocess.Popen(cmd, env=env)
-        except Exception as e:
-            QMessageBox.critical(self, tr("msg_error"), f"{tr('err_launch', 'Erreur de lancement')}: {e}")
+        self.standaloneRunRequested.emit(input_path, output_path, self.get_params())

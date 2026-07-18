@@ -15,6 +15,11 @@ COMPATIBLE_MATCHING = {
     'ALIKED_N32': ['ALIKED_BRUTEFORCE', 'ALIKED_LIGHTGLUE'],
 }
 
+def blur_factor_from_strength(strength: str) -> float:
+    """Convertit une intensité textuelle (light/medium/strong) en facteur de flou COLMAP."""
+    return {"light": 0.5, "medium": 0.7, "strong": 0.9}.get(strength, 0.7)
+
+
 @dataclass
 class ColmapParams:
     """Structure de données pour les paramètres COLMAP"""

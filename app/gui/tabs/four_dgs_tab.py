@@ -3,7 +3,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -26,7 +26,6 @@ from app.core.i18n import add_language_observer, tr
 from app.core.system import resolve_project_root
 from app.gui.widgets.dialog_utils import get_existing_directory
 from app.gui.widgets.drop_line_edit import DropLineEdit
-from app.gui.workers import FourDGSWorker
 
 
 def _get_venv_4dgs_ns_path():
@@ -49,9 +48,11 @@ class FourDGSTab(QWidget):
     """
     Tab for 4DGS Dataset Preparation.
     """
+    runRequested = Signal(str, str, int)
+    stopRequested = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.worker = None
         self.init_ui()
         add_language_observer(self.retranslate_ui)
 
@@ -253,14 +254,10 @@ class FourDGSTab(QWidget):
             QMessageBox.warning(self, tr("msg_warning"), tr("err_path_not_exists"))
             return
 
-        self.btn_run.setEnabled(False)
-        self.btn_stop.setEnabled(True)
+        self.set_processing_state(True)
         self.log_view.clear()
 
-        self.worker = FourDGSWorker(src, dst, self.fps_spin.value())
-        self.worker.log_signal.connect(self.append_log)
-        self.worker.finished_signal.connect(self.on_process_finished)
-        self.worker.start()
+        self.runRequested.emit(src, dst, self.fps_spin.value())
 
     def run_colmap_only(self):
         dst = self.output_edit.text().strip()
@@ -272,35 +269,30 @@ class FourDGSTab(QWidget):
             QMessageBox.warning(self, tr("msg_warning"), tr("err_path_not_exists"))
             return
 
-        self.btn_run.setEnabled(False)
-        self.btn_colmap.setEnabled(False)
-        self.btn_stop.setEnabled(True)
+        self.set_processing_state(True)
         self.log_view.clear()
 
         self.append_log(tr("four_dgs_msg_colmap_start", dst))
 
-        # Use existing worker but with a flag? Or just call engine directly if synchronous?
-        # Better use worker to avoid blocking.
-        self.worker = FourDGSWorker(None, dst, self.fps_spin.value()) # None for videos_dir signals colmap only
-        self.worker.log_signal.connect(self.append_log)
-        self.worker.finished_signal.connect(self.on_process_finished)
-        self.worker.start()
+        # Chaîne vide pour videos_dir : signale au worker un traitement COLMAP seul
+        self.runRequested.emit("", dst, self.fps_spin.value())
 
     def stop_process(self):
-        if self.worker:
-            self.worker.stop()
-            self.btn_stop.setEnabled(False)
-            self.append_log(">>> Arrêt demandé...")
-
-    def on_process_finished(self, success, message):
-        self.btn_run.setEnabled(True)
-        self.btn_colmap.setEnabled(True)
+        self.stopRequested.emit()
         self.btn_stop.setEnabled(False)
+        self.append_log(">>> Arrêt demandé...")
+
+    def set_processing_state(self, is_processing):
+        self.btn_run.setEnabled(not is_processing)
+        self.btn_colmap.setEnabled(not is_processing)
+        self.btn_stop.setEnabled(is_processing)
+
+    def on_process_finished(self, success, message, stopped_by_user=False):
+        self.set_processing_state(False)
         if success:
             QMessageBox.information(self, tr("msg_success"), message)
-        elif not (self.worker and self.worker.stopped_by_user):
+        elif not stopped_by_user:
             QMessageBox.critical(self, tr("msg_error"), message)
-        self.worker = None
 
     def append_log(self, text):
         self.log_view.append(text)

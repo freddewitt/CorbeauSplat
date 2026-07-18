@@ -8,7 +8,7 @@ from pathlib import Path as _Path
 from app.core.brush_engine import BrushEngine
 from app.core.engine import ColmapEngine
 from app.core.i18n import tr
-from app.core.params import FEATURE_TO_DEFAULT_MATCHING, ColmapParams
+from app.core.params import FEATURE_TO_DEFAULT_MATCHING, ColmapParams, blur_factor_from_strength
 from app.core.ply_cleaner import clean_ply, clean_ply_batch
 from app.core.sharp_engine import SharpEngine
 from app.core.superplat_engine import SuperSplatEngine
@@ -65,10 +65,6 @@ def _apply_robust(params: ColmapParams) -> ColmapParams:
     return params
 
 
-def _blur_factor_from_strength(strength: str) -> float:
-    return {"light": 0.5, "medium": 0.7, "strong": 0.9}.get(strength, 0.7)
-
-
 def _resolve_matching_type(feature_type: str, matching_type: str | None) -> str:
     """Retourne le matching type : explicite ou défaut selon le feature type."""
     if matching_type:
@@ -98,7 +94,7 @@ def run_colmap(args):
         matcher_type=args.matcher_type,
         undistort_images=args.undistort,
         filter_blurry=args.filter_blur,
-        blur_factor=_blur_factor_from_strength(args.blur_strength),
+        blur_factor=blur_factor_from_strength(args.blur_strength),
         use_view_graph_calibration=getattr(args, 'view_graph_calibration', True),
         ignore_watermarks=getattr(args, 'ignore_watermarks', True),
         thermal_throttling=args.thermal_throttling,
@@ -589,7 +585,7 @@ def run_pipeline(args):
         max_image_size=args.max_image_size,
         undistort_images=args.undistort,
         filter_blurry=getattr(args, "filter_blur", False),
-        blur_factor=_blur_factor_from_strength(getattr(args, "blur_strength", "medium")),
+        blur_factor=blur_factor_from_strength(getattr(args, "blur_strength", "medium")),
         use_view_graph_calibration=getattr(args, 'view_graph_calibration', True),
         ignore_watermarks=getattr(args, 'ignore_watermarks', True),
         thermal_throttling=getattr(args, 'thermal_throttling', False),
