@@ -6,12 +6,12 @@ import pytest
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Patching de modules manquants AVANT tout import de code projet
-# app.cli.commands importe send2trash via engine.py et PyQt6 via main_window.py.
+# app.cli.commands importe send2trash via engine.py et PySide6 via main_window.py.
 # On patche sys.modules au niveau module pour éviter les ImportError.
 # ─────────────────────────────────────────────────────────────────────────────
 _missing_modules = {}
-for _mod_name in ["send2trash", "PyQt6", "PyQt6.QtWidgets", "PyQt6.QtGui",
-                  "PyQt6.QtCore", "AppKit", "cv2"]:
+for _mod_name in ["send2trash", "PySide6", "PySide6.QtWidgets", "PySide6.QtGui",
+                  "PySide6.QtCore", "AppKit", "cv2"]:
     if _mod_name not in sys.modules:
         try:
             # Keep the real module when installed (cv2/send2trash) — mocking it
@@ -21,11 +21,11 @@ for _mod_name in ["send2trash", "PyQt6", "PyQt6.QtWidgets", "PyQt6.QtGui",
         except ImportError:
             _missing_modules[_mod_name] = MagicMock()
 
-# Patch PyQt6.QtCore.pyqtSignal
-if "PyQt6.QtCore" in _missing_modules:
-    _missing_modules["PyQt6.QtCore"].pyqtSignal = MagicMock()
-    _missing_modules["PyQt6.QtCore"].QTimer = MagicMock()
-    _missing_modules["PyQt6.QtCore"].QThread = MagicMock()
+# Patch PySide6.QtCore.Signal
+if "PySide6.QtCore" in _missing_modules:
+    _missing_modules["PySide6.QtCore"].Signal = MagicMock()
+    _missing_modules["PySide6.QtCore"].QTimer = MagicMock()
+    _missing_modules["PySide6.QtCore"].QThread = MagicMock()
 
 for _mod, _mock in _missing_modules.items():
     sys.modules[_mod] = _mock

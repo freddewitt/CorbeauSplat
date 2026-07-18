@@ -1,8 +1,7 @@
-import contextlib
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -10,10 +9,12 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from app.core.i18n import add_language_observer, tr
+
 
 class BinaryInstallWorker(QThread):
-    log_signal = pyqtSignal(str)
-    finished   = pyqtSignal(bool, str)
+    log_signal = Signal(str)
+    finished   = Signal(bool, str)
 
     def run(self):
         try:
@@ -25,8 +26,8 @@ class BinaryInstallWorker(QThread):
 
 
 class ModelDownloadWorker(QThread):
-    log_signal = pyqtSignal(str)
-    finished   = pyqtSignal(bool, str, str)
+    log_signal = Signal(str)
+    finished   = Signal(bool, str, str)
 
     def __init__(self, model_id: str, url_bin: str, url_param: str):
         super().__init__()
@@ -48,8 +49,8 @@ class ModelDownloadWorker(QThread):
 
 
 class TestWorker(QThread):
-    log_signal = pyqtSignal(str)
-    finished   = pyqtSignal(bool, str)
+    log_signal = Signal(str)
+    finished   = Signal(bool, str)
 
     def __init__(self, input_path: str, output_dir: str, params: dict):
         super().__init__()
@@ -130,15 +131,25 @@ class TestWorker(QThread):
 
 
 class ModelCard(QFrame):
-    download_requested = pyqtSignal(str)
-    delete_requested   = pyqtSignal(str)
+    download_requested = Signal(str)
+    delete_requested   = Signal(str)
 
     def __init__(self, model, models_dir: Path, recommended: bool = False):
         super().__init__()
         self.model      = model
         self.models_dir = models_dir
+        self._action_handler = None
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self._build()
+        add_language_observer(self.refresh)
+
+    def _set_action_handler(self, handler):
+        """(Re)connecte le bouton d'action en ne déconnectant que le handler
+        précédent — évite un disconnect() à vide (RuntimeWarning sous PySide6)."""
+        if self._action_handler is not None:
+            self.btn_action.clicked.disconnect(self._action_handler)
+        self._action_handler = handler
+        self.btn_action.clicked.connect(handler)
 
     def _build(self):
         layout = QHBoxLayout(self)
@@ -179,27 +190,23 @@ class ModelCard(QFrame):
             size = self.model.size_on_disk_mb(self.models_dir)
             self.lbl_status.setText(f"\u2705 {size} MB")
             self.lbl_status.setStyleSheet("color: #44aa44; font-size: 11px;")
-            self.btn_action.setText("Delete")
+            self.btn_action.setText(tr("up_delete"))
             self.btn_action.setStyleSheet("color: #cc4444;")
-            with contextlib.suppress(TypeError, RuntimeError):
-                self.btn_action.clicked.disconnect()
-            self.btn_action.clicked.connect(
+            self._set_action_handler(
                 lambda: self.delete_requested.emit(self.model.id)
             )
             self.btn_action.setEnabled(True)
         elif self.model.bundled and not self.model.url_bin:
-            self.lbl_status.setText("Bundled")
+            self.lbl_status.setText(tr("up_bundled"))
             self.lbl_status.setStyleSheet("color: #888; font-size: 11px;")
             self.btn_action.setText("\u2014")
             self.btn_action.setEnabled(False)
         else:
-            self.lbl_status.setText("Not installed")
+            self.lbl_status.setText(tr("up_not_installed"))
             self.lbl_status.setStyleSheet("color: #888; font-size: 11px;")
-            self.btn_action.setText("Download")
+            self.btn_action.setText(tr("up_download"))
             self.btn_action.setStyleSheet("")
-            with contextlib.suppress(TypeError, RuntimeError):
-                self.btn_action.clicked.disconnect()
-            self.btn_action.clicked.connect(
+            self._set_action_handler(
                 lambda: self.download_requested.emit(self.model.id)
             )
             self.btn_action.setEnabled(True)
@@ -207,5 +214,5 @@ class ModelCard(QFrame):
     def set_downloading(self, active: bool):
         self.btn_action.setEnabled(not active)
         if active:
-            self.lbl_status.setText("Downloading\u2026")
+            self.lbl_status.setText(tr("up_downloading"))
             self.lbl_status.setStyleSheet("color: #2a82da; font-size: 11px;")

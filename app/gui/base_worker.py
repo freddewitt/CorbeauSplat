@@ -1,14 +1,14 @@
 import contextlib
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 
 class BaseWorker(QThread):
     """Classe de base pour les workers avec signaux standardisés"""
-    log_signal = pyqtSignal(str)
-    progress_signal = pyqtSignal(int)
-    status_signal = pyqtSignal(str)
-    finished_signal = pyqtSignal(bool, str)
+    log_signal = Signal(str)
+    progress_signal = Signal(int)
+    status_signal = Signal(str)
+    finished_signal = Signal(bool, str)
 
     def __init__(self):
         super().__init__()

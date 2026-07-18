@@ -2,9 +2,10 @@
 # Generated 2026-06-17 from .venv/ (Python 3.13)
 # Install with: pip install -r requirements.lock
 
-PyQt6==6.11.0
-PyQt6-Qt6==6.11.0
-PyQt6_sip==13.11.1
+PySide6==6.11.1
+PySide6_Essentials==6.11.1
+PySide6_Addons==6.11.1
+shiboken6==6.11.1
 numpy==2.4.4
 opencv-python-headless==4.13.0.92
 Pillow==12.3.0

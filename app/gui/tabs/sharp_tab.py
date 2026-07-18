@@ -1,5 +1,5 @@
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
     QCheckBox,
@@ -30,8 +30,8 @@ from app.scripts.setup_dependencies import install_sharp, uninstall_sharp
 class SharpTab(QWidget):
     """Onglet de configuration Apple ML Sharp"""
 
-    predictRequested = pyqtSignal()
-    stopRequested = pyqtSignal()
+    predictRequested = Signal()
+    stopRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)

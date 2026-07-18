@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QTabWidget, QVBoxLayout, QWidget
 
 from app import VERSION
 from app.core.engine import ColmapEngine
@@ -726,7 +726,7 @@ class ColmapGUI(QMainWindow):
         if not success and not (
             self.splat_transform_worker and self.splat_transform_worker.stopped_by_user
         ):
-            from PyQt6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, tr("msg_error"), message)
 
     def restart_application(self):

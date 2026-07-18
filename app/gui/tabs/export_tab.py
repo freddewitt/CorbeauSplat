@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
@@ -28,8 +28,8 @@ from app.gui.workers import ExportWorker
 class ExportTab(QWidget):
     """Onglet d'export des fichiers PLY vers différents formats avec options avancées."""
 
-    exportRequested = pyqtSignal()
-    log_signal = pyqtSignal(str)  # FIX: signal manquant causant un crash à l'export
+    exportRequested = Signal()
+    log_signal = Signal(str)  # FIX: signal manquant causant un crash à l'export
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -312,7 +312,7 @@ class ExportTab(QWidget):
 if __name__ == "__main__":
     import sys
 
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
     app = QApplication(sys.argv)
     window = ExportTab()
     window.show()

@@ -1,6 +1,6 @@
 [project]
 name = "corbeausplat"
-version = "1.2.3"
+version = "1.5.0"
 description = "Gaussian Splatting toolkit with GUI"
 requires-python = ">=3.10"
 
@@ -21,7 +21,7 @@ line-length = 160
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B", "SIM"]
 # N (naming) et ARG (unused-arg) désactivées : bruit systématique avec les
-# conventions PyQt6 (camelCase des overrides/signaux) et les interfaces
+# conventions PySide6 (camelCase des overrides/signaux) et les interfaces
 # uniformes (méthodes d'export partageant une signature commune).
 ignore = ["SIM117"]
 # SIM117 (nested with) : ~40 occurrences, uniquement des blocs mock.patch
@@ -34,7 +34,7 @@ ignore = ["SIM117"]
 # Mode par défaut : 29 erreurs réelles, corrigées.
 
 [[tool.mypy.overrides]]
-module = ["PyQt6.*", "cv2.*", "numpy.*", "plyfile.*", "trimesh.*", "open3d.*", "PIL.*", "send2trash.*", "objc.*"]
+module = ["PySide6.*", "cv2.*", "numpy.*", "plyfile.*", "trimesh.*", "open3d.*", "PIL.*", "send2trash.*", "objc.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

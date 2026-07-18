@@ -1,8 +1,8 @@
 import subprocess
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFormLayout,
@@ -35,7 +35,7 @@ from app.gui.widgets.upscale_widgets import (
 
 class UpscaleTab(QWidget):
 
-    log_signal = pyqtSignal(str)
+    log_signal = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -56,8 +56,8 @@ class UpscaleTab(QWidget):
         root.setSpacing(8)
 
         # ── Engine status ─────────────────────────────────────────────────
-        engine_grp = QGroupBox("Engine")
-        engine_lay = QVBoxLayout(engine_grp)
+        self.engine_grp = QGroupBox(tr("up_engine"))
+        engine_lay = QVBoxLayout(self.engine_grp)
 
         binary = find_binary()
         status_row = QHBoxLayout()
@@ -65,29 +65,29 @@ class UpscaleTab(QWidget):
         self._update_binary_status(binary)
         status_row.addWidget(self.lbl_binary_status, stretch=1)
 
-        self.btn_reinstall = QPushButton("Reinstall")
-        self.btn_reinstall.setToolTip("Force re-download of upscayl-bin from GitHub")
+        self.btn_reinstall = QPushButton(tr("up_reinstall"))
+        self.btn_reinstall.setToolTip(tr("up_reinstall_tip"))
         self.btn_reinstall.clicked.connect(self._install_binary)
         status_row.addWidget(self.btn_reinstall)
 
         engine_lay.addLayout(status_row)
 
         if binary is None:
-            hint = QLabel("upscayl-bin will be installed automatically on next launch.")
-            hint.setWordWrap(True)
-            hint.setStyleSheet("color: #888; font-size: 11px;")
-            engine_lay.addWidget(hint)
+            self._hint_key = "up_hint_will_install"
+            self.hint_label = QLabel(tr(self._hint_key))
+            self.hint_label.setStyleSheet("color: #888; font-size: 11px;")
         else:
-            hint = QLabel("\u2705 upscayl-bin is installed. Download models below to use them.")
-            hint.setWordWrap(True)
-            hint.setStyleSheet("color: #44aa44; font-size: 11px;")
-            engine_lay.addWidget(hint)
+            self._hint_key = "up_hint_installed"
+            self.hint_label = QLabel(tr(self._hint_key))
+            self.hint_label.setStyleSheet("color: #44aa44; font-size: 11px;")
+        self.hint_label.setWordWrap(True)
+        engine_lay.addWidget(self.hint_label)
 
-        root.addWidget(engine_grp)
+        root.addWidget(self.engine_grp)
 
         # ── Models list ───────────────────────────────────────────────────
-        models_grp = QGroupBox("Models")
-        models_outer = QVBoxLayout(models_grp)
+        self.models_grp = QGroupBox(tr("up_models"))
+        models_outer = QVBoxLayout(self.models_grp)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -110,34 +110,34 @@ class UpscaleTab(QWidget):
         self._model_list_layout.addStretch()
         scroll.setWidget(container)
         models_outer.addWidget(scroll)
-        root.addWidget(models_grp)
+        root.addWidget(self.models_grp)
 
         # ── Configuration ─────────────────────────────────────────────────
-        config_grp = QGroupBox("Configuration")
-        config_lay = QFormLayout(config_grp)
+        self.config_grp = QGroupBox(tr("up_config"))
+        config_lay = QFormLayout(self.config_grp)
 
         # Active model
         self.combo_model = QComboBox()
         self._refresh_model_combo()
-        self.lbl_model = QLabel("Active Model:")
+        self.lbl_model = QLabel(tr("up_active_model"))
         config_lay.addRow(self.lbl_model, self.combo_model)
 
         # Scale
         self.combo_scale = QComboBox()
-        self.combo_scale.addItem("x1 (qualité sans changement de résolution)", 1)
+        self.combo_scale.addItem(tr("up_scale_x1"), 1)
         self.combo_scale.addItem("x2", 2)
-        self.combo_scale.addItem("x4 (default)", 4)
+        self.combo_scale.addItem(tr("up_scale_x4"), 4)
         self.combo_scale.setCurrentIndex(2)
-        self.lbl_scale = QLabel("Output Scale:")
+        self.lbl_scale = QLabel(tr("up_output_scale"))
         config_lay.addRow(self.lbl_scale, self.combo_scale)
 
         # Format
         self.combo_format = QComboBox()
-        self.combo_format.addItem("PNG (lossless)", "png")
+        self.combo_format.addItem(tr("up_format_png"), "png")
         self.combo_format.addItem("JPEG", "jpg")
         self.combo_format.addItem("WebP", "webp")
         self.combo_format.currentIndexChanged.connect(self._on_format_changed)
-        self.lbl_format = QLabel("Output Format:")
+        self.lbl_format = QLabel(tr("up_output_format"))
         config_lay.addRow(self.lbl_format, self.combo_format)
 
         # Compression (JPG/WebP only)
@@ -151,7 +151,7 @@ class UpscaleTab(QWidget):
         )
         compression_row.addWidget(self.slider_compression)
         compression_row.addWidget(self.lbl_compression_val)
-        self.lbl_compression = QLabel("Compression:")
+        self.lbl_compression = QLabel(tr("up_compression"))
         self.compression_widget = QWidget()
         self.compression_widget.setLayout(compression_row)
         self.compression_widget.setVisible(False)
@@ -161,50 +161,52 @@ class UpscaleTab(QWidget):
         self.spin_tile = QSpinBox()
         self.spin_tile.setRange(0, 4096)
         self.spin_tile.setValue(0)
-        self.spin_tile.setSpecialValueText("Auto (0)")
+        self.spin_tile.setSpecialValueText(tr("up_tile_auto"))
         self.spin_tile.setSuffix(" px")
-        self.lbl_tile = QLabel("Tile Size:")
+        self.lbl_tile = QLabel(tr("up_tile_size"))
         config_lay.addRow(self.lbl_tile, self.spin_tile)
 
         # TTA
-        self.chk_tta = QCheckBox("TTA mode  ⚠ Slow but better quality")
+        self.chk_tta = QCheckBox(tr("up_tta"))
         config_lay.addRow("", self.chk_tta)
 
-        root.addWidget(config_grp)
+        root.addWidget(self.config_grp)
 
         # ── Quick test ────────────────────────────────────────────────────
-        test_grp = QGroupBox("Upscale")
-        test_form = QFormLayout(test_grp)
+        self.test_grp = QGroupBox(tr("up_upscale"))
+        test_form = QFormLayout(self.test_grp)
 
         # Source (file or folder)
         src_row = QHBoxLayout()
         self.edit_test_src = DropLineEdit()
-        self.edit_test_src.setPlaceholderText("Fichier ou dossier source…")
+        self.edit_test_src.setPlaceholderText(tr("up_ph_source"))
         src_row.addWidget(self.edit_test_src, stretch=1)
-        btn_src_file = QPushButton("Fichier")
-        btn_src_file.setFixedWidth(70)
-        btn_src_file.clicked.connect(self._pick_test_src_file)
-        src_row.addWidget(btn_src_file)
-        btn_src_dir = QPushButton("Dossier")
-        btn_src_dir.setFixedWidth(70)
-        btn_src_dir.clicked.connect(self._pick_test_src_dir)
-        src_row.addWidget(btn_src_dir)
-        test_form.addRow("Source :", src_row)
+        self.btn_src_file = QPushButton(tr("up_btn_file"))
+        self.btn_src_file.setFixedWidth(70)
+        self.btn_src_file.clicked.connect(self._pick_test_src_file)
+        src_row.addWidget(self.btn_src_file)
+        self.btn_src_dir = QPushButton(tr("up_btn_folder"))
+        self.btn_src_dir.setFixedWidth(70)
+        self.btn_src_dir.clicked.connect(self._pick_test_src_dir)
+        src_row.addWidget(self.btn_src_dir)
+        self.lbl_source = QLabel(tr("up_source_label"))
+        test_form.addRow(self.lbl_source, src_row)
 
         # Destination folder
         dest_row = QHBoxLayout()
         self.edit_test_dest = DropLineEdit()
-        self.edit_test_dest.setPlaceholderText("Dossier de destination…")
+        self.edit_test_dest.setPlaceholderText(tr("up_ph_dest"))
         dest_row.addWidget(self.edit_test_dest, stretch=1)
-        btn_dest = QPushButton("Parcourir…")
-        btn_dest.setFixedWidth(90)
-        btn_dest.clicked.connect(self._pick_test_dest)
-        dest_row.addWidget(btn_dest)
-        test_form.addRow("Destination :", dest_row)
+        self.btn_dest = QPushButton(tr("up_browse"))
+        self.btn_dest.setFixedWidth(90)
+        self.btn_dest.clicked.connect(self._pick_test_dest)
+        dest_row.addWidget(self.btn_dest)
+        self.lbl_dest = QLabel(tr("up_dest_label"))
+        test_form.addRow(self.lbl_dest, dest_row)
 
         # Launch row
         launch_row = QHBoxLayout()
-        self.btn_test = QPushButton("Upscale")
+        self.btn_test = QPushButton(tr("up_upscale"))
         self.btn_test.setMinimumHeight(32)
         self.btn_test.setStyleSheet(
             "background-color: #2a82da; color: white; font-weight: bold; border-radius: 4px;"
@@ -216,7 +218,7 @@ class UpscaleTab(QWidget):
         launch_row.addWidget(self.lbl_test_result, stretch=1)
         test_form.addRow("", launch_row)
 
-        root.addWidget(test_grp)
+        root.addWidget(self.test_grp)
 
         root.addStretch()
 
@@ -229,7 +231,7 @@ class UpscaleTab(QWidget):
             self.lbl_binary_status.setText(f"✅  {binary}  —  {ver}")
             self.lbl_binary_status.setStyleSheet("color: #44aa44;")
         else:
-            self.lbl_binary_status.setText("⚠️  upscayl-bin not found")
+            self.lbl_binary_status.setText(tr("up_bin_not_found"))
             self.lbl_binary_status.setStyleSheet("color: #cc6600; font-weight: bold;")
 
     def _refresh_model_combo(self):
@@ -242,10 +244,10 @@ class UpscaleTab(QWidget):
             if self._models_dir and m.is_downloaded(self._models_dir):
                 self.combo_model.addItem(f"✅ {m.label}", m.id)
             else:
-                self.combo_model.addItem(f"⬇️ {m.label} (click Download)", m.id)
+                self.combo_model.addItem(f"⬇️ {m.label} {tr('up_model_download_suffix')}", m.id)
 
         if not self.combo_model.count():
-            self.combo_model.addItem("(no models available)", "")
+            self.combo_model.addItem(tr("up_no_models"), "")
 
         idx = self.combo_model.findData(prev)
         if idx >= 0:
@@ -260,9 +262,8 @@ class UpscaleTab(QWidget):
 
     def _install_binary(self):
         reply = QMessageBox.question(
-            self, "Reinstall upscayl-bin",
-            "Download the latest upscayl-bin release for macOS arm64?\n"
-            "Bundled models will also be extracted to ./models/upscayl/.",
+            self, tr("up_reinstall_title"),
+            tr("up_reinstall_body"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -315,8 +316,8 @@ class UpscaleTab(QWidget):
 
     def _delete_model(self, model_id: str):
         reply = QMessageBox.question(
-            self, "Delete model",
-            f"Delete model '{model_id}'? (.bin and .param files will be removed)",
+            self, tr("up_delete_title"),
+            tr("up_delete_body", model_id),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -337,7 +338,7 @@ class UpscaleTab(QWidget):
 
     def _pick_test_src_file(self):
         path, _ = get_open_file_name(
-            self, "Sélectionner une image source", "",
+            self, tr("up_pick_src_file"), "",
             "Images (*.png *.jpg *.jpeg *.tif *.tiff *.webp)",
         )
         if path:
@@ -345,14 +346,14 @@ class UpscaleTab(QWidget):
 
     def _pick_test_src_dir(self):
         path = get_existing_directory(
-            self, "Sélectionner un dossier source"
+            self, tr("up_pick_src_dir")
         )
         if path:
             self.edit_test_src.setText(path)
 
     def _pick_test_dest(self):
         path = get_existing_directory(
-            self, "Sélectionner le dossier de destination"
+            self, tr("up_pick_dest")
         )
         if path:
             self.edit_test_dest.setText(path)
@@ -363,13 +364,13 @@ class UpscaleTab(QWidget):
         dest = self.edit_test_dest.text().strip()
 
         if not src:
-            self.lbl_test_result.setText("⚠ Sélectionnez une source.")
+            self.lbl_test_result.setText(tr("up_err_no_source"))
             return
         if not Path(src).exists():
-            self.lbl_test_result.setText("⚠ Source introuvable.")
+            self.lbl_test_result.setText(tr("up_err_src_not_found"))
             return
         if not dest:
-            self.lbl_test_result.setText("⚠ Sélectionnez un dossier de destination.")
+            self.lbl_test_result.setText(tr("up_err_no_dest"))
             return
 
         # Check if model is downloaded
@@ -377,10 +378,10 @@ class UpscaleTab(QWidget):
         model_id = params.get("model_id", "")
         model = get_model(model_id)
         if model and not model.is_downloaded(self._models_dir):
-            self.lbl_test_result.setText(f"⚠ Modèle non téléchargé. Cliquez sur Download pour '{model.label}'.")
+            self.lbl_test_result.setText(tr("up_err_model_not_downloaded", model.label))
             return
 
-        self.lbl_test_result.setText("En cours…")
+        self.lbl_test_result.setText(tr("up_running"))
         self.btn_test.setEnabled(False)
 
         self._test_worker = TestWorker(src, dest, params)
@@ -391,7 +392,7 @@ class UpscaleTab(QWidget):
     def _on_test_done(self, success: bool, result: str):
         self.btn_test.setEnabled(True)
         if success:
-            self.lbl_test_result.setText("✅ Terminé.")
+            self.lbl_test_result.setText(tr("up_done"))
             subprocess.Popen(["open", result])
         else:
             self.lbl_test_result.setText(f"❌ {result}")
@@ -433,7 +434,35 @@ class UpscaleTab(QWidget):
     def set_state(self, state: dict):
         self.set_params(state)
 
-    # ──────────────────────────────────────────── i18n (minimal, uses fallbacks)
+    # ──────────────────────────────────────────── i18n
 
     def retranslate_ui(self):
-        pass
+        """Met à jour tous les textes visibles quand la langue change."""
+        from app.upscayl_manager import find_binary
+        self.engine_grp.setTitle(tr("up_engine"))
+        self.models_grp.setTitle(tr("up_models"))
+        self.config_grp.setTitle(tr("up_config"))
+        self.test_grp.setTitle(tr("up_upscale"))
+        self.btn_reinstall.setText(tr("up_reinstall"))
+        self.btn_reinstall.setToolTip(tr("up_reinstall_tip"))
+        self.hint_label.setText(tr(self._hint_key))
+        self._update_binary_status(find_binary())
+        self.lbl_model.setText(tr("up_active_model"))
+        self.lbl_scale.setText(tr("up_output_scale"))
+        self.combo_scale.setItemText(0, tr("up_scale_x1"))
+        self.combo_scale.setItemText(2, tr("up_scale_x4"))
+        self.lbl_format.setText(tr("up_output_format"))
+        self.combo_format.setItemText(0, tr("up_format_png"))
+        self.lbl_compression.setText(tr("up_compression"))
+        self.lbl_tile.setText(tr("up_tile_size"))
+        self.spin_tile.setSpecialValueText(tr("up_tile_auto"))
+        self.chk_tta.setText(tr("up_tta"))
+        self.lbl_source.setText(tr("up_source_label"))
+        self.lbl_dest.setText(tr("up_dest_label"))
+        self.edit_test_src.setPlaceholderText(tr("up_ph_source"))
+        self.edit_test_dest.setPlaceholderText(tr("up_ph_dest"))
+        self.btn_src_file.setText(tr("up_btn_file"))
+        self.btn_src_dir.setText(tr("up_btn_folder"))
+        self.btn_dest.setText(tr("up_browse"))
+        self.btn_test.setText(tr("up_upscale"))
+        self._refresh_model_combo()

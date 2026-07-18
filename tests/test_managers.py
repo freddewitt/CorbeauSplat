@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# PyQt6 and send2trash mocking moved to tests/conftest.py
+# PySide6 and send2trash mocking moved to tests/conftest.py
 # to ensure patches are applied before any test module is imported.
 
 

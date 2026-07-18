@@ -1,5 +1,6 @@
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QCheckBox,
     QComboBox,
@@ -20,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.core.i18n import add_language_observer, get_current_lang, set_language, tr
+from app.gui.styles import get_saved_theme, save_theme, set_dark_theme
 from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_names
 from app.gui.widgets.drop_line_edit import DropLineEdit
 
@@ -109,13 +111,13 @@ class ConfigTab(QWidget):
     """Onglet de configuration principale"""
 
     # Signaux pour les actions globales qui necessitent l'orchestration du Main Window
-    processRequested = pyqtSignal()
-    resumeColmapRequested = pyqtSignal()
-    stopRequested = pyqtSignal()
-    deleteDatasetRequested = pyqtSignal()
-    quitRequested = pyqtSignal()
-    relaunchRequested = pyqtSignal()
-    resetRequested = pyqtSignal(bool) # True if deep reset requested
+    processRequested = Signal()
+    resumeColmapRequested = Signal()
+    stopRequested = Signal()
+    deleteDatasetRequested = Signal()
+    quitRequested = Signal()
+    relaunchRequested = Signal()
+    resetRequested = Signal(bool) # True if deep reset requested
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -140,7 +142,7 @@ class ConfigTab(QWidget):
         header_layout = QHBoxLayout()
         self.header_label = QLabel(tr("app_title"))
         self.header_label.setStyleSheet("font-size: 18px; font-weight: bold;")
-        self.header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.header_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         # Language Selector
         self.combo_lang = QComboBox()
@@ -163,9 +165,23 @@ class ConfigTab(QWidget):
 
         self.combo_lang.currentIndexChanged.connect(self.change_language)
 
+        # Theme Selector
+        self.combo_theme = QComboBox()
+        self.combo_theme.addItem("Slate + Indigo", "slate")
+        self.combo_theme.addItem("Graphite + Teal", "graphite")
+        self.combo_theme.addItem("Bleu modernisé", "blue")
+        self.combo_theme.setMinimumWidth(140)
+        theme_index = self.combo_theme.findData(get_saved_theme())
+        if theme_index >= 0:
+            self.combo_theme.setCurrentIndex(theme_index)
+        self.combo_theme.currentIndexChanged.connect(self.change_theme)
+
+        # Titre aligné à gauche ; sélecteurs thème + langue à droite
+        header_layout.addWidget(self.header_label)
         header_layout.addStretch(1)
-        header_layout.addWidget(self.header_label, 2)
-        header_layout.addStretch(1)
+        self.lbl_theme_change = QLabel(tr("theme_change") + ":")
+        header_layout.addWidget(self.lbl_theme_change)
+        header_layout.addWidget(self.combo_theme)
         self.lbl_lang_change = QLabel(tr("lang_change") + ":")
         header_layout.addWidget(self.lbl_lang_change)
         header_layout.addWidget(self.combo_lang)
@@ -499,6 +515,13 @@ class ConfigTab(QWidget):
             set_language(lang_code)
             # No restart needed anymore!
 
+    def change_theme(self, index):
+        """Change le thème de l'application à la volée et l'enregistre."""
+        name = self.combo_theme.itemData(index)
+        if name:
+            save_theme(name)
+            set_dark_theme(QApplication.instance(), name)
+
     def update_ui_state(self):
         """Met à jour la visibilité selon le mode d'entraînement"""
         mode = self.get_training_mode()
@@ -821,6 +844,7 @@ class ConfigTab(QWidget):
         """Met à jour les textes des widgets lors du changement de langue"""
         self.header_label.setText(tr("app_title"))
         self.lbl_lang_change.setText(tr("lang_change") + ":")
+        self.lbl_theme_change.setText(tr("theme_change") + ":")
         self.input_group.setTitle(tr("group_input"))
         self.lbl_proj_name.setText(tr("label_project_name"))
         self.lbl_mode.setText(tr("label_training_mode"))

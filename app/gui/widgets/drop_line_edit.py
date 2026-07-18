@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import QLineEdit
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QLineEdit
 
 
 class DropLineEdit(QLineEdit):
@@ -9,7 +9,7 @@ class DropLineEdit(QLineEdit):
     A QLineEdit that accepts file drops.
     Emits fileDropped(str) signal when a valid path is dropped.
     """
-    fileDropped = pyqtSignal(str)
+    fileDropped = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)

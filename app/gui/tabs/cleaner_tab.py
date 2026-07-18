@@ -1,8 +1,8 @@
 """Onglet de nettoyage des splats (PLY Cleaner)."""
 import os
 
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
@@ -28,8 +28,8 @@ from app.gui.widgets.dialog_utils import (
 class CleanerTab(QWidget):
     """Onglet : Charger un .ply / dossier → ajuster les seuils → nettoyer."""
 
-    cleanRequested = pyqtSignal(str, str, dict, bool)   # input_path, output_path, params, recursive
-    stopRequested = pyqtSignal()
+    cleanRequested = Signal(str, str, dict, bool)   # input_path, output_path, params, recursive
+    stopRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)

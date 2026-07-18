@@ -1,7 +1,7 @@
 import subprocess
 
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
@@ -28,9 +28,9 @@ from app.gui.widgets.drop_line_edit import DropLineEdit
 class BrushTab(QWidget):
     """Onglet de configuration Brush"""
 
-    trainRequested = pyqtSignal()
-    stopRequested = pyqtSignal()
-    restartRequested = pyqtSignal()
+    trainRequested = Signal()
+    stopRequested = Signal()
+    restartRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)

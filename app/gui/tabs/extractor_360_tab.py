@@ -1,5 +1,5 @@
-from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QThread, Signal
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
@@ -23,7 +23,7 @@ from app.gui.widgets.drop_line_edit import DropLineEdit
 
 
 class InstallWorker(QThread):
-    finished_signal = pyqtSignal(bool, str)
+    finished_signal = Signal(bool, str)
 
     def __init__(self, engine, install=True):
         super().__init__()

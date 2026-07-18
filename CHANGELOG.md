@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.5.0] - 2026-07-18
+- 1.5.0 — migration PyQt6 → PySide6 (binding LGPL), aucun changement fonctionnel ni visuel.
+
 ## [1.2.3] - 2026-07-10
 
 ### ✨ New Features (Training)

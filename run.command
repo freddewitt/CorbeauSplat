@@ -218,10 +218,10 @@ if ! "$PYTHON_CMD" -m pip install -r $DEP_FILE > /dev/null 2>&1; then
 fi
 echo "✅ Dependencies synchronized and verified."
 
-# PyQt6 specific check
-if ! "$PYTHON_CMD" -c "import PyQt6" > /dev/null 2>&1; then
-    echo "🔧 Corrective installation of PyQt6..."
-    "$PYTHON_CMD" -m pip install PyQt6
+# PySide6 specific check
+if ! "$PYTHON_CMD" -c "import PySide6" > /dev/null 2>&1; then
+    echo "🔧 Corrective installation of PySide6..."
+    "$PYTHON_CMD" -m pip install PySide6
 fi
 
 # send2trash specific check

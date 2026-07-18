@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog
 
 
 def get_dialog_options():

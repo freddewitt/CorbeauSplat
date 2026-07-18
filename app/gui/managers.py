@@ -5,8 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication
 
 from app.core.params import ColmapParams
 from app.core.system import resolve_project_root

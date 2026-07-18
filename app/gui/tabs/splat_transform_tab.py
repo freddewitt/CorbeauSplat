@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
@@ -33,8 +33,8 @@ OUTPUT_FORMATS = [
 class SplatTransformTab(QWidget):
     """Tab for the PlayCanvas splat-transform CLI tool."""
 
-    transformRequested = pyqtSignal(str, str, dict)  # input, output, params
-    stopRequested = pyqtSignal()
+    transformRequested = Signal(str, str, dict)  # input, output, params
+    stopRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -251,11 +251,11 @@ class SplatTransformTab(QWidget):
         output_d = self.output_dir.text().strip()
 
         if not input_p:
-            from PyQt6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, tr("msg_warning"), tr("st_err_no_input", "Please select an input file."))
             return
         if not output_d:
-            from PyQt6.QtWidgets import QMessageBox
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, tr("msg_warning"), tr("st_err_no_output", "Please select an output folder."))
             return
 

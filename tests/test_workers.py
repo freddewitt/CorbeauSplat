@@ -40,13 +40,13 @@ class TestBaseWorker:
         assert hasattr(BaseWorker, 'finished_signal')
 
     def test_base_worker_init(self):
-        """Vérifie que les signaux sont des pyqtSignal."""
-        # Signals should be pyqtSignal instances (class-level descriptors)
-        import PyQt6.QtCore
-        assert isinstance(BaseWorker.log_signal, PyQt6.QtCore.pyqtSignal)
-        assert isinstance(BaseWorker.progress_signal, PyQt6.QtCore.pyqtSignal)
-        assert isinstance(BaseWorker.status_signal, PyQt6.QtCore.pyqtSignal)
-        assert isinstance(BaseWorker.finished_signal, PyQt6.QtCore.pyqtSignal)
+        """Vérifie que les signaux sont des Signal."""
+        # Signals should be Signal instances (class-level descriptors)
+        import PySide6.QtCore
+        assert isinstance(BaseWorker.log_signal, PySide6.QtCore.Signal)
+        assert isinstance(BaseWorker.progress_signal, PySide6.QtCore.Signal)
+        assert isinstance(BaseWorker.status_signal, PySide6.QtCore.Signal)
+        assert isinstance(BaseWorker.finished_signal, PySide6.QtCore.Signal)
 
     def test_stop_sets_flags(self):
         """stop() met is_running=False et stopped_by_user=True."""

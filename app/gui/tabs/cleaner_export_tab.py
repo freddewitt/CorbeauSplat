@@ -1,6 +1,6 @@
 """Onglet de nettoyage PLY standalone (fichier unique ou batch)."""
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
     QFrame,
     QMessageBox,
     QScrollArea,
@@ -20,7 +20,7 @@ class CleanerExportTab(QWidget):
     Le nettoyage post-entraînement est géré par le post-traitement de BrushTab.
     """
 
-    log_signal = pyqtSignal(str)
+    log_signal = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)

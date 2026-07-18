@@ -2,8 +2,8 @@ import webbrowser
 from pathlib import Path
 from urllib.parse import quote
 
-from PyQt6.QtCore import QTimer, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QTimer, Signal
+from PySide6.QtWidgets import (
     QCheckBox,
     QFormLayout,
     QFrame,
@@ -27,7 +27,7 @@ from app.gui.widgets.dialog_utils import get_open_file_name
 class SuperSplatTab(QWidget):
     """Onglet pour SuperSplat"""
 
-    stopRequested = pyqtSignal() # Pour signifier au Main Window si besoin de cleanup global
+    stopRequested = Signal() # Pour signifier au Main Window si besoin de cleanup global
 
     def __init__(self, parent=None):
         super().__init__(parent)
