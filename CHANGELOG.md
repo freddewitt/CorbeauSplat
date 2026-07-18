@@ -1,7 +1,19 @@
 # Changelog
 
 ## [1.5.0] - 2026-07-18
-- 1.5.0 — migration PyQt6 → PySide6 (binding LGPL), aucun changement fonctionnel ni visuel.
+
+### 🔁 Qt binding migration
+- **PyQt6 → PySide6**: The entire GUI now runs on **PySide6** (the official Qt for Python, **LGPL**) instead of PyQt6. Functionally and visually identical — same 11 tabs, same layout, same behaviour; only the underlying Qt binding changed. All `pyqtSignal` → `Signal`, every `PyQt6.*` import → `PySide6.*`, and the test suite's Qt mock + `pytest-qt` config (`PYTEST_QT_API=pyside6`) were updated accordingly. Pinned to PySide6 6.11.1 (Python 3.13); `requirements.txt`, `requirements.lock` and `run.command` updated. The 292 tests pass unchanged.
+
+### ✨ New Features (UI)
+- **Selectable themes**: A new **Theme** dropdown in the Training tab header (next to Language) offers three modern dark themes — **Slate + Indigo**, **Graphite + Teal**, and **Blue** — applied instantly (no restart) and remembered across sessions in `config.json`. The default dark theme was also modernized (deeper backgrounds, indigo accents, 8px rounded corners, refined scrollbars and tooltips). The dropdown label is translated in all 9 locales.
+- **App name left-aligned**: The software title in the Training tab header is now aligned to the left of the window (previously centered).
+
+### ✨ New Features (i18n)
+- **Upscale tab fully translated**: The Upscale tab was previously hardcoded in English (with a few French leftovers) and its `retranslate_ui()` was a no-op. All ~46 strings — group titles, labels, buttons, dropdown items, placeholders, the reinstall/delete dialogs, file pickers and result messages — are now translated across all **9 languages** and retranslated live when the language changes. Model cards (Delete / Download / Bundled / Not installed / Downloading…) are localized too.
+
+### 🐛 Fixes
+- **PySide6 RuntimeWarning on empty disconnect**: The Upscale model cards called `btn.clicked.disconnect()` with nothing connected, which PyQt6 tolerated silently but PySide6 warns about at startup (`Failed to disconnect (None) from signal "clicked()"`). Each card now tracks its connected handler and disconnects only that one — the warning is gone and behaviour is unchanged.
 
 ## [1.2.3] - 2026-07-10
 

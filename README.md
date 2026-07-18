@@ -117,6 +117,7 @@ This project stands on the shoulders of giants. A huge thank you to the creators
 *   **upscayl-ncnn**: High-performance AI image upscaling using NCNN. Powers the Upscale tab. [GitHub](https://github.com/upscayl/upscayl-ncnn)
 *   **PlayCanvas splat-transform**: Fast PLY ↔ SPZ ↔ GLB conversion CLI by PlayCanvas (MIT). Powers the SplatTransform tab. [GitHub](https://github.com/playcanvas/splat-transform)
 *   **nianticlabs/spz**: Official SPZ encoder/decoder by Niantic Labs (MIT). Powers the SPZ export in ExportEngine. [GitHub](https://github.com/nianticlabs/spz)
+*   **Qt for Python (PySide6)**: The official Qt bindings for Python (LGPL). Powers the entire desktop GUI. [Docs](https://doc.qt.io/qtforpython/)
 
 ## 📄 License
 
