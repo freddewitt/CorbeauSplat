@@ -15,6 +15,7 @@ Lot 3c : UI + BrushParams + presets. Le lancement réel (BrushWorker) passe par
 le dispatch orchestré du StudioWindow.
 """
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -98,6 +99,8 @@ class EntrainementPanel:
         outer.setContentsMargins(0, 0, 0, 0)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         content = QWidget()
         layout = QVBoxLayout(content)
 

@@ -13,6 +13,7 @@ Lot 3b : UI + params + détection de reprise. Le dispatch réel (lancer COLMAP,
 créer le projet à la volée) est câblé au sous-lot 3c.
 """
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -121,6 +122,8 @@ class ReconstructionPanel:
         outer.setContentsMargins(0, 0, 0, 0)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         content = QWidget()
         layout = QVBoxLayout(content)
 

@@ -12,6 +12,7 @@ depuis ``main.py``.
 
 from PySide6.QtWidgets import (
     QApplication,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -69,13 +70,19 @@ class StudioWindow(QMainWindow):
 
         # ── Corps : rail | centre | barre de droite ───────────────────────────
         body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
         self.rail = Rail()
         self.rail.itemSelected.connect(self.on_rail_selected)
         self.rail.setFixedWidth(220)
         body.addWidget(self.rail)
 
+        # Filet fin rail | centre
+        body.addWidget(self._vline())
+
         # Colonne centre : breadcrumb de flux + pile de panneaux.
         center_col = QVBoxLayout()
+        center_col.setContentsMargins(8, 0, 8, 0)
         self.breadcrumb = QLabel("")
         self.breadcrumb.setStyleSheet("color: #9aa5ce; padding: 4px 8px;")
         center_col.addWidget(self.breadcrumb)
@@ -83,8 +90,13 @@ class StudioWindow(QMainWindow):
         center_col.addWidget(self.center_stack, stretch=1)
         body.addLayout(center_col, stretch=3)
 
+        # Filet fin centre | barre de droite
+        body.addWidget(self._vline())
+
+        # Barre de droite : largeur suffisante pour les accordéons de params, et
+        # chaque panneau y gère son propre défilement vertical.
         self.right_stack = QStackedWidget()
-        self.right_stack.setFixedWidth(280)
+        self.right_stack.setFixedWidth(340)
         body.addWidget(self.right_stack)
 
         # Panneaux réels disponibles (les autres clés restent des placeholders,
@@ -121,6 +133,15 @@ class StudioWindow(QMainWindow):
         if _PAGE_KEYS:
             self.rail.select(_PAGE_KEYS[0])
             self._show_page(_PAGE_KEYS[0])
+
+    def _vline(self):
+        """Filet vertical fin séparant deux zones."""
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.VLine)
+        line.setFrameShadow(QFrame.Shadow.Plain)
+        line.setFixedWidth(1)
+        line.setStyleSheet("color: #2f3549; background-color: #2f3549;")
+        return line
 
     def _placeholder(self, key, zone):
         """Page provisoire (remplacée par le vrai panneau aux lots 3-5)."""
