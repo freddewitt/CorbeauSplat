@@ -182,3 +182,62 @@ Causes identifiées, aucune correction appliquée, plan priorisé en attente ex�
 (3) test_colmap_pipeline mock image vide (régression 611f216) ; (4) ci.yml ruff/mypy/pip-audit sans version figée.
 Plan validé utilisateur : restreindre lint scope app/, ruff --fix + manual, marker darwin pyobjc, corriger fixture, pin versions ci.yml.
 Priorité absolue : résoudre 4 blocages CI avant tout commit. P3-P5 e2e + mineurs M1-M8 inchangés.
+
+## Session 6 (2026-07-17) — Fix CI + mypy + Pillow
+
+Corrections 3 domaines : dépendances manquantes, CI GitHub Actions Ubuntu 24.04, typage Python PEP 484.
+
+**(1) opencv-python-headless** : utilisée requirements.txt (>=4.8,<5) mais absente requirements.lock → ajoutée 4.13.0.92.
+
+**(2) CI GitHub Actions** : Ubuntu 24.04 runner renomma paquets OpenGL → libegl1-mesa → libegl1, libgl1-mesa-glx → libgl1.
+
+**(3) Pillow 11.3.0** : 8 CVE connues (PYSEC-2026-*) → upgraded 12.3.0 (API stable, Image.LANCZOS présent).
+
+**(4) Mypy 27 erreurs** : annotations Optional implicites (PEP 484 interdit), collisions vars (p/pct, tar_member, f/out_f), bugs réels.
+  - engine.py : ctypes.CDLLError n'existe pas (except tuple cascadait), mapper() cast sparse_dir inutile, upscale_config dynamique.
+  - installers/brush.py : zip vs tar members renommées, handle fichier collisionnant.
+  - upscayl_manager.py, splat_transform_tab.py, export_engine.py, base_engine.py : annotations manquantes.
+
+**(5) test_setup_dependencies.py** : test_check_xcode_tools_present manquait skipif sys.platform != "darwin" (fail Linux).
+
+**Commits** : c83c1fc + be924e9 + ca4ab1b. **Tests** : 292 pass, 0 fail. **CI** : vérifiée verte (gh run watch).
+
+
+## 2026-07-18 — Session 7 : Migration PyQt6→PySide6 v1.5.0 + Thèmes + i18n Upscale
+
+**Migration bindings** : PyQt6 6.11.0 → PySide6 6.11.1 (même Qt). Remplacement mécanique pyqtSignal→Signal, imports refactorisés app/ + tests/. PySide6 déjà .venv → 1:1. Tests conftest réécrit + PYTEST_QT_API=pyside6. Requirements.txt/lock/pyproject bumped PySide6 6.11.1. Version 1.5.0 : app/__init__ + pyproject + tag git annoté poussé.
+
+**Fonctionnalités** : 3 thèmes sombres (slate/graphite/blue) app/gui/styles.py, menu config_tab déroulant, persisté config.json. i18n Upscale ~46 clés 9 locales, upscale_tab tr()+retranslate_ui, ModelCard traduit + observer. Fix PySide6 disconnect(None) warning : mémoriser handler, déconnecter seul.
+
+**Docs** : CHANGELOG [1.5.0] anglais emoji, README crédit Qt for Python LGPL.
+
+**Commits** e7d5688/b4e88db poussés origin/main, tag v1.5.0. Tests 292/1/15 (baseline stable). GUI validée macOS utilisateur.
+
+RESTE : P3-P5 e2e (360/Sharp vidéo/4DGS), M1-M8 mineurs.
+
+## Session 8 — 2026-07-18 — Audit ETAT_DES_LIEUX.md (lecture seule)
+
+Reprise session 7 (v1.5.0). Tâche : génération ETAT_DES_LIEUX.md (669 lignes) — cartographie factuelle complète et autosuffisante du code destinée refonte interface externe. 
+
+**Couvert** : moteurs app/core/ (8 classes), dataclasses/params cross-ref get_params/set_params, GUI app/gui/ (main_window + 13 onglets + 3 managers + 4 workers + 5 widgets custom + styles), couplages flux (signaux/slots COLMAP→Brush→Clean→Export, mode automatique/manuel, post-training dialog), i18n (9 locales, 516 clés alignées), sécurité (validate_path 4 checks, shell=True engine, Brush allowlist, SuperSplat CORS, sanitisation projet), tests (292 pass), dette technique/anomalies.
+
+**Lecture seule stricte** : zéro modification code, zéro exécution build/GUI. 6 agents Explore parallèles : moteurs, dataclasses, GUI, flux/couplages, i18n/sécurité/tests/anomalies, arborescence/métadonnées.
+
+**Anomalies factuelles documentées (non corrigées)** : guided_matching dead (désactivé UI, jamais écrit set_params), sequential_overlap orphelin (aucune UI/CLI), split split_true_of_reality undistort_images/filter_blurry/blur_factor entre ParamsTab-ConfigTab, double mapping blur_factor (GUI vs CLI), ExportTab orpheline (jamais instanciée), 2 chemins Brush (orchestré vs standalone fire-forget), workers FourDGS/360 dupliqués, import privé GUI→CLI (_apply_robust).
+
+**Résultat** : Aucun commit, aucun push. Manifest.md inchangé. RESTE À FAIRE inchangé (P3-P5 e2e, M1-M8 mineurs audit).
+
+## Session 9 (2026-07-18) — Correction dette technique audit + version 1.5.1
+
+Suite session 8 (ETAT_DES_LIEUX.md audit). 6 correctifs appliqués (A-F) :
+- A. guided_matching : case réactivée params_tab.py, écriture set_params()
+- B. sequential_overlap : QSpinBox ajouté, i18n 9 locales (en/fr/de/es/it/ja/ru/zh/ar)
+- C. blur_factor : unifié params.py::blur_factor_from_strength() (était dupliqué GUI+CLI)
+- D. ExportTab (code mort jamais instanciée) supprimée ; ExportEngine/ExportWorker inchangés
+- E. Brush standalone : subprocess Popen fire-and-forget → BrushWorker (logs+arrêt propre)
+- F. FourDGS/360Tab : orchestration unique main_window (suppression instanciation locale worker)
+
+Tests : 292 passed, 1 skipped, 15 deselected. Version 1.5.0→1.5.1 (app/__init__.py + pyproject.toml).
+CHANGELOG [1.5.1] - 2026-07-18. Commits 74bd4d1 (6 correctifs, 17 fichiers) + 765722a (CHANGELOG, 3 fichiers).
+Fichiers hors commit (choix délibéré) : PROMPT_CLAUDE_CODE_REFONTE_UI.md, REFONTE_UI_SPEC.md (notes utilisateur).
+manifest.md inchangé (v1.5.1 déjà mis à jour session 8). Aucun push. graphify update lancé séparément.

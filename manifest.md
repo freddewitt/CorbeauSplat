@@ -1,6 +1,6 @@
 # CorbeauSplat — Project Manifest
 
-> Version 1.2.2 — macOS Apple Silicon Gaussian Splatting Pipeline
+> Version 1.5.1 — macOS Apple Silicon Gaussian Splatting Pipeline
 
 ## Identity
 
@@ -8,7 +8,7 @@
 - **Author**: Frederick (freddewitt) — github.com/freddewitt/CorbeauSplat
 - **License**: MIT
 - **Python**: 3.13+ (main), 3.11 (ML Sharp venv)
-- **Stack**: PyQt6, COLMAP/Glomap, Brush (Rust/WGPU), Apple ML Sharp, upscayl-ncnn, opencv-python-headless
+- **Stack**: PySide6, COLMAP/Glomap, Brush (Rust/WGPU), Apple ML Sharp, upscayl-ncnn, opencv-python-headless
 - **File count**: ~74 Python files
 
 ## Quickstart
@@ -86,6 +86,8 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 1. **E2E 360 Extractor** (`.venv_360` requis, générateur équirectangulaire à créer)
 2. **E2E Sharp vidéo** (ffmpeg + Sharp predict par frame)
 3. **E2E 4DGS** (ffmpeg + COLMAP + nerfstudio, coûteux)
+
+> Résolu : **dette technique de l'audit d'état des lieux** (`ETAT_DES_LIEUX.md`, préalable à la refonte UI) — session 2026-07-18. `guided_matching` réactivé (case + `set_params()`), `sequential_overlap` doté d'un widget (i18n 9 locales), mapping `blur_factor` unifié dans `app/core/params.py`, `ExportTab` morte supprimée, "Lancer Brush uniquement" passe par `BrushWorker` (logs, arrêt propre), `FourDGSTab`/`Extractor360Tab` n'instancient plus leur propre worker (point d'orchestration unique dans `main_window`). 292 tests toujours verts. Version 1.5.1, commits `74bd4d1`/`765722a`.
 
 > Résolu : **audit SRP `ColmapEngine`** — session 2026-07-15. Construction des commandes CLI COLMAP (feature_extraction/matching/mapper/undistorter) extraite vers `app/core/colmap_commands.py` (fonctions pures) ; orchestration du pipeline inchangée dans `ColmapEngine`. 292 tests passent sans modification, vérifié en exécution réelle sur Apple Silicon. Commits `12f260f` (checkpoints Brush + bugfix SplatTransform + e2e P0-P2 + manifest allégé) et `3f8e51d` (extraction colmap_commands.py).
 
