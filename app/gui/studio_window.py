@@ -25,9 +25,12 @@ from app import VERSION
 from app.core.i18n import add_language_observer, tr
 from app.core.run_state import PIPELINE_STEPS, RunState, StepStatus
 from app.gui.logbar import LogBar
+from app.gui.panels.cleaner_panel import CleanerPanel
 from app.gui.panels.entrainement_panel import EntrainementPanel
+from app.gui.panels.export_panel import ExportPanel
 from app.gui.panels.reconstruction_panel import ReconstructionPanel
 from app.gui.panels.source_panel import SourcePanel
+from app.gui.panels.visualiser_panel import VisualiserPanel
 from app.gui.pipeline_planner import plan_pipeline
 from app.gui.rail import TOOL_KEYS, Rail
 from app.gui.settings_window import SettingsWindow
@@ -113,6 +116,9 @@ class StudioWindow(QMainWindow):
             "source": SourcePanel(self.run_state),
             "reconstruction": ReconstructionPanel(self.run_state),
             "entrainement": EntrainementPanel(self.run_state),
+            "nettoyage": CleanerPanel(self.run_state),
+            "export": ExportPanel(self.run_state),
+            "visualiser": VisualiserPanel(self.run_state),
         }
 
         # Pages ajoutées dans l'ordre de _PAGE_KEYS : leur index correspond à

@@ -4,9 +4,9 @@
 > **En cas de reprise (`/reprise`), lire CE fichier en premier.** 1 commit par lot, journal mis à jour en fin de lot.
 
 ## ⏯️ Reprendre ici
-- **Lot courant** : Lot 3 (3a/3b/3c) **terminé côté UI + planification**. Prochain : **câblage moteurs réels du dispatch** (voir ci-dessous) puis **Lot 4** (Nettoyage/Export/Visualiser).
-- **⚠️ RESTE dans le dispatch (à faire avant/pendant vérif Apple Silicon)** : `StudioWindow.launch()` calcule le plan + pilote rail/breadcrumb/auto-follow, mais **n'exécute pas encore les moteurs réels**. Il faut brancher, par étape du plan, les workers existants (`ColmapWorker`, `BrushWorker`, `PostTrainingWorker`, `SuperSplatEngine`) en réutilisant la logique de `main_window.py` (`process`/`train_brush`/`on_brush_finished`/`PostTrainingWorker`), signaux → `logbar`/`rail.set_step_status`/breadcrumb. C'est LA surface de vérif Apple Silicon (pipeline COLMAP→Brush réel).
-- **Prochaine action (Lot 4)** : panneaux Nettoyage (`CleanerExportTab`/`ply_cleaner`), Export (**sur `ExportEngine`/`ExportWorker`**, cf. écart audit Lot 0 — pas de résurrection ExportTab), Visualiser (`SuperSplatEngine`, bouton local Démarrer/Arrêter + `stop_all()` au closeEvent).
+- **Lot courant** : Lots 3 & 4 **terminés côté UI**. Prochain : **Lot 5** (modules OUTILS) ou **câblage moteurs réels** (dispatch + boutons locaux) = phase Apple Silicon.
+- **⚠️ RESTE : câblage moteurs réels (phase Apple Silicon)** — commun aux Lots 3 et 4. Les panneaux + `launch()` pilotent l'UI (plan, breadcrumb, rail, statuts) mais **n'exécutent pas les moteurs**. À brancher : `ColmapWorker`/`BrushWorker`/`PostTrainingWorker` dans `launch()` (réutiliser logique `main_window.py`), boutons locaux Nettoyage(`CleanerWorker`)/Export(`ExportWorker`)/Visualiser(`SuperSplatEngine.start_data_server`/`stop_all` + `stop_all()` au `closeEvent`). Signaux → `logbar`/`rail.set_step_status`/breadcrumb.
+- **Prochaine action (Lot 5)** : modules OUTILS (Brush, ML Sharp, SuperSplat, Upscale, SplatTransform, 4DGS, 360) — panneaux plain dans `StudioWindow.panels` sur les clés TOOL_KEYS (déjà des placeholders). Réutiliser panneaux existants où identiques (Brush≈Entraînement mode manuel, SuperSplat≈Visualiser).
 - **Pattern panneau établi (3a)** : classe plain exposant `.center`/`.right` (QWidget), insérée dans `StudioWindow.panels[key]`. Toggles de chaînage via `bind_flag_checkbox(chk, run_state, flag)` (`app/gui/run_state_binding.py`) = source de vérité unique. Persistance via `get_state()`.
 - **Acquis Lot 1** : `run_state.py`, `config_io.py`, `brush_params.py` (`to_engine_params()`), `brush_presets.py` (`merge_presets`).
 - **Acquis Lot 2** : `studio_window.py` (StudioWindow, 4 zones, QStackedWidget centre+droite), `topbar.py`, `rail.py` (13 items, OUTILS repliée par défaut, statut par étape), `logbar.py` (encapsule LogsTab, repliée), `settings_window.py` (thème/langue fonctionnels, reste en signaux), `studio_nav.py` (PageRegistry/CollapseState — logique testable hors Qt). **Placeholders centre/droite** = `StudioWindow._placeholder()`, à remplacer par les vrais panneaux.
@@ -19,8 +19,8 @@
 | 0 | Audit état réel (pas de code) | ✅ fait | (rapport, pas de commit) |
 | 1 | État partagé & plomberie backend | ✅ fait | (voir git log — lot 1) |
 | 2 | Squelette PySide6 4 zones | ✅ fait | (voir git log — lot 2) |
-| 3 | Pipeline Gsplat : Source / Reconstruction / Entraînement | 🔄 3a✅ 3b✅ 3c✅ (UI+plan) · reste câblage moteurs dispatch | — |
-| 4 | Nettoyage / Export / Visualiser | ☐ | — |
+| 3 | Pipeline Gsplat : Source / Reconstruction / Entraînement | ✅ UI+plan (reste câblage moteurs) | — |
+| 4 | Nettoyage / Export / Visualiser | ✅ UI (reste câblage moteurs) | — |
 | 5 | Modules OUTILS (7) | ☐ | — |
 | 6 | Sauvegarde/chargement, presets, notifications, i18n | ☐ | — |
 | 7 | Nettoyage final + bascule studio_window | ☐ | — |
@@ -40,6 +40,9 @@ Spec écrite à `b4e88db` (v1.5.0), avant les correctifs dette technique de la s
 
 **Confirmé à faire :**
 - `_apply_robust` cross-couche encore présent (`main_window.py:209` ← `app/cli/commands.py`). → nettoyage Lot 7.
+
+## 🐞 Bugs connus (à corriger plus tard)
+- **Scroll horizontal barre de droite / fenêtre** (signalé Apple Silicon) : persiste indépendamment de la largeur du `right_stack` (testé 300/340/380/400 → sans effet). Donc PAS un problème de largeur de la barre : probablement la fenêtre dont la largeur minimale (rail 220 + right fixe + largeur mini du centre) dépasse l'écran, OU un widget large non-wrappé dans le centre. Pistes : rendre le centre réellement rétrécissable (scroll area centre, ou min-width forcée basse), vérifier `QFormLayout` des accordéons (labels longs → passer libellés au-dessus des champs), envisager `right_stack` non-fixe (min+max). À investiguer sur Mac avec la taille réelle d'écran.
 
 ## Vérifications Apple Silicon en attente (par lot)
 - Lot 2 : rendu réel 4 zones, densité top bar, hauteur rail 13 items sur MacBook Air 13".
