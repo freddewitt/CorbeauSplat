@@ -4,8 +4,9 @@
 > **En cas de reprise (`/reprise`), lire CE fichier en premier.** 1 commit par lot, journal mis à jour en fin de lot.
 
 ## ⏯️ Reprendre ici
-- **Lot courant** : Lot 3 — Pipeline Gsplat : Source / Reconstruction / Entraînement (panneaux réels branchés sur les moteurs).
-- **Prochaine action** : orienter via graphify sur `ConfigTab`/`ParamsTab`/`BrushTab` + workers (`ColmapWorker`/`BrushWorker`/`PostTrainingWorker`), construire les 3 panneaux dans les placeholders centre/droite du `StudioWindow`, bindés sur `run_state` (Lot 1) et `BrushParams` (Lot 1). ⚠️ Lot 3 exige vérif Apple Silicon (pipeline COLMAP→Brush réel).
+- **Lot courant** : Lot 3 découpé en 3a/3b/3c. **3a Source ✅ fait.** Prochain : **3b Reconstruction**.
+- **Prochaine action (3b)** : orienter via graphify sur `ParamsTab` (accordéons Feature/Matching/Mapper) + logique « Reprise COLMAP » (aujourd'hui dans `ConfigTab`) + `ColmapEngine`/`ColmapWorker`. Créer `app/gui/panels/reconstruction_panel.py` (plain, center+right comme SourcePanel), accordéons params bindés sur `ColmapParams`, `undistort_images` bindé sur `run_state` (dupliqué avec Source), bannière Apple Silicon. Nouveau comportement : « dossier externe → nouveau projet à la volée ». Puis 3c Entraînement (BrushTab + BrushParams + presets). ⚠️ vérif Apple Silicon (pipeline COLMAP→Brush réel) à la fin de 3c.
+- **Pattern panneau établi (3a)** : classe plain exposant `.center`/`.right` (QWidget), insérée dans `StudioWindow.panels[key]`. Toggles de chaînage via `bind_flag_checkbox(chk, run_state, flag)` (`app/gui/run_state_binding.py`) = source de vérité unique. Persistance via `get_state()`.
 - **Acquis Lot 1** : `run_state.py`, `config_io.py`, `brush_params.py` (`to_engine_params()`), `brush_presets.py` (`merge_presets`).
 - **Acquis Lot 2** : `studio_window.py` (StudioWindow, 4 zones, QStackedWidget centre+droite), `topbar.py`, `rail.py` (13 items, OUTILS repliée par défaut, statut par étape), `logbar.py` (encapsule LogsTab, repliée), `settings_window.py` (thème/langue fonctionnels, reste en signaux), `studio_nav.py` (PageRegistry/CollapseState — logique testable hors Qt). **Placeholders centre/droite** = `StudioWindow._placeholder()`, à remplacer par les vrais panneaux.
 - **Note test GUI** : les classes héritant d'un widget Qt ne sont PAS instanciables sous le mock PySide6 (elles deviennent MagicMock). Tester la logique via des helpers plain (cf. `studio_nav.py`) ; valider le rendu via smoke `QT_QPA_PLATFORM=offscreen .venv/bin/python -c "..."` et sur Apple Silicon.
@@ -17,7 +18,7 @@
 | 0 | Audit état réel (pas de code) | ✅ fait | (rapport, pas de commit) |
 | 1 | État partagé & plomberie backend | ✅ fait | (voir git log — lot 1) |
 | 2 | Squelette PySide6 4 zones | ✅ fait | (voir git log — lot 2) |
-| 3 | Pipeline Gsplat : Source / Reconstruction / Entraînement | 🔄 à démarrer | — |
+| 3 | Pipeline Gsplat : Source / Reconstruction / Entraînement | 🔄 3a Source ✅ · 3b/3c à faire | — |
 | 4 | Nettoyage / Export / Visualiser | ☐ | — |
 | 5 | Modules OUTILS (7) | ☐ | — |
 | 6 | Sauvegarde/chargement, presets, notifications, i18n | ☐ | — |

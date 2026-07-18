@@ -24,6 +24,7 @@ from app import VERSION
 from app.core.i18n import add_language_observer, tr
 from app.core.run_state import PIPELINE_STEPS, RunState
 from app.gui.logbar import LogBar
+from app.gui.panels.source_panel import SourcePanel
 from app.gui.rail import TOOL_KEYS, Rail
 from app.gui.settings_window import SettingsWindow
 from app.gui.studio_nav import PageRegistry
@@ -74,11 +75,20 @@ class StudioWindow(QMainWindow):
         self.right_stack.setFixedWidth(280)
         body.addWidget(self.right_stack)
 
+        # Panneaux réels disponibles (les autres clés restent des placeholders,
+        # remplacés aux sous-lots 3b/3c/4/5).
+        self.panels = {"source": SourcePanel(self.run_state)}
+
         # Pages ajoutées dans l'ordre de _PAGE_KEYS : leur index correspond à
         # celui de PageRegistry (compteur), déterministe même sous mock PySide6.
         for key in _PAGE_KEYS:
-            self.center_stack.addWidget(self._placeholder(key, "center"))
-            self.right_stack.addWidget(self._placeholder(key, "right"))
+            panel = self.panels.get(key)
+            if panel is not None:
+                self.center_stack.addWidget(panel.center)
+                self.right_stack.addWidget(panel.right)
+            else:
+                self.center_stack.addWidget(self._placeholder(key, "center"))
+                self.right_stack.addWidget(self._placeholder(key, "right"))
 
         root.addLayout(body, stretch=1)
 
