@@ -4,17 +4,20 @@
 > **En cas de reprise (`/reprise`), lire CE fichier en premier.** 1 commit par lot, journal mis à jour en fin de lot.
 
 ## ⏯️ Reprendre ici
-- **Lot courant** : Lot 2 — Squelette PySide6 4 zones (top bar / rail / centre / logbar)
-- **Prochaine action** : orienter via graphify sur `main_window.py`/`styles.py`/`LogsTab`, créer `app/gui/studio_window.py` (sans supprimer `main_window.py`). ⚠️ Lot 2 exige vérif visuelle Apple Silicon.
-- **Acquis Lot 1 réutilisable** : `app/core/run_state.py` (RunState + StepStatus, Observer), `app/core/config_io.py` (ChainConfig save/load nommé), `app/core/brush_params.py` (surface structurée, `to_engine_params()`), `app/core/brush_presets.py` (presets user, `merge_presets(builtins)`).
+- **Lot courant** : Lot 3 — Pipeline Gsplat : Source / Reconstruction / Entraînement (panneaux réels branchés sur les moteurs).
+- **Prochaine action** : orienter via graphify sur `ConfigTab`/`ParamsTab`/`BrushTab` + workers (`ColmapWorker`/`BrushWorker`/`PostTrainingWorker`), construire les 3 panneaux dans les placeholders centre/droite du `StudioWindow`, bindés sur `run_state` (Lot 1) et `BrushParams` (Lot 1). ⚠️ Lot 3 exige vérif Apple Silicon (pipeline COLMAP→Brush réel).
+- **Acquis Lot 1** : `run_state.py`, `config_io.py`, `brush_params.py` (`to_engine_params()`), `brush_presets.py` (`merge_presets`).
+- **Acquis Lot 2** : `studio_window.py` (StudioWindow, 4 zones, QStackedWidget centre+droite), `topbar.py`, `rail.py` (13 items, OUTILS repliée par défaut, statut par étape), `logbar.py` (encapsule LogsTab, repliée), `settings_window.py` (thème/langue fonctionnels, reste en signaux), `studio_nav.py` (PageRegistry/CollapseState — logique testable hors Qt). **Placeholders centre/droite** = `StudioWindow._placeholder()`, à remplacer par les vrais panneaux.
+- **Note test GUI** : les classes héritant d'un widget Qt ne sont PAS instanciables sous le mock PySide6 (elles deviennent MagicMock). Tester la logique via des helpers plain (cf. `studio_nav.py`) ; valider le rendu via smoke `QT_QPA_PLATFORM=offscreen .venv/bin/python -c "..."` et sur Apple Silicon.
+- **`main.py` inchangé** : `ColmapGUI` reste l'UI active, bascule vers `StudioWindow` au Lot 7.
 
 ## État des lots
 | Lot | Titre | Statut | Commit |
 |---|---|---|---|
 | 0 | Audit état réel (pas de code) | ✅ fait | (rapport, pas de commit) |
 | 1 | État partagé & plomberie backend | ✅ fait | (voir git log — lot 1) |
-| 2 | Squelette PySide6 4 zones | 🔄 à démarrer | — |
-| 3 | Pipeline Gsplat : Source / Reconstruction / Entraînement | ☐ | — |
+| 2 | Squelette PySide6 4 zones | ✅ fait | (voir git log — lot 2) |
+| 3 | Pipeline Gsplat : Source / Reconstruction / Entraînement | 🔄 à démarrer | — |
 | 4 | Nettoyage / Export / Visualiser | ☐ | — |
 | 5 | Modules OUTILS (7) | ☐ | — |
 | 6 | Sauvegarde/chargement, presets, notifications, i18n | ☐ | — |
