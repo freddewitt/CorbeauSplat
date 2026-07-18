@@ -28,8 +28,13 @@ from app.gui.logbar import LogBar
 from app.gui.panels.cleaner_panel import CleanerPanel
 from app.gui.panels.entrainement_panel import EntrainementPanel
 from app.gui.panels.export_panel import ExportPanel
+from app.gui.panels.extractor360_panel import Extractor360Panel
+from app.gui.panels.four_dgs_panel import FourDGSPanel
 from app.gui.panels.reconstruction_panel import ReconstructionPanel
+from app.gui.panels.sharp_panel import SharpPanel
 from app.gui.panels.source_panel import SourcePanel
+from app.gui.panels.splat_transform_panel import SplatTransformPanel
+from app.gui.panels.upscale_panel import UpscalePanel
 from app.gui.panels.visualiser_panel import VisualiserPanel
 from app.gui.pipeline_planner import plan_pipeline
 from app.gui.rail import TOOL_KEYS, Rail
@@ -119,6 +124,15 @@ class StudioWindow(QMainWindow):
             "nettoyage": CleanerPanel(self.run_state),
             "export": ExportPanel(self.run_state),
             "visualiser": VisualiserPanel(self.run_state),
+            # Modules OUTILS. Brush ≈ Entraînement (mode manuel) et SuperSplat ≈
+            # Visualiser partagent le même écran sous-jacent (cf. spec §2.3).
+            "brush": EntrainementPanel(self.run_state),
+            "sharp": SharpPanel(self.run_state),
+            "supersplat": VisualiserPanel(self.run_state),
+            "upscale": UpscalePanel(self.run_state),
+            "splattransform": SplatTransformPanel(self.run_state),
+            "4dgs": FourDGSPanel(self.run_state),
+            "360": Extractor360Panel(self.run_state),
         }
 
         # Pages ajoutées dans l'ordre de _PAGE_KEYS : leur index correspond à
