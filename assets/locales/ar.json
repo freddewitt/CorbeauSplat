@@ -593,6 +593,8 @@
   "four_dgs_output": "وجهة مجموعة البيانات",
   "four_dgs_colmap_only": "إعادة بناء COLMAP فقط",
   "run_plan": "الخطة: ",
+  "run_chain_done": "اكتملت السلسلة بنجاح.",
+  "run_chain_manual_continue": "اكتملت إعادة البناء/التدريب. يجب تشغيل الخطوة التالية ({0}) يدويًا من شاشتها الخاصة.",
   "rail_section_pipeline": "خط المعالجة",
   "rail_section_outils": "الأدوات",
   "topbar_project": "المشروع:",

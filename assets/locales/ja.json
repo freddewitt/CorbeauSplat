@@ -593,6 +593,8 @@
   "four_dgs_output": "データセットの出力先",
   "four_dgs_colmap_only": "COLMAP 再構築のみ",
   "run_plan": "プラン: ",
+  "run_chain_done": "チェーンが正常に完了しました。",
+  "run_chain_manual_continue": "再構成／トレーニングが完了しました。次のステップ（{0}）はそれぞれの画面から手動で開始してください。",
   "rail_section_pipeline": "パイプライン",
   "rail_section_outils": "ツール",
   "topbar_project": "プロジェクト:",

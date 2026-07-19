@@ -593,6 +593,8 @@
   "four_dgs_output": "Путь для датасета",
   "four_dgs_colmap_only": "Только реконструкция COLMAP",
   "run_plan": "План: ",
+  "run_chain_done": "Цепочка успешно завершена.",
+  "run_chain_manual_continue": "Реконструкция/обучение завершены. Следующий этап ({0}) нужно запустить вручную с его собственного экрана.",
   "rail_section_pipeline": "КОНВЕЙЕР",
   "rail_section_outils": "ИНСТРУМЕНТЫ",
   "topbar_project": "Проект:",

@@ -593,6 +593,8 @@
   "four_dgs_output": "Dataset-Ziel",
   "four_dgs_colmap_only": "Nur COLMAP-Rekonstruktion",
   "run_plan": "Plan: ",
+  "run_chain_done": "Kette erfolgreich abgeschlossen.",
+  "run_chain_manual_continue": "Rekonstruktion/Training abgeschlossen. Nächster Schritt ({0}) muss manuell vom eigenen Bildschirm aus gestartet werden.",
   "rail_section_pipeline": "PIPELINE",
   "rail_section_outils": "WERKZEUGE",
   "topbar_project": "Projekt:",

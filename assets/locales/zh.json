@@ -593,6 +593,8 @@
   "four_dgs_output": "数据集目标",
   "four_dgs_colmap_only": "仅 COLMAP 重建",
   "run_plan": "计划：",
+  "run_chain_done": "链条已成功完成。",
+  "run_chain_manual_continue": "重建/训练已完成。下一步（{0}）需要从其对应界面手动启动。",
   "rail_section_pipeline": "流程",
   "rail_section_outils": "工具",
   "topbar_project": "项目：",

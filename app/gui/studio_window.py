@@ -369,12 +369,15 @@ class StudioWindow(QMainWindow):
 
         # Étape suivante (nettoyage/export/visualiser) : automatisation hors
         # scope de ce câblage — l'utilisateur continue manuellement.
-        self._finish_pipeline_chain(
-            True,
-            tr("run_chain_manual_continue",
-               "Reconstruction/Entraînement terminés. Étape suivante (" + step
-               + ") à lancer manuellement depuis son propre écran."),
-        )
+        # No default text passed to tr() here: LanguageManager.tr() applies
+        # .format(*args) internally whenever extra args are given AND the key
+        # is found — passing both a default string and relying on our own
+        # .format(step) afterward would let the default text itself get
+        # consumed as the {0} substitution. The key is defined in all 9
+        # locales (see assets/locales/*.json), so the plain-key fallback
+        # (raw key name) below is a defensive no-op in practice.
+        message = tr("run_chain_manual_continue").format(step)
+        self._finish_pipeline_chain(True, message)
 
     def _build_colmap_worker(self):
         """Construit le ``ColmapWorker`` de l'étape Reconstruction depuis les

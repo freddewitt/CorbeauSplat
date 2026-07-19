@@ -593,6 +593,8 @@
   "four_dgs_output": "Destination dataset",
   "four_dgs_colmap_only": "Reconstruction COLMAP seulement",
   "run_plan": "Plan : ",
+  "run_chain_done": "Chaîne terminée avec succès.",
+  "run_chain_manual_continue": "Reconstruction/Entraînement terminés. Étape suivante ({0}) à lancer manuellement depuis son propre écran.",
   "rail_section_pipeline": "PIPELINE",
   "rail_section_outils": "OUTILS",
   "topbar_project": "Projet :",
