@@ -301,3 +301,15 @@ Session annulée, pas de commit, pas de modification. P0 demandé mais annulé a
 **État** : Interface fonctionnelle. **P0 next : validation manuelle utilisateur données réelles.**
 
 Tests : 385 passed, 1 skipped, 15 deselected
+
+## Session 10 suite 9 (2026-07-19) — Résolution bug scroll horizontal barre droite
+
+**Lot** : Résolution complète bug scroll horizontal barre droite (commit 149111d).
+
+**Bug identifié** : Géométrie réelle a montré qu'un champ du panneau Entraînement (`combo_mode`, "Modo de Entrenamiento") dépassait le bord droit de la fenêtre de 34px en espagnol, faute de place dans la colonne droite (400px fixe).
+
+**Fix appliqué** : `setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)` sur les 18 `QFormLayout` du projet. Permet aux champs longs de passer à la ligne suivante plutôt que de déborder.
+
+**Vérification** : 10 panneaux + Réglages testés sans débordement, français/anglais/russe vérifiés, instanciation réelle StudioWindow (PySide6, pas mock).
+
+**État** : Tous les points connus du chantier refonte UI (8 lots) sont maintenant fermés côté code. Reste : P0 validation manuelle utilisateur sur données réelles (3 pipelines + 7 modules) + décision SessionManager orphelin.
