@@ -11,7 +11,7 @@ class LanguageManager:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance.current_lang = "fr" # Default
+            cls._instance.current_lang = "en" # Default
             cls._instance._translations = {}
             cls._instance._observers = []
             cls._instance.load_config()
@@ -52,7 +52,7 @@ class LanguageManager:
             if config_file.exists():
                 with open(config_file) as f:
                     config = json.load(f)
-                    self.current_lang = config.get("language", "fr")
+                    self.current_lang = config.get("language", "en")
         except (OSError, json.JSONDecodeError) as e:
             logger.warning("Could not load language config: %s", e)
 
