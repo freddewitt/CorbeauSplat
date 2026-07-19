@@ -208,112 +208,90 @@ class TestAppLifecycleRestart:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestSessionManager:
-    """Tests pour SessionManager — sauvegarde et chargement de session."""
+    """Tests pour SessionManager — persistance du dernier projet (panneau
+    Source) sous la clé ``"last_project"`` de ``config.json``."""
+
+    _PROJECT_STATE = {
+        "project_name": "MonProjet",
+        "input_path": "/tmp/source",
+        "output_path": "/tmp/sortie",
+        "checkpoint_dest": "",
+        "fps": 2,
+        "upscale": False,
+        "filter_blur": False,
+        "blur_strength": "medium",
+        "stabilized": False,
+        "export_dir": "",
+        "export_format": "spz",
+    }
 
     @pytest.fixture
     def session_manager(self, request, tmp_path):
-        """Crée un SessionManager avec des tabs mockés + patch actif."""
+        """Crée un SessionManager avec un StudioWindow minimal mocké (un seul
+        panneau Source, comme le reste de la fenêtre) + patch actif."""
         patcher = patch("app.gui.managers.resolve_project_root", return_value=tmp_path)
         patcher.start()
         request.addfinalizer(patcher.stop)
 
-        # Create main_window with mocked tabs
+        source_panel = MagicMock()
+        source_panel.get_state = MagicMock(return_value=dict(self._PROJECT_STATE))
+
         main_window = MagicMock()
-
-        # Mock tabs with get_state returning serializable dicts
-        for tab_name in ["config_tab", "params_tab", "brush_tab", "sharp_tab",
-                         "upscale_tab", "extractor_360_tab", "four_dgs_tab", "superplat_tab"]:
-            tab = MagicMock()
-            tab.get_state = MagicMock(return_value={"param1": "value1"})
-            setattr(main_window, tab_name, tab)
-
-        # Cleaner is a sub-tab of the composite cleaner_export_tab (v1.0.6)
-        cleaner_tab = MagicMock()
-        cleaner_tab.get_state = MagicMock(return_value={"param1": "value1"})
-        main_window.cleaner_export_tab.cleaner_tab = cleaner_tab
-
-        # Config tab needs combo_lang.currentData() to return a string
-        main_window.config_tab.combo_lang.currentData = MagicMock(return_value="fr")
+        main_window.panels = {"source": source_panel}
 
         from app.gui.managers import SessionManager
-        sm = SessionManager(main_window)
-        return sm
+        return SessionManager(main_window)
 
     def test_save_creates_config_file(self, session_manager, tmp_path):
-        """save(immediate=True) crée config.json."""
+        """save(immediate=True) crée config.json avec la clé last_project."""
         session_manager.save(immediate=True)
         config_file = tmp_path / "config.json"
         assert config_file.exists()
         data = json.loads(config_file.read_text())
+        assert data["last_project"] == self._PROJECT_STATE
+
+    def test_save_preserves_other_keys(self, session_manager, tmp_path):
+        """save fusionne avec config.json existant : ne détruit pas 'language'
+        (géré par LanguageManager) ni toute autre clé déjà présente."""
+        config_file = tmp_path / "config.json"
+        config_file.write_text(json.dumps({"language": "fr", "other_key": 42}))
+
+        session_manager.save(immediate=True)
+
+        data = json.loads(config_file.read_text())
         assert data["language"] == "fr"
+        assert data["other_key"] == 42
+        assert data["last_project"] == self._PROJECT_STATE
 
     def test_save_and_load_roundtrip(self, session_manager, tmp_path):
-        """save puis load restaure l'état."""
+        """save puis load restaure l'état sur le panneau Source (set_state)."""
         session_manager.save(immediate=True)
         config_file = tmp_path / "config.json"
         assert config_file.exists()
 
-        # load should call set_state on each tab
         session_manager.load()
 
-        # Verify set_state was called
-        for tab_name in ["config_tab", "params_tab", "brush_tab", "sharp_tab"]:
-            tab = getattr(session_manager.mw, tab_name)
-            tab.set_state.assert_called_with({"param1": "value1"})
-        # Cleaner is nested under the composite cleaner_export_tab (v1.0.6)
-        session_manager.mw.cleaner_export_tab.cleaner_tab.set_state.assert_called_with({"param1": "value1"})
+        source_panel = session_manager.mw.panels["source"]
+        source_panel.set_state.assert_called_once_with(self._PROJECT_STATE)
 
     def test_load_no_session_file(self, session_manager, tmp_path):
-        """load sans fichier ne fait rien."""
+        """load sans fichier ne fait rien (pas d'appel à set_state)."""
         config_file = tmp_path / "config.json"
         assert not config_file.exists()
 
-        # Should not raise
         session_manager.load()
 
-    def test_save_with_tab_get_params(self, session_manager, tmp_path):
-        """save utilise get_params si get_state n'existe pas."""
-        # Remove get_state so hasattr falls through to get_params
-        del session_manager.mw.config_tab.get_state
-        session_manager.mw.config_tab.get_params = MagicMock(return_value={"custom": "value"})
+        session_manager.mw.panels["source"].set_state.assert_not_called()
 
-        session_manager.save(immediate=True)
+    def test_load_no_last_project_key(self, session_manager, tmp_path):
+        """load avec config.json existant mais sans last_project ne fait rien
+        (ex. fichier écrit uniquement par LanguageManager)."""
         config_file = tmp_path / "config.json"
-        assert config_file.exists()
-        data = json.loads(config_file.read_text())
-        assert data["language"] == "fr"
-
-    def test_save_with_params_to_dict(self, session_manager, tmp_path):
-        """save convertit les params via to_dict si disponible."""
-        class ParamsWithDict:
-            def to_dict(self):
-                return {"converted": True}
-
-        del session_manager.mw.brush_tab.get_state
-        session_manager.mw.brush_tab.get_params = MagicMock(return_value=ParamsWithDict())
-
-        session_manager.save(immediate=True)
-        config_file = tmp_path / "config.json"
-        assert config_file.exists()
-
-    def test_load_with_set_params(self, session_manager, tmp_path):
-        """load utilise set_params si set_state n'existe pas."""
-        # Write a config file first
-        state = {
-            "language": "en",
-            "colmap_params": {"camera_model": "OPENCV"},
-        }
-        config_file = tmp_path / "config.json"
-        config_file.write_text(json.dumps(state))
-
-        # Remove set_state from params_tab so load falls through to set_params
-        del session_manager.mw.params_tab.set_state
-        session_manager.mw.params_tab.set_params = MagicMock()
+        config_file.write_text(json.dumps({"language": "en"}))
 
         session_manager.load()
 
-        # Should use set_params instead
-        session_manager.mw.params_tab.set_params.assert_called_once()
+        session_manager.mw.panels["source"].set_state.assert_not_called()
 
     def test_load_corrupted_json(self, session_manager, tmp_path):
         """Fichier JSON corrompu → pas d'erreur."""
@@ -322,6 +300,16 @@ class TestSessionManager:
 
         # Should not raise
         session_manager.load()
+
+    def test_save_no_source_panel(self, tmp_path):
+        """save sans panneau Source (main_window minimal) ne plante pas."""
+        with patch("app.gui.managers.resolve_project_root", return_value=tmp_path):
+            main_window = MagicMock()
+            main_window.panels = {}
+            from app.gui.managers import SessionManager
+            sm = SessionManager(main_window)
+            sm.save(immediate=True)
+            assert not (tmp_path / "config.json").exists()
 
     def test_debounce_timer(self, session_manager):
         """save sans immediate démarre le timer."""

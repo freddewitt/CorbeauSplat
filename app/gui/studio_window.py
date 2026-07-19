@@ -31,7 +31,7 @@ from app.core.config_io import ChainConfig, list_configs, load_config, save_conf
 from app.core.i18n import add_language_observer, tr
 from app.core.run_state import PIPELINE_STEPS, RunState, StepStatus
 from app.gui.logbar import LogBar
-from app.gui.managers import AppLifecycle
+from app.gui.managers import AppLifecycle, SessionManager
 from app.gui.panels.cleaner_panel import CleanerPanel
 from app.gui.panels.entrainement_panel import EntrainementPanel
 from app.gui.panels.export_panel import ExportPanel
@@ -98,6 +98,11 @@ class StudioWindow(QMainWindow):
         self.init_ui()
         set_dark_theme(QApplication.instance())
         add_language_observer(self.retranslate_ui)
+        # Dernier projet (chemins Source) : rechargé avant l'affichage de la
+        # fenêtre, sauvegardé en continu (debounce) et à la fermeture.
+        self.session_manager = SessionManager(self)
+        self.session_manager.load()
+        self._wire_session_autosave()
 
     def init_ui(self):
         self.setWindowTitle(tr("app_title"))
@@ -218,6 +223,16 @@ class StudioWindow(QMainWindow):
         if _PAGE_KEYS:
             self.rail.select(_PAGE_KEYS[0])
             self._show_page(_PAGE_KEYS[0])
+
+    def _wire_session_autosave(self):
+        """Déclenche une sauvegarde (debounce 1.5s, cf. SessionManager) sur les
+        champs identifiant le projet — filet de sécurité en cas de crash/kill,
+        en plus de la sauvegarde immédiate à la fermeture (cf. closeEvent)."""
+        source = self.panels.get("source")
+        if source is None:
+            return
+        for field in (source.input_project_name, source.input_path, source.output_path):
+            field.textChanged.connect(lambda _text=None: self.session_manager.save())
 
     def _vline(self):
         """Filet vertical fin séparant deux zones."""
@@ -667,6 +682,7 @@ class StudioWindow(QMainWindow):
         """Point de vigilance Lot 4 (PROMPT_CLAUDE_CODE_REFONTE_UI.md) : annule
         un worker OUTILS actif et stoppe SuperSplatEngine pour ne pas laisser de
         serveur local orphelin quand la fenêtre se ferme."""
+        self.session_manager.save(immediate=True)
         self._cancel_active_worker()
         for key in ("visualiser", "supersplat"):
             engine = getattr(self.panels.get(key), "engine", None)

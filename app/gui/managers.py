@@ -8,13 +8,23 @@ from pathlib import Path
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
-from app.core.params import ColmapParams
 from app.core.system import resolve_project_root
 
 logger = logging.getLogger(__name__)
 
 class SessionManager:
-    """SOLID-SRP : Gestion responsable uniquement de la persistance JSON"""
+    """SOLID-SRP : persiste le dernier projet (état du panneau Source — chemins
+    source/sortie, nom de projet, options associées) dans ``config.json``, sous
+    la clé ``"last_project"``.
+
+    ``config.json`` est partagé avec ``LanguageManager`` (clé ``"language"``,
+    cf. ``app/core/i18n.py``) : toute écriture ici lit d'abord le fichier
+    existant, ne modifie que sa propre clé, puis réécrit l'ensemble — jamais de
+    remplacement complet du fichier, pour ne pas écraser les autres clés.
+    """
+
+    CONFIG_KEY = "last_project"
+
     def __init__(self, main_window):
         self.mw = main_window
         self._save_timer = QTimer()
@@ -32,34 +42,33 @@ class SessionManager:
         else:
             self._save_timer.start(1500) # Debounce 1.5s
 
+    def _source_panel(self):
+        return self.mw.panels.get("source") if hasattr(self.mw, "panels") else None
+
     def _do_save(self):
-        state = {
-            "language": self.mw.config_tab.combo_lang.currentData(),
-        }
+        panel = self._source_panel()
+        if panel is None or not hasattr(panel, "get_state"):
+            return
+        self._write_merged(panel.get_state())
 
-        tab_mapping = {
-            "config": self.mw.config_tab,
-            "colmap_params": self.mw.params_tab,
-            "brush_params": self.mw.brush_tab,
-            "sharp_params": self.mw.sharp_tab,
-            "cleaner_params": self.mw.cleaner_export_tab.cleaner_tab,
-            "upscale_params": self.mw.upscale_tab,
-            "extractor_360_params": self.mw.extractor_360_tab,
-            "four_dgs_params": self.mw.four_dgs_tab,
-            "superplat_params": self.mw.superplat_tab,
-        }
+    def _write_merged(self, project_state):
+        """Lit ``config.json`` existant, met à jour uniquement ``CONFIG_KEY``,
+        réécrit — même principe de fusion que ``LanguageManager.save_config``."""
+        session_file = self.get_session_file()
+        config = {}
+        if session_file.exists():
+            try:
+                with open(session_file, encoding="utf-8") as f:
+                    existing = json.load(f)
+                    if isinstance(existing, dict):
+                        config = existing
+            except (OSError, json.JSONDecodeError) as e:
+                logger.warning("Session: config.json illisible, fusion prudente: %s", e)
 
-        for key, tab in tab_mapping.items():
-            if hasattr(tab, 'get_state'):
-                state[key] = tab.get_state()
-            elif hasattr(tab, 'get_params'):
-                state[key] = tab.get_params()
-                if hasattr(state[key], 'to_dict'):
-                    state[key] = state[key].to_dict()
-
+        config[self.CONFIG_KEY] = project_state
         try:
-            with open(self.get_session_file(), 'w') as f:
-                json.dump(state, f, indent=2)
+            with open(session_file, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2)
         except OSError as e:
             logger.error("Erreur sauvegarde session: %s", e)
 
@@ -69,32 +78,21 @@ class SessionManager:
             return
 
         try:
-            with open(session_file) as f:
-                state = json.load(f)
-
-            tab_mapping = {
-                "config": self.mw.config_tab,
-                "colmap_params": self.mw.params_tab,
-                "brush_params": self.mw.brush_tab,
-                "sharp_params": self.mw.sharp_tab,
-                "cleaner_params": self.mw.cleaner_export_tab.cleaner_tab,
-                "upscale_params": self.mw.upscale_tab,
-                "extractor_360_params": self.mw.extractor_360_tab,
-                "four_dgs_params": self.mw.four_dgs_tab,
-                "superplat_params": self.mw.superplat_tab,
-            }
-
-            for key, tab in tab_mapping.items():
-                if key in state:
-                    if hasattr(tab, 'set_state'):
-                        tab.set_state(state[key])
-                    elif hasattr(tab, 'set_params'):
-                        if key == "colmap_params":
-                            tab.set_params(ColmapParams.from_dict(state[key]))
-                        else:
-                            tab.set_params(state[key])
+            with open(session_file, encoding="utf-8") as f:
+                config = json.load(f)
         except (OSError, json.JSONDecodeError) as e:
             logger.error("Erreur chargement session: %s", e)
+            return
+
+        if not isinstance(config, dict):
+            return
+        project_state = config.get(self.CONFIG_KEY)
+        if not project_state:
+            return
+
+        panel = self._source_panel()
+        if panel is not None and hasattr(panel, "set_state"):
+            panel.set_state(project_state)
 
 
 class AppLifecycle:
