@@ -28,8 +28,8 @@ class TestAppLifecycleResetFactory:
         (tmp_path / ".venv").mkdir()
         (tmp_path / ".venv_sharp").mkdir()
         (tmp_path / ".venv_360").mkdir()
-        # Create run.command for relaunch
-        run_cmd = tmp_path / "run.command"
+        # Create launcher for relaunch
+        run_cmd = tmp_path / "Lancer CorbeauSplat.command"
         run_cmd.write_text("#!/bin/bash\necho run")
 
         from app.gui.managers import AppLifecycle
@@ -57,7 +57,7 @@ class TestAppLifecycleResetFactory:
         (tmp_path / ".venv_360").mkdir()
         (tmp_path / "engines").mkdir()
         (tmp_path / "config.json").write_text("{}")
-        run_cmd = tmp_path / "run.command"
+        run_cmd = tmp_path / "Lancer CorbeauSplat.command"
         run_cmd.write_text("#!/bin/bash")
 
         from app.gui.managers import AppLifecycle
@@ -120,27 +120,27 @@ class TestAppLifecycleResetFactory:
     @patch("shutil.rmtree")
     @patch("app.gui.managers.resolve_project_root")
     def test_reset_factory_relaunch_via_run_command(self, mock_root, mock_rmtree, mock_popen, tmp_path):
-        """reset_factory relance via run.command."""
+        """reset_factory relance via Lancer CorbeauSplat.command."""
         mock_root.return_value = tmp_path
-        run_cmd = tmp_path / "run.command"
+        run_cmd = tmp_path / "Lancer CorbeauSplat.command"
         run_cmd.write_text("#!/bin/bash")
 
         from app.gui.managers import AppLifecycle
 
         with patch.object(sys, "exit"):
             AppLifecycle.reset_factory(deep=False)
-            # Should use "open" for run.command
+            # Should use "open" for the launcher
             popen_args = mock_popen.call_args[0][0]
             assert "open" in popen_args
-            assert str(run_cmd) in popen_args or "run.command" in str(popen_args)
+            assert str(run_cmd) in popen_args or "Lancer CorbeauSplat.command" in str(popen_args)
 
     @patch("app.gui.managers.subprocess.Popen")
     @patch("shutil.rmtree")
     @patch("app.gui.managers.resolve_project_root")
     def test_reset_factory_no_run_command_fallback(self, mock_root, mock_rmtree, mock_popen, tmp_path):
-        """reset_factory sans run.command → relance via main.py --gui."""
+        """reset_factory sans launcher → relance via main.py --gui."""
         mock_root.return_value = tmp_path
-        # Don't create run.command
+        # Don't create the launcher file
 
         from app.gui.managers import AppLifecycle
 

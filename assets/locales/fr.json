@@ -247,7 +247,7 @@
   "upscale_check_sharp": "Upscaler avant traitement (upscayl-ncnn)",
   "upscale_lbl_status": "Statut :",
   "upscale_btn_download": "Télécharger le modèle",
-  "upscale_status_deps_missing": "⚠️ Dépendances manquantes (Relancez run.command)",
+  "upscale_status_deps_missing": "⚠️ Dépendances manquantes (Relancez Lancer CorbeauSplat.command)",
   "upscale_status_not_installed": "Module non installé",
   "upscale_status_available": "✅ Modèle disponible (Local)",
   "upscale_status_missing_model": "⚠️ Modèle manquant",

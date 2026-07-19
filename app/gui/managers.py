@@ -154,7 +154,7 @@ class AppLifecycle:
         QApplication.quit()
 
         root_dir = resolve_project_root().resolve()
-        run_cmd = root_dir / "run.command"
+        run_cmd = root_dir / "Lancer CorbeauSplat.command"
 
         # Collect deletion targets (relative names only)
         targets_rel = [".venv", ".venv_sharp", ".venv_360"]
@@ -197,11 +197,11 @@ class AppLifecycle:
                 except (ValueError, OSError):
                     pass
 
-        # Relaunch via run.command
+        # Relaunch via Lancer CorbeauSplat.command
         if run_cmd.exists():
             logger.info("Reset: relaunching via %s", run_cmd)
             subprocess.Popen(["open", str(run_cmd)], start_new_session=True)
         else:
-            logger.warning("Reset: run.command not found at %s, relaunching main.py", run_cmd)
+            logger.warning("Reset: launcher not found at %s, relaunching main.py", run_cmd)
             subprocess.Popen([sys.executable, str(root_dir / "main.py"), "--gui"], start_new_session=True)
         sys.exit(0)
