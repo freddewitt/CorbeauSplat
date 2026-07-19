@@ -313,3 +313,21 @@ Tests : 385 passed, 1 skipped, 15 deselected
 **Vérification** : 10 panneaux + Réglages testés sans débordement, français/anglais/russe vérifiés, instanciation réelle StudioWindow (PySide6, pas mock).
 
 **État** : Tous les points connus du chantier refonte UI (8 lots) sont maintenant fermés côté code. Reste : P0 validation manuelle utilisateur sur données réelles (3 pipelines + 7 modules) + décision SessionManager orphelin.
+
+## Session 10 suite 10 (2026-07-19) — Accessibilité lancement app
+
+**Commit** : `984d465`
+
+**Lot** : Rend le lancement plus accessible aux non-développeurs
+
+**Changements clés** :
+- Renommage `run.command` → `Lancer CorbeauSplat.command` (git mv)
+- Nouveau `app/scripts/set_launcher_icon.py` : applique assets/icon.icns au lanceur Finder via NSWorkspace/pyobjc, idempotent, appelé best-effort chaque démarrage
+- Terminal simplifié (3 lignes FR vs bannières Xcode/Homebrew/pip)
+- Option `--verbose`/`CORBEAU_VERBOSE=1` restaure affichage détaillé débogage
+- Prompts bloquants + erreurs réelles toujours visibles
+- Références mises à jour : app/gui/managers.py, tests/test_managers.py, README.md, 5 locales i18n
+
+**Tests** : 385 passed, 1 skipped, 15 deselected
+
+**Notes** : Icône Finder vérifiée appliquée (flag personnalisé + com.apple.ResourceFork).
