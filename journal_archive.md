@@ -348,3 +348,15 @@ Tests : 385 passed, 1 skipped, 15 deselected
 
 **Manifest.md** : RESTE À FAIRE mis à jour. Aucune modification code/config.json. REFONTE_UI_PROGRESS.md documente tous points fermés côté code.
 
+
+## Session 11 — 2026-07-19 — Tests E2E Sharp vidéo + SessionManager + 8 correctifs
+
+**Commits** : 8 intégrés — `60e9ab1` (E2E Sharp vidéo réel, retrait 360 placeholder), `abf6710` (câblage COLMAP→Brush critique), `bb109e9` (launcher affichage exhaustif), `9ce3132` (anglais défaut i18n), `d1b7993` (SessionManager restauré), `f455de1` (bouton Brush OUTILS), `155b9b9` (bottom bar Redémarrer/Quitter), `7a5fc75` (refactor Réglages).
+
+**Avancées** : Test Sharp vidéo E2E réel (ffmpeg + frames + predict + vérif PLY) ; fix critique pipeline launch() câblage ColmapWorker/BrushWorker responsables ; SessionManager rebranché pour StudioWindow (persiste état panel Source, fusion config.json sûre) ; bouton Lancer module Brush ; bottom bar actions globales ; refactor Réglages (mode build Brush déplacé, limitation thermique retirée).
+
+**Tests** : 385 pass / 1 skip. Icône launcher Finder ré-appliquée (métadonnées, idempotent).
+
+**Décision prise** : SessionManager orphelin → rebranché (RESTE À FAIRE item 2 résolu). Commentaires code applicatifs passés anglais (préférence utilisateur).
+
+**Reste** : Validation manuelle utilisateur données réelles (3 pipelines + 7 modules OUTILS).
