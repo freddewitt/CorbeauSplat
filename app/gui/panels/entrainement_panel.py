@@ -44,8 +44,9 @@ from app.gui.widgets.dialog_utils import get_existing_directory
 class EntrainementPanel:
     """Panneau plain exposant ``center`` et ``right`` (widgets Qt)."""
 
-    def __init__(self, run_state):
+    def __init__(self, run_state, standalone=False):
         self.run_state = run_state
+        self.standalone = standalone
         self._bindings = []
         self.center = self._build_center()
         self.right = self._build_right()
@@ -88,6 +89,14 @@ class EntrainementPanel:
         self.chk_visualiser = QCheckBox()
         self._bind(self.chk_visualiser, "visualiser_apres")
         layout.addWidget(self.chk_visualiser)
+
+        # Bouton Lancer local : uniquement pour l'usage autonome (module OUTILS
+        # « Brush »). L'étape PIPELINE Entraînement est pilotée par le bouton
+        # Lancer/Annuler unique de la top bar (cf. StudioWindow._run_pipeline_step).
+        if self.standalone:
+            self.btn_run = QPushButton()
+            self.btn_run.setStyleSheet("font-weight: bold;")
+            layout.addWidget(self.btn_run)
 
         layout.addStretch(1)
         return w
@@ -318,6 +327,8 @@ class EntrainementPanel:
         self.lbl_export.setText(tr("brush_lbl_output", "Dossier export"))
         self.lbl_ply.setText(tr("brush_lbl_ply", "Nom du fichier PLY (optionnel)"))
         self.chk_visualiser.setText(tr("chain_view_after", "Lancer dans SuperSplat"))
+        if self.standalone:
+            self.btn_run.setText(tr("btn_run", "Lancer"))
         self.lbl_preset.setText(tr("brush_lbl_preset", "Preset"))
         self.btn_save_preset.setToolTip(tr("brush_save_preset", "Enregistrer la config comme preset"))
         self.lbl_steps.setText(tr("brush_lbl_steps", "Steps total"))

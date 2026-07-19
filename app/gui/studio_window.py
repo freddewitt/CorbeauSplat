@@ -175,7 +175,7 @@ class StudioWindow(QMainWindow):
             "visualiser": VisualiserPanel(self.run_state),
             # Modules OUTILS. Brush ≈ Entraînement (mode manuel) et SuperSplat ≈
             # Visualiser partagent le même écran sous-jacent (cf. spec §2.3).
-            "brush": EntrainementPanel(self.run_state),
+            "brush": EntrainementPanel(self.run_state, standalone=True),
             "sharp": SharpPanel(self.run_state),
             "supersplat": VisualiserPanel(self.run_state),
             "upscale": UpscalePanel(self.run_state),
@@ -196,6 +196,7 @@ class StudioWindow(QMainWindow):
         self.panels["sharp"].btn_run.clicked.connect(self._launch_sharp)
         self.panels["splattransform"].btn_run.clicked.connect(self._launch_splat_transform)
         self.panels["upscale"].btn_run.clicked.connect(self._launch_upscale)
+        self.panels["brush"].btn_run.clicked.connect(self._launch_brush)
 
         # Pages ajoutées dans l'ordre de _PAGE_KEYS : leur index correspond à
         # celui de PageRegistry (compteur), déterministe même sous mock PySide6.
@@ -589,6 +590,24 @@ class StudioWindow(QMainWindow):
             return
         worker = TestWorker(input_path, output_path, panel.get_params())
         self._start_tool_worker(worker, finished_signal=worker.finished)
+
+    def _launch_brush(self):
+        """Module OUTILS « Brush » (mode manuel/indépendant du panneau
+        Entraînement, cf. entrainement_panel.py) : entraîne directement un
+        dataset déjà préparé (sparse + images), sans passer par la chaîne
+        pipeline Source → Reconstruction."""
+        panel = self.panels["brush"]
+        input_path = panel.input_path.text().strip()
+        output_path = panel.output_path.text().strip()
+        if not self._check_paths(input_path, output_path):
+            return
+        params = panel.get_params().to_engine_params()
+        params["refine_mode"] = panel.combo_mode.currentData() == "refine"
+        ply_name = panel.ply_name_edit.text().strip()
+        if ply_name:
+            params["ply_name"] = ply_name
+        worker = BrushWorker(input_path, output_path, params, project_name=Path(input_path).name)
+        self._start_tool_worker(worker)
 
     # ── Configuration nommée (Charger / Sauvegarder) ────────────────────────────
     def collect_config(self) -> ChainConfig:
