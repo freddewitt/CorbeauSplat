@@ -57,6 +57,13 @@ class TestWorker(QThread):
         self.input_path = input_path
         self.output_dir = output_dir
         self.params     = params
+        self.stopped_by_user = False
+
+    def stop(self):
+        """Annulation propre : run_upscayl termine le sous-processus upscayl-bin
+        dès que ``cancel_check`` (isInterruptionRequested) devient vrai."""
+        self.stopped_by_user = True
+        self.requestInterruption()
 
     def run(self):
         try:
@@ -107,7 +114,8 @@ class TestWorker(QThread):
                 success = [False]
                 run_upscayl(str(src), self.output_dir, upscayl_params,
                             log_callback=self.log_signal.emit,
-                            done_callback=lambda ok: success.__setitem__(0, ok))
+                            done_callback=lambda ok: success.__setitem__(0, ok),
+                            cancel_check=self.isInterruptionRequested)
                 if success[0] and x1_mode:
                     resize_to_original(self.output_dir, orig_sizes)
             else:
@@ -121,7 +129,8 @@ class TestWorker(QThread):
                     success = [False]
                     run_upscayl(tmp_in, self.output_dir, upscayl_params,
                                 log_callback=self.log_signal.emit,
-                                done_callback=lambda ok: success.__setitem__(0, ok))
+                                done_callback=lambda ok: success.__setitem__(0, ok),
+                                cancel_check=self.isInterruptionRequested)
                     if success[0] and x1_mode:
                         resize_to_original(self.output_dir, orig_sizes)
 

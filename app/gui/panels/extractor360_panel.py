@@ -144,16 +144,17 @@ class Extractor360Panel:
             self.output_path.setText(path)
 
     def get_params(self):
-        """Retourne les paramètres d'extraction 360 sous forme de dict."""
+        """Retourne les paramètres d'extraction 360 sous forme de dict (clés
+        alignées sur ``Extractor360Engine.run_extraction``)."""
         return {
             "interval": self.spin_interval.value(),
             "resolution": self.spin_res.value(),
             "layout": self.combo_layout.currentText(),
-            "cameras": self.spin_cameras.value(),
+            "camera_count": self.spin_cameras.value(),
             "quality": self.spin_quality.value(),
             "format": self.combo_format.currentText().lower(),
-            "mask_operator": self.chk_mask_operator.isChecked(),
-            "skip_operator": self.chk_skip_operator.isChecked(),
+            "ai_mask": self.chk_mask_operator.isChecked(),
+            "ai_skip": self.chk_skip_operator.isChecked(),
             "adaptive": self.chk_adaptive.isChecked(),
             "motion_threshold": self.spin_motion.value(),
         }

@@ -10,6 +10,8 @@ bascule finale se fait au Lot 7. Cette fenêtre n'est donc pas encore lancée
 depuis ``main.py``.
 """
 
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -46,6 +48,16 @@ from app.gui.settings_window import SettingsWindow
 from app.gui.studio_nav import PageRegistry
 from app.gui.styles import set_dark_theme
 from app.gui.topbar import TopBar
+from app.gui.widgets.upscale_widgets import TestWorker
+from app.gui.workers import (
+    CleanerWorker,
+    Extractor360Worker,
+    ExportWorker,
+    FourDGSWorker,
+    SharpVideoWorker,
+    SharpWorker,
+    SplatTransformWorker,
+)
 
 # Ordre des pages du stacked (étapes PIPELINE puis modules OUTILS).
 _PAGE_KEYS = tuple(PIPELINE_STEPS) + tuple(TOOL_KEYS)
@@ -62,6 +74,7 @@ class StudioWindow(QMainWindow):
         self.current_plan = []
         self._notifications_enabled = False
         self._settings_window = None
+        self._active_worker = None
         self.init_ui()
         set_dark_theme(QApplication.instance())
         add_language_observer(self.retranslate_ui)
@@ -86,7 +99,7 @@ class StudioWindow(QMainWindow):
         # ── Top bar ───────────────────────────────────────────────────────────
         self.topbar = TopBar()
         self.topbar.settingsRequested.connect(self.open_settings)
-        self.topbar.launchRequested.connect(self.launch)
+        self.topbar.launchRequested.connect(self.on_topbar_launch)
         root.addWidget(self.topbar)
 
         # ── Corps : rail | centre | barre de droite ───────────────────────────
@@ -139,6 +152,18 @@ class StudioWindow(QMainWindow):
             "4dgs": FourDGSPanel(self.run_state),
             "360": Extractor360Panel(self.run_state),
         }
+
+        # Bouton « Lancer » local des modules OUTILS (et de Nettoyage/Export,
+        # utilisables seuls hors chaîne pipeline) : chacun démarre son propre
+        # worker, le topbar bascule en Annuler pendant l'exécution (cf.
+        # _start_tool_worker / on_topbar_launch).
+        self.panels["nettoyage"].btn_run.clicked.connect(self._launch_cleaner)
+        self.panels["export"].btn_run.clicked.connect(self._launch_export)
+        self.panels["360"].btn_run.clicked.connect(self._launch_extractor360)
+        self.panels["4dgs"].btn_run.clicked.connect(self._launch_fourdgs)
+        self.panels["sharp"].btn_run.clicked.connect(self._launch_sharp)
+        self.panels["splattransform"].btn_run.clicked.connect(self._launch_splat_transform)
+        self.panels["upscale"].btn_run.clicked.connect(self._launch_upscale)
 
         # Pages ajoutées dans l'ordre de _PAGE_KEYS : leur index correspond à
         # celui de PageRegistry (compteur), déterministe même sous mock PySide6.
@@ -233,6 +258,140 @@ class StudioWindow(QMainWindow):
 
     def update_breadcrumb(self, plan):
         self.breadcrumb.setText(" → ".join(plan))
+
+    # ── Dispatch du bouton unique topbar (Lancer/Annuler) ────────────────────────
+    def on_topbar_launch(self):
+        """Le topbar n'a qu'un bouton Lancer/Annuler : s'il y a un worker OUTILS
+        actif (lancé depuis un bouton local), le clic l'annule ; sinon il lance
+        la chaîne pipeline (cf. ``launch``)."""
+        if self._active_worker is not None and self._active_worker.isRunning():
+            self._cancel_active_worker()
+            return
+        self.launch()
+
+    def _cancel_active_worker(self):
+        worker = self._active_worker
+        if worker and worker.isRunning():
+            self.logbar.append_log(tr("topbar_cancel", "Annuler") + "…")
+            if hasattr(worker, "stop"):
+                worker.stop()
+            else:
+                worker.requestInterruption()
+
+    # ── Lancement des modules OUTILS (bouton local, hors chaîne pipeline) ────────
+    def _start_tool_worker(self, worker, finished_signal=None):
+        """Démarre un worker OUTILS en tâche de fond : logs relayés vers la
+        barre de logs, topbar basculé en Annuler, résultat affiché à la fin."""
+        self._active_worker = worker
+        worker.log_signal.connect(self.logbar.append_log)
+        if hasattr(worker, "status_signal"):
+            worker.status_signal.connect(self.logbar.append_log)
+        signal = finished_signal if finished_signal is not None else worker.finished_signal
+        signal.connect(self._on_tool_finished)
+        self.topbar.set_running(True)
+        self.logbar.set_collapsed(False)
+        worker.start()
+
+    def _on_tool_finished(self, success, message):
+        worker = self._active_worker
+        self._active_worker = None
+        self.topbar.set_running(False)
+        self.logbar.append_log(message)
+        stopped_by_user = bool(worker and getattr(worker, "stopped_by_user", False))
+        if success:
+            self.notify(tr("msg_success", "Succès"), message)
+        elif not stopped_by_user:
+            self.notify(tr("msg_error", "Erreur"), message)
+            QMessageBox.warning(self, tr("msg_error", "Erreur"), message)
+
+    def _check_paths(self, *paths) -> bool:
+        if all(p and str(p).strip() for p in paths):
+            return True
+        QMessageBox.critical(self, tr("msg_error", "Erreur"), tr("err_no_paths", "Chemins manquants."))
+        return False
+
+    def _launch_cleaner(self):
+        panel = self.panels["nettoyage"]
+        input_path = panel.input_path.text().strip()
+        output_path = panel.output_path.text().strip()
+        if not self._check_paths(input_path, output_path):
+            return
+        worker = CleanerWorker(input_path, output_path, panel.get_params())
+        self._start_tool_worker(worker)
+
+    def _launch_export(self):
+        panel = self.panels["export"]
+        input_paths = [p for p in panel.input_path.text().split("|") if p.strip()]
+        output_dir = panel.output_path.text().strip()
+        if not input_paths or not output_dir:
+            QMessageBox.critical(self, tr("msg_error", "Erreur"), tr("err_no_paths", "Chemins manquants."))
+            return
+        worker = ExportWorker(
+            input_paths, output_dir, panel.get_format(), options={"scale": panel.get_scale()}
+        )
+        self._start_tool_worker(worker)
+
+    def _launch_extractor360(self):
+        panel = self.panels["360"]
+        input_path = panel.input_path.text().strip()
+        output_path = panel.output_path.text().strip()
+        if not self._check_paths(input_path, output_path):
+            return
+        worker = Extractor360Worker(input_path, output_path, panel.get_params())
+        self._start_tool_worker(worker)
+
+    def _launch_fourdgs(self):
+        panel = self.panels["4dgs"]
+        params = panel.get_params()
+        if not self._check_paths(params["output_path"]):
+            return
+        worker = FourDGSWorker(params["input_path"] or None, params["output_path"], params["fps"])
+        self._start_tool_worker(worker)
+
+    def _launch_sharp(self):
+        panel = self.panels["sharp"]
+        params = panel.get_params()
+        upscale_checked = params.get("upscale", False)
+        params.update(self.panels["upscale"].get_params())
+        params["upscale"] = upscale_checked
+        if params["mode"] == "video":
+            if not self._check_paths(params["video_path"], params["video_output_path"]):
+                return
+            worker = SharpVideoWorker(params["video_path"], params["video_output_path"], params)
+        else:
+            if not self._check_paths(params["input_path"], params["output_path"]):
+                return
+            worker = SharpWorker(params["input_path"], params["output_path"], params)
+        self._start_tool_worker(worker)
+
+    def _launch_splat_transform(self):
+        panel = self.panels["splattransform"]
+        input_path = panel.input_path.text().strip()
+        output_dir = panel.output_path.text().strip()
+        if not self._check_paths(input_path, output_dir):
+            return
+        src_params = panel.get_params()
+        output_path = str(Path(output_dir) / f"{Path(input_path).stem}.{src_params['format']}")
+        st_params = {"--overwrite": True}
+        if src_params["filter_nan"]:
+            st_params["--filter-nan"] = True
+        if src_params["morton"]:
+            st_params["--morton-order"] = True
+        if src_params["harmonics"]:
+            st_params["--filter-harmonics"] = "0"
+        if src_params["decimate"] < 100:
+            st_params["--decimate"] = f"{src_params['decimate']:.0f}%"
+        worker = SplatTransformWorker(input_path, output_path, st_params)
+        self._start_tool_worker(worker)
+
+    def _launch_upscale(self):
+        panel = self.panels["upscale"]
+        input_path = panel.input_path.text().strip()
+        output_path = panel.output_path.text().strip()
+        if not self._check_paths(input_path, output_path):
+            return
+        worker = TestWorker(input_path, output_path, panel.get_params())
+        self._start_tool_worker(worker, finished_signal=worker.finished)
 
     # ── Configuration nommée (Charger / Sauvegarder) ────────────────────────────
     def collect_config(self) -> ChainConfig:
