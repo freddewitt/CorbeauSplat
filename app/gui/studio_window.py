@@ -31,6 +31,7 @@ from app.core.config_io import ChainConfig, list_configs, load_config, save_conf
 from app.core.i18n import add_language_observer, tr
 from app.core.run_state import PIPELINE_STEPS, RunState, StepStatus
 from app.gui.logbar import LogBar
+from app.gui.managers import AppLifecycle
 from app.gui.panels.cleaner_panel import CleanerPanel
 from app.gui.panels.entrainement_panel import EntrainementPanel
 from app.gui.panels.export_panel import ExportPanel
@@ -51,8 +52,8 @@ from app.gui.topbar import TopBar
 from app.gui.widgets.upscale_widgets import TestWorker
 from app.gui.workers import (
     CleanerWorker,
-    Extractor360Worker,
     ExportWorker,
+    Extractor360Worker,
     FourDGSWorker,
     SharpVideoWorker,
     SharpWorker,
@@ -473,8 +474,20 @@ class StudioWindow(QMainWindow):
             self._settings_window.saveRequested.connect(self.save_config_dialog)
             self._settings_window.loadRequested.connect(self.load_config_dialog)
             self._settings_window.notificationsToggled.connect(self.set_notifications_enabled)
+            self._settings_window.relaunchRequested.connect(self.restart_application)
+            self._settings_window.resetRequested.connect(self.reset_factory)
         self._settings_window.show()
         self._settings_window.raise_()
+
+    def restart_application(self):
+        """Relance l'application (cf. ``AppLifecycle.restart``)."""
+        AppLifecycle.restart()
+
+    def reset_factory(self, deep=False):
+        """Supprime les venvs (et engines/config.json si ``deep``) puis relance
+        l'installation/application. Déjà confirmé par ``ResetDialog`` côté
+        ``SettingsWindow`` avant l'émission du signal."""
+        AppLifecycle.reset_factory(deep)
 
     def retranslate_ui(self):
         self.setWindowTitle(tr("app_title"))

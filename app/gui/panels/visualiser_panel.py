@@ -4,19 +4,26 @@ Centre : sélection du fichier (.ply/.spz), bouton Démarrer/Arrêter local
 (indépendant du bouton Lancer global), statut serveur, rappel URL.
 Barre de droite : ports, No UI, position et rotation caméra.
 
-Lot 4 : UI + params + état local du bouton. Le démarrage réel du serveur
-(``SuperSplatEngine.start_data_server``) est câblé dans la phase moteurs
-(surface Apple Silicon) ; ``StudioWindow.closeEvent`` appelle déjà
-``self.engine.stop_all()`` (point de vigilance Lot 4).
+Le démarrage/arrêt réel du serveur (``SuperSplatEngine.start_supersplat`` +
+``start_data_server``) est câblé sur le bouton local ``btn_toggle`` — pas un
+``Worker``/``QThread`` comme les autres modules (serveur continu, pas un
+traitement avec fin), donc indépendant du bouton Lancer/Annuler global de la
+topbar. ``StudioWindow.closeEvent`` appelle ``self.engine.stop_all()`` en
+sécurité pour ne pas laisser de serveur orphelin à la fermeture.
 """
 
-from PySide6.QtCore import Qt
+import webbrowser
+from pathlib import Path
+from urllib.parse import quote
+
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -70,6 +77,7 @@ class VisualiserPanel:
         layout.addWidget(self.lbl_url)
         self.btn_reopen = QPushButton()
         self.btn_reopen.setEnabled(False)
+        self.btn_reopen.clicked.connect(self._open_browser)
         layout.addWidget(self.btn_reopen)
 
         layout.addStretch(1)
@@ -125,10 +133,75 @@ class VisualiserPanel:
         return w
 
     def toggle_server(self):
-        """Bascule l'état local. Le démarrage réel du serveur SuperSplat est
-        câblé dans la phase moteurs (surface Apple Silicon)."""
-        self._running = not self._running
+        """Démarre ou arrête réellement le serveur SuperSplat (bouton local
+        indépendant du bouton Lancer/Annuler global)."""
+        if self._running:
+            self._stop_server()
+        else:
+            self._start_server()
+
+    def _start_server(self):
+        success, msg = self.engine.start_supersplat(self.splat_port.value())
+        if not success:
+            QMessageBox.critical(self.center, tr("msg_error", "Erreur"), msg)
+            return
+
+        path_str = self.input_path.text().strip()
+        if path_str:
+            path = Path(path_str)
+            if path.exists():
+                directory = path if path.is_dir() else path.parent
+                success_data, msg_data = self.engine.start_data_server(
+                    str(directory), self.data_port.value()
+                )
+                if not success_data:
+                    QMessageBox.warning(self.center, tr("msg_warning", "Attention"), msg_data)
+                    self.engine.stop_supersplat()
+                    return
+
+        self._running = True
+        self.btn_reopen.setEnabled(True)
         self._refresh_status()
+        # Ouvre le navigateur après 1.5s pour laisser le serveur démarrer.
+        QTimer.singleShot(1500, self._open_browser)
+
+    def _stop_server(self):
+        self.engine.stop_all()
+        self._running = False
+        self.btn_reopen.setEnabled(False)
+        self._refresh_status()
+
+    def _build_url(self):
+        url = f"http://localhost:{self.splat_port.value()}"
+        params = []
+
+        path_str = self.input_path.text().strip()
+        if path_str:
+            path = Path(path_str)
+            if path.exists():
+                data_url = f"http://localhost:{self.data_port.value()}/{path.name}"
+                params.append(f"load={quote(data_url, safe=':/')}")
+
+        if self.chk_no_ui.isChecked():
+            params.append("noui")
+
+        pos = [self.cam_pos[axis].value() for axis in ("x", "y", "z")]
+        if any(pos):
+            params.append("cameraPosition=" + ",".join(f"{v:g}" for v in pos))
+        rot = [self.cam_rot[axis].value() for axis in ("x", "y", "z")]
+        if any(rot):
+            params.append("cameraRotation=" + ",".join(f"{v:g}" for v in rot))
+
+        if params:
+            url += "?" + "&".join(params)
+        return url
+
+    def _open_browser(self):
+        if not self._running:
+            return
+        url = self._build_url()
+        self.lbl_url.setText(url)
+        webbrowser.open(url)
 
     def is_running(self):
         return self._running

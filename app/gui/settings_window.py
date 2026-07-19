@@ -6,9 +6,12 @@ Charger/Sauvegarder la configuration complète, ``build_mode`` Brush,
 relancer, quitter.
 
 Lot 2 : Thème et Langue sont fonctionnels (styling / i18n, pas de la logique
-métier). Charger/Sauvegarder, notifications, build_mode, thermal, reset,
-relaunch et quit sont exposés en signaux/état, câblés aux moteurs dans les lots
-ultérieurs (6 pour charger/sauvegarder + notifications).
+métier). Charger/Sauvegarder, notifications, build_mode, thermal sont exposés
+en signaux/état, câblés aux moteurs dans les lots ultérieurs (6 pour
+charger/sauvegarder + notifications). Reset factory / relancer / quitter sont
+câblés sur ``AppLifecycle`` (``app/gui/managers.py``) — équivalent de l'ancien
+``ConfigTab``/``ResetDialog`` : ``resetRequested`` n'est émis qu'après
+confirmation explicite dans ``ResetDialog`` (choix Light/Deep ou Annuler).
 """
 
 from PySide6.QtCore import Signal
@@ -18,6 +21,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -40,12 +44,57 @@ _BUILD_MODES = (("release", "settings_build_release", "Binaire release"),
                 ("source", "settings_build_source", "Compilé source"))
 
 
+class ResetDialog(QDialog):
+    """Confirmation avant réinitialisation aux valeurs d'usine (Light/Deep),
+    équivalent de l'ancien ``ConfigTab.ResetDialog``."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(tr("btn_reset", "Réinitialisation Usine"))
+        self.setMinimumWidth(420)
+        self.result_deep = None
+
+        layout = QVBoxLayout(self)
+
+        lbl = QLabel(tr("confirm_reset", "Choisissez le niveau de réinitialisation :"))
+        lbl.setWordWrap(True)
+        layout.addWidget(lbl)
+
+        self.btn_light = QPushButton(tr("reset_light", "Light Reset (Envs)"))
+        layout.addWidget(self.btn_light)
+        desc_light = QLabel(tr("reset_light_desc", "Supprime les .venv (Python) et relance l'install."))
+        desc_light.setWordWrap(True)
+        layout.addWidget(desc_light)
+
+        self.btn_deep = QPushButton(tr("reset_deep", "Deep Reset (Factory)"))
+        layout.addWidget(self.btn_deep)
+        desc_deep = QLabel(tr("reset_deep_desc", "Supprime TOUT (Envs + Engines + Config). Radical."))
+        desc_deep.setWordWrap(True)
+        layout.addWidget(desc_deep)
+
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        layout.addWidget(line)
+
+        self.btn_cancel = QPushButton(tr("btn_cancel", "Annuler"))
+        layout.addWidget(self.btn_cancel)
+
+        self.btn_light.clicked.connect(lambda: self._done_with(False))
+        self.btn_deep.clicked.connect(lambda: self._done_with(True))
+        self.btn_cancel.clicked.connect(self.reject)
+
+    def _done_with(self, deep):
+        self.result_deep = deep
+        self.accept()
+
+
 class SettingsWindow(QDialog):
     """Réglages généraux. Émet des signaux pour les actions câblées ailleurs."""
 
     loadRequested = Signal()
     saveRequested = Signal()
-    resetRequested = Signal()
+    resetRequested = Signal(bool)
     relaunchRequested = Signal()
     quitRequested = Signal()
     buildModeChanged = Signal(str)
@@ -124,7 +173,7 @@ class SettingsWindow(QDialog):
         # Actions de cycle de vie
         life_row = QHBoxLayout()
         self.btn_reset = QPushButton(tr("settings_reset", "Réinitialiser"))
-        self.btn_reset.clicked.connect(self.resetRequested.emit)
+        self.btn_reset.clicked.connect(self._on_reset_clicked)
         life_row.addWidget(self.btn_reset)
         self.btn_relaunch = QPushButton(tr("settings_relaunch", "Relancer"))
         self.btn_relaunch.clicked.connect(self.relaunchRequested.emit)
@@ -152,6 +201,13 @@ class SettingsWindow(QDialog):
         value = self.combo_build_mode.itemData(index)
         if value:
             self.buildModeChanged.emit(value)
+
+    def _on_reset_clicked(self):
+        """Réinitialisation destructive : jamais exécutée sans confirmation
+        explicite (choix Light/Deep) dans ``ResetDialog``."""
+        diag = ResetDialog(self)
+        if diag.exec():
+            self.resetRequested.emit(diag.result_deep)
 
     def retranslate_ui(self):
         self.setWindowTitle(tr("settings_title", "Réglages généraux"))
