@@ -241,3 +241,63 @@ Tests : 292 passed, 1 skipped, 15 deselected. Version 1.5.0→1.5.1 (app/__init_
 CHANGELOG [1.5.1] - 2026-07-18. Commits 74bd4d1 (6 correctifs, 17 fichiers) + 765722a (CHANGELOG, 3 fichiers).
 Fichiers hors commit (choix délibéré) : PROMPT_CLAUDE_CODE_REFONTE_UI.md, REFONTE_UI_SPEC.md (notes utilisateur).
 manifest.md inchangé (v1.5.1 déjà mis à jour session 8). Aucun push. graphify update lancé séparément.
+
+## 2026-07-18 — Session 10, Suite 5 : Refonte UI Lot 6 — Clôture
+
+**Lot 6** : Charger/Sauvegarder config, Notifications, i18n 9 langues (93 clés +610/fichier).
+
+**Livré** :
+- Config I/O `StudioWindow` : `collect_config()`/`apply_config()` agrègent état panneaux + `run_state` → `ChainConfig` (app/core/config_io.py Lot 1) ; dialogs `save_config_dialog()`/`load_config_dialog()` QInputDialog ; get/set_state() Src/Reco/Entraîn/Nettoy/Export.
+- Notifications macOS : `app/core/notifications.py` is_available/notify via pyobjc-framework-Cocoa NSUserNotificationCenter (zéro dépendance, pyobjc déjà utilisé) ; toggle Réglages ⟷ SettingsWindow ; hook `StudioWindow.notify()` câblé (pas appelé sans run réel).
+- Icône erreur rail : cliquer étape ERROR déplie auto logbar (`on_rail_selected`).
+- i18n : 9 langues 93 clés ajoutées, parité vérifiée (sous-agent + revérif indépendante).
+- Tests : notifications.py (2 tests dégradation gracieux pyobjc).
+
+**Résultat** : 376 pass, 1 skip, 15 deselected. Lint ruff OK.
+
+**État global** : Lots 1-6 UI/logique terminés, non activés dans main.py (ColmapGUI inchangée). Cahier des charges Refonte UI : switch au Lot 7 APRÈS câblage moteurs réels (pour validation StudioWindow avant suppression ColmapGUI).
+
+**Reste** : (1) Câblage moteurs: launch() dispatch workers, boutons locaux, closeEvent, notifications déclenchées. (2) Lot 7 nettoyage + bascule main.py. (3) Bug scroll horiz barre droite (différé user, documenté REFONTE_UI_PROGRESS.md).
+
+**Commit** : 5996564 "feat(refonte-ui): Lot 6 — config charger/sauvegarder, notifications, i18n 9 langues".
+
+
+## 2026-07-18 — Session 10, suite 6
+
+**Lot** : Reprise — P0 câblage moteurs annulé
+**HEAD** : 5996564
+**Tests** : 376 pass (inchangé)
+
+### Ce qui a été fait
+- Lecture de reprise (manifest.md, journal.md, GRAPH_REPORT.md)
+- Vérification graphe : désynchronisé d'un commit (basé Lot 5, HEAD est Lot 6) — nécessitera `graphify update` à la prochaine session
+- P0 "câblage moteurs réels dans launch()" priorisé par l'utilisateur
+- Sous-agent intégrateur lancé pour le P0 puis **annulé** par l'utilisateur — rien n'a été modifié
+
+### RESTE À FAIRE priorisé (inchangé)
+- **P0** : Câblage moteurs réels dans launch() (surface Apple Silicon)
+- **P1** : Bug scroll horizontal barre droite
+- **P2** : Lot 7 (nettoyage anciens onglets + bascule main.py vers StudioWindow)
+- `graphify update` (graphe 1 commit derrière)
+
+### Décision
+Session annulée, pas de commit, pas de modification. P0 demandé mais annulé avant exécution. `graphify update` nécessaire à la reprise.
+
+## 2026-07-19 — Session 10 suite 8 — Refonte UI terminée (8 lots)
+
+**Commits** : 6cbfb38, 3e0a608, 18c52f6, 78ba2a8, 56a5588, 619705d, 4de8d53
+
+**Réalisations** : 
+- Socle préparatoire câblage moteurs (bouton Lancer/Annuler + collecte réglages 7 panneaux OUTILS)
+- Correction journal session précédente
+- Câblage réel moteurs studio_window.py : 7 workers (Cleaner, Export, Extractor360, FourDGS, Sharp, SplatTransform, Upscale)
+- Lot 5 complet : 9 tests intégration (1 par module)
+- Fix i18n : 22 clés manquantes rail PIPELINE + 9 locales cohérentes
+- Lot 7 bascule StudioWindow : suppression ColmapGUI + 11 onglets, closeEvent SuperSplat
+- AppLifecycle rebranchée (reset factory + relancer)
+
+**Vérifications** : StudioWindow lancée (PySide6 réel), 13 panneaux rendus, i18n visuel.
+
+**État** : Interface fonctionnelle. **P0 next : validation manuelle utilisateur données réelles.**
+
+Tests : 385 passed, 1 skipped, 15 deselected
