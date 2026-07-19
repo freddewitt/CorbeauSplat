@@ -161,6 +161,7 @@ class StudioWindow(QMainWindow):
         self.panels["export"].btn_run.clicked.connect(self._launch_export)
         self.panels["360"].btn_run.clicked.connect(self._launch_extractor360)
         self.panels["4dgs"].btn_run.clicked.connect(self._launch_fourdgs)
+        self.panels["4dgs"].btn_colmap_only.clicked.connect(self._launch_fourdgs_colmap_only)
         self.panels["sharp"].btn_run.clicked.connect(self._launch_sharp)
         self.panels["splattransform"].btn_run.clicked.connect(self._launch_splat_transform)
         self.panels["upscale"].btn_run.clicked.connect(self._launch_upscale)
@@ -346,6 +347,16 @@ class StudioWindow(QMainWindow):
         if not self._check_paths(params["output_path"]):
             return
         worker = FourDGSWorker(params["input_path"] or None, params["output_path"], params["fps"])
+        self._start_tool_worker(worker)
+
+    def _launch_fourdgs_colmap_only(self):
+        """Réutilise le mode « COLMAP seul » de ``FourDGSWorker`` (videos_dir
+        vide, cf. ancienne logique ``FourDGSTab.run_colmap_only``)."""
+        panel = self.panels["4dgs"]
+        params = panel.get_params()
+        if not self._check_paths(params["output_path"]):
+            return
+        worker = FourDGSWorker(None, params["output_path"], params["fps"])
         self._start_tool_worker(worker)
 
     def _launch_sharp(self):
