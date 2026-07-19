@@ -354,6 +354,9 @@ class EntrainementPanel:
 
     # ── i18n ────────────────────────────────────────────────────────────────────
     def retranslate_ui(self):
+        # Item 0 ("Défaut", data=None) only — preset names (index 1+) are
+        # literal, user-chosen strings, never translated.
+        self.combo_preset.setItemText(0, tr("brush_preset_default", "Défaut"))
         self.manual_group.setTitle(tr("brush_group_paths", "Mode manuel / indépendant"))
         self.lbl_dataset.setText(tr("brush_lbl_input", "Dossier dataset (sparse + images)"))
         self.lbl_export.setText(tr("brush_lbl_output", "Dossier export"))
