@@ -4,7 +4,7 @@ Utilise ``NSUserNotificationCenter`` via ``pyobjc-framework-Cocoa`` (déjà une
 dépendance du projet — aucune nouvelle dépendance). API historique dépréciée par
 Apple mais fonctionnelle sans exécutable signé (contrairement à
 ``UNUserNotificationCenter``), ce qui convient à une distribution via
-``Lancer CorbeauSplat.command``/Homebrew.
+``CorbeauSplat.command``/Homebrew.
 
 Défensif : si pyobjc est absent (CI, autre OS) ou l'API indisponible, ``notify``
 retourne ``False`` sans lever — la notification est simplement ignorée.

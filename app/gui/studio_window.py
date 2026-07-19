@@ -51,7 +51,9 @@ from app.gui.styles import set_dark_theme
 from app.gui.topbar import TopBar
 from app.gui.widgets.upscale_widgets import TestWorker
 from app.gui.workers import (
+    BrushWorker,
     CleanerWorker,
+    ColmapWorker,
     ExportWorker,
     Extractor360Worker,
     FourDGSWorker,
@@ -63,6 +65,21 @@ from app.gui.workers import (
 # Ordre des pages du stacked (étapes PIPELINE puis modules OUTILS).
 _PAGE_KEYS = tuple(PIPELINE_STEPS) + tuple(TOOL_KEYS)
 
+# Mêmes extensions vidéo que ColmapEngine._prepare_images (app/core/engine.py) —
+# sert à déduire l'``input_type`` COLMAP depuis le champ Source, qui ne propose
+# pas de sélecteur dédié (glisser-déposer dossier/fichier/vidéo).
+_VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv"}
+
+
+def _detect_input_type(path_str):
+    """Devine ``images``/``video`` depuis le chemin Source (cf. ``_VIDEO_EXTS``)."""
+    path = Path(path_str)
+    if path.is_file():
+        return "video" if path.suffix.lower() in _VIDEO_EXTS else "images"
+    if path.is_dir() and any(f.suffix.lower() in _VIDEO_EXTS for f in path.iterdir() if f.is_file()):
+        return "video"
+    return "images"
+
 
 class StudioWindow(QMainWindow):
     """Coquille 4 zones. Sélection du rail → change la page centre + droite."""
@@ -73,6 +90,8 @@ class StudioWindow(QMainWindow):
         self.nav = PageRegistry(_PAGE_KEYS)   # mapping pages + sélection courante
         self._auto_follow = True              # suit l'étape active (désaccouplé au clic manuel)
         self.current_plan = []
+        self._plan_index = 0
+        self._active_pipeline_step = None
         self._notifications_enabled = False
         self._settings_window = None
         self._active_worker = None
@@ -101,6 +120,12 @@ class StudioWindow(QMainWindow):
         self.topbar = TopBar()
         self.topbar.settingsRequested.connect(self.open_settings)
         self.topbar.launchRequested.connect(self.on_topbar_launch)
+        # Nom de projet : miroir en temps réel avec le champ du panneau Source,
+        # via run_state (source de vérité unique — cf. run_state.py).
+        self.topbar.projectNameChanged.connect(self._on_topbar_project_name_changed)
+        self._project_name_observer = self._on_run_state_project_name_changed
+        self.run_state.add_observer(self._project_name_observer)
+        self.topbar.set_project_name(self.run_state.project_name)
         root.addWidget(self.topbar)
 
         # ── Corps : rail | centre | barre de droite ───────────────────────────
@@ -209,6 +234,15 @@ class StudioWindow(QMainWindow):
         w.setObjectName(f"placeholder_{zone}_{key}")
         return w
 
+    # ── Nom de projet (miroir top bar ↔ panneau Source via run_state) ───────────
+    def _on_topbar_project_name_changed(self, text):
+        self.run_state.set_field("project_name", text)
+
+    def _on_run_state_project_name_changed(self, key):
+        if key != "project_name":
+            return
+        self.topbar.set_project_name(self.run_state.project_name)
+
     # ── Navigation ──────────────────────────────────────────────────────────────
     def on_rail_selected(self, key):
         """Sélection manuelle depuis le rail : désaccouple l'auto-follow (même
@@ -239,11 +273,9 @@ class StudioWindow(QMainWindow):
     # ── Lancement (dispatch orchestré) ──────────────────────────────────────────
     def launch(self):
         """Calcule le plan de run selon le mode + les toggles run_state, puis
-        pilote le rail (statuts + auto-follow) et le breadcrumb.
-
-        Note : le câblage des moteurs/workers réels (ColmapWorker/BrushWorker/
-        PostTrainingWorker) est la surface validée sur Apple Silicon — voir
-        REFONTE_UI_PROGRESS.md. Ici on établit le plan et le pilotage UI."""
+        démarre réellement la chaîne pipeline (Source → Reconstruction/COLMAP →
+        Entraînement/Brush, cf. ``_run_pipeline_step``). Pilote aussi le rail
+        (statuts + auto-follow) et le breadcrumb."""
         mode = self.topbar.current_mode()
         plan = plan_pipeline(mode, self.run_state)
         self.current_plan = plan
@@ -252,14 +284,152 @@ class StudioWindow(QMainWindow):
         self.update_breadcrumb(plan)
         self.logbar.append_log(tr("run_plan", "Plan : ") + " → ".join(plan))
         if plan:
-            first = plan[0]
-            self.run_state.set_status(first, StepStatus.RUNNING)
-            self.rail.set_step_status(first, StepStatus.RUNNING)
-            self.follow_step(first)
+            self._run_pipeline_step(0)
         return plan
 
     def update_breadcrumb(self, plan):
         self.breadcrumb.setText(" → ".join(plan))
+
+    # ── Enchaînement des workers du pipeline principal ───────────────────────────
+    def _run_pipeline_step(self, index):
+        """Démarre l'étape ``self.current_plan[index]`` si elle fait partie de la
+        chaîne automatisée (Source/Reconstruction/Entraînement). Source n'a pas
+        de worker propre (elle ne fait que fournir les chemins consommés par
+        Reconstruction) : elle est marquée DONE immédiatement et la chaîne
+        enchaîne. Les post-étapes OUTILS (Nettoyage/Export/Visualiser) ne sont
+        pas encore automatisées ici — chaîne arrêtée proprement, à continuer
+        manuellement via leurs boutons Lancer dédiés (cf. ``_start_tool_worker``)."""
+        self._plan_index = index
+        if index >= len(self.current_plan):
+            self._finish_pipeline_chain(True, tr("run_chain_done", "Chaîne terminée avec succès."))
+            return
+
+        step = self.current_plan[index]
+        if step == "source":
+            self.follow_step("source")
+            self.run_state.set_status("source", StepStatus.DONE)
+            self.rail.set_step_status("source", StepStatus.DONE)
+            self._run_pipeline_step(index + 1)
+            return
+
+        if step == "reconstruction":
+            worker = self._build_colmap_worker()
+            if worker is not None:
+                self._start_pipeline_worker("reconstruction", worker)
+            return
+
+        if step == "entrainement":
+            worker = self._build_brush_worker()
+            if worker is not None:
+                self._start_pipeline_worker("entrainement", worker)
+            return
+
+        # Étape suivante (nettoyage/export/visualiser) : automatisation hors
+        # scope de ce câblage — l'utilisateur continue manuellement.
+        self._finish_pipeline_chain(
+            True,
+            tr("run_chain_manual_continue",
+               "Reconstruction/Entraînement terminés. Étape suivante (" + step
+               + ") à lancer manuellement depuis son propre écran."),
+        )
+
+    def _build_colmap_worker(self):
+        """Construit le ``ColmapWorker`` de l'étape Reconstruction depuis les
+        chemins de Source (SourcePanel.get_state) et les réglages COLMAP de
+        Reconstruction (ReconstructionPanel.get_params → ColmapParams)."""
+        source_state = self.panels["source"].get_state()
+        input_path = source_state["input_path"].strip()
+        output_path = source_state["output_path"].strip()
+        if not input_path or not output_path:
+            self._fail_pipeline_step("reconstruction", tr("err_no_paths", "Chemins manquants."))
+            return None
+        project_name = source_state["project_name"].strip() or "Untitled"
+        params = self.panels["reconstruction"].get_params()
+        input_type = _detect_input_type(input_path)
+        return ColmapWorker(
+            params, input_path, output_path, input_type, source_state["fps"],
+            project_name=project_name,
+        )
+
+    def _build_brush_worker(self):
+        """Construit le ``BrushWorker`` de l'étape Entraînement : dataset =
+        dossier du projet créé par COLMAP (output/projet), réglages Brush de
+        EntrainementPanel.get_params → BrushParams.to_engine_params (dict plat
+        attendu par BrushEngine, cf. app/core/brush_engine.py)."""
+        source_state = self.panels["source"].get_state()
+        output_path = source_state["output_path"].strip()
+        if not output_path:
+            self._fail_pipeline_step("entrainement", tr("err_no_paths", "Chemins manquants."))
+            return None
+        project_name = source_state["project_name"].strip() or "Untitled"
+        project_dir = Path(output_path) / project_name
+        panel = self.panels["entrainement"]
+        params = panel.get_params().to_engine_params()
+        params["refine_mode"] = panel.combo_mode.currentData() == "refine"
+        ply_name = panel.ply_name_edit.text().strip()
+        if ply_name:
+            params["ply_name"] = ply_name
+        return BrushWorker(
+            project_dir, project_dir / "checkpoints", params, project_name=project_name,
+        )
+
+    def _start_pipeline_worker(self, step, worker):
+        """Démarre le worker d'une étape pipeline : statuts rail/run_state posés
+        au moment réel du démarrage (pas juste à la planification), logs relayés,
+        topbar basculé en Annuler — même idiome que ``_start_tool_worker``."""
+        self.run_state.set_status(step, StepStatus.RUNNING)
+        self.rail.set_step_status(step, StepStatus.RUNNING)
+        self.follow_step(step)
+        self._active_worker = worker
+        self._active_pipeline_step = step
+        worker.log_signal.connect(self.logbar.append_log)
+        if hasattr(worker, "status_signal"):
+            worker.status_signal.connect(self.logbar.append_log)
+        worker.finished_signal.connect(self._on_pipeline_step_finished)
+        self.topbar.set_running(True)
+        self.logbar.set_collapsed(False)
+        worker.start()
+
+    def _on_pipeline_step_finished(self, success, message):
+        """Fin d'une étape pipeline : DONE + étape suivante si succès ; ERROR +
+        arrêt de la chaîne (pas d'échec silencieux) sinon."""
+        step = self._active_pipeline_step
+        worker = self._active_worker
+        self._active_worker = None
+        self.logbar.append_log(message)
+        if success:
+            self.run_state.set_status(step, StepStatus.DONE)
+            self.rail.set_step_status(step, StepStatus.DONE)
+            self._run_pipeline_step(self._plan_index + 1)
+            return
+        stopped_by_user = bool(worker and getattr(worker, "stopped_by_user", False))
+        self.run_state.set_status(step, StepStatus.ERROR)
+        self.rail.set_step_status(step, StepStatus.ERROR)
+        self.topbar.set_running(False)
+        self.logbar.set_collapsed(False)
+        if not stopped_by_user:
+            self.notify(tr("msg_error", "Erreur"), message)
+            QMessageBox.warning(self, tr("msg_error", "Erreur"), message)
+
+    def _fail_pipeline_step(self, step, message):
+        """Échec de construction d'un worker (ex. chemins manquants) : même
+        traitement qu'un échec en cours d'exécution, sans worker actif à nettoyer."""
+        self.run_state.set_status(step, StepStatus.ERROR)
+        self.rail.set_step_status(step, StepStatus.ERROR)
+        self.logbar.append_log(message)
+        self.logbar.set_collapsed(False)
+        self.topbar.set_running(False)
+        self._active_worker = None
+        self.notify(tr("msg_error", "Erreur"), message)
+        QMessageBox.warning(self, tr("msg_error", "Erreur"), message)
+
+    def _finish_pipeline_chain(self, success, message):
+        """Fin (normale ou volontairement interrompue) de la chaîne pipeline."""
+        self._active_worker = None
+        self.topbar.set_running(False)
+        self.logbar.append_log(message)
+        if success:
+            self.notify(tr("msg_success", "Succès"), message)
 
     # ── Dispatch du bouton unique topbar (Lancer/Annuler) ────────────────────────
     def on_topbar_launch(self):

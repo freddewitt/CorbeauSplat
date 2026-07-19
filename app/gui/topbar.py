@@ -79,6 +79,16 @@ class TopBar(QWidget):
         if value:
             self.modeChanged.emit(value)
 
+    def set_project_name(self, name: str) -> None:
+        """Met à jour l'affichage du nom de projet sans re-déclencher
+        ``projectNameChanged`` (mise à jour programmatique, p. ex. depuis le
+        champ miroir du panneau Source)."""
+        if self.input_project_name.text() == name:
+            return
+        self.input_project_name.blockSignals(True)
+        self.input_project_name.setText(name)
+        self.input_project_name.blockSignals(False)
+
     def set_running(self, running: bool):
         """Bascule le bouton Lancer ↔ Annuler selon l'état du pipeline."""
         if running:

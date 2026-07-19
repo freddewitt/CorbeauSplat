@@ -154,7 +154,7 @@ class AppLifecycle:
         QApplication.quit()
 
         root_dir = resolve_project_root().resolve()
-        run_cmd = root_dir / "Lancer CorbeauSplat.command"
+        run_cmd = root_dir / "CorbeauSplat.command"
 
         # Collect deletion targets (relative names only)
         targets_rel = [".venv", ".venv_sharp", ".venv_360"]
@@ -197,7 +197,7 @@ class AppLifecycle:
                 except (ValueError, OSError):
                     pass
 
-        # Relaunch via Lancer CorbeauSplat.command
+        # Relaunch via CorbeauSplat.command
         if run_cmd.exists():
             logger.info("Reset: relaunching via %s", run_cmd)
             subprocess.Popen(["open", str(run_cmd)], start_new_session=True)

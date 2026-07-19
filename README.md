@@ -56,7 +56,7 @@ It also includes built-in full localization support for **French, English, Germa
 
 2.  Run the launcher:
     ```bash
-    ./"Lancer CorbeauSplat.command"
+    ./"CorbeauSplat.command"
     ```
     *The script will automatically detect missing dependencies (Python packages, Brush, SuperSplat, Rust, Node.js, etc.) and attempt to install them for you.*
 

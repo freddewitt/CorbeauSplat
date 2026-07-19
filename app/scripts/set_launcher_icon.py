@@ -49,7 +49,7 @@ def set_launcher_icon(launcher_path: Path, icon_path: Path) -> bool:
 
 def main():
     root_dir = Path(__file__).resolve().parent.parent.parent
-    launcher_path = root_dir / "Lancer CorbeauSplat.command"
+    launcher_path = root_dir / "CorbeauSplat.command"
     icon_path = root_dir / "assets" / "icon.icns"
     set_launcher_icon(launcher_path, icon_path)
 

@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.i18n import add_language_observer, tr
-from app.gui.run_state_binding import bind_flag_checkbox
+from app.gui.run_state_binding import bind_flag_checkbox, bind_text_field
 from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_name
 from app.gui.widgets.drop_line_edit import DropLineEdit
 
@@ -57,6 +57,9 @@ class SourcePanel:
         self.lbl_project = QLabel()
         self.input_project_name = QLineEdit()
         self.input_project_name.setPlaceholderText("MonProjet")
+        # Miroir de la top bar : source de vérité unique dans run_state (cf.
+        # bind_text_field, même idiome que les drapeaux de chaînage).
+        self._bindings.append(bind_text_field(self.input_project_name, self.run_state, "project_name"))
         layout.addWidget(self.lbl_project)
         layout.addWidget(self.input_project_name)
 
@@ -128,6 +131,33 @@ class SourcePanel:
         content = QWidget()
         layout = QVBoxLayout(content)
 
+        # ── Options avancées ─── toujours visibles (plus de repli/dépli)
+        self.lbl_advanced = QLabel()
+        self.lbl_advanced.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self.lbl_advanced)
+
+        self.advanced_group = QWidget()
+        ag = QVBoxLayout(self.advanced_group)
+        self.chk_upscale = QCheckBox()
+        ag.addWidget(self.chk_upscale)
+        self.chk_undistort = QCheckBox()
+        self._bind(self.chk_undistort, "undistort_images")
+        ag.addWidget(self.chk_undistort)
+        self.chk_filter_blur = QCheckBox()
+        ag.addWidget(self.chk_filter_blur)
+        blur_row = QHBoxLayout()
+        self.lbl_blur = QLabel()
+        self.combo_blur = QComboBox()
+        for value, _label in _BLUR_STRENGTHS:
+            self.combo_blur.addItem(value, value)
+        self.combo_blur.setCurrentIndex(1)  # medium
+        blur_row.addWidget(self.lbl_blur)
+        blur_row.addWidget(self.combo_blur)
+        ag.addLayout(blur_row)
+        self.chk_stabilized = QCheckBox()
+        ag.addWidget(self.chk_stabilized)
+        layout.addWidget(self.advanced_group)
+
         # ── Automatisation (chaînage) ─── ordre : Brush → Nettoyage → Export → Vue
         self.lbl_automation = QLabel()
         self.lbl_automation.setStyleSheet("font-weight: bold;")
@@ -163,35 +193,6 @@ class SourcePanel:
         self._bind(self.chk_visualiser, "visualiser_apres")
         layout.addWidget(self.chk_visualiser)
 
-        # Bouton Avancé (mémorisé plus tard, Lot 3 hiérarchie)
-        self.btn_advanced = QPushButton()
-        self.btn_advanced.setCheckable(True)
-        self.btn_advanced.toggled.connect(self._on_advanced_toggled)
-        layout.addWidget(self.btn_advanced)
-
-        self.advanced_group = QWidget()
-        ag = QVBoxLayout(self.advanced_group)
-        self.chk_upscale = QCheckBox()
-        ag.addWidget(self.chk_upscale)
-        self.chk_undistort = QCheckBox()
-        self._bind(self.chk_undistort, "undistort_images")
-        ag.addWidget(self.chk_undistort)
-        self.chk_filter_blur = QCheckBox()
-        ag.addWidget(self.chk_filter_blur)
-        blur_row = QHBoxLayout()
-        self.lbl_blur = QLabel()
-        self.combo_blur = QComboBox()
-        for value, _label in _BLUR_STRENGTHS:
-            self.combo_blur.addItem(value, value)
-        self.combo_blur.setCurrentIndex(1)  # medium
-        blur_row.addWidget(self.lbl_blur)
-        blur_row.addWidget(self.combo_blur)
-        ag.addLayout(blur_row)
-        self.chk_stabilized = QCheckBox()
-        ag.addWidget(self.chk_stabilized)
-        self.advanced_group.setVisible(False)
-        layout.addWidget(self.advanced_group)
-
         layout.addStretch(1)
         scroll.setWidget(content)
         outer.addWidget(scroll)
@@ -201,9 +202,6 @@ class SourcePanel:
         self._bindings.append(bind_flag_checkbox(checkbox, self.run_state, flag))
 
     # ── Handlers ────────────────────────────────────────────────────────────────
-    def _on_advanced_toggled(self, checked):
-        self.advanced_group.setVisible(checked)
-
     def _browse_input_dir(self):
         path = get_existing_directory(self.center, tr("btn_browse", "Parcourir"))
         if path:
@@ -276,7 +274,7 @@ class SourcePanel:
         self.chk_exporter.setText(tr("chain_export_after", "Exporter"))
         self.chk_visualiser.setText(tr("chain_view_after", "Lancer dans SuperSplat"))
         self.export_group.setTitle(tr("source_export_options", "Options d'export"))
-        self.btn_advanced.setText(tr("toggle_advanced", "Avancé"))
+        self.lbl_advanced.setText(tr("toggle_advanced", "Avancé"))
         self.chk_upscale.setText(tr("source_upscale", "Upscaler les images"))
         self.chk_undistort.setText(tr("source_undistort", "Générer images non-distordues"))
         self.chk_filter_blur.setText(tr("source_filter_blur", "Supprimer les images floues"))

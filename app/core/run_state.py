@@ -6,6 +6,8 @@ OUTILS) affichent et modifient les mêmes drapeaux de chaînage automatique
 Pour éviter la dérive qui a produit l'éclatement historique de
 ``undistort_images``/``filter_blurry``/``blur_factor`` entre onglets, chaque
 drapeau vit ici **une seule fois** : les widgets s'y abonnent et le reflètent.
+Même principe pour le nom de projet (champ texte affiché dans le panneau
+Source et dans la top bar).
 
 Le mécanisme d'observation reprend volontairement le même idiome que
 ``LanguageManager`` (``add_observer``/notification best-effort avec log) plutôt
@@ -48,6 +50,13 @@ _FLAG_DEFAULTS = {
     "undistort_images": False,
 }
 
+# Champs texte partagés (même principe que les drapeaux, mais valeur str).
+# Le nom de projet est affiché à deux endroits (panneau Source + top bar) :
+# il vit ici une seule fois pour rester synchronisé en temps réel.
+_FIELD_DEFAULTS = {
+    "project_name": "",
+}
+
 
 class RunState:
     """Objet d'état partagé observable.
@@ -60,6 +69,7 @@ class RunState:
 
     def __init__(self) -> None:
         self._flags = dict(_FLAG_DEFAULTS)
+        self._fields = dict(_FIELD_DEFAULTS)
         self._status = dict.fromkeys(PIPELINE_STEPS, StepStatus.IDLE)
         self._observers: list = []
 
@@ -91,6 +101,26 @@ class RunState:
         if self._flags[name] != value:
             self._flags[name] = value
             self._notify(name)
+
+    # ── Champs texte ─────────────────────────────────────────────────────────
+    def get_field(self, name: str) -> str:
+        return self._fields[name]
+
+    def set_field(self, name: str, value: str) -> None:
+        if name not in self._fields:
+            raise KeyError(f"Champ inconnu: {name}")
+        value = "" if value is None else str(value)
+        if self._fields[name] != value:
+            self._fields[name] = value
+            self._notify(name)
+
+    @property
+    def project_name(self) -> str:
+        return self._fields["project_name"]
+
+    @project_name.setter
+    def project_name(self, value: str) -> None:
+        self.set_field("project_name", value)
 
     @property
     def entrainement_apres(self) -> bool:
