@@ -83,9 +83,13 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 
 ## RESTE À FAIRE (priorisé)
 
-1. **E2E 360 Extractor** (`.venv_360` requis, générateur équirectangulaire à créer)
-2. **E2E Sharp vidéo** (ffmpeg + Sharp predict par frame)
-3. **E2E 4DGS** (ffmpeg + COLMAP + nerfstudio, coûteux)
+1. **Validation manuelle utilisateur sur données réelles** — lancer effectivement les 3 pipelines (Gsplat/Sharp/4DGS) et les 7 modules OUTILS depuis `StudioWindow` avec de vrais fichiers, sur Apple Silicon. Aucun outil automatisé ne peut remplacer ce contrôle (obligatoire selon `PROMPT_CLAUDE_CODE_REFONTE_UI.md`).
+2. **`app/gui/managers.py::SessionManager`** orphelin depuis la suppression de l'ancienne interface (Lot 7) — seul `AppLifecycle` (reset factory + relance) a été rebranché dans les Réglages. Décision à prendre : rebrancher ou supprimer.
+3. **E2E 360 Extractor** (`.venv_360` requis, générateur équirectangulaire à créer)
+4. **E2E Sharp vidéo** (ffmpeg + Sharp predict par frame)
+5. **E2E 4DGS** (ffmpeg + COLMAP + nerfstudio, coûteux)
+
+> Résolu : **refonte UI complète (8 lots)** — session 2026-07-19. Interface à 11 onglets (`ColmapGUI`) remplacée par `StudioWindow` (4 zones), câblage réel des moteurs sur les 7 modules OUTILS + Nettoyage/Export/Visualiser (SuperSplat), lancement basculé (`app/cli/launcher.py`), ancienne interface supprimée (`main_window.py` + 10 `app/gui/tabs/*.py`). i18n complet (22 clés manquantes comblées, 9 locales). Fix débordement horizontal (`QFormLayout.setRowWrapPolicy`). Lancement renommé `Lancer CorbeauSplat.command` (icône Finder + terminal simplifié). 385 tests, aucune régression.
 
 > Résolu : **dette technique de l'audit d'état des lieux** (`ETAT_DES_LIEUX.md`, préalable à la refonte UI) — session 2026-07-18. `guided_matching` réactivé (case + `set_params()`), `sequential_overlap` doté d'un widget (i18n 9 locales), mapping `blur_factor` unifié dans `app/core/params.py`, `ExportTab` morte supprimée, "Lancer Brush uniquement" passe par `BrushWorker` (logs, arrêt propre), `FourDGSTab`/`Extractor360Tab` n'instancient plus leur propre worker (point d'orchestration unique dans `main_window`). 292 tests toujours verts. Version 1.5.1, commits `74bd4d1`/`765722a`.
 

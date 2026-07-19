@@ -331,3 +331,20 @@ Tests : 385 passed, 1 skipped, 15 deselected
 **Tests** : 385 passed, 1 skipped, 15 deselected
 
 **Notes** : Icône Finder vérifiée appliquée (flag personnalisé + com.apple.ResourceFork).
+
+## 2026-07-19 — Session 10 clôture : Refonte UI 8 lots terminée
+
+**Commits** : 6cbfb38, 3e0a608, 18c52f6, 78ba2a8, 56a5588, 619705d, 4de8d53, 149111d, 984d465
+
+**Bilan chantier refonte UI** : 8 lots livrés (Lots 0-7), tous sur main. Câblage réel moteurs réalisé. Interfaces UI branchées workers réels (7 modules OUTILS : Cleaner, Export, Extractor360, FourDGS, Sharp, SplatTransform, Upscale). Lot 7 : bascule StudioWindow, suppression ColmapGUI + 11 onglets. closeEvent() ferme proprement SuperSplat. 385 tests pass, 1 skip, 15 deselect (stable).
+
+**Features** : Socle préparatoire câblage moteurs + correction journal. Câblage réel dispatch workers. Lot 5 orchestration COLMAP-only 4DGS (9 tests intégration). Fix i18n 22 clés manquantes rail PIPELINE (9 locales). Lot 7 transition StudioWindow (suppression 11 fichiers onglets). SuperSplat réel VisualiserPanel. Fix débordement QFormLayout WrapLongRows (18 endroits). Accessibilité lancement : run.command → 'Lancer CorbeauSplat.command' (git mv), icône Finder (NSWorkspace/pyobjc), terminal simplifié.
+
+**Tests** : 385 pass, 1 skip, 15 deselect. StudioWindow PySide6 réel vérifiée macOS, 13 panneaux rendus, aucune erreur.
+
+**Reste P0** : Validation manuelle utilisateur sur données réelles (3 pipelines COLMAP→Brush→Export + 7 modules OUTILS avec vrais fichiers). Aucun outil automatisé ne peut la remplacer.
+
+**SessionManager** : Orphelin après Lot 7, décision technique reportée (rebrancher ou supprimer ?).
+
+**Manifest.md** : RESTE À FAIRE mis à jour. Aucune modification code/config.json. REFONTE_UI_PROGRESS.md documente tous points fermés côté code.
+
