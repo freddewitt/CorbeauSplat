@@ -40,21 +40,24 @@ def _patch_pyqt6():
         return  # Real PySide6 is installed, don't interfere
 
     class _PySide6Module:
-        pass
+        __version__ = "6.0.0"  # For pytest-qt compatibility
 
     pyqt6 = _PySide6Module()
     qtcore = MagicMock()
     qtcore.QTimer = MagicMock()
     qtcore.Signal = _MockPyQtSignal
     qtcore.QThread = _MockQThread
+    qtcore.__version__ = "6.0.0"  # For pytest-qt compatibility
     pyqt6.QtCore = qtcore
     pyqt6.QtWidgets = MagicMock()
     pyqt6.QtGui = MagicMock()
+    pyqt6.QtTest = MagicMock()  # For pytest-qt compatibility
 
     sys.modules.setdefault("PySide6", pyqt6)
     sys.modules.setdefault("PySide6.QtCore", qtcore)
     sys.modules.setdefault("PySide6.QtWidgets", pyqt6.QtWidgets)
     sys.modules.setdefault("PySide6.QtGui", pyqt6.QtGui)
+    sys.modules.setdefault("PySide6.QtTest", pyqt6.QtTest)  # For pytest-qt compatibility
 
     if "send2trash" not in sys.modules:
         sys.modules["send2trash"] = MagicMock()
