@@ -47,14 +47,26 @@ class LanguageManager:
             self._translations = {}
 
     def load_config(self):
+        config_file = resolve_project_root() / "config.json"
         try:
-            config_file = resolve_project_root() / "config.json"
             if config_file.exists():
                 with open(config_file) as f:
                     config = json.load(f)
                     self.current_lang = config.get("language", "en")
+                    logger.info(
+                        "Langue chargée au démarrage : %s (depuis %s, clé 'language'=%r)",
+                        self.current_lang, config_file, config.get("language"),
+                    )
+            else:
+                logger.info(
+                    "Langue au démarrage : %s (défaut — %s introuvable)",
+                    self.current_lang, config_file,
+                )
         except (OSError, json.JSONDecodeError) as e:
-            logger.warning("Could not load language config: %s", e)
+            logger.warning(
+                "Could not load language config from %s: %s — repli sur %s",
+                config_file, e, self.current_lang,
+            )
 
     def save_config(self):
         try:
@@ -68,8 +80,9 @@ class LanguageManager:
             config["language"] = self.current_lang
             with open(config_file, "w") as f:
                 json.dump(config, f, indent=2)
+            logger.info("Langue enregistrée : %s (dans %s)", self.current_lang, config_file)
         except (OSError, json.JSONDecodeError) as e:
-            logger.warning("Could not save language config: %s", e)
+            logger.warning("Could not save language config to %s: %s", config_file, e)
 
     def set_language(self, lang_code):
         self.current_lang = lang_code
