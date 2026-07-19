@@ -565,6 +565,7 @@
   "source_output": "输出文件夹",
   "source_checkpoint_dest": "检查点目标（可选）",
   "source_delete_dataset": "删除现有数据集",
+  "confirm_delete_dataset": "删除此项目的全部内容（图片除外）？内容将移至废纸篓。",
   "chain_train_after": "运行 Brush",
   "source_export_options": "导出选项",
   "source_upscale": "放大图像",

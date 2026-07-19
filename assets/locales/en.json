@@ -565,6 +565,7 @@
   "source_output": "Output folder",
   "source_checkpoint_dest": "Checkpoint destination (optional)",
   "source_delete_dataset": "Delete existing dataset",
+  "confirm_delete_dataset": "Delete all content of this project except the images? Content will be moved to the trash.",
   "chain_train_after": "Run Brush",
   "source_export_options": "Export options",
   "source_upscale": "Upscale images",

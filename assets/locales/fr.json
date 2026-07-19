@@ -565,6 +565,7 @@
   "source_output": "Dossier de sortie",
   "source_checkpoint_dest": "Destination des checkpoints (optionnel)",
   "source_delete_dataset": "Supprimer le dataset existant",
+  "confirm_delete_dataset": "Supprimer tout le contenu de ce projet, à l'exception des images ? Le contenu sera mis à la corbeille.",
   "chain_train_after": "Lancer Brush",
   "source_export_options": "Options d'export",
   "source_upscale": "Upscaler les images",

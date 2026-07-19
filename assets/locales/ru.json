@@ -565,6 +565,7 @@
   "source_output": "Папка вывода",
   "source_checkpoint_dest": "Путь для чекпоинтов (необязательно)",
   "source_delete_dataset": "Удалить существующий датасет",
+  "confirm_delete_dataset": "Удалить всё содержимое этого проекта, кроме изображений? Содержимое будет перемещено в корзину.",
   "chain_train_after": "Запустить Brush",
   "source_export_options": "Параметры экспорта",
   "source_upscale": "Апскейл изображений",

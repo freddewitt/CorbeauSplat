@@ -565,6 +565,7 @@
   "source_output": "Ausgabeordner",
   "source_checkpoint_dest": "Checkpoint-Ziel (optional)",
   "source_delete_dataset": "Vorhandenes Dataset löschen",
+  "confirm_delete_dataset": "Den gesamten Inhalt dieses Projekts außer den Bildern löschen? Der Inhalt wird in den Papierkorb verschoben.",
   "chain_train_after": "Brush starten",
   "source_export_options": "Exportoptionen",
   "source_upscale": "Bilder hochskalieren",

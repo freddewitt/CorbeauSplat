@@ -565,6 +565,7 @@
   "source_output": "出力フォルダ",
   "source_checkpoint_dest": "チェックポイントの出力先（任意）",
   "source_delete_dataset": "既存のデータセットを削除",
+  "confirm_delete_dataset": "画像を除くこのプロジェクトの全内容を削除しますか？内容はゴミ箱に移動されます。",
   "chain_train_after": "Brush を実行",
   "source_export_options": "エクスポートオプション",
   "source_upscale": "画像をアップスケール",

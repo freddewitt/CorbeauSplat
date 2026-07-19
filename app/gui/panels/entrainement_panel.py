@@ -90,9 +90,9 @@ class EntrainementPanel:
         self._bind(self.chk_visualiser, "visualiser_apres")
         layout.addWidget(self.chk_visualiser)
 
-        # Bouton Lancer local : uniquement pour l'usage autonome (module OUTILS
-        # « Brush »). L'étape PIPELINE Entraînement est pilotée par le bouton
-        # Lancer/Annuler unique de la top bar (cf. StudioWindow._run_pipeline_step).
+        # Local Launch button: standalone use only (OUTILS "Brush" module). The
+        # PIPELINE Training step is driven by the top bar's single Launch/Cancel
+        # button instead (cf. StudioWindow._run_pipeline_step).
         if self.standalone:
             self.btn_run = QPushButton()
             self.btn_run.setStyleSheet("font-weight: bold;")
@@ -165,6 +165,10 @@ class EntrainementPanel:
         self.lbl_args = QLabel()
         ag.addRow(self.lbl_args, self.custom_args_edit)
         self.check_viewer = QCheckBox()
+        # Checked by default: without it the Brush viewer window never opens
+        # during training, and the option is easy to miss (tucked under
+        # "Advanced").
+        self.check_viewer.setChecked(True)
         ag.addRow(self.check_viewer)
         self.advanced_group.setVisible(False)
         layout.addWidget(self.advanced_group)

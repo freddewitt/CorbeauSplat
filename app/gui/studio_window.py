@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
 from app import VERSION
 from app.core import notifications
 from app.core.config_io import ChainConfig, list_configs, load_config, save_config
+from app.core.engine import ColmapEngine
 from app.core.i18n import add_language_observer, tr
 from app.core.run_state import PIPELINE_STEPS, RunState, StepStatus
 from app.gui.logbar import LogBar
@@ -197,6 +199,7 @@ class StudioWindow(QMainWindow):
         self.panels["splattransform"].btn_run.clicked.connect(self._launch_splat_transform)
         self.panels["upscale"].btn_run.clicked.connect(self._launch_upscale)
         self.panels["brush"].btn_run.clicked.connect(self._launch_brush)
+        self.panels["source"].btn_delete_dataset.clicked.connect(self._delete_dataset)
 
         # Pages ajoutées dans l'ordre de _PAGE_KEYS : leur index correspond à
         # celui de PageRegistry (compteur), déterministe même sous mock PySide6.
@@ -215,10 +218,11 @@ class StudioWindow(QMainWindow):
         self.logbar = LogBar()
         root.addWidget(self.logbar)
 
-        # Version discrète
-        version_label = QLabel(f"v{VERSION}")
-        version_label.setStyleSheet("color: #666666; font-size: 10px; padding: 2px;")
-        self.statusBar().addPermanentWidget(version_label)
+        # ── Bottom bar: version + lifecycle actions (Restart/Quit) ─────────────
+        # Moved out of SettingsWindow: these are global actions of the main
+        # window, not settings — better here, always visible, than buried in
+        # a dialog.
+        root.addWidget(self._build_bottom_bar())
 
         # Sélection initiale : première étape (programmatique, sans désaccoupler).
         if _PAGE_KEYS:
@@ -234,6 +238,29 @@ class StudioWindow(QMainWindow):
             return
         for field in (source.input_project_name, source.input_path, source.output_path):
             field.textChanged.connect(lambda _text=None: self.session_manager.save())
+
+    def _build_bottom_bar(self):
+        """Always-visible bottom bar: software version + lifecycle actions
+        (Restart/Quit), moved out of SettingsWindow — these are global
+        actions, not settings."""
+        w = QWidget()
+        row = QHBoxLayout(w)
+        row.setContentsMargins(8, 2, 8, 2)
+
+        self.lbl_version = QLabel(f"v{VERSION}")
+        self.lbl_version.setStyleSheet("color: #666666; font-size: 10px;")
+        row.addWidget(self.lbl_version)
+        row.addStretch(1)
+
+        self.btn_relaunch = QPushButton(tr("settings_relaunch", "Relancer"))
+        self.btn_relaunch.clicked.connect(self.restart_application)
+        row.addWidget(self.btn_relaunch)
+
+        self.btn_quit = QPushButton(tr("settings_quit", "Quitter"))
+        self.btn_quit.clicked.connect(self.close)
+        row.addWidget(self.btn_quit)
+
+        return w
 
     def _vline(self):
         """Filet vertical fin séparant deux zones."""
@@ -592,10 +619,10 @@ class StudioWindow(QMainWindow):
         self._start_tool_worker(worker, finished_signal=worker.finished)
 
     def _launch_brush(self):
-        """Module OUTILS « Brush » (mode manuel/indépendant du panneau
-        Entraînement, cf. entrainement_panel.py) : entraîne directement un
-        dataset déjà préparé (sparse + images), sans passer par la chaîne
-        pipeline Source → Reconstruction."""
+        """OUTILS "Brush" module (manual/standalone mode of the Training panel,
+        cf. entrainement_panel.py): trains directly on an already-prepared
+        dataset (sparse + images), without going through the Source →
+        Reconstruction pipeline chain."""
         panel = self.panels["brush"]
         input_path = panel.input_path.text().strip()
         output_path = panel.output_path.text().strip()
@@ -608,6 +635,35 @@ class StudioWindow(QMainWindow):
             params["ply_name"] = ply_name
         worker = BrushWorker(input_path, output_path, params, project_name=Path(input_path).name)
         self._start_tool_worker(worker)
+
+    def _delete_dataset(self):
+        """Destructive button in the Source panel (``btn_delete_dataset``):
+        empties the project's output folder (out/project), except images, via
+        ``ColmapEngine.delete_project_content`` (built-in safety checks, sends
+        to trash — never a permanent delete). Was left unwired since the UI
+        redesign."""
+        source_state = self.panels["source"].get_state()
+        output_path = source_state["output_path"].strip()
+        project_name = source_state["project_name"].strip()
+        if not self._check_paths(output_path, project_name):
+            return
+        target = Path(output_path) / project_name
+        reply = QMessageBox.question(
+            self, tr("source_delete_dataset", "Supprimer le dataset existant"),
+            tr("confirm_delete_dataset",
+               "Supprimer tout le contenu de ce projet, à l'exception des images ? "
+               "Le contenu sera mis à la corbeille."),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        success, message = ColmapEngine.delete_project_content(target)
+        self.logbar.append_log(message)
+        if success:
+            self.notify(tr("msg_success", "Succès"), message)
+        else:
+            QMessageBox.warning(self, tr("msg_error", "Erreur"), message)
 
     # ── Configuration nommée (Charger / Sauvegarder) ────────────────────────────
     def collect_config(self) -> ChainConfig:
@@ -674,11 +730,9 @@ class StudioWindow(QMainWindow):
     def open_settings(self):
         if self._settings_window is None:
             self._settings_window = SettingsWindow(self)
-            self._settings_window.quitRequested.connect(self.close)
             self._settings_window.saveRequested.connect(self.save_config_dialog)
             self._settings_window.loadRequested.connect(self.load_config_dialog)
             self._settings_window.notificationsToggled.connect(self.set_notifications_enabled)
-            self._settings_window.relaunchRequested.connect(self.restart_application)
             self._settings_window.resetRequested.connect(self.reset_factory)
         self._settings_window.show()
         self._settings_window.raise_()
@@ -695,6 +749,8 @@ class StudioWindow(QMainWindow):
 
     def retranslate_ui(self):
         self.setWindowTitle(tr("app_title"))
+        self.btn_relaunch.setText(tr("settings_relaunch", "Relancer"))
+        self.btn_quit.setText(tr("settings_quit", "Quitter"))
 
     # ── Fermeture ─────────────────────────────────────────────────────────────
     def closeEvent(self, event):

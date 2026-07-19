@@ -565,6 +565,7 @@
   "source_output": "مجلد الإخراج",
   "source_checkpoint_dest": "وجهة نقاط التحقّق (اختياري)",
   "source_delete_dataset": "حذف مجموعة البيانات الحالية",
+  "confirm_delete_dataset": "هل تريد حذف كل محتوى هذا المشروع باستثناء الصور؟ سيتم نقل المحتوى إلى سلة المهملات.",
   "chain_train_after": "تشغيل Brush",
   "source_export_options": "خيارات التصدير",
   "source_upscale": "تحسين دقة الصور",

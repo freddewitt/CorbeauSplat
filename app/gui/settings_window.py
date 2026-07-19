@@ -5,13 +5,16 @@ Charger/Sauvegarder la configuration complète, ``build_mode`` Brush,
 ``thermal_throttling``, notifications de fin d'exécution, reset factory,
 relancer, quitter.
 
-Lot 2 : Thème et Langue sont fonctionnels (styling / i18n, pas de la logique
-métier). Charger/Sauvegarder, notifications, build_mode, thermal sont exposés
-en signaux/état, câblés aux moteurs dans les lots ultérieurs (6 pour
-charger/sauvegarder + notifications). Reset factory / relancer / quitter sont
-câblés sur ``AppLifecycle`` (``app/gui/managers.py``) — équivalent de l'ancien
-``ConfigTab``/``ResetDialog`` : ``resetRequested`` n'est émis qu'après
-confirmation explicite dans ``ResetDialog`` (choix Light/Deep ou Annuler).
+Theme and Language are functional (styling / i18n, not business logic).
+Load/Save, notifications, build_mode, thermal are exposed as signals/state,
+wired to the engines in later batches. Factory reset is wired to
+``AppLifecycle`` (``app/gui/managers.py``) — equivalent of the old
+``ConfigTab``/``ResetDialog``: ``resetRequested`` is only emitted after
+explicit confirmation in ``ResetDialog`` (Light/Deep choice or Cancel).
+
+Restart/Quit are no longer here: they are global actions of the main window
+(always accessible), moved to ``StudioWindow``'s bottom bar instead of being
+buried in this dialog.
 """
 
 from PySide6.QtCore import Signal
@@ -95,8 +98,6 @@ class SettingsWindow(QDialog):
     loadRequested = Signal()
     saveRequested = Signal()
     resetRequested = Signal(bool)
-    relaunchRequested = Signal()
-    quitRequested = Signal()
     buildModeChanged = Signal(str)
     thermalToggled = Signal(bool)
     notificationsToggled = Signal(bool)
@@ -171,18 +172,11 @@ class SettingsWindow(QDialog):
         cfg_row.addWidget(self.btn_save)
         layout.addLayout(cfg_row)
 
-        # Actions de cycle de vie
-        life_row = QHBoxLayout()
+        # Reset (Restart/Quit now live in StudioWindow's bottom bar — global
+        # actions, not settings).
         self.btn_reset = QPushButton(tr("settings_reset", "Réinitialiser"))
         self.btn_reset.clicked.connect(self._on_reset_clicked)
-        life_row.addWidget(self.btn_reset)
-        self.btn_relaunch = QPushButton(tr("settings_relaunch", "Relancer"))
-        self.btn_relaunch.clicked.connect(self.relaunchRequested.emit)
-        life_row.addWidget(self.btn_relaunch)
-        self.btn_quit = QPushButton(tr("settings_quit", "Quitter"))
-        self.btn_quit.clicked.connect(self.quitRequested.emit)
-        life_row.addWidget(self.btn_quit)
-        layout.addLayout(life_row)
+        layout.addWidget(self.btn_reset)
 
         self.setWindowTitle(tr("settings_title", "Réglages généraux"))
 
@@ -221,7 +215,5 @@ class SettingsWindow(QDialog):
         self.btn_load.setText(tr("settings_load", "Charger…"))
         self.btn_save.setText(tr("settings_save", "Sauvegarder…"))
         self.btn_reset.setText(tr("settings_reset", "Réinitialiser"))
-        self.btn_relaunch.setText(tr("settings_relaunch", "Relancer"))
-        self.btn_quit.setText(tr("settings_quit", "Quitter"))
         for i, (_value, key, default) in enumerate(_BUILD_MODES):
             self.combo_build_mode.setItemText(i, tr(key, default))

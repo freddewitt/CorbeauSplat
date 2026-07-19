@@ -565,6 +565,7 @@
   "source_output": "Cartella di output",
   "source_checkpoint_dest": "Destinazione checkpoint (facoltativo)",
   "source_delete_dataset": "Elimina il dataset esistente",
+  "confirm_delete_dataset": "Eliminare tutto il contenuto di questo progetto tranne le immagini? Il contenuto verrà spostato nel cestino.",
   "chain_train_after": "Avvia Brush",
   "source_export_options": "Opzioni di esportazione",
   "source_upscale": "Upscale immagini",
