@@ -57,6 +57,10 @@ class UpscalePanel:
         layout.addLayout(out_row)
 
         layout.addStretch(1)
+
+        self.btn_run = QPushButton()
+        self.btn_run.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self.btn_run)
         return w
 
     def _build_right(self):
@@ -102,6 +106,15 @@ class UpscalePanel:
         if path:
             self.output_path.setText(path)
 
+    def get_params(self):
+        """Retourne les paramètres d'upscale sous forme de dict."""
+        return {
+            "model_id": self.combo_model.currentData() or self.combo_model.currentText(),
+            "scale": self.combo_scale.currentData(),
+            "format": self.combo_format.currentText().lower(),
+            "tile": self.spin_tile.value(),
+        }
+
     def retranslate_ui(self):
         self.lbl_status.setText(tr("up_status", "Moteur Upscale"))
         self.lbl_catalog.setText(tr("up_catalog", "Catalogue des modèles (à télécharger/gérer)"))
@@ -111,3 +124,4 @@ class UpscalePanel:
         self.lbl_scale.setText(tr("up_output_scale", "Échelle de sortie"))
         self.lbl_format.setText(tr("up_output_format", "Format de sortie"))
         self.lbl_tile.setText(tr("up_tile", "Taille des tuiles"))
+        self.btn_run.setText(tr("btn_run", "Lancer"))

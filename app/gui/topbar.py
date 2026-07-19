@@ -79,6 +79,15 @@ class TopBar(QWidget):
         if value:
             self.modeChanged.emit(value)
 
+    def set_running(self, running: bool):
+        """Bascule le bouton Lancer ↔ Annuler selon l'état du pipeline."""
+        if running:
+            self.btn_launch.setText(tr("topbar_cancel", "Annuler"))
+            self.btn_launch.setStyleSheet("color: #f7768e;")
+        else:
+            self.btn_launch.setText(tr("topbar_launch", "Lancer"))
+            self.btn_launch.setStyleSheet("")
+
     def current_mode(self) -> str:
         return self.combo_mode.itemData(self.combo_mode.currentIndex())
 

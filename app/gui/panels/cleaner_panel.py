@@ -77,6 +77,10 @@ class CleanerPanel:
         layout.addLayout(out_row)
 
         layout.addStretch(1)
+
+        self.btn_run = QPushButton()
+        self.btn_run.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self.btn_run)
         return w
 
     def _build_right(self):
@@ -199,3 +203,4 @@ class CleanerPanel:
         self.lbl_opacity.setText(tr("cleaner_opacity", "Opacité mini"))
         self.lbl_scale.setText(tr("cleaner_scale_pct", "Taille max (%)"))
         self.lbl_outlier.setText(tr("cleaner_outlier_pct", "Outliers (%)"))
+        self.btn_run.setText(tr("btn_run", "Lancer"))

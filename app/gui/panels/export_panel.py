@@ -66,6 +66,10 @@ class ExportPanel:
         layout.addLayout(out_row)
 
         layout.addStretch(1)
+
+        self.btn_run = QPushButton()
+        self.btn_run.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self.btn_run)
         return w
 
     def _build_right(self):
@@ -148,4 +152,5 @@ class ExportPanel:
         self.lbl_output.setText(tr("export_output", "Dossier de sortie"))
         self.lbl_format.setText(tr("export_format", "Format cible"))
         self.lbl_scale.setText(tr("export_scale", "Échelle"))
+        self.btn_run.setText(tr("btn_run", "Lancer"))
         self._update_warning()

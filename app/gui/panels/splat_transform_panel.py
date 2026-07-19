@@ -58,6 +58,10 @@ class SplatTransformPanel:
         layout.addLayout(out_row)
 
         layout.addStretch(1)
+
+        self.btn_run = QPushButton()
+        self.btn_run.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self.btn_run)
         return w
 
     def _build_right(self):
@@ -127,6 +131,16 @@ class SplatTransformPanel:
         path = get_existing_directory(self.center, tr("btn_browse", "Parcourir"))
         if path:
             self.output_path.setText(path)
+
+    def get_params(self):
+        """Retourne les paramètres SplatTransform sous forme de dict."""
+        return {
+            "format": self.combo_format.currentText(),
+            "filter_nan": self.chk_filter_nan.isChecked(),
+            "morton": self.chk_morton.isChecked(),
+            "harmonics": self.chk_harmonics.isChecked(),
+            "decimate": self.spin_decimate.value(),
+        }
 
     def retranslate_ui(self):
         self.lbl_status.setText(tr("st_status", "Moteur SplatTransform"))

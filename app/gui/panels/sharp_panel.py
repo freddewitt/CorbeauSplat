@@ -73,6 +73,10 @@ class SharpPanel:
         layout.addLayout(out_row)
 
         layout.addStretch(1)
+
+        self.btn_run = QPushButton()
+        self.btn_run.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self.btn_run)
         return w
 
     def _build_right(self):
@@ -130,6 +134,20 @@ class SharpPanel:
     def is_video(self):
         return self.radio_video.isChecked()
 
+    def get_params(self):
+        """Retourne les paramètres Sharp sous forme de dict."""
+        return {
+            "mode": "video" if self.is_video() else "image",
+            "input_path": self.input_path.text(),
+            "output_path": self.output_path.text(),
+            "video_path": self.input_path.text() if self.is_video() else "",
+            "video_output_path": self.output_path.text() if self.is_video() else "",
+            "device": self.device_combo.currentText(),
+            "checkpoint": self.checkpoint_edit.text(),
+            "verbose": self.chk_verbose.isChecked(),
+            "upscale": self.chk_upscale_before.isChecked(),
+        }
+
     def _browse_input(self):
         path, _ = get_open_file_name(self.center, tr("btn_browse", "Parcourir"))
         if path:
@@ -159,3 +177,4 @@ class SharpPanel:
         self.chk_nettoyer.setText(tr("chain_clean_after", "Nettoyage"))
         self.chk_exporter.setText(tr("chain_export_after", "Exporter"))
         self.chk_visualiser.setText(tr("chain_view_after", "Lancer dans SuperSplat"))
+        self.btn_run.setText(tr("btn_run", "Lancer"))

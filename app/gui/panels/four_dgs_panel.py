@@ -60,6 +60,10 @@ class FourDGSPanel:
         self.btn_colmap_only = QPushButton()
         layout.addWidget(self.btn_colmap_only)
 
+        self.btn_run = QPushButton()
+        self.btn_run.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self.btn_run)
+
         layout.addStretch(1)
         return w
 
@@ -92,6 +96,14 @@ class FourDGSPanel:
         if path:
             self.output_path.setText(path)
 
+    def get_params(self):
+        """Retourne les paramètres 4DGS sous forme de dict."""
+        return {
+            "input_path": self.input_path.text(),
+            "output_path": self.output_path.text(),
+            "fps": self.fps_spin.value(),
+        }
+
     def retranslate_ui(self):
         self.lbl_desc.setText(tr("four_dgs_desc",
                                  "Extrait des frames de vidéos synchronisées et prépare un dataset Nerfstudio."))
@@ -100,3 +112,4 @@ class FourDGSPanel:
         self.lbl_output.setText(tr("four_dgs_output", "Destination dataset"))
         self.btn_colmap_only.setText(tr("four_dgs_colmap_only", "Reconstruction COLMAP seulement"))
         self.lbl_fps.setText(tr("four_dgs_lbl_fps", "Extraction FPS"))
+        self.btn_run.setText(tr("btn_run", "Lancer"))

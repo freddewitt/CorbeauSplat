@@ -63,6 +63,10 @@ class Extractor360Panel:
         layout.addLayout(out_row)
 
         layout.addStretch(1)
+
+        self.btn_run = QPushButton()
+        self.btn_run.setStyleSheet("font-weight: bold;")
+        layout.addWidget(self.btn_run)
         return w
 
     def _build_right(self):
@@ -139,6 +143,21 @@ class Extractor360Panel:
         if path:
             self.output_path.setText(path)
 
+    def get_params(self):
+        """Retourne les paramètres d'extraction 360 sous forme de dict."""
+        return {
+            "interval": self.spin_interval.value(),
+            "resolution": self.spin_res.value(),
+            "layout": self.combo_layout.currentText(),
+            "cameras": self.spin_cameras.value(),
+            "quality": self.spin_quality.value(),
+            "format": self.combo_format.currentText().lower(),
+            "mask_operator": self.chk_mask_operator.isChecked(),
+            "skip_operator": self.chk_skip_operator.isChecked(),
+            "adaptive": self.chk_adaptive.isChecked(),
+            "motion_threshold": self.spin_motion.value(),
+        }
+
     def retranslate_ui(self):
         self.lbl_desc.setText(tr("360_desc",
                                  "Convertit des vidéos/images 360° équirectangulaires en images planaires."))
@@ -152,6 +171,7 @@ class Extractor360Panel:
         self.lbl_quality.setText(tr("360_lbl_quality", "Qualité JPEG"))
         self.lbl_format.setText(tr("360_lbl_format", "Format"))
         self.ai_group.setTitle(tr("360_ai_group", "IA avancé"))
+        self.btn_run.setText(tr("btn_run", "Lancer"))
         self.chk_mask_operator.setText(tr("360_mask_operator", "Masquer opérateur (YOLO)"))
         self.chk_skip_operator.setText(tr("360_skip_operator", "Sauter images avec opérateur"))
         self.chk_adaptive.setText(tr("360_adaptive", "Intervalle adaptatif"))
