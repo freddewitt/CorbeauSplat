@@ -3,10 +3,11 @@
 Barre de droite : Preset (dropdown, presets intégrés + personnalisés via
 ``merge_presets``), bouton « Enregistrer preset », champs essentiels (Steps,
 SH Degree, Max Splats, Device), toggle Avancé (Résolution max, Args
-supplémentaires, Viewer), sections repliables Densification et Checkpoints,
-mode Nouveau/Refine. S'appuie sur ``BrushParams`` (Lot 1) : ``get_params()``
-retourne un BrushParams, ``to_engine_params()`` produit la chaîne moteur (tokens
-inchangés, allowlist côté BrushEngine).
+supplémentaires, Viewer, Mode de build — auto-détecté depuis le binaire
+installé, cf. ``get_brush_build_mode``), sections repliables Densification et
+Checkpoints, mode Nouveau/Refine. S'appuie sur ``BrushParams`` (Lot 1) :
+``get_params()`` retourne un BrushParams, ``to_engine_params()`` produit la
+chaîne moteur (tokens inchangés, allowlist côté BrushEngine).
 
 Centre : mode Manuel/Indépendant (dataset/export/PLY), suivi d'exécution
 (placeholder), toggle Visualiser après (bindé run_state).
@@ -37,8 +38,17 @@ from app.cli.commands import BRUSH_PRESETS
 from app.core.brush_params import BrushParams
 from app.core.brush_presets import merge_presets, save_user_preset
 from app.core.i18n import add_language_observer, tr
+from app.core.system import get_brush_build_mode
 from app.gui.run_state_binding import bind_flag_checkbox
 from app.gui.widgets.dialog_utils import get_existing_directory
+
+# (build_mode value, i18n key, default label) — moved here from SettingsWindow:
+# this is a Brush-specific setting, not a global one. Initial value is
+# auto-detected from the installed binary (cf. get_brush_build_mode); the
+# dropdown lets an informed user override it if needed (e.g. after manually
+# swapping binaries).
+_BUILD_MODES = (("release", "settings_build_release", "Binaire release"),
+                ("source", "settings_build_source", "Compilé source"))
 
 
 class EntrainementPanel:
@@ -170,6 +180,19 @@ class EntrainementPanel:
         # "Advanced").
         self.check_viewer.setChecked(True)
         ag.addRow(self.check_viewer)
+        # Build mode: which CLI flag spelling BrushEngine must use depends on
+        # whether the installed binary is a tagged release or a source build
+        # (cf. build_command in brush_engine.py) — auto-detected here from the
+        # installed binary so training works out of the box; only override if
+        # you know you've manually swapped binaries.
+        self.combo_build_mode = QComboBox()
+        for value, key, default in _BUILD_MODES:
+            self.combo_build_mode.addItem(tr(key, default), value)
+        idx = self.combo_build_mode.findData(get_brush_build_mode())
+        if idx >= 0:
+            self.combo_build_mode.setCurrentIndex(idx)
+        self.lbl_build_mode = QLabel()
+        ag.addRow(self.lbl_build_mode, self.combo_build_mode)
         self.advanced_group.setVisible(False)
         layout.addWidget(self.advanced_group)
 
@@ -289,6 +312,7 @@ class EntrainementPanel:
             growth_select_fraction=self.spin_fraction.value(),
             growth_stop_iter=self.spin_growth_stop.value() or None,
             checkpoint_interval=self.spin_checkpoint_interval.value(),
+            build_mode=self.combo_build_mode.currentData(),
         )
 
     def set_params(self, params: BrushParams):
@@ -316,6 +340,10 @@ class EntrainementPanel:
             self.spin_growth_stop.setValue(params.growth_stop_iter)
         if params.checkpoint_interval is not None:
             self.spin_checkpoint_interval.setValue(params.checkpoint_interval)
+        if params.build_mode:
+            idx = self.combo_build_mode.findData(params.build_mode)
+            if idx >= 0:
+                self.combo_build_mode.setCurrentIndex(idx)
 
     def get_state(self):
         return self.get_params().to_dict()
@@ -343,6 +371,9 @@ class EntrainementPanel:
         self.lbl_res.setText(tr("brush_lbl_res", "Résolution max"))
         self.lbl_args.setText(tr("brush_args", "Arguments supplémentaires"))
         self.check_viewer.setText(tr("brush_viewer", "Activer le visualiseur pendant l'entraînement"))
+        self.lbl_build_mode.setText(tr("settings_build_mode", "Mode de build Brush"))
+        for i, (_value, key, default) in enumerate(_BUILD_MODES):
+            self.combo_build_mode.setItemText(i, tr(key, default))
         self.densif_group.setTitle(tr("brush_group_densif", "Densification"))
         self.lbl_start_iter.setText(tr("brush_start_iter", "Start iter"))
         self.lbl_refine.setText(tr("brush_refine_every", "Refine every"))

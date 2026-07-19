@@ -1,16 +1,18 @@
-"""Fenêtre indépendante de réglages généraux (icône roue crantée du top bar).
+"""Independent general settings window (gear icon in the top bar).
 
-Regroupe tout ce qui n'est pas au cœur du flux de travail : Thème, Langue,
-Charger/Sauvegarder la configuration complète, ``build_mode`` Brush,
-``thermal_throttling``, notifications de fin d'exécution, reset factory,
-relancer, quitter.
+Groups what isn't specific to any one workflow tab: Theme, Language,
+Load/Save the full configuration, end-of-run notifications, factory reset.
+
+Anything specific to a single panel (e.g. Brush build mode, COLMAP thermal
+throttling) belongs in that panel's own right-side sidebar instead — this
+window is for cross-cutting, app-wide settings only.
 
 Theme and Language are functional (styling / i18n, not business logic).
-Load/Save, notifications, build_mode, thermal are exposed as signals/state,
-wired to the engines in later batches. Factory reset is wired to
-``AppLifecycle`` (``app/gui/managers.py``) — equivalent of the old
-``ConfigTab``/``ResetDialog``: ``resetRequested`` is only emitted after
-explicit confirmation in ``ResetDialog`` (Light/Deep choice or Cancel).
+Load/Save and notifications are exposed as signals/state, wired to the
+engines elsewhere. Factory reset is wired to ``AppLifecycle``
+(``app/gui/managers.py``) — equivalent of the old ``ConfigTab``/``ResetDialog``:
+``resetRequested`` is only emitted after explicit confirmation in
+``ResetDialog`` (Light/Deep choice or Cancel).
 
 Restart/Quit are no longer here: they are global actions of the main window
 (always accessible), moved to ``StudioWindow``'s bottom bar instead of being
@@ -42,9 +44,6 @@ _LANGUAGES = (
 )
 # (code thème, libellé) — miroir de ConfigTab.
 _THEMES = (("slate", "Slate + Indigo"), ("graphite", "Graphite + Teal"), ("blue", "Bleu modernisé"))
-# (valeur build_mode Brush, clé i18n, défaut).
-_BUILD_MODES = (("release", "settings_build_release", "Binaire release"),
-                ("source", "settings_build_source", "Compilé source"))
 
 
 class ResetDialog(QDialog):
@@ -98,8 +97,6 @@ class SettingsWindow(QDialog):
     loadRequested = Signal()
     saveRequested = Signal()
     resetRequested = Signal(bool)
-    buildModeChanged = Signal(str)
-    thermalToggled = Signal(bool)
     notificationsToggled = Signal(bool)
 
     def __init__(self, parent=None):
@@ -138,19 +135,6 @@ class SettingsWindow(QDialog):
         self.combo_lang.currentIndexChanged.connect(self._on_lang)
         self.lbl_lang = QLabel(tr("lang_change", "Langue"))
         form.addRow(self.lbl_lang, self.combo_lang)
-
-        # build_mode Brush (câblage moteur ultérieur)
-        self.combo_build_mode = QComboBox()
-        for value, key, default in _BUILD_MODES:
-            self.combo_build_mode.addItem(tr(key, default), value)
-        self.combo_build_mode.currentIndexChanged.connect(self._on_build_mode)
-        self.lbl_build_mode = QLabel(tr("settings_build_mode", "Mode de build Brush"))
-        form.addRow(self.lbl_build_mode, self.combo_build_mode)
-
-        # thermal_throttling
-        self.chk_thermal = QCheckBox(tr("settings_thermal", "Limitation thermique"))
-        self.chk_thermal.toggled.connect(self.thermalToggled.emit)
-        form.addRow(self.chk_thermal)
 
         # notifications de fin d'exécution
         self.chk_notifications = QCheckBox(tr("settings_notifications", "Notifications de fin d'exécution"))
@@ -192,11 +176,6 @@ class SettingsWindow(QDialog):
         if code and code != get_current_lang():
             set_language(code)
 
-    def _on_build_mode(self, index):
-        value = self.combo_build_mode.itemData(index)
-        if value:
-            self.buildModeChanged.emit(value)
-
     def _on_reset_clicked(self):
         """Réinitialisation destructive : jamais exécutée sans confirmation
         explicite (choix Light/Deep) dans ``ResetDialog``."""
@@ -209,11 +188,7 @@ class SettingsWindow(QDialog):
         self.lbl_current_config.setText(tr("settings_current_config", "Paramètres actuels"))
         self.lbl_theme.setText(tr("theme_change", "Thème"))
         self.lbl_lang.setText(tr("lang_change", "Langue"))
-        self.lbl_build_mode.setText(tr("settings_build_mode", "Mode de build Brush"))
-        self.chk_thermal.setText(tr("settings_thermal", "Limitation thermique"))
         self.chk_notifications.setText(tr("settings_notifications", "Notifications de fin d'exécution"))
         self.btn_load.setText(tr("settings_load", "Charger…"))
         self.btn_save.setText(tr("settings_save", "Sauvegarder…"))
         self.btn_reset.setText(tr("settings_reset", "Réinitialiser"))
-        for i, (_value, key, default) in enumerate(_BUILD_MODES):
-            self.combo_build_mode.setItemText(i, tr(key, default))
