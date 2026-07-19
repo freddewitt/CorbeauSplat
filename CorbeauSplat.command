@@ -4,52 +4,30 @@ set -euo pipefail
 # Move to script directory
 cd "$(dirname "$0")"
 
-# --- Verbosity: default mode shows simple French messages; --verbose (or
-# CORBEAU_VERBOSE=1) restores the full technical output for debugging.
-VERBOSE=false
-if [ "${CORBEAU_VERBOSE:-0}" = "1" ]; then
-    VERBOSE=true
-fi
-
+# --- Affichage : toujours détaillé (étape par étape), présenté proprement. ---
 say() {
-    # Friendly, reassuring message shown in both modes.
+    # Message informatif, toujours affiché.
     echo "$@"
 }
 
-detail() {
-    # Technical detail, shown only when VERBOSE=true.
-    if [ "$VERBOSE" = true ]; then
-        echo "$@"
-    fi
+phase() {
+    # En-tête de section : sépare visuellement les grandes étapes du lancement.
+    echo ""
+    echo "── $1 ──"
 }
 
 # --- Phase 0: Clean Reset (--clean flag) & argument filtering ---
 CLEAN_MODE=false
 FILTERED_ARGS=()
-# --verbose is only intercepted here when no CLI subcommand is present, since
-# "sharp" already defines its own --verbose flag that must keep flowing through
-# to main.py unchanged when used from the command line.
-KNOWN_SUBCOMMANDS="pipeline colmap brush sharp view upscale 4dgs clean splattransform extract360"
-HAS_SUBCOMMAND=false
-for arg in "$@"; do
-    for sub in $KNOWN_SUBCOMMANDS; do
-        if [ "$arg" = "$sub" ]; then
-            HAS_SUBCOMMAND=true
-        fi
-    done
-done
-
 for arg in "$@"; do
     if [ "$arg" = "--clean" ]; then
         CLEAN_MODE=true
-    elif [ "$arg" = "--verbose" ] && [ "$HAS_SUBCOMMAND" = false ]; then
-        VERBOSE=true
     else
         FILTERED_ARGS+=("$arg")
     fi
 done
 
-detail "Working directory: $(pwd)"
+say "Dossier de travail : $(pwd)"
 
 if [ "$CLEAN_MODE" = true ]; then
     echo ""
@@ -73,8 +51,7 @@ if [ "$CLEAN_MODE" = true ]; then
 fi
 
 # --- Phase 0.5: Prerequisites (Xcode CLT + Homebrew) ---
-detail "--- Phase 0.5: Checking prerequisites ---"
-say "Vérification de l'installation…"
+phase "Phase 0.5 — Vérification des prérequis"
 
 # 1. Xcode Command Line Tools
 if ! xcode-select -p > /dev/null 2>&1; then
@@ -98,7 +75,7 @@ if ! xcode-select -p > /dev/null 2>&1; then
         echo "⚠️  Installation ignorée. Certaines fonctionnalités pourraient ne pas fonctionner."
     fi
 else
-    detail "✅ Xcode Command Line Tools: $(xcode-select -p)"
+    say "✅ Outils de développement Apple : $(xcode-select -p)"
 fi
 
 # 2. Homebrew
@@ -153,19 +130,19 @@ if [ -z "$BREW_BIN" ]; then
             exit 1
         fi
         say "✅ Homebrew installé."
-        detail "$("$BREW_BIN" --version | head -1)"
+        say "$("$BREW_BIN" --version | head -1)"
     else
         echo "⚠️  Installation ignorée. Certains outils système pourraient ne pas s'installer correctement."
     fi
 else
     # Ensure brew is in PATH for the rest of this session
     eval "$("$BREW_BIN" shellenv)" 2>/dev/null
-    detail "✅ Homebrew: $("$BREW_BIN" --version | head -1)"
+    say "✅ Homebrew : $("$BREW_BIN" --version | head -1)"
 fi
 
 # --- Phase 1: Update Check ---
 if [ -d ".git" ]; then
-    detail "--- Phase 1: Checking for updates ---"
+    phase "Phase 1 — Vérification des mises à jour"
     git fetch > /dev/null 2>&1 || true
 
     if git rev-parse --abbrev-ref --symbolic-full-name @{u} > /dev/null 2>&1; then
@@ -173,7 +150,7 @@ if [ -d ".git" ]; then
         AHEAD_COUNT=$(git rev-list --count @{u}..HEAD)
 
         if [ "$AHEAD_COUNT" -gt 0 ]; then
-            detail "ℹ️  Local version is ahead of GitHub ($AHEAD_COUNT commit(s)). No update applied."
+            say "ℹ️  Version locale en avance sur GitHub ($AHEAD_COUNT commit(s)). Aucune mise à jour appliquée."
         elif [ "$BEHIND_COUNT" -gt 0 ]; then
              echo ""
              echo "ℹ️  Une nouvelle version de CorbeauSplat est disponible."
@@ -187,22 +164,21 @@ if [ -d ".git" ]; then
                  say "Mise à jour ignorée."
              fi
         else
-             detail "✅ Software is up to date."
+             say "✅ Le logiciel est à jour."
         fi
     fi
 else
-    detail "--- Phase 1: Skipping update check (not a git repository) ---"
+    phase "Phase 1 — Vérification des mises à jour (ignorée, pas un dépôt git)"
 fi
 
 # --- Phase 2: Environment & Venv Health ---
-detail "--- Phase 2: Environment configuration ---"
-say "Préparation en cours…"
+phase "Phase 2 — Préparation de l'environnement"
 VENV_DIR=".venv"
 PYTHON_CMD="$VENV_DIR/bin/python3"
 
 if [ ! -d "$VENV_DIR" ] || [ ! -f "$PYTHON_CMD" ]; then
-    detail "Creating virtual environment..."
-    if [ -d "$VENV_DIR" ]; then detail "⚠️ Venv corrupted. Rebuilding..."; rm -rf "$VENV_DIR"; fi
+    say "Création de l'environnement virtuel..."
+    if [ -d "$VENV_DIR" ]; then say "⚠️  Environnement corrompu. Reconstruction..."; rm -rf "$VENV_DIR"; fi
 
     PY_CANDIDATES=("python3.13" "python3.12" "python3.11" "python3.10" "python3")
     SELECTED_PY=""
@@ -214,13 +190,13 @@ if [ ! -d "$VENV_DIR" ] || [ ! -f "$PYTHON_CMD" ]; then
         echo "❌ Python 3 introuvable. Merci d'installer Python 3.13 (ou plus récent) puis de relancer CorbeauSplat."
         exit 1
     fi
-    detail "Detected Python candidate: $SELECTED_PY"
+    say "Python détecté : $SELECTED_PY"
     $SELECTED_PY -m venv $VENV_DIR
-    detail "✅ Virtual environment created."
+    say "✅ Environnement virtuel créé."
 fi
 
-detail "Using environment Python: $($PYTHON_CMD --version)"
-detail "✅ Environment configured."
+say "Python utilisé : $($PYTHON_CMD --version)"
+say "✅ Environnement configuré."
 
 # Integrity check
 _REBUILD_COUNT="${_REBUILD_COUNT:-0}"
@@ -235,27 +211,27 @@ if ! "$PYTHON_CMD" -c "import json, os, sys" > /dev/null 2>&1; then
     exec env _REBUILD_COUNT="$_REBUILD_COUNT" "$0" "$@"
     exit 1
 fi
-detail "✅ Python environment integrity verified."
+say "✅ Intégrité de l'environnement Python vérifiée."
 
 # --- Phase 3: Dependency Sync ---
-detail "--- Phase 3: Synchronizing dependencies ---"
-detail "Checking for pip updates..."
+phase "Phase 3 — Synchronisation des dépendances"
+say "Vérification des mises à jour pip..."
 "$PYTHON_CMD" -m pip install --upgrade pip > /dev/null 2>&1
 
 if [ -f "requirements.lock" ]; then
     DEP_FILE="requirements.lock"
-    detail "Found lockfile: $DEP_FILE"
+    say "Fichier de verrouillage trouvé : $DEP_FILE"
 else
     DEP_FILE="requirements.txt"
-    detail "Found dependency list: $DEP_FILE"
+    say "Liste de dépendances trouvée : $DEP_FILE"
 fi
 
-detail "Verifying installed packages (this may take a moment)..."
+say "Vérification des paquets installés (cela peut prendre un moment)..."
 if ! "$PYTHON_CMD" -m pip install -r $DEP_FILE > /dev/null 2>&1; then
     echo "⚠️  L'installation silencieuse a échoué. Nouvelle tentative avec les détails..."
     "$PYTHON_CMD" -m pip install -r $DEP_FILE
 fi
-detail "✅ Dependencies synchronized and verified."
+say "✅ Dépendances synchronisées et vérifiées."
 
 # PySide6 specific check
 if ! "$PYTHON_CMD" -c "import PySide6" > /dev/null 2>&1; then
@@ -287,31 +263,20 @@ fi
 "$PYTHON_CMD" -m app.scripts.set_launcher_icon > /dev/null 2>&1 || true
 
 # --- Phase 4: Engine & Core Component Monitoring ---
-detail "--- Phase 4: Verifying engines and external binaries ---"
-if [ "$VERBOSE" = true ]; then
-    "$PYTHON_CMD" -m app.scripts.setup_dependencies --startup
-else
-    _PHASE4_LOG=$(mktemp)
-    if ! "$PYTHON_CMD" -m app.scripts.setup_dependencies --startup > "$_PHASE4_LOG" 2>&1; then
-        echo "❌ Une erreur est survenue pendant la vérification des outils :"
-        cat "$_PHASE4_LOG"
-        rm -f "$_PHASE4_LOG"
-        exit 1
-    fi
-    rm -f "$_PHASE4_LOG"
-fi
-detail "✅ System check complete (Engines & Binaries)."
+phase "Phase 4 — Vérification des moteurs et binaires externes"
+"$PYTHON_CMD" -m app.scripts.setup_dependencies --startup
+say "✅ Vérification système terminée (moteurs & binaires)."
 
 if [[ $(uname -m) == 'arm64' ]]; then
-    detail "✅ Architecture: Apple Silicon detected (Optimizations active)."
+    say "✅ Architecture : Apple Silicon détectée (optimisations actives)."
 else
-    detail "ℹ️  Architecture: x86_64 detected."
+    say "ℹ️  Architecture : x86_64 détectée."
 fi
 
 # --- Phase 5: Launch ---
-detail "--- Phase 5: Launching CorbeauSplat ---"
+phase "Phase 5 — Lancement de CorbeauSplat"
 say "Lancement de CorbeauSplat…"
-detail "------------------------------------------------"
+echo "------------------------------------------------"
 if [ ${#FILTERED_ARGS[@]} -gt 0 ]; then
     "$PYTHON_CMD" main.py "${FILTERED_ARGS[@]}"
 else
