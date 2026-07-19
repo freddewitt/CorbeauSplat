@@ -84,6 +84,7 @@ class ExportPanel:
         layout = QVBoxLayout(content)
 
         form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.combo_format = QComboBox()
         for fmt in ExportEngine.SUPPORTED_FORMATS:
             self.combo_format.addItem(fmt, fmt)

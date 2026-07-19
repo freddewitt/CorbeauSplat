@@ -81,6 +81,7 @@ class Extractor360Panel:
         layout = QVBoxLayout(content)
 
         form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.spin_interval = QDoubleSpinBox()
         self.spin_interval.setRange(0.1, 60.0)
         self.spin_interval.setSingleStep(0.1)
@@ -115,6 +116,7 @@ class Extractor360Panel:
         self.ai_group.setCheckable(True)
         self.ai_group.setChecked(False)
         ag = QFormLayout(self.ai_group)
+        ag.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.chk_mask_operator = QCheckBox()
         ag.addRow(self.chk_mask_operator)
         self.chk_skip_operator = QCheckBox()

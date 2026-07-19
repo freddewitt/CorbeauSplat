@@ -118,6 +118,7 @@ class EntrainementPanel:
 
         # Essentiels
         essential = QFormLayout()
+        essential.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.spin_total_steps = QSpinBox()
         self.spin_total_steps.setRange(1, 1_000_000)
         self.spin_total_steps.setValue(30000)
@@ -146,6 +147,7 @@ class EntrainementPanel:
         layout.addWidget(self.btn_advanced)
         self.advanced_group = QWidget()
         ag = QFormLayout(self.advanced_group)
+        ag.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.max_resolution_spin = QSpinBox()
         self.max_resolution_spin.setRange(0, 8192)
         self.lbl_res = QLabel()
@@ -163,6 +165,7 @@ class EntrainementPanel:
         self.densif_group.setCheckable(True)
         self.densif_group.setChecked(False)
         dg = QFormLayout(self.densif_group)
+        dg.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.spin_start_iter = QSpinBox()
         self.spin_start_iter.setRange(0, 1_000_000)
         self.lbl_start_iter = QLabel()
@@ -197,6 +200,7 @@ class EntrainementPanel:
         self.ckpt_group.setCheckable(True)
         self.ckpt_group.setChecked(False)
         cg = QFormLayout(self.ckpt_group)
+        cg.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs, bug combo_mode)
         self.spin_checkpoint_interval = QSpinBox()
         self.spin_checkpoint_interval.setRange(0, 1_000_000)
         self.spin_checkpoint_interval.setValue(7000)

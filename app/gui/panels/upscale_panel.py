@@ -73,6 +73,7 @@ class UpscalePanel:
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         content = QWidget()
         form = QFormLayout(content)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
 
         self.combo_model = QComboBox()
         self.lbl_model = QLabel()

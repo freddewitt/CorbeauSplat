@@ -76,6 +76,7 @@ class SplatTransformPanel:
         layout = QVBoxLayout(content)
 
         form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.combo_format = QComboBox()
         self.combo_format.addItems(["ply", "spz", "splat"])
         self.lbl_format = QLabel()

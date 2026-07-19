@@ -110,6 +110,7 @@ class SettingsWindow(QDialog):
         self.setModal(False)
         layout = QVBoxLayout(self)
         form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
 
         # Thème (fonctionnel)
         self.combo_theme = QComboBox()

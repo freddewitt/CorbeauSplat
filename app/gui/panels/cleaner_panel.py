@@ -95,6 +95,7 @@ class CleanerPanel:
         layout = QVBoxLayout(content)
 
         form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.combo_strength = QComboBox()
         for value, _label in _STRENGTHS:
             self.combo_strength.addItem(value, value)
@@ -107,6 +108,7 @@ class CleanerPanel:
         self.advanced_group.setCheckable(True)
         self.advanced_group.setChecked(False)
         ag = QFormLayout(self.advanced_group)
+        ag.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.spin_opacity = QDoubleSpinBox()
         self.spin_opacity.setRange(0.0, 1.0)
         self.spin_opacity.setSingleStep(0.01)

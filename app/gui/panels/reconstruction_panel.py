@@ -133,6 +133,7 @@ class ReconstructionPanel:
         # Feature Extraction
         self.extract_group = QGroupBox()
         ex = QFormLayout(self.extract_group)
+        ex.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.camera_model_combo = QComboBox()
         self.camera_model_combo.addItems(_CAMERA_MODELS)
         self.camera_model_combo.setCurrentText('SIMPLE_RADIAL')
@@ -171,6 +172,7 @@ class ReconstructionPanel:
         # Matching
         self.match_group = QGroupBox()
         mt = QFormLayout(self.match_group)
+        mt.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.matcher_type_combo = QComboBox()
         self.matcher_type_combo.addItems(_MATCHER_TYPES)
         self.matcher_type_combo.setCurrentText('exhaustive')
@@ -216,6 +218,7 @@ class ReconstructionPanel:
         # Mapper
         self.mapper_group = QGroupBox()
         mp = QFormLayout(self.mapper_group)
+        mp.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.refine_focal_check = QCheckBox()
         self.refine_focal_check.setChecked(True)
         self.lbl_focal = QLabel()

@@ -91,6 +91,7 @@ class SharpPanel:
         layout = QVBoxLayout(content)
 
         form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.device_combo = QComboBox()
         self.device_combo.addItems(["mps", "cuda", "cpu"])
         self.lbl_device = QLabel()

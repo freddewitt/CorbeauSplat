@@ -93,6 +93,7 @@ class VisualiserPanel:
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         content = QWidget()
         form = QFormLayout(content)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
 
         self.splat_port = QSpinBox()
         self.splat_port.setRange(1024, 65535)

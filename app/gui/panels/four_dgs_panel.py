@@ -77,6 +77,7 @@ class FourDGSPanel:
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         content = QWidget()
         form = QFormLayout(content)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.fps_spin = QSpinBox()
         self.fps_spin.setRange(1, 60)
         self.fps_spin.setValue(5)

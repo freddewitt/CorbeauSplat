@@ -43,7 +43,7 @@ Spec écrite à `b4e88db` (v1.5.0), avant les correctifs dette technique de la s
 - `_apply_robust` cross-couche encore présent (`main_window.py:209` ← `app/cli/commands.py`). → nettoyage Lot 7.
 
 ## 🐞 Bugs connus (à corriger plus tard)
-- **Scroll horizontal barre de droite / fenêtre** (signalé Apple Silicon) : persiste indépendamment de la largeur du `right_stack` (testé 300/340/380/400 → sans effet). Donc PAS un problème de largeur de la barre : probablement la fenêtre dont la largeur minimale (rail 220 + right fixe + largeur mini du centre) dépasse l'écran, OU un widget large non-wrappé dans le centre. Pistes : rendre le centre réellement rétrécissable (scroll area centre, ou min-width forcée basse), vérifier `QFormLayout` des accordéons (labels longs → passer libellés au-dessus des champs), envisager `right_stack` non-fixe (min+max). À investiguer sur Mac avec la taille réelle d'écran.
+- ✅ **RÉSOLU** — Scroll horizontal barre de droite / fenêtre : cause identifiée par géométrie réelle (`combo_mode` d'Entraînement dépassait le bord droit de la fenêtre de 34-35px en espagnol, ligne label+champ trop longue pour les 400px du `right_stack`). Fix : `.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)` ajouté aux 18 `QFormLayout` du projet — le libellé passe au-dessus du champ quand ça ne tient pas sur une ligne. Vérifié sans débordement sur les 10 panneaux concernés + Réglages, en espagnol/anglais/russe.
 
 ## Vérifications Apple Silicon en attente (par lot)
 - Lot 2 : rendu réel 4 zones, densité top bar, hauteur rail 13 items sur MacBook Air 13".
