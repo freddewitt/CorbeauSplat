@@ -19,7 +19,7 @@ def _launch_gui():
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
 
-    from app.gui.main_window import ColmapGUI
+    from app.gui.studio_window import StudioWindow
 
     app = QApplication(sys.argv)
 
@@ -34,6 +34,6 @@ def _launch_gui():
     if dock_src.exists():
         QTimer.singleShot(0, lambda: _set_macos_dock_icon(dock_src))
 
-    window = ColmapGUI()
+    window = StudioWindow()
     window.show()
     sys.exit(app.exec())

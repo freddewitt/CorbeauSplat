@@ -29,7 +29,7 @@ python3 main.py clean -i noisy.ply -o cleaned.ply --then-export spz
 
 ## Architecture
 
-Vue d'ensemble : `main.py` (entry) → `app/cli/` (dispatch CLI) et `app/gui/` (PyQt6, `main_window.py` orchestrateur + `tabs/` par moteur) s'appuient tous deux sur `app/core/` (moteurs, tous héritant de `base_engine.py`/BaseEngine : `engine.py`/ColmapEngine, `brush_engine.py`, `sharp_engine.py`, `upscale_engine.py`, `superplat_engine.py`, `four_dgs_engine.py`, `extractor_360_engine.py`, `export_engine.py`, `ply_cleaner.py`, `splat_transform_engine.py`). `colmap_commands.py` isole la construction des argv COLMAP (SRP, extrait de ColmapEngine — v1.2.3). `app/scripts/installers/` installe les binaires externes dans `engines/`.
+Vue d'ensemble : `main.py` (entry) → `app/cli/` (dispatch CLI) et `app/gui/` (PySide6, `studio_window.py`/`StudioWindow` orchestrateur unique — interface à 4 zones — + `panels/` par module) s'appuient tous deux sur `app/core/` (moteurs, tous héritant de `base_engine.py`/BaseEngine : `engine.py`/ColmapEngine, `brush_engine.py`, `sharp_engine.py`, `upscale_engine.py`, `superplat_engine.py`, `four_dgs_engine.py`, `extractor_360_engine.py`, `export_engine.py`, `ply_cleaner.py`, `splat_transform_engine.py`). `colmap_commands.py` isole la construction des argv COLMAP (SRP, extrait de ColmapEngine — v1.2.3). `app/scripts/installers/` installe les binaires externes dans `engines/`.
 
 Détail (fichiers, classes, patterns, moteurs, dépendances, sécurité) → `graphify query "<question>"` ou `graphify explain "<concept>"`. Ne pas dupliquer ici ce que le graphe retrouve déjà.
 

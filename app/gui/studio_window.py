@@ -478,3 +478,15 @@ class StudioWindow(QMainWindow):
 
     def retranslate_ui(self):
         self.setWindowTitle(tr("app_title"))
+
+    # ── Fermeture ─────────────────────────────────────────────────────────────
+    def closeEvent(self, event):
+        """Point de vigilance Lot 4 (PROMPT_CLAUDE_CODE_REFONTE_UI.md) : annule
+        un worker OUTILS actif et stoppe SuperSplatEngine pour ne pas laisser de
+        serveur local orphelin quand la fenêtre se ferme."""
+        self._cancel_active_worker()
+        for key in ("visualiser", "supersplat"):
+            engine = getattr(self.panels.get(key), "engine", None)
+            if engine is not None:
+                engine.stop_all()
+        event.accept()

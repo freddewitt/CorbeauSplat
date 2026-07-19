@@ -5,8 +5,9 @@ Centre : sélection du fichier (.ply/.spz), bouton Démarrer/Arrêter local
 Barre de droite : ports, No UI, position et rotation caméra.
 
 Lot 4 : UI + params + état local du bouton. Le démarrage réel du serveur
-(``SuperSplatEngine.start_data_server``/``stop_all``) est câblé dans la phase
-moteurs (surface Apple Silicon) ; le closeEvent devra appeler ``stop_all()``.
+(``SuperSplatEngine.start_data_server``) est câblé dans la phase moteurs
+(surface Apple Silicon) ; ``StudioWindow.closeEvent`` appelle déjà
+``self.engine.stop_all()`` (point de vigilance Lot 4).
 """
 
 from PySide6.QtCore import Qt
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.i18n import add_language_observer, tr
+from app.core.superplat_engine import SuperSplatEngine
 from app.gui.widgets.dialog_utils import get_open_file_name
 from app.gui.widgets.drop_line_edit import DropLineEdit
 
@@ -34,6 +36,10 @@ class VisualiserPanel:
     def __init__(self, run_state):
         self.run_state = run_state
         self._running = False
+        # Instancié dès maintenant (comme l'ancien SuperSplatTab) pour que le
+        # closeEvent de StudioWindow puisse toujours appeler stop_all(), même
+        # avant que toggle_server() ne soit câblé au moteur réel.
+        self.engine = SuperSplatEngine()
         self.center = self._build_center()
         self.right = self._build_right()
         add_language_observer(self.retranslate_ui)
