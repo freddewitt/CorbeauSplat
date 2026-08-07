@@ -1,7 +1,0 @@
-# CorbeauSplat — Journal de bord
-
-**État** : **456 tests pass, 1 skip, 24 deselected** — v2.0.0-beta.1 démarrage validé terrain (Brush v0.3.0 pinned + 4 correctifs), deptry CI clean, rail réordonné + icônes uniques, logbar refonte (activity_bar + logs_window). i18n 283 clés. Reste : 6 vérifications manuelles Mac + solo décisions (CollapseState, Brush progression, journal erreur).
-
-**Dernières sessions**
-- **2026-08-07 (session 12 suite final)** — Démarrage 4 correctifs (Brush checksums.json recoupés 3 sources fail-closed, message succès conditionné, --clean tous .venv, trimesh déclaré). Épinglage Brush structurel (brush_release en checksums.json, _fetch_latest_release_tag isolée). Deptry 4 signalements (DEP002 requests/urllib3 retirés, DEP003 spz/open3d ignorées). Rail ordre PARAMÈTRES + icônes uniques (⌂/⊘/⬡). Logbar supprimé → activity_bar + logs_window. Barre bas padding corrigé (10,6,10,8). 456 tests pass; ruff/deptry clean.
-- **2026-08-07 (session 12 suite — troisième/finale)** — Remous UI finaux : cancel buttons retirés barre bas + ajoutés sous Lancer 9 panneaux (+ CancelButton widget unique), SplatTransform btn_run.setText() dans retranslate_ui(), ProgressRing 52px (indéterminé Brush, déterminé % COLMAP/360/Sharp/Export, masqué hors run), suivi page supprimé (page reste Projet during run, rail met à jour). Code livré, testé, prêt. Prochaine : traduction CorbeauSplat.command.
