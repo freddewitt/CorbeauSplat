@@ -1,16 +1,16 @@
 """Panneau Entraînement (étape PIPELINE) — équivalent de l'onglet Brush.
 
-Barre de droite : Preset (dropdown, presets intégrés + personnalisés via
-``merge_presets``), bouton « Enregistrer preset », champs essentiels (Steps,
-SH Degree, Max Splats, Device), toggle Avancé (Résolution max, Args
+Centre : mode manuel/indépendant (dataset/export/PLY), toggle Visualiser
+après (bindé run_state), Preset (dropdown, presets intégrés + personnalisés
+via ``merge_presets``), bouton « Enregistrer preset », champs essentiels
+(Steps, SH Degree, Max Splats, Device), toggle Avancé (Résolution max, Args
 supplémentaires, Viewer, Mode de build — auto-détecté depuis le binaire
 installé, cf. ``get_brush_build_mode``), sections repliables Densification et
 Checkpoints, mode Nouveau/Refine. S'appuie sur ``BrushParams`` (Lot 1) :
 ``get_params()`` retourne un BrushParams, ``to_engine_params()`` produit la
-chaîne moteur (tokens inchangés, allowlist côté BrushEngine).
-
-Centre : mode Manuel/Indépendant (dataset/export/PLY), suivi d'exécution
-(placeholder), toggle Visualiser après (bindé run_state).
+chaîne moteur (tokens inchangés, allowlist côté BrushEngine). Barre de
+droite : vide (contenu fusionné dans le centre, cf. ``app.gui.panels``
+docstring).
 
 Lot 3c : UI + BrushParams + presets. Le lancement réel (BrushWorker) passe par
 le dispatch orchestré du StudioWindow.
@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -36,10 +37,16 @@ from PySide6.QtWidgets import (
 
 from app.cli.commands import BRUSH_PRESETS
 from app.core.brush_params import BrushParams
-from app.core.brush_presets import merge_presets, save_user_preset
+from app.core.brush_presets import (
+    delete_user_preset,
+    is_deletable,
+    merge_presets,
+    save_user_preset,
+)
 from app.core.i18n import add_language_observer, tr
 from app.core.system import get_brush_build_mode
 from app.gui.run_state_binding import bind_flag_checkbox
+from app.gui.widgets.cancel_button import CancelButton
 from app.gui.widgets.dialog_utils import get_existing_directory
 
 # (build_mode value, i18n key, default label) — moved here from SettingsWindow:
@@ -64,10 +71,17 @@ class EntrainementPanel:
         add_language_observer(self.retranslate_ui)
         self.retranslate_ui()
 
-    # ── Centre (mode manuel + suivi) ────────────────────────────────────────────
+    # ── Centre (mode manuel + suivi + preset → essentiel → avancé) ──────────────
     def _build_center(self):
         w = QWidget()
-        layout = QVBoxLayout(w)
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        content = QWidget()
+        layout = QVBoxLayout(content)
 
         self.manual_group = QGroupBox()
         mg = QVBoxLayout(self.manual_group)
@@ -100,29 +114,7 @@ class EntrainementPanel:
         self._bind(self.chk_visualiser, "visualiser_apres")
         layout.addWidget(self.chk_visualiser)
 
-        # Local Launch button: standalone use only (OUTILS "Brush" module). The
-        # PIPELINE Training step is driven by the top bar's single Launch/Cancel
-        # button instead (cf. StudioWindow._run_pipeline_step).
-        if self.standalone:
-            self.btn_run = QPushButton()
-            self.btn_run.setStyleSheet("font-weight: bold;")
-            layout.addWidget(self.btn_run)
-
-        layout.addStretch(1)
-        return w
-
-    # ── Barre de droite (preset → essentiel → avancé) ───────────────────────────
-    def _build_right(self):
-        w = QWidget()
-        outer = QVBoxLayout(w)
-        outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        content = QWidget()
-        layout = QVBoxLayout(content)
-
+        # ── Migré depuis _build_right : preset → essentiel → avancé ─────────────
         # Preset + enregistrer
         preset_row = QHBoxLayout()
         self.lbl_preset = QLabel()
@@ -133,7 +125,11 @@ class EntrainementPanel:
         self.btn_save_preset = QPushButton("💾")
         self.btn_save_preset.clicked.connect(self._save_current_as_preset)
         preset_row.addWidget(self.btn_save_preset)
+        self.btn_delete_preset = QPushButton("🗑")
+        self.btn_delete_preset.clicked.connect(self._delete_selected_preset)
+        preset_row.addWidget(self.btn_delete_preset)
         layout.addLayout(preset_row)
+        self._sync_delete_preset_enabled()
 
         # Essentiels
         essential = QFormLayout()
@@ -252,7 +248,21 @@ class EntrainementPanel:
         layout.addStretch(1)
         scroll.setWidget(content)
         outer.addWidget(scroll)
+
+        # Local Launch button: standalone use only (OUTILS "Brush" module). The
+        # PIPELINE Training step is driven by the top bar's single Launch/Cancel
+        # button instead (cf. StudioWindow._run_pipeline_step).
+        if self.standalone:
+            self.btn_run = QPushButton()
+            self.btn_run.setStyleSheet("font-weight: bold;")
+            outer.addWidget(self.btn_run)
+
+            self.btn_cancel = CancelButton()
+            outer.addWidget(self.btn_cancel)
         return w
+
+    def _build_right(self):
+        return QWidget()
 
     def _bind(self, checkbox, flag):
         self._bindings.append(bind_flag_checkbox(checkbox, self.run_state, flag))
@@ -266,9 +276,41 @@ class EntrainementPanel:
         for name in merge_presets(BRUSH_PRESETS):
             self.combo_preset.addItem(name, name)
         self.combo_preset.blockSignals(False)
+        self._sync_delete_preset_enabled()
+
+    def _sync_delete_preset_enabled(self):
+        """Le bouton 🗑 n'est actif que sur un preset *utilisateur*.
+
+        « Défaut » (data None) et les presets intégrés (``BRUSH_PRESETS``, livrés
+        avec l'app) ne sont pas supprimables : seuls les noms présents dans
+        ``load_user_presets()`` le sont. Un preset utilisateur qui masque un
+        intégré homonyme reste supprimable — l'intégré réapparaît alors, ce qui
+        est le comportement attendu de ``merge_presets``."""
+        self.btn_delete_preset.setEnabled(is_deletable(self.combo_preset.currentData()))
+
+    def _delete_selected_preset(self):
+        name = self.combo_preset.currentData()
+        if not is_deletable(name):
+            return
+        confirm = QMessageBox.question(
+            self.center,
+            tr("brush_delete_preset", "Supprimer le preset"),
+            # Pas de défaut passé à tr() : quand la clé existe, LanguageManager.tr()
+            # consomme tout argument supplémentaire comme argument de .format(),
+            # ce qui injecterait le texte par défaut dans le {0}. La clé est
+            # définie dans les 9 locales ; le repli (nom de clé brut) est un
+            # garde-fou défensif, jamais atteint en pratique.
+            tr("brush_delete_preset_confirm").format(name),
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        delete_user_preset(name)
+        self._reload_presets()
+        self.combo_preset.setCurrentIndex(0)
 
     def _apply_selected_preset(self, _index):
         name = self.combo_preset.currentData()
+        self._sync_delete_preset_enabled()
         if not name:
             return
         preset = merge_presets(BRUSH_PRESETS).get(name)
@@ -276,7 +318,7 @@ class EntrainementPanel:
             self.set_params(BrushParams.from_dict({**self.get_params().to_dict(), **preset}))
 
     def _save_current_as_preset(self):
-        name, ok = QInputDialog.getText(self.right, tr("brush_save_preset", "Enregistrer le preset"),
+        name, ok = QInputDialog.getText(self.center, tr("brush_save_preset", "Enregistrer le preset"),
                                         tr("brush_preset_name", "Nom du preset"))
         if ok and name.strip():
             save_user_preset(name.strip(), self.get_params().to_dict())
@@ -366,6 +408,7 @@ class EntrainementPanel:
             self.btn_run.setText(tr("btn_run", "Lancer"))
         self.lbl_preset.setText(tr("brush_lbl_preset", "Preset"))
         self.btn_save_preset.setToolTip(tr("brush_save_preset", "Enregistrer la config comme preset"))
+        self.btn_delete_preset.setToolTip(tr("brush_delete_preset", "Supprimer le preset"))
         self.lbl_steps.setText(tr("brush_lbl_steps", "Steps total"))
         self.lbl_sh.setText(tr("brush_sh_degree", "SH Degree"))
         self.lbl_max_splats.setText(tr("brush_max_splats", "Max Splats"))

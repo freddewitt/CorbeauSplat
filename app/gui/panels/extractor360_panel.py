@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.i18n import add_language_observer, tr
+from app.gui.widgets.cancel_button import CancelButton
 from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_name
 from app.gui.widgets.drop_line_edit import DropLineEdit
 
@@ -35,7 +36,15 @@ class Extractor360Panel:
 
     def _build_center(self):
         w = QWidget()
-        layout = QVBoxLayout(w)
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+
         self.lbl_desc = QLabel()
         self.lbl_desc.setWordWrap(True)
         layout.addWidget(self.lbl_desc)
@@ -47,7 +56,7 @@ class Extractor360Panel:
         in_row = QHBoxLayout()
         self.input_path = DropLineEdit()
         in_row.addWidget(self.input_path)
-        self.btn_browse_input = QPushButton("📁")
+        self.btn_browse_input = QPushButton("\U0001F4C1")
         self.btn_browse_input.clicked.connect(self._browse_input)
         in_row.addWidget(self.btn_browse_input)
         layout.addLayout(in_row)
@@ -57,31 +66,14 @@ class Extractor360Panel:
         out_row = QHBoxLayout()
         self.output_path = QLineEdit()
         out_row.addWidget(self.output_path)
-        self.btn_browse_output = QPushButton("📁")
+        self.btn_browse_output = QPushButton("\U0001F4C1")
         self.btn_browse_output.clicked.connect(self._browse_output)
         out_row.addWidget(self.btn_browse_output)
         layout.addLayout(out_row)
 
-        layout.addStretch(1)
-
-        self.btn_run = QPushButton()
-        self.btn_run.setStyleSheet("font-weight: bold;")
-        layout.addWidget(self.btn_run)
-        return w
-
-    def _build_right(self):
-        w = QWidget()
-        outer = QVBoxLayout(w)
-        outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        content = QWidget()
-        layout = QVBoxLayout(content)
-
+        # \u2500\u2500 Migr\u00e9 depuis _build_right : \u00e9chantillonnage, disposition, qualit\u00e9, IA \u2500\u2500
         form = QFormLayout()
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # \u00e9vite d\u00e9bordement horizontal (libell\u00e9s longs)
         self.spin_interval = QDoubleSpinBox()
         self.spin_interval.setRange(0.1, 60.0)
         self.spin_interval.setSingleStep(0.1)
@@ -94,6 +86,12 @@ class Extractor360Panel:
         self.lbl_res = QLabel()
         form.addRow(self.lbl_res, self.spin_res)
         self.combo_layout = QComboBox()
+        # Valeurs impos\u00e9es par l'extracteur : --layout choices=['ring','cube','fibonacci']
+        # (engines/extractor_360/src/main.py). Le libell\u00e9 est traduit, la donn\u00e9e non.
+        for key, value in (("360_layout_ring", "ring"),
+                           ("360_layout_cube", "cube"),
+                           ("360_layout_fib", "fibonacci")):
+            self.combo_layout.addItem(tr(key), value)
         self.lbl_layout = QLabel()
         form.addRow(self.lbl_layout, self.combo_layout)
         self.spin_cameras = QSpinBox()
@@ -116,7 +114,7 @@ class Extractor360Panel:
         self.ai_group.setCheckable(True)
         self.ai_group.setChecked(False)
         ag = QFormLayout(self.ai_group)
-        ag.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        ag.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # \u00e9vite d\u00e9bordement horizontal (libell\u00e9s longs)
         self.chk_mask_operator = QCheckBox()
         ag.addRow(self.chk_mask_operator)
         self.chk_skip_operator = QCheckBox()
@@ -133,7 +131,16 @@ class Extractor360Panel:
         layout.addStretch(1)
         scroll.setWidget(content)
         outer.addWidget(scroll)
+
+        self.btn_run = QPushButton()
+        self.btn_run.setStyleSheet("font-weight: bold;")
+        outer.addWidget(self.btn_run)
+        self.btn_cancel = CancelButton()
+        outer.addWidget(self.btn_cancel)
         return w
+
+    def _build_right(self):
+        return QWidget()
 
     def _browse_input(self):
         path, _ = get_open_file_name(self.center, tr("btn_browse", "Parcourir"))
@@ -151,7 +158,7 @@ class Extractor360Panel:
         return {
             "interval": self.spin_interval.value(),
             "resolution": self.spin_res.value(),
-            "layout": self.combo_layout.currentText(),
+            "layout": self.combo_layout.currentData(),
             "camera_count": self.spin_cameras.value(),
             "quality": self.spin_quality.value(),
             "format": self.combo_format.currentText().lower(),
@@ -160,6 +167,43 @@ class Extractor360Panel:
             "adaptive": self.chk_adaptive.isChecked(),
             "motion_threshold": self.spin_motion.value(),
         }
+
+    def get_state(self):
+        """État sérialisable dans une configuration nommée (ChainConfig.extraction360)."""
+        return {
+            "input_path": self.input_path.text(),
+            "output_path": self.output_path.text(),
+            "ai_enabled": self.ai_group.isChecked(),
+            **self.get_params(),
+        }
+
+    def set_state(self, state):
+        if not state:
+            return
+        self.input_path.setText(state.get("input_path", ""))
+        self.output_path.setText(state.get("output_path", ""))
+        if "interval" in state:
+            self.spin_interval.setValue(state["interval"])
+        if "resolution" in state:
+            self.spin_res.setValue(state["resolution"])
+        if state.get("layout"):
+            idx = self.combo_layout.findData(state["layout"])
+            if idx >= 0:
+                self.combo_layout.setCurrentIndex(idx)
+        if "camera_count" in state:
+            self.spin_cameras.setValue(state["camera_count"])
+        if "quality" in state:
+            self.spin_quality.setValue(state["quality"])
+        if state.get("format"):
+            idx = self.combo_format.findText(state["format"].upper())
+            if idx >= 0:
+                self.combo_format.setCurrentIndex(idx)
+        self.ai_group.setChecked(state.get("ai_enabled", False))
+        self.chk_mask_operator.setChecked(state.get("ai_mask", False))
+        self.chk_skip_operator.setChecked(state.get("ai_skip", False))
+        self.chk_adaptive.setChecked(state.get("adaptive", False))
+        if "motion_threshold" in state:
+            self.spin_motion.setValue(state["motion_threshold"])
 
     def retranslate_ui(self):
         self.lbl_desc.setText(tr("360_desc",
@@ -170,6 +214,9 @@ class Extractor360Panel:
         self.lbl_interval.setText(tr("360_lbl_interval", "Intervalle (s)"))
         self.lbl_res.setText(tr("360_lbl_resolution", "Résolution (px)"))
         self.lbl_layout.setText(tr("360_lbl_layout", "Disposition caméras"))
+        self.combo_layout.setToolTip(tr("360_tip_layout"))
+        for i, key in enumerate(("360_layout_ring", "360_layout_cube", "360_layout_fib")):
+            self.combo_layout.setItemText(i, tr(key))
         self.lbl_cameras.setText(tr("360_lbl_cameras", "Nb caméras"))
         self.lbl_quality.setText(tr("360_lbl_quality", "Qualité JPEG"))
         self.lbl_format.setText(tr("360_lbl_format", "Format"))

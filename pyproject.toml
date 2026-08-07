@@ -1,18 +1,59 @@
 [project]
 name = "corbeausplat"
-version = "1.5.1"
+version = "2.0.0-beta.1"
 description = "Gaussian Splatting toolkit with GUI"
 requires-python = ">=3.10"
+# Doit rester synchronisé avec requirements.txt (source du lock et de la CI).
+# Sans cette section, deptry ne voit aucune dépendance déclarée et remonte
+# ~40 faux positifs DEP001 sur PySide6/numpy/plyfile/PIL.
+dependencies = [
+    "PySide6>=6.6,<7",
+    # requests/urllib3 retirés (deptry DEP002, item A2-M14) : aucun fichier ne
+    # les importe, tout le réseau passe par urllib.request (stdlib — à ne pas
+    # confondre avec urllib3). Ils restent installés en dev, tirés par pip-audit.
+    "numpy>=1.26,<3",
+    "send2trash>=1.8,<2",
+    "pyobjc-framework-Cocoa>=10.0,<11; sys_platform == 'darwin'",
+    "Pillow>=12.3,<13",
+    "plyfile>=0.7,<1",
+    "opencv-python-headless>=4.8,<5",
+    "trimesh>=4.0,<6",
+]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.11,<1",
     "mypy>=1.15,<2",
+    "deptry>=0.23,<1",
     "pytest>=9.0,<10",
     "pytest-qt>=4.4,<5",
     "pip-audit>=2.8,<3",
     "pip-tools>=7.4,<8",
 ]
+
+[tool.deptry]
+# Modules importés dont le nom diffère du nom de paquet : sans cette table,
+# deptry ne peut pas faire le lien hors environnement installé.
+[tool.deptry.package_module_name_map]
+Pillow = ["PIL"]
+opencv-python-headless = ["cv2"]
+pyobjc-framework-Cocoa = ["AppKit", "Foundation", "objc"]
+PySide6 = ["PySide6"]
+send2trash = ["send2trash"]
+
+[tool.deptry.per_rule_ignores]
+# Imports optionnels, résolus à l'exécution et déjà protégés par try/except :
+# backends d'export GLB/SPZ et modules Blender.
+# trimesh est désormais déclaré (le lanceur l'installait en douce, hors lock).
+DEP001 = ["open3d", "spz", "bpy"]
+# Mêmes modules, autre règle : spz est compilé et installé dans le venv par son
+# propre installeur (app/scripts/installers/spz.py), jamais par pip depuis
+# requirements. deptry le voit donc « installé mais non déclaré » (DEP003) quand
+# il est présent, et « non déclaré » (DEP001) sinon — les deux listes doivent
+# couvrir le même ensemble pour que le résultat ne dépende pas de l'état du venv.
+DEP003 = ["open3d", "spz", "bpy"]
+# Outils de dev déclarés dans l'extra [dev], jamais importés par le code.
+DEP002 = ["ruff", "mypy", "deptry", "pytest", "pytest-qt", "pip-audit", "pip-tools"]
 
 [tool.ruff]
 target-version = "py310"

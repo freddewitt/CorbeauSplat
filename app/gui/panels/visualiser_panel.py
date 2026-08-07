@@ -1,8 +1,9 @@
 """Panneau Visualiser (étape PIPELINE, optionnelle) — équivalent de SuperSplatTab.
 
 Centre : sélection du fichier (.ply/.spz), bouton Démarrer/Arrêter local
-(indépendant du bouton Lancer global), statut serveur, rappel URL.
-Barre de droite : ports, No UI, position et rotation caméra.
+(indépendant du bouton Lancer global), statut serveur, rappel URL, ports,
+No UI, position et rotation caméra. Barre de droite : vide (contenu fusionné
+dans le centre, cf. ``app.gui.panels`` docstring).
 
 Le démarrage/arrêt réel du serveur (``SuperSplatEngine.start_supersplat`` +
 ``start_data_server``) est câblé sur le bouton local ``btn_toggle`` — pas un
@@ -54,7 +55,14 @@ class VisualiserPanel:
 
     def _build_center(self):
         w = QWidget()
-        layout = QVBoxLayout(w)
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        content = QWidget()
+        layout = QVBoxLayout(content)
 
         self.lbl_input = QLabel()
         layout.addWidget(self.lbl_input)
@@ -80,19 +88,8 @@ class VisualiserPanel:
         self.btn_reopen.clicked.connect(self._open_browser)
         layout.addWidget(self.btn_reopen)
 
-        layout.addStretch(1)
-        return w
-
-    def _build_right(self):
-        w = QWidget()
-        outer = QVBoxLayout(w)
-        outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        content = QWidget()
-        form = QFormLayout(content)
+        # ── Migré depuis _build_right : ports, No UI, position/rotation caméra ──
+        form = QFormLayout()
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
 
         self.splat_port = QSpinBox()
@@ -128,10 +125,15 @@ class VisualiserPanel:
             spin.setDecimals(1)
             self.cam_rot[axis] = spin
             form.addRow(QLabel(f"Rotation {axis.upper()}"), spin)
+        layout.addLayout(form)
 
+        layout.addStretch(1)
         scroll.setWidget(content)
         outer.addWidget(scroll)
         return w
+
+    def _build_right(self):
+        return QWidget()
 
     def toggle_server(self):
         """Démarre ou arrête réellement le serveur SuperSplat (bouton local

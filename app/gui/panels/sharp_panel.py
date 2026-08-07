@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from app.core.i18n import add_language_observer, tr
 from app.gui.run_state_binding import bind_flag_checkbox
+from app.gui.widgets.cancel_button import CancelButton
 from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_name
 from app.gui.widgets.drop_line_edit import DropLineEdit
 
@@ -77,6 +78,8 @@ class SharpPanel:
         self.btn_run = QPushButton()
         self.btn_run.setStyleSheet("font-weight: bold;")
         layout.addWidget(self.btn_run)
+        self.btn_cancel = CancelButton()
+        layout.addWidget(self.btn_cancel)
         return w
 
     def _build_right(self):

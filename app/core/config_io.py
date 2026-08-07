@@ -46,6 +46,8 @@ class ChainConfig:
 
     version: int = CONFIG_VERSION
     source: dict = field(default_factory=dict)     # input_path, output_path, project_name, fps…
+    extraction360: dict = field(default_factory=dict)  # échantillonnage, disposition, qualité, IA
+    upscale: dict = field(default_factory=dict)    # modèle, échelle, format, tuiles, TTA, compression
     colmap: dict = field(default_factory=dict)     # ColmapParams.to_dict()
     brush: dict = field(default_factory=dict)      # BrushParams.to_dict()
     cleaning: dict = field(default_factory=dict)   # intensité, opacity_min, scale_pct, outlier_pct

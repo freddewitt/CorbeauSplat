@@ -1,54 +1,122 @@
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtWidgets import (
-    QFrame,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QVBoxLayout,
-)
+from PySide6.QtCore import QThread, Signal
 
-from app.core.i18n import add_language_observer, tr
-
-
-class BinaryInstallWorker(QThread):
-    log_signal = Signal(str)
-    finished   = Signal(bool, str)
-
-    def run(self):
-        try:
-            from app.upscayl_manager import download_binary
-            download_binary(log_callback=self.log_signal.emit)
-            self.finished.emit(True, "upscayl-bin installed.")
-        except Exception as e:
-            self.finished.emit(False, str(e))
+from app.upscayl_models import get_model
 
 
 class ModelDownloadWorker(QThread):
-    log_signal = Signal(str)
-    finished   = Signal(bool, str, str)
+    """Télécharge les fichiers .bin/.param d'un modèle hors du thread GUI.
 
-    def __init__(self, model_id: str, url_bin: str, url_param: str):
+    ``download_model_files`` fait des requêtes réseau bloquantes (jusqu'à 120 s
+    de timeout par fichier) : l'appeler directement depuis un slot Qt gèlerait
+    l'interface.
+    """
+
+    log_signal = Signal(str)
+    finished_signal = Signal(bool, str)
+
+    def __init__(self, model_id: str):
         super().__init__()
-        self.model_id  = model_id
-        self.url_bin   = url_bin
-        self.url_param = url_param
+        self.model_id = model_id
 
     def run(self):
+        from app.upscayl_manager import download_model_files
+
+        model = get_model(self.model_id)
+        if model is None:
+            self.finished_signal.emit(False, self.model_id)
+            return
         try:
-            from app.upscayl_manager import download_model_files
             ok = download_model_files(
-                self.url_bin, self.url_param, self.model_id,
-                log_callback=self.log_signal.emit
+                model.url_bin, model.url_param, model.id,
+                log_callback=self.log_signal.emit,
             )
-            self.finished.emit(ok, self.model_id,
-                               "Downloaded." if ok else "Download failed.")
         except Exception as e:
-            self.finished.emit(False, self.model_id, str(e))
+            self.log_signal.emit(str(e))
+            ok = False
+        self.finished_signal.emit(ok, model.label)
+
+
+def run_upscale_job(input_path, output_dir, params, log_callback, cancel_check):
+    """Exécute un upscale upscayl-bin et retourne ``(succès, message)``.
+
+    Extrait du corps de :class:`TestWorker` pour être partagé avec
+    :class:`UpscaleImagesWorker` (étape PARAMÈTRES « Upscale ») : les deux ont
+    besoin exactement de la même invocation (mode x1 = upscale puis retour à la
+    taille d'origine, dossier ou fichier unique), seule leur destination diffère.
+    """
+    import shutil as _shutil
+    import tempfile as _tempfile
+
+    from app.upscayl_manager import find_binary, resize_to_original, run_upscayl
+
+    model_id = params.get("model_id", "")
+    if not model_id:
+        return False, "Aucun modèle sélectionné."
+    if not find_binary():
+        return False, "upscayl-bin introuvable."
+
+    fmt = params.get("format", "png")
+    req_scale = params.get("scale", 4)
+    src = Path(input_path)
+
+    x1_mode = (req_scale == 1)
+    if x1_mode:
+        m = get_model(model_id)
+        actual_scale = m.scale if m else 4
+    else:
+        actual_scale = req_scale
+
+    upscayl_params = {
+        "model_id":    model_id,
+        "scale":       actual_scale,
+        "format":      fmt,
+        "tile":        params.get("tile", 0),
+        "tta":         params.get("tta", False),
+        "compression": params.get("compression", 0),
+    }
+
+    if src.is_dir():
+        if x1_mode:
+            from PIL import Image as _PIL
+            image_exts = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
+            orig_sizes = {}
+            for f in src.iterdir():
+                if f.is_file() and f.suffix.lower() in image_exts:
+                    with _PIL.open(f) as im:
+                        orig_sizes[f.stem + "." + fmt] = im.size
+
+        success = [False]
+        run_upscayl(str(src), output_dir, upscayl_params,
+                    log_callback=log_callback,
+                    done_callback=lambda ok: success.__setitem__(0, ok),
+                    cancel_check=cancel_check)
+        if success[0] and x1_mode:
+            resize_to_original(output_dir, orig_sizes)
+    else:
+        if x1_mode:
+            from PIL import Image as _PIL
+            with _PIL.open(src) as im:
+                orig_sizes = {src.stem + "." + fmt: im.size}
+
+        with _tempfile.TemporaryDirectory(prefix="upscayl_in_") as tmp_in:
+            _shutil.copy2(src, Path(tmp_in) / src.name)
+            success = [False]
+            run_upscayl(tmp_in, output_dir, upscayl_params,
+                        log_callback=log_callback,
+                        done_callback=lambda ok: success.__setitem__(0, ok),
+                        cancel_check=cancel_check)
+            if success[0] and x1_mode:
+                resize_to_original(output_dir, orig_sizes)
+
+    return success[0], (output_dir if success[0] else "Upscale échoué.")
 
 
 class TestWorker(QThread):
+    """Lancement local de l'upscale depuis la page PARAMÈTRES › Upscale
+    (chemins saisis dans le panneau, hors chaîne pipeline)."""
+
     log_signal = Signal(str)
     finished   = Signal(bool, str)
 
@@ -67,161 +135,66 @@ class TestWorker(QThread):
 
     def run(self):
         try:
-            import shutil as _shutil
-            import tempfile as _tempfile
-
-            from app.upscayl_manager import find_binary, resize_to_original, run_upscayl
-            from app.upscayl_models import get_model
-
-            model_id = self.params.get("model_id", "")
-            if not model_id:
-                self.finished.emit(False, "Aucun mod\u00e8le s\u00e9lectionn\u00e9.")
-                return
-            if not find_binary():
-                self.finished.emit(False, "upscayl-bin introuvable.")
-                return
-
-            fmt       = self.params.get("format", "png")
-            req_scale = self.params.get("scale", 4)
-            src       = Path(self.input_path)
-
-            x1_mode = (req_scale == 1)
-            if x1_mode:
-                m = get_model(model_id)
-                actual_scale = m.scale if m else 4
-            else:
-                actual_scale = req_scale
-
-            upscayl_params = {
-                "model_id":    model_id,
-                "scale":       actual_scale,
-                "format":      fmt,
-                "tile":        self.params.get("tile", 0),
-                "tta":         self.params.get("tta", False),
-                "compression": self.params.get("compression", 0),
-            }
-
-            if src.is_dir():
-                if x1_mode:
-                    from PIL import Image as _PIL
-                    image_exts = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
-                    orig_sizes = {}
-                    for f in src.iterdir():
-                        if f.is_file() and f.suffix.lower() in image_exts:
-                            with _PIL.open(f) as im:
-                                orig_sizes[f.stem + "." + fmt] = im.size
-
-                success = [False]
-                run_upscayl(str(src), self.output_dir, upscayl_params,
-                            log_callback=self.log_signal.emit,
-                            done_callback=lambda ok: success.__setitem__(0, ok),
-                            cancel_check=self.isInterruptionRequested)
-                if success[0] and x1_mode:
-                    resize_to_original(self.output_dir, orig_sizes)
-            else:
-                if x1_mode:
-                    from PIL import Image as _PIL
-                    with _PIL.open(src) as im:
-                        orig_sizes = {src.stem + "." + fmt: im.size}
-
-                with _tempfile.TemporaryDirectory(prefix="upscayl_in_") as tmp_in:
-                    _shutil.copy2(src, Path(tmp_in) / src.name)
-                    success = [False]
-                    run_upscayl(tmp_in, self.output_dir, upscayl_params,
-                                log_callback=self.log_signal.emit,
-                                done_callback=lambda ok: success.__setitem__(0, ok),
-                                cancel_check=self.isInterruptionRequested)
-                    if success[0] and x1_mode:
-                        resize_to_original(self.output_dir, orig_sizes)
-
-            self.finished.emit(success[0], self.output_dir if success[0] else "Upscale \u00e9chou\u00e9.")
+            ok, message = run_upscale_job(
+                self.input_path, self.output_dir, self.params,
+                log_callback=self.log_signal.emit,
+                cancel_check=self.isInterruptionRequested,
+            )
+            self.finished.emit(ok, message)
         except Exception as e:
             self.finished.emit(False, str(e))
 
 
-class ModelCard(QFrame):
-    download_requested = Signal(str)
-    delete_requested   = Signal(str)
+class UpscaleImagesWorker(QThread):
+    """Étape ``upscale`` de la chaîne : agrandit les images sources du projet
+    vers ``output_dir``, que Reconstruction consommera ensuite à la place du
+    dossier d'origine (cf. ``StudioWindow._build_colmap_worker``).
 
-    def __init__(self, model, models_dir: Path, recommended: bool = False):
+    Le dossier source de l'utilisateur n'est jamais modifié : même principe de
+    précaution que ``ColmapEngine._run_upscale``, qui déplace les originaux dans
+    ``images_src`` plutôt que de les écraser. Expose ``finished_signal`` (et non
+    ``finished`` comme :class:`TestWorker`) pour être pilotable par
+    ``_start_pipeline_worker``, comme les autres workers d'étape.
+    """
+
+    log_signal = Signal(str)
+    finished_signal = Signal(bool, str)
+
+    def __init__(self, images_dir: str, output_dir: str, params: dict):
         super().__init__()
-        self.model      = model
-        self.models_dir = models_dir
-        self._action_handler = None
-        self.setFrameShape(QFrame.Shape.StyledPanel)
-        self._build()
-        add_language_observer(self.refresh)
+        self.images_dir = images_dir
+        self.output_dir = output_dir
+        self.params = params
+        self.stopped_by_user = False
 
-    def _set_action_handler(self, handler):
-        """(Re)connecte le bouton d'action en ne déconnectant que le handler
-        précédent — évite un disconnect() à vide (RuntimeWarning sous PySide6)."""
-        if self._action_handler is not None:
-            self.btn_action.clicked.disconnect(self._action_handler)
-        self._action_handler = handler
-        self.btn_action.clicked.connect(handler)
+    def stop(self):
+        self.stopped_by_user = True
+        self.requestInterruption()
 
-    def _build(self):
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 6, 8, 6)
+    def run(self):
+        from app.core.upscale_engine import UpscaleEngine
 
-        info = QVBoxLayout()
-        name = QLabel(f"<b>{self.model.label}</b>")
-        desc = QLabel(self.model.description)
-        desc.setWordWrap(True)
-        desc.setStyleSheet("color: #888; font-size: 11px;")
-        info.addWidget(name)
-        info.addWidget(desc)
-        layout.addLayout(info, stretch=1)
+        try:
+            # Même garde-fou de chemin que tous les moteurs (BaseEngine.validate_path) :
+            # l'étape écrit un dossier entier, elle ne fait pas exception.
+            engine = UpscaleEngine(logger_callback=self.log_signal.emit)
+            safe_in = engine.validate_path(self.images_dir)
+            if safe_in is None or not safe_in.is_dir():
+                self.finished_signal.emit(False, f"Dossier d'images invalide : {self.images_dir}")
+                return
+            out = Path(self.output_dir)
+            safe_out = engine.validate_path(str(out.parent))
+            if safe_out is None:
+                self.finished_signal.emit(False, f"Destination invalide : {self.output_dir}")
+                return
+            dest = safe_out / out.name
+            dest.mkdir(parents=True, exist_ok=True)
 
-        badge = QLabel(f"x{self.model.scale}")
-        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        badge.setFixedWidth(32)
-        badge.setStyleSheet(
-            "background: #2a82da; color: white; border-radius: 4px; "
-            "font-size: 11px; font-weight: bold; padding: 2px 4px;"
-        )
-        layout.addWidget(badge)
-
-        self.lbl_status = QLabel()
-        self.lbl_status.setFixedWidth(120)
-        self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(self.lbl_status)
-
-        self.btn_action = QPushButton()
-        self.btn_action.setFixedWidth(90)
-        layout.addWidget(self.btn_action)
-
-        self.refresh()
-
-    def refresh(self):
-        downloaded = self.model.is_downloaded(self.models_dir)
-        if downloaded:
-            size = self.model.size_on_disk_mb(self.models_dir)
-            self.lbl_status.setText(f"\u2705 {size} MB")
-            self.lbl_status.setStyleSheet("color: #44aa44; font-size: 11px;")
-            self.btn_action.setText(tr("up_delete"))
-            self.btn_action.setStyleSheet("color: #cc4444;")
-            self._set_action_handler(
-                lambda: self.delete_requested.emit(self.model.id)
+            ok, message = run_upscale_job(
+                str(safe_in), str(dest), self.params,
+                log_callback=self.log_signal.emit,
+                cancel_check=self.isInterruptionRequested,
             )
-            self.btn_action.setEnabled(True)
-        elif self.model.bundled and not self.model.url_bin:
-            self.lbl_status.setText(tr("up_bundled"))
-            self.lbl_status.setStyleSheet("color: #888; font-size: 11px;")
-            self.btn_action.setText("\u2014")
-            self.btn_action.setEnabled(False)
-        else:
-            self.lbl_status.setText(tr("up_not_installed"))
-            self.lbl_status.setStyleSheet("color: #888; font-size: 11px;")
-            self.btn_action.setText(tr("up_download"))
-            self.btn_action.setStyleSheet("")
-            self._set_action_handler(
-                lambda: self.download_requested.emit(self.model.id)
-            )
-            self.btn_action.setEnabled(True)
-
-    def set_downloading(self, active: bool):
-        self.btn_action.setEnabled(not active)
-        if active:
-            self.lbl_status.setText(tr("up_downloading"))
-            self.lbl_status.setStyleSheet("color: #2a82da; font-size: 11px;")
+            self.finished_signal.emit(ok, message)
+        except Exception as e:
+            self.finished_signal.emit(False, str(e))

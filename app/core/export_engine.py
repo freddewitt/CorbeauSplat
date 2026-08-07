@@ -44,8 +44,17 @@ class ExportEngine(BaseEngine):
         bool
             True on success.
         """
-        input_file = Path(input_path)
-        output_dir = Path(output_path)
+        safe_input = self.validate_path(input_path)
+        if safe_input is None:
+            self.log(f"Erreur: chemin d'entrée refusé {input_path}")
+            return False
+        safe_output = self.validate_path(output_path)
+        if safe_output is None:
+            self.log(f"Erreur: chemin de sortie refusé {output_path}")
+            return False
+
+        input_file = Path(safe_input)
+        output_dir = Path(safe_output)
 
         if not input_file.exists():
             self.log(f"Erreur: fichier introuvable {input_file}")
@@ -114,43 +123,23 @@ class ExportEngine(BaseEngine):
         delimiter = opts.get('delimiter', ' ')
 
         try:
-            try:
-                from plyfile import PlyData
-                ply = PlyData.read(str(input_file))
-                vertex = ply['vertex']
-                has_colors = 'red' in vertex.data.dtype.names
+            import numpy as np
+            from plyfile import PlyData
+            ply = PlyData.read(str(input_file))
+            vertex = ply['vertex']
+            has_colors = 'red' in vertex.data.dtype.names
 
-                with open(output_file, 'w') as fout:
-                    for i in range(len(vertex)):
-                        data = vertex[i]
-                        x, y, z = float(data['x']), float(data['y']), float(data['z'])
+            # Accès par colonne + écriture en une passe : itérer avec vertex[i]
+            # coûte plusieurs ordres de grandeur sur un splat de plusieurs
+            # millions de points. float64 pour reproduire le repr de float().
+            cols = [vertex[axis].astype(np.float64) for axis in ('x', 'y', 'z')]
+            fmt = ['%s', '%s', '%s']
+            if include_colors and has_colors:
+                cols += [vertex[c].astype(np.float64) for c in ('red', 'green', 'blue')]
+                fmt += ['%d', '%d', '%d']
 
-                        if include_colors and has_colors:
-                            r, g, b = int(data['red']), int(data['green']), int(data['blue'])
-                            fout.write(f"{x}{delimiter}{y}{delimiter}{z}{delimiter}{r}{delimiter}{g}{delimiter}{b}\n")
-                        else:
-                            fout.write(f"{x}{delimiter}{y}{delimiter}{z}\n")
-            except ImportError:
-                # Fallback: parse manually
-                with open(input_file) as fin:
-                    lines = fin.readlines()
-
-                with open(output_file, 'w') as fout:
-                    in_header = True
-                    has_colors = False
-                    for line in lines:
-                        if in_header:
-                            if line.strip().startswith("end_header"):
-                                in_header = False
-                            if "property" in line and "red" in line:
-                                has_colors = True
-                            continue
-                        parts = line.strip().split()
-                        if len(parts) >= 3:
-                            if include_colors and len(parts) >= 6:
-                                fout.write(f"{parts[0]}{delimiter}{parts[1]}{delimiter}{parts[2]}{delimiter}{parts[3]}{delimiter}{parts[4]}{delimiter}{parts[5]}\n")
-                            else:
-                                fout.write(f"{parts[0]}{delimiter}{parts[1]}{delimiter}{parts[2]}\n")
+            with open(output_file, 'w') as fout:
+                np.savetxt(fout, np.column_stack(cols), fmt=fmt, delimiter=delimiter)
 
             self.log(f"Exporté XYZ{' (avec couleurs)' if include_colors else ''}: {output_file}")
             return True
@@ -166,92 +155,39 @@ class ExportEngine(BaseEngine):
         scale = opts.get('scale', 1.0)
 
         try:
-            try:
-                from plyfile import PlyData
-                ply = PlyData.read(str(input_file))
-                vertex = ply['vertex']
-                has_colors = 'red' in vertex.data.dtype.names
+            import numpy as np
+            from plyfile import PlyData
+            ply = PlyData.read(str(input_file))
+            vertex = ply['vertex']
+            has_colors = 'red' in vertex.data.dtype.names
 
+            if include_mtl:
+                mtl_file = output_dir / f"{input_file.stem}.mtl"
+                with open(mtl_file, 'w') as fmtl:
+                    fmtl.write("# Material\n")
+                    fmtl.write("newmtl point_material\n")
+                    fmtl.write("Ka 1.000 1.000 1.000\n")
+                    fmtl.write("Kd 1.000 1.000 1.000\n")
+                    fmtl.write("Ks 0.000 0.000 0.000\n")
+                    fmtl.write("Ns 10.0\n")
+                    fmtl.write("d 1.0\n")
+                    fmtl.write("illum 1\n\n")
+
+            with open(output_file, 'w') as fout:
+                fout.write("# Exported from CorbeauSplat\n")
                 if include_mtl:
-                    mtl_file = output_dir / f"{input_file.stem}.mtl"
-                    with open(mtl_file, 'w') as fmtl:
-                        fmtl.write("# Material\n")
-                        fmtl.write("newmtl point_material\n")
-                        fmtl.write("Ka 1.000 1.000 1.000\n")
-                        fmtl.write("Kd 1.000 1.000 1.000\n")
-                        fmtl.write("Ks 0.000 0.000 0.000\n")
-                        fmtl.write("Ns 10.0\n")
-                        fmtl.write("d 1.0\n")
-                        fmtl.write("illum 1\n\n")
+                    fout.write(f"mtllib {input_file.stem}.mtl\n\n")
+                fout.write("o PointCloud\n\n")
 
-                with open(output_file, 'w') as fout:
-                    fout.write("# Exported from CorbeauSplat\n")
-                    if include_mtl:
-                        fout.write(f"mtllib {input_file.stem}.mtl\n\n")
-                    fout.write("o PointCloud\n\n")
+                # Écriture vectorisée : voir _export_xyz pour la raison.
+                cols = [vertex[axis].astype(np.float64) * scale for axis in ('x', 'y', 'z')]
+                row_fmt = "v %.6f %.6f %.6f"
+                if include_colors and has_colors:
+                    cols += [vertex[c].astype(np.float64) / 255 for c in ('red', 'green', 'blue')]
+                    row_fmt += " %.3f %.3f %.3f"
 
-                    vertex_count = 0
-                    for i in range(len(vertex)):
-                        data = vertex[i]
-                        x = float(data['x']) * scale
-                        y = float(data['y']) * scale
-                        z = float(data['z']) * scale
-
-                        vertex_count += 1
-                        if include_colors and has_colors:
-                            r, g, b = int(data['red'])/255, int(data['green'])/255, int(data['blue'])/255
-                            fout.write(f"v {x:.6f} {y:.6f} {z:.6f} {r:.3f} {g:.3f} {b:.3f}\n")
-                        else:
-                            fout.write(f"v {x:.6f} {y:.6f} {z:.6f}\n")
-
-                    fout.write(f"\n# {vertex_count} vertices\n")
-
-            except ImportError:
-                # Fallback: parse manually
-                with open(input_file) as fin:
-                    lines = fin.readlines()
-
-                has_colors = False
-                in_header = True
-                vertex_count = 0
-
-                with open(output_file, 'w') as fout:
-                    fout.write("# Exported from CorbeauSplat\n")
-                    if include_mtl:
-                        mtl_file = output_dir / f"{input_file.stem}.mtl"
-                        with open(mtl_file, 'w') as fmtl:
-                            fmtl.write("# Material\n")
-                            fmtl.write("newmtl point_material\n")
-                            fmtl.write("Ka 1.000 1.000 1.000\n")
-                            fmtl.write("Kd 1.000 1.000 1.000\n")
-                            fmtl.write("Ks 0.000 0.000 0.000\n")
-                            fmtl.write("Ns 10.0\n")
-                            fmtl.write("d 1.0\n")
-                            fmtl.write("illum 1\n\n")
-                        fout.write(f"mtllib {input_file.stem}.mtl\n\n")
-                    fout.write("o PointCloud\n\n")
-
-                    for line in lines:
-                        if in_header:
-                            if line.strip().startswith("end_header"):
-                                in_header = False
-                            if "property" in line and "red" in line:
-                                has_colors = True
-                            continue
-
-                        parts = line.strip().split()
-                        if len(parts) >= 3:
-                            vertex_count += 1
-                            x = float(parts[0]) * scale
-                            y = float(parts[1]) * scale
-                            z = float(parts[2]) * scale
-                            if include_colors and len(parts) >= 6:
-                                r, g, b = int(parts[3])/255, int(parts[4])/255, int(parts[5])/255
-                                fout.write(f"v {x:.6f} {y:.6f} {z:.6f} {r:.3f} {g:.3f} {b:.3f}\n")
-                            else:
-                                fout.write(f"v {x:.6f} {y:.6f} {z:.6f}\n")
-
-                    fout.write(f"\n# {vertex_count} vertices\n")
+                np.savetxt(fout, np.column_stack(cols), fmt=row_fmt)
+                fout.write(f"\n# {len(vertex)} vertices\n")
 
             self.log(f"Exporté OBJ: {output_file}" + (f" + {mtl_file}" if include_mtl else ""))
             return True
@@ -351,6 +287,7 @@ class ExportEngine(BaseEngine):
     def _try_export_glb_assimp(self, input_file: Path, output_file: Path, opts: dict) -> bool:
         """Export using assimp command-line tool via intermediate OBJ."""
         try:
+            import numpy as np
             from plyfile import PlyData
 
             ply = PlyData.read(str(input_file))
@@ -364,15 +301,14 @@ class ExportEngine(BaseEngine):
                 f.write(f"mtllib {temp_mtl.name}\n")
                 f.write("o PointCloud\n\n")
 
-                for i in range(len(vertex)):
-                    data = vertex[i]
-                    x, y, z = data['x'], data['y'], data['z']
-                    if 'red' in data.dtype.names:
-                        r, g, b = data['red']/255, data['green']/255, data['blue']/255
-                        f.write(f"v {x} {y} {z} {r:.3f} {g:.3f} {b:.3f}\n")
-                    else:
-                        f.write(f"v {x} {y} {z}\n")
+                # Écriture vectorisée : voir _export_xyz pour la raison.
+                cols = [vertex[axis].astype(np.float64) for axis in ('x', 'y', 'z')]
+                row_fmt = "v %s %s %s"
+                if 'red' in vertex.data.dtype.names:
+                    cols += [vertex[c].astype(np.float64) / 255 for c in ('red', 'green', 'blue')]
+                    row_fmt += " %.3f %.3f %.3f"
 
+                np.savetxt(f, np.column_stack(cols), fmt=row_fmt)
                 f.write(f"\n# {len(vertex)} vertices\n")
 
             with open(temp_mtl, 'w') as f:
@@ -456,7 +392,10 @@ class ExportEngine(BaseEngine):
             blender_script = (
                 "import bpy, json\n"
                 f"paths = {json.dumps({'obj': str(obj_file), 'glb': str(glb_file)})}\n"
-                "bpy.ops.import_scene.obj(filepath=paths['obj'])\n"
+                "try:\n"
+                "    bpy.ops.wm.obj_import(filepath=paths['obj'])\n"  # Blender 4.x+
+                "except AttributeError:\n"
+                "    bpy.ops.import_scene.obj(filepath=paths['obj'])\n"  # Blender 3.x fallback
                 "bpy.ops.export_scene.gltf(filepath=paths['glb'])\n"
             )
             try:

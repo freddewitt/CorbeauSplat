@@ -2,7 +2,6 @@ import http.server
 import logging
 import os
 import socketserver
-import subprocess
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -30,7 +29,6 @@ class SuperSplatEngine(BaseEngine):
             Callback used by the base class to forward log messages to the UI.
         """
         super().__init__("SuperSplat", logger_callback)
-        self.data_server_process: subprocess.Popen | None = None
         self.data_server_thread: threading.Thread | None = None
         self.httpd: socketserver.TCPServer | None = None
 
@@ -108,6 +106,9 @@ class SuperSplatEngine(BaseEngine):
                 origin = self.headers.get('Origin')
                 safe = bool(origin) and urlparse(origin).hostname in ('localhost', '127.0.0.1')
                 self.send_header('Access-Control-Allow-Origin', origin if safe else allowed_origin)
+                # The header varies with the request Origin: without this, a shared
+                # cache could serve one origin's response to another.
+                self.send_header('Vary', 'Origin')
                 super().end_headers()
 
             def log_message(self, format, *args):  # Suppress noisy default logging
@@ -116,17 +117,33 @@ class SuperSplatEngine(BaseEngine):
         class _ReuseAddrTCPServer(socketserver.TCPServer):
             allow_reuse_address = True
 
+        bind_ready = threading.Event()
+        bind_error = [None]  # mutable container for exception from thread
+
         def run_server():  # pragma: no cover – runs in a background thread
             from functools import partial
             handler = partial(CORSRequestHandler, directory=str(dir_path))
             try:
                 self.httpd = _ReuseAddrTCPServer(("127.0.0.1", port), handler)
+            except Exception as e:
+                bind_error[0] = e
+                bind_ready.set()
+                return
+            bind_ready.set()
+            try:
                 self.httpd.serve_forever()
             except Exception as e:
                 self.log(f"Erreur Data Server: {e}", level=logging.ERROR)
 
         self.data_server_thread = threading.Thread(target=run_server, daemon=True)
         self.data_server_thread.start()
+
+        # Wait up to 2s for the bind to complete
+        if not bind_ready.wait(timeout=2.0):
+            return False, "Timeout: le serveur de données n'a pas pu démarrer"
+        if bind_error[0] is not None:
+            self.log(f"Erreur bind Data Server: {bind_error[0]}", level=logging.ERROR)
+            return False, f"Échec du bind: {bind_error[0]}"
         self.log(f"Serveur de données démarré sur http://localhost:{port}")
         return True, f"Serveur de données démarré sur http://localhost:{port}"
 

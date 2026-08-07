@@ -33,6 +33,8 @@ class StepStatus(str, Enum):
 # Sharp saute l'entraînement — géré côté UI, pas ici (ce module reste agnostique).
 PIPELINE_STEPS = (
     "source",
+    "extraction360",
+    "upscale",
     "reconstruction",
     "entrainement",
     "nettoyage",
@@ -43,6 +45,8 @@ PIPELINE_STEPS = (
 # Drapeaux de chaînage + undistort, chacun une propriété unique reflétée par
 # plusieurs widgets. Valeurs par défaut alignées sur le comportement actuel.
 _FLAG_DEFAULTS = {
+    "source_360": False,
+    "upscaler_avant": False,
     "entrainement_apres": False,
     "nettoyer_apres": False,
     "exporter_apres": False,
@@ -121,6 +125,22 @@ class RunState:
     @project_name.setter
     def project_name(self, value: str) -> None:
         self.set_field("project_name", value)
+
+    @property
+    def source_360(self) -> bool:
+        return self._flags["source_360"]
+
+    @source_360.setter
+    def source_360(self, value: bool) -> None:
+        self.set_flag("source_360", value)
+
+    @property
+    def upscaler_avant(self) -> bool:
+        return self._flags["upscaler_avant"]
+
+    @upscaler_avant.setter
+    def upscaler_avant(self, value: bool) -> None:
+        self.set_flag("upscaler_avant", value)
 
     @property
     def entrainement_apres(self) -> bool:

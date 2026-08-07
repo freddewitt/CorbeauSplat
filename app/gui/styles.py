@@ -66,6 +66,19 @@ _STYLESHEET = Template("""
     }
     QPushButton:hover { background-color: $btn_hover; border-color: $accent; }
     QPushButton:pressed { background-color: $btn_press; }
+    /* Single primary action of a screen (e.g. SourcePanel's Launch/Cancel
+       button): filled with the theme accent instead of the neutral $btn.
+       The [running] dynamic property switches it to $bright for the
+       Cancel state — see SourcePanel.set_running(). */
+    QPushButton#btn_primary {
+        background-color: $accent; border: 1px solid $accent; color: $highlight_text;
+    }
+    QPushButton#btn_primary:hover { background-color: $accent; border-color: $accent; }
+    QPushButton#btn_primary:pressed { background-color: $accent; }
+    QPushButton#btn_primary[running="true"] {
+        background-color: $bright; border: 1px solid $bright; color: $highlight_text;
+    }
+    QPushButton#btn_primary[running="true"]:hover { background-color: $bright; border-color: $bright; }
     QPushButton:disabled {
         background-color: $btn_press; border-color: $border; color: $disabled;
     }

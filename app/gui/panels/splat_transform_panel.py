@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from app.core.i18n import add_language_observer, tr
 from app.gui.run_state_binding import bind_flag_checkbox
+from app.gui.widgets.cancel_button import CancelButton
 from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_name
 from app.gui.widgets.drop_line_edit import DropLineEdit
 
@@ -62,6 +63,8 @@ class SplatTransformPanel:
         self.btn_run = QPushButton()
         self.btn_run.setStyleSheet("font-weight: bold;")
         layout.addWidget(self.btn_run)
+        self.btn_cancel = CancelButton()
+        layout.addWidget(self.btn_cancel)
         return w
 
     def _build_right(self):
@@ -144,6 +147,9 @@ class SplatTransformPanel:
         }
 
     def retranslate_ui(self):
+        # Seul panneau des dix à avoir oublié cette ligne : son bouton Lancer
+        # s'affichait donc vide, construit sans texte et jamais retraduit.
+        self.btn_run.setText(tr("btn_run", "Lancer"))
         self.lbl_status.setText(tr("st_status", "Moteur SplatTransform"))
         self.lbl_input.setText(tr("st_input", "Entrée (.ply/.spz/.splat)"))
         self.lbl_output.setText(tr("st_output", "Dossier de sortie"))

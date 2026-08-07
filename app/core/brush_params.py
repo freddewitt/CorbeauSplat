@@ -60,6 +60,9 @@ class BrushParams:
     save_iterations: str | None = None  # replié dans custom_args
     eval_every: str | None = None       # replié dans custom_args
 
+    # ── Mode ──────────────────────────────────────────────────────────────────
+    refine_mode: bool = False  # True = reprend un entraînement existant
+
     def to_dict(self) -> dict:
         return asdict(self)
 
@@ -83,6 +86,7 @@ class BrushParams:
             "max_resolution", "with_viewer", "build_mode",
             "start_iter", "refine_every", "growth_grad_threshold",
             "growth_select_fraction", "growth_stop_iter", "checkpoint_interval",
+            "refine_mode",
         )
         params = {k: getattr(self, k) for k in native_keys if getattr(self, k) is not None}
 

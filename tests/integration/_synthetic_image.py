@@ -250,7 +250,7 @@ def generate_synthetic_video(out_path: Path, duration: float = 2.0, fps: int = 2
     except subprocess.TimeoutExpired:
         if out_path.exists():
             out_path.unlink()
-        raise RuntimeError("ffmpeg timeout generating video")
+        raise RuntimeError("ffmpeg timeout generating video") from None
 
     if not out_path.exists():
         raise RuntimeError(f"Video file not created: {out_path}")

@@ -5,13 +5,31 @@ from app.core.system import resolve_project_root
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_LANG = "en"
+
+
+def _locales_dir():
+    return resolve_project_root() / "assets" / "locales"
+
+
+def is_known_lang(lang_code):
+    """True if ``lang_code`` is a plain code with a matching locale file.
+
+    The isalnum() guard keeps a config-supplied value from escaping the
+    locales directory (e.g. "../../secrets").
+    """
+    if not isinstance(lang_code, str) or not lang_code.isalnum():
+        return False
+    return (_locales_dir() / f"{lang_code}.json").exists()
+
+
 class LanguageManager:
     _instance = None
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance.current_lang = "en" # Default
+            cls._instance.current_lang = DEFAULT_LANG
             cls._instance._translations = {}
             cls._instance._observers = []
             cls._instance.load_config()
@@ -52,10 +70,18 @@ class LanguageManager:
             if config_file.exists():
                 with open(config_file) as f:
                     config = json.load(f)
-                    self.current_lang = config.get("language", "en")
+                    saved = config.get("language")
+                    if is_known_lang(saved):
+                        self.current_lang = saved
+                    else:
+                        logger.warning(
+                            "Langue invalide dans %s (%r) — repli sur %s",
+                            config_file, saved, DEFAULT_LANG,
+                        )
+                        self.current_lang = DEFAULT_LANG
                     logger.info(
                         "Langue chargée au démarrage : %s (depuis %s, clé 'language'=%r)",
-                        self.current_lang, config_file, config.get("language"),
+                        self.current_lang, config_file, saved,
                     )
             else:
                 logger.info(
@@ -85,6 +111,9 @@ class LanguageManager:
             logger.warning("Could not save language config to %s: %s", config_file, e)
 
     def set_language(self, lang_code):
+        if not is_known_lang(lang_code):
+            logger.warning("Changement de langue ignoré : code inconnu %r", lang_code)
+            return
         self.current_lang = lang_code
         self._load_translations() # Reload on change
         self.save_config()

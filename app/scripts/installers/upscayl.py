@@ -30,7 +30,7 @@ class UpscaylEngineDep(EngineDependency):
                 "https://api.github.com/repos/upscayl/upscayl-ncnn/releases/latest",
                 headers={"Accept": "application/vnd.github+json", "User-Agent": "CorbeauSplat"}
             )
-            with urllib.request.urlopen(req, timeout=8) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:  # nosec B310 - URL https littérale (API GitHub releases)
                 data = _json.loads(resp.read())
                 tag = data.get("tag_name", "")
                 if tag:

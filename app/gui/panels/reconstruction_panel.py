@@ -1,9 +1,10 @@
 """Panneau Reconstruction (étape PIPELINE) — équivalent de ParamsTab.
 
 Reprend les accordéons Feature Extraction / Matching / Mapper de ``ParamsTab``
-dans la barre de droite, et migre ici la logique « Reprise de COLMAP » (avant
-dans ConfigTab), étendue au cas « dossier externe → nouveau projet à la volée »
-(cf. reconstruction_logic.classify_resume_folder).
+dans le centre (fusionnés depuis l'ancienne barre de droite, cf.
+``app.gui.panels`` docstring), et migre ici la logique « Reprise de COLMAP »
+(avant dans ConfigTab), étendue au cas « dossier externe → nouveau projet à
+la volée » (cf. reconstruction_logic.classify_resume_folder).
 
 ``undistort_images`` est exécuté réellement ici (section Mapper) et bindé sur le
 ``RunState`` partagé — dupliqué en raccourci dans Source, même source de vérité.
@@ -46,6 +47,7 @@ from app.gui.panels.reconstruction_logic import (
     classify_resume_folder,
 )
 from app.gui.run_state_binding import bind_flag_checkbox
+from app.gui.widgets.cancel_button import CancelButton
 from app.gui.widgets.dialog_utils import get_existing_directory
 
 _CAMERA_MODELS = ['SIMPLE_PINHOLE', 'PINHOLE', 'SIMPLE_RADIAL', 'RADIAL', 'OPENCV', 'OPENCV_FISHEYE']
@@ -63,10 +65,18 @@ class ReconstructionPanel:
         add_language_observer(self.retranslate_ui)
         self.retranslate_ui()
 
-    # ── Centre ──────────────────────────────────────────────────────────────────
+    # ── Centre (reprise + projet + chaînage + accordéons) ───────────────────────
     def _build_center(self):
         w = QWidget()
-        layout = QVBoxLayout(w)
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+
 
         # Bannière Apple Silicon (reprise telle quelle de ParamsTab)
         self.info_label = QLabel()
@@ -115,22 +125,7 @@ class ReconstructionPanel:
         self._bind(self.chk_visualiser, "visualiser_apres")
         layout.addWidget(self.chk_visualiser)
 
-        layout.addStretch(1)
-        return w
-
-    # ── Barre de droite : accordéons ────────────────────────────────────────────
-    def _build_right(self):
-        w = QWidget()
-        outer = QVBoxLayout(w)
-        outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        content = QWidget()
-        layout = QVBoxLayout(content)
-
-        # Feature Extraction
+        # ── Migré depuis _build_right : accordéons Feature Extraction / Matching / Mapper ──
         self.extract_group = QGroupBox()
         ex = QFormLayout(self.extract_group)
         ex.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
@@ -252,7 +247,19 @@ class ReconstructionPanel:
         scroll.setWidget(content)
         outer.addWidget(scroll)
         self._update_sequential_enabled()
+
+        # Local Launch button (bottom of center, same idiom as other panels).
+        # Wiring (StudioWindow._launch_reconstruction) is done by a later pass.
+        self.btn_run = QPushButton()
+        self.btn_run.setStyleSheet("font-weight: bold;")
+        outer.addWidget(self.btn_run)
+
+        self.btn_cancel = CancelButton()
+        outer.addWidget(self.btn_cancel)
         return w
+
+    def _build_right(self):
+        return QWidget()
 
     def _bind(self, checkbox, flag):
         self._bindings.append(bind_flag_checkbox(checkbox, self.run_state, flag))
@@ -387,4 +394,5 @@ class ReconstructionPanel:
         self.lbl_ignore_watermarks.setText(tr("check_ignore_watermarks", "Ignorer filigranes"))
         self.lbl_thermal.setText(tr("check_thermal_throttling", "Limitation thermique"))
         self.lbl_undistort.setText(tr("source_undistort", "Générer images non-distordues"))
+        self.btn_run.setText(tr("btn_run", "Lancer"))
         self._on_resume_path_changed(self.resume_path.text())

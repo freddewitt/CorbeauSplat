@@ -3,8 +3,9 @@
 
 Un test par module (+ cas « COLMAP seulement » de 4DGS) confirmant que le clic
 sur le bouton Lancer local instancie le worker attendu, le démarre, et bascule
-le topbar en mode Annuler — sans dépendre de vrais widgets Qt (cf. le pattern
-``Worker.__new__(Worker)`` déjà utilisé dans ``test_workers.py``).
+``SourcePanel`` (le bouton Lancer/Annuler unique, ex-topbar) en mode Annuler —
+sans dépendre de vrais widgets Qt (cf. le pattern ``Worker.__new__(Worker)``
+déjà utilisé dans ``test_workers.py``).
 """
 import sys
 from unittest.mock import MagicMock
@@ -38,15 +39,21 @@ def _make_window():
     """StudioWindow sans passer par __init__ (pas de vrais widgets Qt requis)."""
     window = sw.StudioWindow.__new__(sw.StudioWindow)
     window._active_worker = None
-    window.topbar = MagicMock()
-    window.logbar = MagicMock()
-    window.panels = {}
+    window.activity_bar = MagicMock()
+    window.logs_window = MagicMock()
+    # _start_tool_worker() nomme l'étape courante dans la barre d'activité à
+    # partir de la page affichée (PageRegistry.current).
+    window.nav = MagicMock()
+    window.nav.current = "upscale"
+    # SourcePanel (ex-topbar) porte désormais le bouton Lancer/Annuler unique ;
+    # _start_tool_worker() bascule son état via set_running().
+    window.panels = {"source": MagicMock()}
     return window
 
 
 class TestToolLaunchOrchestration:
     """Chaque module OUTILS passe par le même chemin : bouton local →
-    ``_launch_*`` → ``_start_tool_worker`` (worker.start(), topbar Annuler)."""
+    ``_launch_*`` → ``_start_tool_worker`` (worker.start(), SourcePanel Annuler)."""
 
     def test_cleaner_launch_starts_cleaner_worker(self, monkeypatch):
         window = _make_window()
@@ -64,7 +71,7 @@ class TestToolLaunchOrchestration:
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
         assert window._active_worker is instance
-        window.topbar.set_running.assert_called_once_with(True)
+        window.panels["source"].set_running.assert_called_once_with(True)
 
     def test_export_launch_starts_export_worker(self, monkeypatch):
         window = _make_window()
@@ -85,7 +92,7 @@ class TestToolLaunchOrchestration:
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
         assert window._active_worker is instance
-        window.topbar.set_running.assert_called_once_with(True)
+        window.panels["source"].set_running.assert_called_once_with(True)
 
     def test_extractor360_launch_starts_extractor360_worker(self, monkeypatch):
         window = _make_window()
@@ -103,7 +110,7 @@ class TestToolLaunchOrchestration:
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
         assert window._active_worker is instance
-        window.topbar.set_running.assert_called_once_with(True)
+        window.panels["source"].set_running.assert_called_once_with(True)
 
     def test_fourdgs_launch_starts_fourdgs_worker(self, monkeypatch):
         window = _make_window()
@@ -121,7 +128,7 @@ class TestToolLaunchOrchestration:
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
         assert window._active_worker is instance
-        window.topbar.set_running.assert_called_once_with(True)
+        window.panels["source"].set_running.assert_called_once_with(True)
 
     def test_fourdgs_colmap_only_launch_starts_fourdgs_worker_without_videos(self, monkeypatch):
         """Bouton « Reconstruction COLMAP seulement » : réutilise FourDGSWorker
@@ -141,7 +148,7 @@ class TestToolLaunchOrchestration:
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
         assert window._active_worker is instance
-        window.topbar.set_running.assert_called_once_with(True)
+        window.panels["source"].set_running.assert_called_once_with(True)
 
     def test_sharp_image_launch_starts_sharp_worker(self, monkeypatch):
         window = _make_window()
@@ -166,7 +173,7 @@ class TestToolLaunchOrchestration:
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
         assert window._active_worker is instance
-        window.topbar.set_running.assert_called_once_with(True)
+        window.panels["source"].set_running.assert_called_once_with(True)
 
     def test_sharp_video_launch_starts_sharp_video_worker(self, monkeypatch):
         window = _make_window()
@@ -191,7 +198,7 @@ class TestToolLaunchOrchestration:
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
         assert window._active_worker is instance
-        window.topbar.set_running.assert_called_once_with(True)
+        window.panels["source"].set_running.assert_called_once_with(True)
 
     def test_splat_transform_launch_starts_splat_transform_worker(self, monkeypatch):
         window = _make_window()
@@ -212,7 +219,7 @@ class TestToolLaunchOrchestration:
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
         assert window._active_worker is instance
-        window.topbar.set_running.assert_called_once_with(True)
+        window.panels["source"].set_running.assert_called_once_with(True)
 
     def test_upscale_launch_starts_test_worker(self, monkeypatch):
         window = _make_window()
@@ -230,4 +237,4 @@ class TestToolLaunchOrchestration:
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
         assert window._active_worker is instance
-        window.topbar.set_running.assert_called_once_with(True)
+        window.panels["source"].set_running.assert_called_once_with(True)

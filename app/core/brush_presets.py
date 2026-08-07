@@ -62,6 +62,18 @@ def delete_user_preset(name: str) -> bool:
     return False
 
 
+def is_deletable(name) -> bool:
+    """Un preset n'est supprimable que s'il est *utilisateur*.
+
+    Les presets intégrés sont livrés avec l'app : les retirer du dropdown
+    n'aurait aucun effet persistant (``merge_presets`` les réinjecterait au
+    rechargement suivant). Un preset utilisateur qui masque un intégré homonyme
+    reste supprimable — l'intégré réapparaît alors, ce qui est le comportement
+    attendu de :func:`merge_presets`.
+    """
+    return bool(name) and name in load_user_presets()
+
+
 def merge_presets(builtins: dict) -> dict:
     """Fusionne presets intégrés + utilisateur (l'utilisateur l'emporte en cas de
     collision de nom). ``builtins`` est passé par l'appelant (ex. ``BRUSH_PRESETS``)

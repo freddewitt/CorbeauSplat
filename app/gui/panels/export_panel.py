@@ -4,8 +4,9 @@ Construit directement sur ``ExportEngine``/``ExportWorker`` (cf. audit Lot 0 :
 l'ancienne ExportTab a été supprimée, pas de résurrection — on s'appuie sur le
 moteur intact).
 
-Centre : sélection PLY (unique/multiple), dossier de sortie, progression.
-Barre de droite : format cible, échelle, avertissement de dépendance manquante.
+Centre : sélection PLY (unique/multiple), dossier de sortie, format cible,
+échelle, avertissement de dépendance manquante. Barre de droite : vide
+(contenu fusionné dans le centre, cf. ``app.gui.panels`` docstring).
 
 Lot 4 : UI + params. Le lancement réel (ExportWorker) passe par le dispatch /
 bouton local (câblage moteurs, phase Apple Silicon).
@@ -27,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from app.core.export_engine import ExportEngine
 from app.core.i18n import add_language_observer, tr
+from app.gui.widgets.cancel_button import CancelButton
 from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_names
 from app.gui.widgets.drop_line_edit import DropLineEdit
 
@@ -43,7 +45,14 @@ class ExportPanel:
 
     def _build_center(self):
         w = QWidget()
-        layout = QVBoxLayout(w)
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        content = QWidget()
+        layout = QVBoxLayout(content)
 
         self.lbl_input = QLabel()
         layout.addWidget(self.lbl_input)
@@ -65,24 +74,7 @@ class ExportPanel:
         out_row.addWidget(self.btn_browse_output)
         layout.addLayout(out_row)
 
-        layout.addStretch(1)
-
-        self.btn_run = QPushButton()
-        self.btn_run.setStyleSheet("font-weight: bold;")
-        layout.addWidget(self.btn_run)
-        return w
-
-    def _build_right(self):
-        w = QWidget()
-        outer = QVBoxLayout(w)
-        outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        content = QWidget()
-        layout = QVBoxLayout(content)
-
+        # ── Migré depuis _build_right : format cible, échelle, avertissement ────
         form = QFormLayout()
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
         self.combo_format = QComboBox()
@@ -108,7 +100,16 @@ class ExportPanel:
         layout.addStretch(1)
         scroll.setWidget(content)
         outer.addWidget(scroll)
+
+        self.btn_run = QPushButton()
+        self.btn_run.setStyleSheet("font-weight: bold;")
+        outer.addWidget(self.btn_run)
+        self.btn_cancel = CancelButton()
+        outer.addWidget(self.btn_cancel)
         return w
+
+    def _build_right(self):
+        return QWidget()
 
     def get_format(self):
         return self.combo_format.currentData()

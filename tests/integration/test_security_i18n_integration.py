@@ -59,13 +59,36 @@ class TestPathValidation:
 class TestI18n:
     """LanguageManager and translation tests."""
 
+    @pytest.fixture(autouse=True)
+    def _preserve_user_config(self):
+        """Restore config.json and the active language after each test.
+
+        set_language() persists to the project's real config.json, so without
+        this the suite would leave the user's app in whatever language the last
+        test happened to select.
+        """
+        from app.core.i18n import get_current_lang, set_language
+        from app.core.system import resolve_project_root
+
+        config_file = resolve_project_root() / "config.json"
+        original_bytes = config_file.read_bytes() if config_file.exists() else None
+        original_lang = get_current_lang()
+        try:
+            yield
+        finally:
+            set_language(original_lang)
+            if original_bytes is None:
+                config_file.unlink(missing_ok=True)
+            else:
+                config_file.write_bytes(original_bytes)
+
     def test_tr_returns_french(self):
         """After set_language('fr'), tr returns expected French."""
         from app.core.i18n import set_language, tr
 
         set_language("fr")
         # Use a key that exists in fr.json
-        msg = tr("tab_config")
+        msg = tr("btn_browse")
         assert msg is not None
         assert len(msg) > 0
 
@@ -111,11 +134,11 @@ class TestI18n:
         from app.core.i18n import set_language, tr
 
         set_language("fr")
-        fr_msg = tr("tab_config")
+        fr_msg = tr("btn_browse")
         set_language("de")
-        de_msg = tr("tab_config")
+        de_msg = tr("btn_browse")
         set_language("en")
-        en_msg = tr("tab_config")
+        en_msg = tr("btn_browse")
 
         assert fr_msg is not None
         assert en_msg is not None

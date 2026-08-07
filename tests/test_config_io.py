@@ -45,16 +45,22 @@ def test_save_load_rejects_unsafe_name():
 def test_save_and_load_roundtrip():
     cfg = ChainConfig(
         source={"input_path": "/data/video.mp4", "output_path": "/out"},
+        extraction360={"layout": "ring", "camera_count": 4},
+        upscale={"model_id": "realesrgan-x4plus", "scale": 4},
         colmap={"camera_model": "PINHOLE", "max_image_size": 2000},
         brush={"total_steps": 30000},
-        flags={"entrainement_apres": True},
+        flags={"entrainement_apres": True, "upscaler_avant": True, "source_360": True},
     )
     save_config("scene1", cfg)
     loaded = load_config("scene1")
     assert loaded.source["input_path"] == "/data/video.mp4"
+    assert loaded.extraction360["layout"] == "ring"
+    assert loaded.upscale["model_id"] == "realesrgan-x4plus"
     assert loaded.colmap["camera_model"] == "PINHOLE"
     assert loaded.brush["total_steps"] == 30000
     assert loaded.flags["entrainement_apres"] is True
+    assert loaded.flags["upscaler_avant"] is True
+    assert loaded.flags["source_360"] is True
     assert loaded.version == CONFIG_VERSION
 
 
@@ -110,3 +116,14 @@ def test_old_config_missing_keys_reloads_with_defaults():
     assert params.camera_model == "RADIAL"
     # champ absent → défaut de ColmapParams
     assert params.max_image_size == 3200
+
+
+def test_delete_config_rejects_unsafe_name():
+    """La suppression passe par un choix dans `list_configs()`, mais le garde-fou
+    de nom reste la dernière ligne de défense contre une traversée de chemin."""
+    with pytest.raises(ValueError):
+        delete_config("../evil")
+
+
+def test_delete_config_returns_false_when_absent():
+    assert delete_config("jamais-sauvegardee") is False

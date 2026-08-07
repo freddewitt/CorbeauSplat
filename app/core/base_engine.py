@@ -317,7 +317,7 @@ class BaseEngine:
         try:
             return Path(path).resolve()
         except (TypeError, ValueError, OSError) as e:
-            self.log(f"ERROR: Invalid path attempt : {path} ({e})")
+            self.log(f"Path resolution failed: {path} ({e})")
             return None
 
     def is_safe_path(self, path):

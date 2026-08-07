@@ -1,6 +1,7 @@
 {
-  "_instructions": "Calculated via: shasum -a 256 <binary>. Update after each binary upgrade. For rustup, download the script first: curl -fsSL https://sh.rustup.rs -o rustup-init.sh && shasum -a 256 rustup-init.sh",
-  "darwin_brush": "7742e8ac44ef4bdcc299e3e79dba7ac5d05b3f45f68a66dc1054029c23a281dc",
+  "_instructions": "Calculated via: shasum -a 256 <binary>. Update after each binary upgrade. For rustup, download the script first: curl -fsSL https://sh.rustup.rs -o rustup-init.sh && shasum -a 256 rustup-init.sh. For brush, do NOT re-hash the archive you just downloaded — that only attests to what the server served. Upstream publishes its own digests per release: https://github.com/ArthurBrussee/brush/releases/download/<tag>/sha256.sum (and a <asset>.sha256 sidecar). darwin_brush is pinned to v0.3.0; it must be re-pinned whenever get_remote_version() starts resolving to a newer tag, otherwise the fail-closed check aborts the install.",
+  "brush_release": "v0.3.0",
+  "darwin_brush": "65b2631398c839be3c1d4d7160fe2326389dec87830aac0710985e6690a1048c",
   "linux_brush": "",
   "darwin_upscayl": "b7f54f362fc10d5f334e587fb90917e95a5557ec1cfefbddce78657dd3fee055",
   "linux_upscayl": "",

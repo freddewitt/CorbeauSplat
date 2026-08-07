@@ -88,7 +88,6 @@ class BrushEngine(BaseEngine):
             cmd.extend(["--export-every", str(ckpt_interval)])
 
         custom_args = params.get("custom_args")
-        params.get("build_mode")
         if custom_args:
             args_list = custom_args.split()
             safe_args = []

@@ -7,6 +7,8 @@ from app.core.run_state import PIPELINE_STEPS, RunState, StepStatus
 
 def test_flag_defaults_all_false():
     state = RunState()
+    assert not state.source_360
+    assert not state.upscaler_avant
     assert not state.entrainement_apres
     assert not state.nettoyer_apres
     assert not state.exporter_apres

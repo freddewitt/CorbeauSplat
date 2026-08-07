@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from app.scripts.checksum_verifier import load_expected_checksums, verify_download
+from app.scripts.checksum_verifier import load_expected_checksums, verify_download_strict
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Config and requirements helpers
@@ -128,13 +128,20 @@ def install_rust_toolchain():
     try:
         rustup_path = Path(tempfile.mkstemp(suffix=".sh")[1])
         req = urllib.request.Request("https://sh.rustup.rs")
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310 - URL https littérale (sh.rustup.rs)
             rustup_path.write_bytes(resp.read())
 
         checksums = load_expected_checksums()
         checksum_key = "darwin_rustup" if sys.platform == "darwin" else "linux_rustup"
-        if not verify_download(rustup_path, checksums.get(checksum_key, "")):
-            print(f"⚠️ rustup installer SHA256 mismatch (checksum key: {checksum_key}). Continuing anyway.")
+        # Fail-closed: an unknown or mismatching hash aborts the install rather
+        # than executing an unverified shell script.
+        if not verify_download_strict(rustup_path, checksums.get(checksum_key, "")):
+            rustup_path.unlink(missing_ok=True)
+            print(
+                f"❌ rustup installer SHA256 mismatch or missing reference hash "
+                f"(checksum key: {checksum_key}) — installation refusée."
+            )
+            return False
 
         rustup_path.chmod(0o755)
         subprocess.check_call([str(rustup_path), "-y"])

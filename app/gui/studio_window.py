@@ -1,13 +1,19 @@
-"""Fenêtre principale « Studio » — nouvelle interface en 4 zones.
+"""Fenêtre principale « Studio » — interface en 4 zones.
 
-Assemble : TopBar (haut), Rail (gauche), zone centre + barre de droite
-(``QStackedWidget`` pilotés par la sélection du rail), LogBar (bas).
+Assemble : Rail (gauche), zone centre + barre de droite (``QStackedWidget``
+pilotés par la sélection du rail), ``ActivityBar`` (bas : étape en cours, détail,
+progression) et barre du bas (actions globales, dont l'ouverture du
+journal). Le bouton Lancer/Annuler et le sélecteur de mode pipeline vivent
+désormais dans ``SourcePanel`` (l'ancienne TopBar a disparu).
 
-Lot 2 : squelette visuel. Les pages centre/droite sont des placeholders ; les
-panneaux réels (Source, Reconstruction, …) et le câblage moteur arrivent aux
-lots 3-5. ``main_window.py`` (``ColmapGUI``) reste l'interface active — la
-bascule finale se fait au Lot 7. Cette fenêtre n'est donc pas encore lancée
-depuis ``main.py``.
+Le journal n'est plus dans la fenêtre principale : il a la sienne
+(``logs_window.py``), alimentée en continu et ouverte à la demande.
+
+Lancée par défaut depuis ``main.py`` (via ``_launch_gui()`` dans
+``app/cli/__init__.py``). Les panneaux PIPELINE (Source, Reconstruction,
+Entraînement, Nettoyage, Export, Visualiser) et OUTILS (Brush, Sharp,
+SuperSplat, Upscale, SplatTransform, 4DGS, Extracteur 360) sont instanciés
+dynamiquement et gérés par ``PageRegistry``.
 """
 
 from pathlib import Path
@@ -26,19 +32,34 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import VERSION
 from app.core import notifications
-from app.core.config_io import ChainConfig, list_configs, load_config, save_config
+from app.core.base_engine import validate_path_standalone
+from app.core.config_io import (
+    ChainConfig,
+    delete_config,
+    list_configs,
+    load_config,
+    save_config,
+)
 from app.core.engine import ColmapEngine
 from app.core.i18n import add_language_observer, tr
 from app.core.run_state import PIPELINE_STEPS, RunState, StepStatus
-from app.gui.logbar import LogBar
+from app.gui.activity_bar import ActivityBar
+from app.gui.appbar import AppBar
+from app.gui.chaining_logic import (
+    keeps_only_latest_checkpoint,
+    resolve_checkpoints_dir,
+    resolve_export_dir,
+    resolve_export_format,
+)
+from app.gui.logs_window import LogsWindow
 from app.gui.managers import AppLifecycle, SessionManager
 from app.gui.panels.cleaner_panel import CleanerPanel
 from app.gui.panels.entrainement_panel import EntrainementPanel
 from app.gui.panels.export_panel import ExportPanel
 from app.gui.panels.extractor360_panel import Extractor360Panel
 from app.gui.panels.four_dgs_panel import FourDGSPanel
+from app.gui.panels.reconstruction_logic import apply_source_blur_settings, detect_source_kind
 from app.gui.panels.reconstruction_panel import ReconstructionPanel
 from app.gui.panels.sharp_panel import SharpPanel
 from app.gui.panels.source_panel import SourcePanel
@@ -46,12 +67,11 @@ from app.gui.panels.splat_transform_panel import SplatTransformPanel
 from app.gui.panels.upscale_panel import UpscalePanel
 from app.gui.panels.visualiser_panel import VisualiserPanel
 from app.gui.pipeline_planner import plan_pipeline
-from app.gui.rail import TOOL_KEYS, Rail
+from app.gui.rail import TOOL_KEYS, Rail, item_label
 from app.gui.settings_window import SettingsWindow
 from app.gui.studio_nav import PageRegistry
 from app.gui.styles import set_dark_theme
-from app.gui.topbar import TopBar
-from app.gui.widgets.upscale_widgets import TestWorker
+from app.gui.widgets.upscale_widgets import TestWorker, UpscaleImagesWorker
 from app.gui.workers import (
     BrushWorker,
     CleanerWorker,
@@ -67,21 +87,6 @@ from app.gui.workers import (
 # Ordre des pages du stacked (étapes PIPELINE puis modules OUTILS).
 _PAGE_KEYS = tuple(PIPELINE_STEPS) + tuple(TOOL_KEYS)
 
-# Mêmes extensions vidéo que ColmapEngine._prepare_images (app/core/engine.py) —
-# sert à déduire l'``input_type`` COLMAP depuis le champ Source, qui ne propose
-# pas de sélecteur dédié (glisser-déposer dossier/fichier/vidéo).
-_VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv"}
-
-
-def _detect_input_type(path_str):
-    """Devine ``images``/``video`` depuis le chemin Source (cf. ``_VIDEO_EXTS``)."""
-    path = Path(path_str)
-    if path.is_file():
-        return "video" if path.suffix.lower() in _VIDEO_EXTS else "images"
-    if path.is_dir() and any(f.suffix.lower() in _VIDEO_EXTS for f in path.iterdir() if f.is_file()):
-        return "video"
-    return "images"
-
 
 class StudioWindow(QMainWindow):
     """Coquille 4 zones. Sélection du rail → change la page centre + droite."""
@@ -90,10 +95,16 @@ class StudioWindow(QMainWindow):
         super().__init__()
         self.run_state = RunState()
         self.nav = PageRegistry(_PAGE_KEYS)   # mapping pages + sélection courante
-        self._auto_follow = True              # suit l'étape active (désaccouplé au clic manuel)
         self.current_plan = []
         self._plan_index = 0
         self._active_pipeline_step = None
+        # Dossier d'images courant de la chaîne : chaque pré-étape qui produit
+        # un nouveau dossier (Extraction 360, puis Upscale) l'écrase, et l'étape
+        # suivante le lit à la place du chemin Source brut. Réinitialisé à chaque
+        # ``launch()`` pour qu'un run sans pré-étape ne réutilise pas le dossier
+        # d'un run précédent.
+        self._pipeline_images_dir = None
+        self._pending_upscale_params = None
         self._notifications_enabled = False
         self._settings_window = None
         self._active_worker = None
@@ -123,17 +134,8 @@ class StudioWindow(QMainWindow):
         root = QVBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
 
-        # ── Top bar ───────────────────────────────────────────────────────────
-        self.topbar = TopBar()
-        self.topbar.settingsRequested.connect(self.open_settings)
-        self.topbar.launchRequested.connect(self.on_topbar_launch)
-        # Nom de projet : miroir en temps réel avec le champ du panneau Source,
-        # via run_state (source de vérité unique — cf. run_state.py).
-        self.topbar.projectNameChanged.connect(self._on_topbar_project_name_changed)
-        self._project_name_observer = self._on_run_state_project_name_changed
-        self.run_state.add_observer(self._project_name_observer)
-        self.topbar.set_project_name(self.run_state.project_name)
-        root.addWidget(self.topbar)
+        self.appbar = AppBar()
+        root.addWidget(self.appbar)
 
         # ── Corps : rail | centre | barre de droite ───────────────────────────
         body = QHBoxLayout()
@@ -157,8 +159,10 @@ class StudioWindow(QMainWindow):
         center_col.addWidget(self.center_stack, stretch=1)
         body.addLayout(center_col, stretch=3)
 
-        # Filet fin centre | barre de droite
-        body.addWidget(self._vline())
+        # Filet fin centre | barre de droite (masqué avec la barre de droite
+        # quand le panneau courant n'a pas de contenu droit, cf. _show_page).
+        self._center_right_vline = self._vline()
+        body.addWidget(self._center_right_vline)
 
         # Barre de droite : largeur suffisante pour les accordéons de params, et
         # chaque panneau y gère son propre défilement vertical.
@@ -170,6 +174,8 @@ class StudioWindow(QMainWindow):
         # remplacés aux sous-lots 3b/3c/4/5).
         self.panels = {
             "source": SourcePanel(self.run_state),
+            "extraction360": Extractor360Panel(self.run_state),
+            "upscale": UpscalePanel(self.run_state),
             "reconstruction": ReconstructionPanel(self.run_state),
             "entrainement": EntrainementPanel(self.run_state),
             "nettoyage": CleanerPanel(self.run_state),
@@ -180,26 +186,39 @@ class StudioWindow(QMainWindow):
             "brush": EntrainementPanel(self.run_state, standalone=True),
             "sharp": SharpPanel(self.run_state),
             "supersplat": VisualiserPanel(self.run_state),
-            "upscale": UpscalePanel(self.run_state),
             "splattransform": SplatTransformPanel(self.run_state),
             "4dgs": FourDGSPanel(self.run_state),
             "360": Extractor360Panel(self.run_state),
         }
 
-        # Bouton « Lancer » local des modules OUTILS (et de Nettoyage/Export,
-        # utilisables seuls hors chaîne pipeline) : chacun démarre son propre
-        # worker, le topbar bascule en Annuler pendant l'exécution (cf.
-        # _start_tool_worker / on_topbar_launch).
+        # Bouton « Lancer » local des modules OUTILS (et de Reconstruction/
+        # Nettoyage/Export, utilisables seuls hors chaîne pipeline) : chacun
+        # démarre son propre worker, SourcePanel bascule en Annuler pendant
+        # l'exécution (cf. _start_tool_worker / on_launch_clicked).
         self.panels["nettoyage"].btn_run.clicked.connect(self._launch_cleaner)
         self.panels["export"].btn_run.clicked.connect(self._launch_export)
         self.panels["360"].btn_run.clicked.connect(self._launch_extractor360)
+        self.panels["extraction360"].btn_run.clicked.connect(self._launch_extraction360)
         self.panels["4dgs"].btn_run.clicked.connect(self._launch_fourdgs)
         self.panels["4dgs"].btn_colmap_only.clicked.connect(self._launch_fourdgs_colmap_only)
         self.panels["sharp"].btn_run.clicked.connect(self._launch_sharp)
         self.panels["splattransform"].btn_run.clicked.connect(self._launch_splat_transform)
+        # Upscale est une étape PARAMÈTRES : ce bouton ne lance que l'upscale
+        # local sur les chemins saisis dans le panneau, indépendamment de la
+        # chaîne (que pilote le drapeau ``upscaler_avant`` côté Projet).
         self.panels["upscale"].btn_run.clicked.connect(self._launch_upscale)
         self.panels["brush"].btn_run.clicked.connect(self._launch_brush)
+        self.panels["reconstruction"].btn_run.clicked.connect(self._launch_reconstruction)
         self.panels["source"].btn_delete_dataset.clicked.connect(self._delete_dataset)
+        # Bouton Lancer/Annuler unique (ex-topbar), désormais porté par SourcePanel.
+        self.panels["source"].btn_run.clicked.connect(self.on_launch_clicked)
+        # Stop button under every panel's Run button. A single worker runs at a
+        # time (``_active_worker``), so they all interrupt the same thing —
+        # whichever page the user happens to be on.
+        for panel in self.panels.values():
+            button = getattr(panel, "btn_cancel", None)
+            if button is not None:
+                button.clicked.connect(self._cancel_active_worker)
 
         # Pages ajoutées dans l'ordre de _PAGE_KEYS : leur index correspond à
         # celui de PageRegistry (compteur), déterministe même sous mock PySide6.
@@ -214,9 +233,15 @@ class StudioWindow(QMainWindow):
 
         root.addLayout(body, stretch=1)
 
-        # ── Log bar (repliée par défaut) ──────────────────────────────────────
-        self.logbar = LogBar()
-        root.addWidget(self.logbar)
+        # ── Journal : fenêtre dédiée, alimentée en continu même fermée ─────────
+        # Construite ici (jamais affichée d'office) pour que l'historique complet
+        # du run soit présent dès la première ouverture, y compris ce qui s'est
+        # produit avant qu'on pense à regarder.
+        self.logs_window = LogsWindow(self)
+
+        # ── Barre d'activité : étape en cours, détail, progression, Annuler ────
+        self.activity_bar = ActivityBar()
+        root.addWidget(self.activity_bar)
 
         # ── Bottom bar: version + lifecycle actions (Restart/Quit) ─────────────
         # Moved out of SettingsWindow: these are global actions of the main
@@ -240,17 +265,33 @@ class StudioWindow(QMainWindow):
             field.textChanged.connect(lambda _text=None: self.session_manager.save())
 
     def _build_bottom_bar(self):
-        """Always-visible bottom bar: software version + lifecycle actions
-        (Restart/Quit), moved out of SettingsWindow — these are global
-        actions, not settings."""
+        """Always-visible bottom bar: lifecycle actions (Restart/Quit), moved
+        out of SettingsWindow — these are global actions, not settings.
+        The version now lives in the AppBar (top), not shown twice here."""
         w = QWidget()
         row = QHBoxLayout(w)
-        row.setContentsMargins(8, 2, 8, 2)
-
-        self.lbl_version = QLabel(f"v{VERSION}")
-        self.lbl_version.setStyleSheet("color: #666666; font-size: 10px;")
-        row.addWidget(self.lbl_version)
+        # Marges plus généreuses que les 2px d'origine, et asymétriques : c'est
+        # la seule barre collée au bord bas de la fenêtre. À 2px, les boutons
+        # arrivaient à 899px dans une fenêtre de 900 — l'arrondi et l'ombre de
+        # fenêtre macOS les faisaient lire comme tronqués. L'horizontale s'aligne
+        # sur AppBar (10px).
+        row.setContentsMargins(10, 6, 10, 8)
         row.addStretch(1)
+
+        # Réglages généraux (ex-topbar) : déplacé ici avec la disparition de la
+        # TopBar, réutilise la même clé i18n de tooltip. Le glyphe seul étant
+        # ambigu, un libellé texte l'accompagne (clé dédiée : le style petites
+        # capitales de rail_section_parametres ne convient pas à ce contexte).
+        self.btn_settings = QPushButton(f"⚙ {tr('btn_settings_label', 'Paramètres')}")
+        self.btn_settings.setToolTip(tr("topbar_settings", "Réglages généraux"))
+        self.btn_settings.clicked.connect(self.open_settings)
+        row.addWidget(self.btn_settings)
+
+        # Journal : le bas de la fenêtre ne montre plus que l'activité en cours,
+        # le détail complet (avec recherche/copie/sauvegarde) s'ouvre ici.
+        self.btn_logs = QPushButton(f"▤ {tr('logbar_title', 'Logs')}")
+        self.btn_logs.clicked.connect(self.logs_window.show_logs)
+        row.addWidget(self.btn_logs)
 
         self.btn_relaunch = QPushButton(tr("settings_relaunch", "Relancer"))
         self.btn_relaunch.clicked.connect(self.restart_application)
@@ -277,24 +318,23 @@ class StudioWindow(QMainWindow):
         w.setObjectName(f"placeholder_{zone}_{key}")
         return w
 
-    # ── Nom de projet (miroir top bar ↔ panneau Source via run_state) ───────────
-    def _on_topbar_project_name_changed(self, text):
-        self.run_state.set_field("project_name", text)
-
-    def _on_run_state_project_name_changed(self, key):
-        if key != "project_name":
-            return
-        self.topbar.set_project_name(self.run_state.project_name)
-
     # ── Navigation ──────────────────────────────────────────────────────────────
     def on_rail_selected(self, key):
-        """Sélection manuelle depuis le rail : désaccouple l'auto-follow (même
-        logique que le verrou d'auto-scroll des logs) et change la page. Si
-        l'étape est en erreur, déplie la barre de logs (clic sur l'icône rouge)."""
-        self._auto_follow = False
+        """Rail selection changes the page. If the step failed, opens the log
+        window (clicking the red marker)."""
         self._show_page(key)
         if key in PIPELINE_STEPS and self.run_state.get_status(key) == StepStatus.ERROR:
-            self.logbar.set_collapsed(False)
+            self.logs_window.show_logs()
+
+    def _panel_has_right_content(self, key):
+        """Structural check (not a hardcoded key list): a panel's right column
+        is considered empty when ``right`` has no layout or an empty one (cf.
+        the many panels whose ``_build_right()`` just returns a bare
+        ``QWidget()`` since their controls were merged into the center)."""
+        panel = self.panels.get(key)
+        right = getattr(panel, "right", None) if panel else None
+        layout = right.layout() if right else None
+        return bool(layout and layout.count() > 0)
 
     def _show_page(self, key):
         index = self.nav.select(key)
@@ -302,13 +342,22 @@ class StudioWindow(QMainWindow):
             return
         self.center_stack.setCurrentIndex(index)
         self.right_stack.setCurrentIndex(index)
+        has_right = self._panel_has_right_content(key)
+        self.right_stack.setVisible(has_right)
+        self._center_right_vline.setVisible(has_right)
 
-    def follow_step(self, key):
-        """Suit l'étape active pendant un run, tant que l'auto-follow n'a pas été
-        désaccouplé par un clic manuel."""
-        if self._auto_follow:
-            self.rail.select(key)
-            self._show_page(key)
+    def _set_cancel_enabled(self, enabled: bool):
+        """Toggle every panel's Cancel button at once.
+
+        A single worker runs at a time, but it is not necessarily the one the
+        user is looking at: a chained run walks through several panels. Enabling
+        only the active step's button would leave Cancel greyed out on the page
+        actually on screen — which is where the user reaches for it.
+        """
+        for panel in self.panels.values():
+            button = getattr(panel, "btn_cancel", None)
+            if button is not None:
+                button.setEnabled(bool(enabled))
 
     def current_page_key(self):
         return self.nav.current
@@ -319,13 +368,14 @@ class StudioWindow(QMainWindow):
         démarre réellement la chaîne pipeline (Source → Reconstruction/COLMAP →
         Entraînement/Brush, cf. ``_run_pipeline_step``). Pilote aussi le rail
         (statuts + auto-follow) et le breadcrumb."""
-        mode = self.topbar.current_mode()
+        mode = self.panels["source"].current_mode()
         plan = plan_pipeline(mode, self.run_state)
         self.current_plan = plan
-        self._auto_follow = True
+        self._pipeline_images_dir = None
+        self._pending_upscale_params = None
         self.run_state.reset_status()
         self.update_breadcrumb(plan)
-        self.logbar.append_log(tr("run_plan", "Plan : ") + " → ".join(plan))
+        self.logs_window.append_log(tr("run_plan", "Plan : ") + " → ".join(plan))
         if plan:
             self._run_pipeline_step(0)
         return plan
@@ -335,13 +385,15 @@ class StudioWindow(QMainWindow):
 
     # ── Enchaînement des workers du pipeline principal ───────────────────────────
     def _run_pipeline_step(self, index):
-        """Démarre l'étape ``self.current_plan[index]`` si elle fait partie de la
-        chaîne automatisée (Source/Reconstruction/Entraînement). Source n'a pas
-        de worker propre (elle ne fait que fournir les chemins consommés par
+        """Démarre l'étape ``self.current_plan[index]``. Source n'a pas de
+        worker propre (elle ne fait que fournir les chemins consommés par
         Reconstruction) : elle est marquée DONE immédiatement et la chaîne
-        enchaîne. Les post-étapes OUTILS (Nettoyage/Export/Visualiser) ne sont
-        pas encore automatisées ici — chaîne arrêtée proprement, à continuer
-        manuellement via leurs boutons Lancer dédiés (cf. ``_start_tool_worker``)."""
+        enchaîne. Les post-étapes OUTILS (Nettoyage/Export/Visualiser)
+        n'apparaissent dans ``self.current_plan`` que si leur drapeau
+        ``run_state`` correspondant est actif (cf. ``plan_pipeline``) ; quand
+        elles y sont, elles sont pré-remplies depuis la sortie de l'étape
+        précédente puis enchaînées automatiquement comme Reconstruction/
+        Entraînement."""
         self._plan_index = index
         if index >= len(self.current_plan):
             self._finish_pipeline_chain(True, tr("run_chain_done", "Chaîne terminée avec succès."))
@@ -349,10 +401,34 @@ class StudioWindow(QMainWindow):
 
         step = self.current_plan[index]
         if step == "source":
-            self.follow_step("source")
             self.run_state.set_status("source", StepStatus.DONE)
             self.rail.set_step_status("source", StepStatus.DONE)
             self._run_pipeline_step(index + 1)
+            return
+
+        if step == "extraction360":
+            worker = self._build_extraction360_worker()
+            if worker is not None:
+                self._start_pipeline_worker("extraction360", worker)
+            return
+
+        if step == "upscale":
+            worker = self._build_upscale_worker()
+            if worker is not None:
+                self._start_pipeline_worker("upscale", worker)
+            elif self._pending_upscale_params is not None:
+                # Source vidéo : les images n'existent pas encore, l'upscale est
+                # délégué à COLMAP qui l'exécutera juste après l'extraction des
+                # trames et avant l'extraction des features (cf.
+                # ``ColmapEngine._process_input``).
+                self.logs_window.append_log(
+                    tr("run_upscale_deferred",
+                       "Upscale : source vidéo — les trames seront agrandies au "
+                       "début de la Reconstruction, avant COLMAP.")
+                )
+                self.run_state.set_status("upscale", StepStatus.DONE)
+                self.rail.set_step_status("upscale", StepStatus.DONE)
+                self._run_pipeline_step(index + 1)
             return
 
         if step == "reconstruction":
@@ -367,22 +443,151 @@ class StudioWindow(QMainWindow):
                 self._start_pipeline_worker("entrainement", worker)
             return
 
-        # Étape suivante (nettoyage/export/visualiser) : automatisation hors
-        # scope de ce câblage — l'utilisateur continue manuellement.
-        # No default text passed to tr() here: LanguageManager.tr() applies
-        # .format(*args) internally whenever extra args are given AND the key
-        # is found — passing both a default string and relying on our own
-        # .format(step) afterward would let the default text itself get
-        # consumed as the {0} substitution. The key is defined in all 9
-        # locales (see assets/locales/*.json), so the plain-key fallback
-        # (raw key name) below is a defensive no-op in practice.
+        if step == "nettoyage":
+            self._prefill_cleaner_from_brush()
+            worker = self._build_cleaner_worker()
+            if worker is not None:
+                self._start_pipeline_worker("nettoyage", worker)
+            else:
+                self._fail_pipeline_step("nettoyage", tr("err_no_paths", "Chemins manquants."))
+            return
+
+        if step == "export":
+            self._prefill_export_from_previous()
+            worker = self._build_export_worker()
+            if worker is not None:
+                self._start_pipeline_worker("export", worker)
+            else:
+                self._fail_pipeline_step("export", tr("err_no_paths", "Chemins manquants."))
+            return
+
+        if step == "visualiser":
+            self._prefill_visualiser_from_previous()
+            self._run_visualiser_pipeline_step()
+            return
+
+        # Défensif : ``plan_pipeline`` ne produit que des clés reconnues
+        # ci-dessus, cette branche ne devrait donc jamais s'exécuter.
         message = tr("run_chain_manual_continue").format(step)
         self._finish_pipeline_chain(True, message)
+
+    def _resolve_source_type(self, step, input_path, source_state):
+        """Type de source (``images``/``video``) pour l'étape ``step``, ou None
+        si indéterminable — auquel cas l'étape est déjà marquée en échec.
+
+        Respecte le choix explicite de l'utilisateur (Images/Vidéo) plutôt que
+        la détection auto s'il en a fait un (SourcePanel.combo_source_type,
+        "auto" par défaut). Partagé par Upscale et Reconstruction, qui doivent
+        classer la même source de la même manière."""
+        forced_type = (source_state.get("source_type") or "auto").strip()
+        if forced_type in ("images", "video"):
+            return forced_type
+        input_type = detect_source_kind(input_path)
+        if input_type == "mixed":
+            self._fail_pipeline_step(
+                step,
+                tr(
+                    "err_source_mixed_types",
+                    "Le dossier contient à la fois des images et des vidéos — "
+                    "choisissez explicitement le type de source.",
+                ),
+            )
+            return None
+        if input_type == "empty":
+            self._fail_pipeline_step(step, tr("err_no_paths", "Chemins manquants."))
+            return None
+        return input_type
+
+    def _build_extraction360_worker(self):
+        """Construit le worker de l'étape Extraction 360.
+
+        Contrairement à Upscale, cette étape ne transforme pas les images sur
+        place : elle **produit un nouveau dossier** d'images planaires à partir
+        d'une source équirectangulaire (vidéo ou photos). Ce dossier devient le
+        dossier d'images courant de la chaîne (``_pipeline_images_dir``), que
+        l'Upscale puis COLMAP consommeront à la place de la source d'origine.
+
+        Le type de source n'est pas résolu ici : l'extracteur accepte vidéo comme
+        images, et sa sortie est toujours un dossier d'images."""
+        source_state = self.panels["source"].get_state()
+        input_path = source_state["input_path"].strip()
+        output_path = source_state["output_path"].strip()
+        if not input_path or not output_path:
+            self._fail_pipeline_step("extraction360", tr("err_no_paths", "Chemins manquants."))
+            return None
+        project_name = source_state["project_name"].strip() or "Untitled"
+        images_360 = Path(output_path) / project_name / "images_360"
+        safe_out = validate_path_standalone(str(images_360))
+        if safe_out is None:
+            self._fail_pipeline_step("extraction360", tr("err_no_paths", "Chemins manquants."))
+            return None
+        safe_out.mkdir(parents=True, exist_ok=True)
+        self._pipeline_images_dir = str(safe_out)
+        panel = self.panels["extraction360"]
+        panel.input_path.setText(input_path)
+        panel.output_path.setText(str(safe_out))
+        return Extractor360Worker(input_path, str(safe_out), panel.get_params())
+
+    def _launch_extraction360(self):
+        """Lancement autonome de l'étape Extraction 360 depuis PARAMÈTRES, sur
+        les chemins saisis dans le panneau — même idiome que
+        ``_launch_extractor360`` pour l'instance OUTILS."""
+        panel = self.panels["extraction360"]
+        input_path = panel.input_path.text().strip()
+        output_path = panel.output_path.text().strip()
+        if not self._check_paths(input_path, output_path):
+            return
+        self._start_tool_worker(Extractor360Worker(input_path, output_path, panel.get_params()))
+
+    def _build_upscale_worker(self):
+        """Construit le worker de l'étape Upscale, qui agrandit les images
+        *avant* que COLMAP ne les lise.
+
+        Si l'Extraction 360 a tourné juste avant, la source est le dossier
+        d'images planaires qu'elle a produit (``_pipeline_images_dir``) — donc
+        toujours des images, jamais une vidéo. Sinon, deux cas, car les images du
+        projet n'existent pas encore à ce stade :
+        - **source images** : un ``UpscaleImagesWorker`` écrit les images
+          agrandies dans ``<sortie>/<projet>/images_upscaled``, que
+          ``_build_colmap_worker`` prendra ensuite comme entrée. Le dossier
+          source de l'utilisateur reste intact.
+        - **source vidéo** : rien à agrandir tant que les trames ne sont pas
+          extraites. On renseigne ``_pending_upscale_params``, que
+          ``_build_colmap_worker`` transmet à ``ColmapWorker`` : le moteur
+          agrandit les trames juste après extraction et avant COLMAP
+          (mécanisme ``upscale_config`` déjà en place dans ``engine.py``).
+          Renvoie alors None sans échec — l'appelant enchaîne.
+        """
+        source_state = self.panels["source"].get_state()
+        input_path = source_state["input_path"].strip()
+        output_path = source_state["output_path"].strip()
+        if not input_path or not output_path:
+            self._fail_pipeline_step("upscale", tr("err_no_paths", "Chemins manquants."))
+            return None
+
+        params = self.panels["upscale"].get_params()
+        if self._pipeline_images_dir:
+            input_path, input_type = self._pipeline_images_dir, "images"
+        else:
+            input_type = self._resolve_source_type("upscale", input_path, source_state)
+            if input_type is None:
+                return None
+            if input_type == "video":
+                self._pending_upscale_params = {**params, "active": True}
+                return None
+
+        project_name = source_state["project_name"].strip() or "Untitled"
+        upscaled_dir = Path(output_path) / project_name / "images_upscaled"
+        self._pipeline_images_dir = str(upscaled_dir)
+        return UpscaleImagesWorker(input_path, str(upscaled_dir), params)
 
     def _build_colmap_worker(self):
         """Construit le ``ColmapWorker`` de l'étape Reconstruction depuis les
         chemins de Source (SourcePanel.get_state) et les réglages COLMAP de
-        Reconstruction (ReconstructionPanel.get_params → ColmapParams)."""
+        Reconstruction (ReconstructionPanel.get_params → ColmapParams).
+
+        Si l'étape Upscale a tourné juste avant, l'entrée devient le dossier
+        d'images agrandies qu'elle a produit (cf. ``_build_upscale_worker``)."""
         source_state = self.panels["source"].get_state()
         input_path = source_state["input_path"].strip()
         output_path = source_state["output_path"].strip()
@@ -390,11 +595,19 @@ class StudioWindow(QMainWindow):
             self._fail_pipeline_step("reconstruction", tr("err_no_paths", "Chemins manquants."))
             return None
         project_name = source_state["project_name"].strip() or "Untitled"
-        params = self.panels["reconstruction"].get_params()
-        input_type = _detect_input_type(input_path)
+        params = apply_source_blur_settings(
+            self.panels["reconstruction"].get_params(), source_state
+        )
+        if self._pipeline_images_dir:
+            input_path, input_type = self._pipeline_images_dir, "images"
+        else:
+            input_type = self._resolve_source_type("reconstruction", input_path, source_state)
+            if input_type is None:
+                return None
         return ColmapWorker(
             params, input_path, output_path, input_type, source_state["fps"],
             project_name=project_name,
+            upscale_params=self._pending_upscale_params,
         )
 
     def _build_brush_worker(self):
@@ -409,6 +622,15 @@ class StudioWindow(QMainWindow):
             return None
         project_name = source_state["project_name"].strip() or "Untitled"
         project_dir = Path(output_path) / project_name
+        checkpoints_dir = resolve_checkpoints_dir(source_state)
+        if checkpoints_dir is None:
+            self._fail_pipeline_step(
+                "entrainement",
+                tr("err_checkpoint_dest_invalid",
+                   "Destination des checkpoints invalide."),
+            )
+            return None
+        checkpoints_dir.mkdir(parents=True, exist_ok=True)
         panel = self.panels["entrainement"]
         params = panel.get_params().to_engine_params()
         params["refine_mode"] = panel.combo_mode.currentData() == "refine"
@@ -416,25 +638,162 @@ class StudioWindow(QMainWindow):
         if ply_name:
             params["ply_name"] = ply_name
         return BrushWorker(
-            project_dir, project_dir / "checkpoints", params, project_name=project_name,
+            project_dir, checkpoints_dir, params, project_name=project_name,
+            # Sémantique d'origine du champ (CHANGELOG 1.2.3) : une destination
+            # personnalisée ne conserve que le dernier checkpoint ; champ vide =
+            # comportement historique, tous les checkpoints gardés.
+            keep_only_latest=keeps_only_latest_checkpoint(source_state),
         )
+
+
+
+    # ── Pré-remplissage des post-étapes OUTILS depuis la sortie de l'étape
+    # précédente (cf. Section G : chaînage Entraînement → Nettoyage → Export →
+    # Visualiser, uniquement quand le drapeau ``run_state`` correspondant est actif) ──
+    def _find_latest_ply(self, directory: Path):
+        """Fichier ``.ply`` le plus récemment modifié sous ``directory``
+        (récursif), ou ``None``. Même idiome de recherche que
+        ``BrushWorker.handle_ply_rename`` (app/gui/workers.py), en plus simple :
+        on ne connaît pas ici le nom final choisi par Brush (dépend de
+        ``ply_name``/``project_name``), donc on relit le système de fichiers
+        une fois l'entraînement terminé plutôt que de dupliquer sa logique de
+        renommage."""
+        if not directory.exists():
+            return None
+        latest, latest_mtime = None, -1.0
+        for ply_path in directory.rglob("*.ply"):
+            try:
+                mtime = ply_path.stat().st_mtime
+            except OSError:
+                continue
+            if mtime > latest_mtime:
+                latest, latest_mtime = ply_path, mtime
+        return latest
+
+    def _latest_brush_ply(self):
+        """PLY produit par la dernière étape Entraînement, dans le dossier de
+        checkpoints du projet (cf. ``_build_brush_worker``)."""
+        checkpoints_dir = resolve_checkpoints_dir(self.panels["source"].get_state())
+        if checkpoints_dir is None:
+            return None
+        return self._find_latest_ply(checkpoints_dir)
+
+    def _resolve_ply_output(self):
+        """Chemin PLY le plus pertinent à transmettre à l'étape suivante :
+        sortie de Nettoyage si cette étape est active (``nettoyer_apres``),
+        sinon PLY produit par l'Entraînement."""
+        if self.run_state.nettoyer_apres:
+            cleaned = self.panels["nettoyage"].output_path.text().strip()
+            if cleaned:
+                return cleaned
+        latest_ply = self._latest_brush_ply()
+        return str(latest_ply) if latest_ply is not None else ""
+
+    def _prefill_cleaner_from_brush(self):
+        """Pré-remplit le panneau Nettoyage avec le PLY produit par
+        l'Entraînement, avant construction du worker (cf. ``_build_cleaner_worker``)."""
+        latest_ply = self._latest_brush_ply()
+        if latest_ply is None:
+            return
+        panel = self.panels["nettoyage"]
+        panel.input_path.setText(str(latest_ply))
+        if not panel.output_path.text().strip():
+            panel.output_path.setText(str(latest_ply.with_name(f"clean_{latest_ply.name}")))
+
+    def _prefill_export_from_previous(self):
+        """Pré-remplit le panneau Export depuis la sortie de l'étape précédente
+        (Nettoyage si actif, sinon directement l'Entraînement).
+
+        Les champs « Dossier d'export » et « Format » du panneau Projet, quand
+        ils sont renseignés, l'emportent sur ce qui est saisi dans le panneau
+        Export : ce sont les réglages de la *chaîne*, alors que le panneau Export
+        sert aussi au lancement local. Laissés vides, le comportement précédent
+        est inchangé (dossier du PLY source, format courant du panneau)."""
+        source_path = self._resolve_ply_output()
+        if not source_path:
+            return
+        source_state = self.panels["source"].get_state()
+        panel = self.panels["export"]
+        panel.input_path.setText(source_path)
+
+        export_dir = resolve_export_dir(
+            source_state, source_path, panel.output_path.text()
+        )
+        if export_dir is not None:
+            panel.output_path.setText(export_dir)
+
+        export_format = resolve_export_format(source_state)
+        if export_format:
+            idx = panel.combo_format.findData(export_format)
+            if idx >= 0:
+                panel.combo_format.setCurrentIndex(idx)
+
+    def _prefill_visualiser_from_previous(self):
+        """Pré-remplit le panneau Visualiser depuis la sortie de l'étape
+        précédente (même règle que ``_prefill_export_from_previous``)."""
+        source_path = self._resolve_ply_output()
+        if source_path:
+            self.panels["visualiser"].input_path.setText(source_path)
+
+    def _run_visualiser_pipeline_step(self):
+        """Étape Visualiser de la chaîne : ``VisualiserPanel`` n'est pas un
+        Worker/QThread (serveur persistant via ``toggle_server()``), donc pas de
+        DONE/ERROR classique piloté par un ``finished_signal``. L'étape est
+        marquée DONE dès que le serveur démarre avec succès (sans bloquer sur
+        une fin d'exécution) ; en cas d'échec de démarrage, ERROR."""
+        panel = self.panels["visualiser"]
+        self.run_state.set_status("visualiser", StepStatus.RUNNING)
+        self.rail.set_step_status("visualiser", StepStatus.RUNNING)
+        if not panel.is_running():
+            panel.toggle_server()
+        if panel.is_running():
+            self.run_state.set_status("visualiser", StepStatus.DONE)
+            self.rail.set_step_status("visualiser", StepStatus.DONE)
+            self._run_pipeline_step(self._plan_index + 1)
+        else:
+            self._fail_pipeline_step(
+                "visualiser",
+                tr("err_visualiser_start", "Échec du démarrage du serveur SuperSplat."),
+            )
 
     def _start_pipeline_worker(self, step, worker):
         """Démarre le worker d'une étape pipeline : statuts rail/run_state posés
         au moment réel du démarrage (pas juste à la planification), logs relayés,
-        topbar basculé en Annuler — même idiome que ``_start_tool_worker``."""
+        SourcePanel basculé en Annuler — même idiome que ``_start_tool_worker``."""
         self.run_state.set_status(step, StepStatus.RUNNING)
         self.rail.set_step_status(step, StepStatus.RUNNING)
-        self.follow_step(step)
         self._active_worker = worker
         self._active_pipeline_step = step
-        worker.log_signal.connect(self.logbar.append_log)
-        if hasattr(worker, "status_signal"):
-            worker.status_signal.connect(self.logbar.append_log)
+        self.activity_bar.set_step(item_label(step))
+        self._wire_worker_feedback(worker)
         worker.finished_signal.connect(self._on_pipeline_step_finished)
-        self.topbar.set_running(True)
-        self.logbar.set_collapsed(False)
+        self.panels["source"].set_running(True)
+        self._set_cancel_enabled(True)
+        self.panels["source"].progress_ring.start()
+        # Le journal ne s'ouvre plus de force au démarrage : l'en-tête de la
+        # barre affiche désormais l'activité même repliée (cf.
+        # ``_wire_worker_feedback``). Il ne se déplie plus que sur erreur.
         worker.start()
+
+    def _wire_worker_feedback(self, worker):
+        """Relaie logs, statut et progression d'un worker vers la barre du bas.
+
+        ``progress_signal`` était émis par quatre workers (COLMAP, 360, Sharp
+        vidéo, Export) mais n'était connecté nulle part : la progression était
+        calculée puis jetée. Elle alimente maintenant la barre de l'en-tête.
+
+        L'activité est branchée sur ``log_signal`` **et** ``status_signal`` :
+        ``BrushWorker`` (l'entraînement) n'émet que le premier — son moteur ne
+        reçoit pas de ``status_callback`` — donc se limiter au statut le
+        laisserait muet."""
+        worker.log_signal.connect(self.logs_window.append_log)
+        worker.log_signal.connect(self.activity_bar.set_activity)
+        if hasattr(worker, "status_signal"):
+            worker.status_signal.connect(self.logs_window.append_log)
+            worker.status_signal.connect(self.activity_bar.set_activity)
+        if hasattr(worker, "progress_signal"):
+            worker.progress_signal.connect(self.activity_bar.set_progress)
+            worker.progress_signal.connect(self.panels["source"].progress_ring.set_value)
 
     def _on_pipeline_step_finished(self, success, message):
         """Fin d'une étape pipeline : DONE + étape suivante si succès ; ERROR +
@@ -442,7 +801,7 @@ class StudioWindow(QMainWindow):
         step = self._active_pipeline_step
         worker = self._active_worker
         self._active_worker = None
-        self.logbar.append_log(message)
+        self.logs_window.append_log(message)
         if success:
             self.run_state.set_status(step, StepStatus.DONE)
             self.rail.set_step_status(step, StepStatus.DONE)
@@ -451,8 +810,13 @@ class StudioWindow(QMainWindow):
         stopped_by_user = bool(worker and getattr(worker, "stopped_by_user", False))
         self.run_state.set_status(step, StepStatus.ERROR)
         self.rail.set_step_status(step, StepStatus.ERROR)
-        self.topbar.set_running(False)
-        self.logbar.set_collapsed(False)
+        self.panels["source"].set_running(False)
+        self._set_cancel_enabled(False)
+        self.activity_bar.reset_activity()
+        self.panels["source"].progress_ring.stop()
+        # Le journal ne s'ouvre plus tout seul, même sur erreur : la boîte de
+        # dialogue ci-dessous porte déjà le message, et l'étape passe en ⛔ dans
+        # le rail — un clic dessus ouvre le journal (cf. on_rail_selected).
         if not stopped_by_user:
             self.notify(tr("msg_error", "Erreur"), message)
             QMessageBox.warning(self, tr("msg_error", "Erreur"), message)
@@ -462,9 +826,11 @@ class StudioWindow(QMainWindow):
         traitement qu'un échec en cours d'exécution, sans worker actif à nettoyer."""
         self.run_state.set_status(step, StepStatus.ERROR)
         self.rail.set_step_status(step, StepStatus.ERROR)
-        self.logbar.append_log(message)
-        self.logbar.set_collapsed(False)
-        self.topbar.set_running(False)
+        self.logs_window.append_log(message)
+        self.panels["source"].set_running(False)
+        self._set_cancel_enabled(False)
+        self.activity_bar.reset_activity()
+        self.panels["source"].progress_ring.stop()
         self._active_worker = None
         self.notify(tr("msg_error", "Erreur"), message)
         QMessageBox.warning(self, tr("msg_error", "Erreur"), message)
@@ -472,16 +838,19 @@ class StudioWindow(QMainWindow):
     def _finish_pipeline_chain(self, success, message):
         """Fin (normale ou volontairement interrompue) de la chaîne pipeline."""
         self._active_worker = None
-        self.topbar.set_running(False)
-        self.logbar.append_log(message)
+        self.panels["source"].set_running(False)
+        self._set_cancel_enabled(False)
+        self.activity_bar.reset_activity()
+        self.panels["source"].progress_ring.stop()
+        self.logs_window.append_log(message)
         if success:
             self.notify(tr("msg_success", "Succès"), message)
 
-    # ── Dispatch du bouton unique topbar (Lancer/Annuler) ────────────────────────
-    def on_topbar_launch(self):
-        """Le topbar n'a qu'un bouton Lancer/Annuler : s'il y a un worker OUTILS
-        actif (lancé depuis un bouton local), le clic l'annule ; sinon il lance
-        la chaîne pipeline (cf. ``launch``)."""
+    # ── Dispatch du bouton unique Lancer/Annuler (ex-topbar, porté par SourcePanel) ──
+    def on_launch_clicked(self):
+        """``SourcePanel.btn_run`` n'a qu'un bouton Lancer/Annuler : s'il y a un
+        worker OUTILS actif (lancé depuis un bouton local), le clic l'annule ;
+        sinon il lance la chaîne pipeline (cf. ``launch``)."""
         if self._active_worker is not None and self._active_worker.isRunning():
             self._cancel_active_worker()
             return
@@ -490,7 +859,7 @@ class StudioWindow(QMainWindow):
     def _cancel_active_worker(self):
         worker = self._active_worker
         if worker and worker.isRunning():
-            self.logbar.append_log(tr("topbar_cancel", "Annuler") + "…")
+            self.logs_window.append_log(tr("topbar_cancel", "Annuler") + "…")
             if hasattr(worker, "stop"):
                 worker.stop()
             else:
@@ -499,22 +868,27 @@ class StudioWindow(QMainWindow):
     # ── Lancement des modules OUTILS (bouton local, hors chaîne pipeline) ────────
     def _start_tool_worker(self, worker, finished_signal=None):
         """Démarre un worker OUTILS en tâche de fond : logs relayés vers la
-        barre de logs, topbar basculé en Annuler, résultat affiché à la fin."""
+        barre de logs, SourcePanel basculé en Annuler, résultat affiché à la fin."""
         self._active_worker = worker
-        worker.log_signal.connect(self.logbar.append_log)
-        if hasattr(worker, "status_signal"):
-            worker.status_signal.connect(self.logbar.append_log)
+        # Un worker OUTILS n'a pas d'étape de pipeline : on nomme la page depuis
+        # laquelle il a été lancé, qui est celle que l'utilisateur regarde.
+        self.activity_bar.set_step(item_label(self.nav.current))
+        self._wire_worker_feedback(worker)
         signal = finished_signal if finished_signal is not None else worker.finished_signal
         signal.connect(self._on_tool_finished)
-        self.topbar.set_running(True)
-        self.logbar.set_collapsed(False)
+        self.panels["source"].set_running(True)
+        self._set_cancel_enabled(True)
+        self.panels["source"].progress_ring.start()
         worker.start()
 
     def _on_tool_finished(self, success, message):
         worker = self._active_worker
         self._active_worker = None
-        self.topbar.set_running(False)
-        self.logbar.append_log(message)
+        self.panels["source"].set_running(False)
+        self._set_cancel_enabled(False)
+        self.activity_bar.reset_activity()
+        self.panels["source"].progress_ring.stop()
+        self.logs_window.append_log(message)
         stopped_by_user = bool(worker and getattr(worker, "stopped_by_user", False))
         if success:
             self.notify(tr("msg_success", "Succès"), message)
@@ -528,26 +902,53 @@ class StudioWindow(QMainWindow):
         QMessageBox.critical(self, tr("msg_error", "Erreur"), tr("err_no_paths", "Chemins manquants."))
         return False
 
-    def _launch_cleaner(self):
+    def _build_cleaner_worker(self):
+        """Construit le ``CleanerWorker`` depuis les champs actuels du panneau
+        Nettoyage. Partagé par ``_launch_cleaner`` (bouton local, hors chaîne)
+        et l'étape ``nettoyage`` de la chaîne pipeline (cf. ``_run_pipeline_step``),
+        qui pré-remplit les champs avant l'appel (cf. ``_prefill_cleaner_from_brush``)."""
         panel = self.panels["nettoyage"]
         input_path = panel.input_path.text().strip()
         output_path = panel.output_path.text().strip()
-        if not self._check_paths(input_path, output_path):
-            return
-        worker = CleanerWorker(input_path, output_path, panel.get_params())
-        self._start_tool_worker(worker)
+        if not input_path or not output_path:
+            return None
+        return CleanerWorker(input_path, output_path, panel.get_params())
 
-    def _launch_export(self):
+    def _launch_cleaner(self):
+        panel = self.panels["nettoyage"]
+        if not self._check_paths(panel.input_path.text().strip(), panel.output_path.text().strip()):
+            return
+        self._start_tool_worker(self._build_cleaner_worker())
+
+    def _build_export_worker(self):
+        """Construit l'``ExportWorker`` depuis les champs actuels du panneau
+        Export. Partagé par ``_launch_export`` (bouton local, hors chaîne) et
+        l'étape ``export`` de la chaîne pipeline (cf. ``_run_pipeline_step``)."""
         panel = self.panels["export"]
         input_paths = [p for p in panel.input_path.text().split("|") if p.strip()]
         output_dir = panel.output_path.text().strip()
         if not input_paths or not output_dir:
-            QMessageBox.critical(self, tr("msg_error", "Erreur"), tr("err_no_paths", "Chemins manquants."))
-            return
-        worker = ExportWorker(
+            return None
+        return ExportWorker(
             input_paths, output_dir, panel.get_format(), options={"scale": panel.get_scale()}
         )
+
+    def _launch_export(self):
+        worker = self._build_export_worker()
+        if worker is None:
+            QMessageBox.critical(self, tr("msg_error", "Erreur"), tr("err_no_paths", "Chemins manquants."))
+            return
         self._start_tool_worker(worker)
+
+    def _launch_reconstruction(self):
+        """Lancement autonome (hors chaîne) du panneau Reconstruction, même
+        idiome que ``_launch_cleaner``/``_launch_export``. Réutilise
+        ``_build_colmap_worker`` (déjà pilote la chaîne pipeline) — sur échec
+        de construction (chemins manquants, source mixte…), il échoue déjà
+        proprement l'étape via ``_fail_pipeline_step``."""
+        worker = self._build_colmap_worker()
+        if worker is not None:
+            self._start_tool_worker(worker)
 
     def _launch_extractor360(self):
         panel = self.panels["360"]
@@ -662,7 +1063,7 @@ class StudioWindow(QMainWindow):
         if reply != QMessageBox.StandardButton.Yes:
             return
         success, message = ColmapEngine.delete_project_content(target)
-        self.logbar.append_log(message)
+        self.logs_window.append_log(message)
         if success:
             self.notify(tr("msg_success", "Succès"), message)
         else:
@@ -676,6 +1077,8 @@ class StudioWindow(QMainWindow):
             return panel.get_state() if panel and hasattr(panel, "get_state") else {}
         return ChainConfig(
             source=state_of("source"),
+            extraction360=state_of("extraction360"),
+            upscale=state_of("upscale"),
             colmap=state_of("reconstruction"),
             brush=state_of("entrainement"),
             cleaning=state_of("nettoyage"),
@@ -686,7 +1089,8 @@ class StudioWindow(QMainWindow):
     def apply_config(self, cfg: ChainConfig):
         """Applique une ChainConfig aux panneaux et aux drapeaux partagés."""
         mapping = {
-            "source": cfg.source, "reconstruction": cfg.colmap,
+            "source": cfg.source, "extraction360": cfg.extraction360,
+            "upscale": cfg.upscale, "reconstruction": cfg.colmap,
             "entrainement": cfg.brush, "nettoyage": cfg.cleaning, "export": cfg.export,
         }
         for key, state in mapping.items():
@@ -701,7 +1105,7 @@ class StudioWindow(QMainWindow):
         if ok and name.strip():
             try:
                 save_config(name.strip(), self.collect_config())
-                self.logbar.append_log(tr("config_saved", "Configuration sauvegardée : ") + name.strip())
+                self.logs_window.append_log(tr("config_saved", "Configuration sauvegardée : ") + name.strip())
             except (ValueError, OSError) as e:
                 QMessageBox.warning(self, tr("msg_error", "Erreur"), str(e))
 
@@ -716,9 +1120,34 @@ class StudioWindow(QMainWindow):
         if ok and name:
             try:
                 self.apply_config(load_config(name))
-                self.logbar.append_log(tr("config_loaded", "Configuration chargée : ") + name)
+                self.logs_window.append_log(tr("config_loaded", "Configuration chargée : ") + name)
             except (ValueError, OSError) as e:
                 QMessageBox.warning(self, tr("msg_error", "Erreur"), str(e))
+
+    def delete_config_dialog(self):
+        """Même idiome que ``load_config_dialog`` (choix dans la liste), plus une
+        confirmation : l'opération retire un fichier et n'est pas annulable."""
+        names = list_configs()
+        if not names:
+            QMessageBox.information(self, tr("settings_delete", "Supprimer"),
+                                   tr("config_none", "Aucune configuration sauvegardée."))
+            return
+        name, ok = QInputDialog.getItem(self, tr("settings_delete", "Supprimer"),
+                                        tr("config_choose", "Configuration :"), names, 0, False)
+        if not (ok and name):
+            return
+        confirm = QMessageBox.question(
+            self, tr("settings_delete", "Supprimer"),
+            # Idem _delete_selected_preset : pas de défaut sur une clé à {0}.
+            tr("config_delete_confirm").format(name),
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            if delete_config(name):
+                self.logs_window.append_log(tr("config_deleted", "Configuration supprimée : ") + name)
+        except (ValueError, OSError) as e:
+            QMessageBox.warning(self, tr("msg_error", "Erreur"), str(e))
 
     # ── Notifications ───────────────────────────────────────────────────────────
     def set_notifications_enabled(self, enabled: bool):
@@ -735,6 +1164,7 @@ class StudioWindow(QMainWindow):
             self._settings_window = SettingsWindow(self)
             self._settings_window.saveRequested.connect(self.save_config_dialog)
             self._settings_window.loadRequested.connect(self.load_config_dialog)
+            self._settings_window.deleteRequested.connect(self.delete_config_dialog)
             self._settings_window.notificationsToggled.connect(self.set_notifications_enabled)
             self._settings_window.resetRequested.connect(self.reset_factory)
         self._settings_window.show()
@@ -752,6 +1182,8 @@ class StudioWindow(QMainWindow):
 
     def retranslate_ui(self):
         self.setWindowTitle(tr("app_title"))
+        self.btn_settings.setText(f"⚙ {tr('btn_settings_label', 'Paramètres')}")
+        self.btn_logs.setText(f"▤ {tr('logbar_title', 'Logs')}")
         self.btn_relaunch.setText(tr("settings_relaunch", "Relancer"))
         self.btn_quit.setText(tr("settings_quit", "Quitter"))
 

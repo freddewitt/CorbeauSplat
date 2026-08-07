@@ -265,39 +265,6 @@ def get_brush_build_mode() -> str:
     return "release"
 
 
-def is_amx_available() -> bool:
-    """Detect whether the Apple Matrix coprocessor (AMX) is available.
-
-    AMX is present on all Apple Silicon chips (M1 and later) and is used
-    automatically by Accelerate.framework for BLAS/LAPACK operations.
-    No user-space configuration is needed — this is purely informational
-    for feature gating and logging.
-    """
-    # All Apple Silicon chips have AMX blocks.  The AMX instruction set
-    # is accessed exclusively through Accelerate.framework (not directly
-    # by user code), so there is no sysctl key to query.  We return True
-    # for any arm64 Darwin system.
-    return is_apple_silicon()
-
-
-def has_neural_engine() -> bool:
-    """Detect whether the Apple Neural Engine (ANE) is available.
-
-    The Neural Engine is present on M1 and later Apple Silicon chips,
-    as well as A12 Bionic and later iPhone/iPad SoCs.  It is used
-    transparently by CoreML when the model and compute unit selection
-    allow it (`.appleNeuralEngine`).
-
-    On macOS, there is no official sysctl key to query ANE presence,
-    so we check for Apple Silicon as a proxy (all M-series chips have one).
-    """
-    # M1 and later all include a Neural Engine. The exact core count
-    # varies (M1: 16-core, M2: 16-core, M3: 16-core, M4: 16-core,
-    # M1 Pro/Max: 16-core, M2 Pro/Max: 16-core, M3 Pro/Max: 16-core,
-    # M4 Pro/Max: 16-core). No user-space API exposes the count.
-    return is_apple_silicon()
-
-
 def log_numpy_backend() -> None:
     """Log the BLAS/LAPACK backend used by NumPy.
 

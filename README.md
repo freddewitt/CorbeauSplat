@@ -8,7 +8,7 @@
 
 </div>
 
-![CorbeauSplat Interface](assets/interface.webp)
+![CorbeauSplat Interface](assets/interface.png)
 
 ## 🚀 What it does
 

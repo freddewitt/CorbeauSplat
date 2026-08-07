@@ -1,7 +1,6 @@
 """Tests pour upscayl_manager.py."""
 import hashlib
 import io
-import os
 import sys
 import tarfile
 import zipfile
@@ -276,7 +275,7 @@ class TestDownloadBinary:
     @patch("app.upscayl_manager.get_bin_dir")
     @patch("app.upscayl_manager.urllib.request.urlopen")
     @patch("app.upscayl_manager.load_expected_checksums")
-    @patch("app.upscayl_manager.verify_download")
+    @patch("app.upscayl_manager.verify_download_strict")
     @patch("app.upscayl_manager.get_models_dir")
     @patch("app.upscayl_manager._extract_archive")
     @patch("app.upscayl_manager.os.chmod")
@@ -477,19 +476,3 @@ class TestUpscaylHelpers:
             assert result == tmp_path / "models" / "upscayl"
             assert result.exists()
 
-    def test_is_using_local_binary(self, tmp_path):
-        """is_using_local_binary détecte le binaire local."""
-        with patch("app.upscayl_manager.resolve_project_root", return_value=tmp_path):
-            from app.upscayl_manager import is_using_local_binary
-            bin_dir = tmp_path / "bin"
-            bin_dir.mkdir(parents=True)
-            binary = bin_dir / "upscayl-bin"
-            binary.write_text("binary")
-            os.chmod(binary, 0o755)
-            assert is_using_local_binary() is True
-
-    def test_is_using_local_binary_not_found(self, tmp_path):
-        """is_using_local_binary retourne False si absent."""
-        with patch("app.upscayl_manager.resolve_project_root", return_value=tmp_path):
-            from app.upscayl_manager import is_using_local_binary
-            assert is_using_local_binary() is False

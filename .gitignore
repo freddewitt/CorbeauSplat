@@ -1,6 +1,9 @@
 # Syncthing conflict files
 *.sync-conflict-*
 
+# Backup files
+*.lock.bak
+
 # MacOS
 .DS_Store
 .AppleDouble

@@ -176,8 +176,7 @@ class SharpEngine(BaseEngine):
             log_callback(f"Running: {' '.join(ffmpeg_cmd)}")
 
         # Délégation au runner standard (Template Method) : rend l'extraction
-        # annulable via self.stop() / self.runner.terminate(), contrairement à
-        # un subprocess.run() bloquant.
+        # annulable via self.stop() / self.runner.terminate().
         extraction_log = []
 
         def _ffmpeg_line(line_str):

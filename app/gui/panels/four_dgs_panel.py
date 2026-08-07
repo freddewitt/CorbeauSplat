@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.i18n import add_language_observer, tr
+from app.gui.widgets.cancel_button import CancelButton
 from app.gui.widgets.dialog_utils import get_existing_directory
 
 
@@ -36,6 +37,13 @@ class FourDGSPanel:
         layout.addWidget(self.lbl_desc)
         self.lbl_status = QLabel()
         layout.addWidget(self.lbl_status)
+
+        # Permanent scope notice: no dismiss button, this is a lasting
+        # limitation (no native Apple Silicon 4DGS training solution exists),
+        # not a one-off onboarding hint.
+        self.lbl_scope_notice = QLabel()
+        self.lbl_scope_notice.setWordWrap(True)
+        layout.addWidget(self.lbl_scope_notice)
 
         self.lbl_input = QLabel()
         layout.addWidget(self.lbl_input)
@@ -64,6 +72,8 @@ class FourDGSPanel:
         self.btn_run.setStyleSheet("font-weight: bold;")
         layout.addWidget(self.btn_run)
 
+        self.btn_cancel = CancelButton()
+        layout.addWidget(self.btn_cancel)
         layout.addStretch(1)
         return w
 
@@ -109,6 +119,13 @@ class FourDGSPanel:
         self.lbl_desc.setText(tr("four_dgs_desc",
                                  "Extrait des frames de vidéos synchronisées et prépare un dataset Nerfstudio."))
         self.lbl_status.setText(tr("four_dgs_status", "Statut d'installation"))
+        self.lbl_scope_notice.setText(tr(
+            "fourdgs_scope_notice",
+            "Ce module prépare le dataset (extraction + reconstruction COLMAP au format "
+            "Nerfstudio) uniquement. Aucune solution d'entraînement 4D Gaussian Splatting "
+            "native Apple Silicon n'est disponible à ce jour — l'entraînement doit être "
+            "fait ailleurs (GPU NVIDIA ou service cloud).",
+        ))
         self.lbl_input.setText(tr("four_dgs_input", "Source vidéos (dossier multi-caméras)"))
         self.lbl_output.setText(tr("four_dgs_output", "Destination dataset"))
         self.btn_colmap_only.setText(tr("four_dgs_colmap_only", "Reconstruction COLMAP seulement"))

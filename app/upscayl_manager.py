@@ -17,7 +17,7 @@ import zipfile
 from pathlib import Path
 
 from app.core.system import resolve_project_root
-from app.scripts.checksum_verifier import load_expected_checksums, verify_download
+from app.scripts.checksum_verifier import load_expected_checksums, verify_download_strict
 
 GITHUB_API = "https://api.github.com/repos/upscayl/upscayl-ncnn/releases/latest"
 
@@ -62,12 +62,6 @@ def get_effective_models_dir() -> Path | None:
     return None  # let upscayl-bin use its default model path
 
 
-def is_using_local_binary() -> bool:
-    """True if we downloaded our own binary (not using system/app install)."""
-    local = get_bin_dir() / "upscayl-bin"
-    return local.exists() and os.access(local, os.X_OK)
-
-
 def find_binary() -> Path | None:
     """Returns the first usable upscayl-bin, or None."""
     candidates = [
@@ -86,25 +80,9 @@ def find_binary() -> Path | None:
     return None
 
 
-def get_version(binary: Path) -> str:
-    """Returns a short version/info string from the binary."""
-    try:
-        result = subprocess.run(
-            [str(binary)], capture_output=True, text=True, timeout=5
-        )
-        output = result.stdout + result.stderr
-        for line in output.splitlines():
-            line = line.strip()
-            if line and ("upscayl" in line.lower() or "version" in line.lower() or "ncnn" in line.lower()):
-                return line[:80]
-        return "upscayl-bin"
-    except Exception:
-        return "upscayl-bin"
-
-
 def _fetch_release() -> dict:
     req = urllib.request.Request(GITHUB_API, headers={"User-Agent": "CorbeauSplat"})
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 - URL https littérale (API GitHub releases)
         return json.loads(resp.read())
 
 
@@ -149,15 +127,16 @@ def download_binary(log_callback=None) -> Path:
     archive_path = bin_dir / asset["name"]
 
     req = urllib.request.Request(asset["browser_download_url"])
-    with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as f:
+    with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as f:  # nosec B310 - URL https littérale fournie par l'asset GitHub
         f.write(resp.read())
 
     checksums = load_expected_checksums()
     checksum_key = "darwin_upscayl" if platform.system() == "Darwin" else "linux_upscayl"
-    if not verify_download(archive_path, checksums.get(checksum_key, "")):
+    if not verify_download_strict(archive_path, checksums.get(checksum_key, "")):
         archive_path.unlink(missing_ok=True)
         raise RuntimeError(
-            f"upscayl archive SHA256 mismatch (checksum key: {checksum_key}) — "
+            f"upscayl archive SHA256 mismatch or missing reference hash "
+            f"(checksum key: {checksum_key}) — "
             f"installation refusée pour éviter d'exécuter un binaire non vérifié."
         )
 
@@ -171,7 +150,7 @@ def download_binary(log_callback=None) -> Path:
     if not dest.exists():
         raise RuntimeError("upscayl-bin not found after extraction.")
 
-    os.chmod(dest, 0o755)
+    os.chmod(dest, 0o755)  # nosec B103 - binaire upscayl : doit être exécutable, hash vérifié en amont
     log(f"✅ upscayl-bin installed: {dest}")
     return dest
 
@@ -381,7 +360,7 @@ def download_model_files(url_bin: str, url_param: str,
         try:
             log(f"Downloading {model_id}{ext}...")
             req = urllib.request.Request(url, headers={"User-Agent": "CorbeauSplat"})
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=120) as resp:  # nosec B310 - URL https littérale du catalogue de modèles
                 data = resp.read()
 
             if len(data) < 512:

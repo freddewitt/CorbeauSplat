@@ -12,6 +12,12 @@ aucune écriture n'est effectuée.
 """
 from pathlib import Path
 
+# pyobjc may not be available on non-macOS or minimal installs
+try:
+    from AppKit import NSWorkspace, NSImage  # noqa: I001
+except ImportError:
+    NSWorkspace = NSImage = None  # type: ignore[assignment,misc]
+
 
 def set_launcher_icon(launcher_path: Path, icon_path: Path) -> bool:
     """Applique ``icon_path`` comme icône Finder de ``launcher_path``.
@@ -22,9 +28,7 @@ def set_launcher_icon(launcher_path: Path, icon_path: Path) -> bool:
     """
     if not launcher_path.exists() or not icon_path.exists():
         return False
-    try:
-        from AppKit import NSWorkspace, NSImage
-    except Exception:
+    if NSWorkspace is None or NSImage is None:
         return False
     try:
         workspace = NSWorkspace.sharedWorkspace()

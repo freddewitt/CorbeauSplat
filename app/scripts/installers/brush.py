@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from app.scripts.checksum_verifier import load_expected_checksums, verify_download
+from app.scripts.checksum_verifier import load_expected_checksums, verify_download_strict
 from app.scripts.installers.base import EngineDependency
 from app.scripts.installers.tools import install_rust_toolchain
 
@@ -23,7 +23,21 @@ class BrushEngineDep(EngineDependency):
         return config.get("brush_params", {}).get("enabled", False) or config.get("brush_enabled", False)
 
     def get_remote_version(self) -> str:
-        """Returns HEAD commit hash in source mode, latest release tag otherwise."""
+        """Version cible : HEAD en mode source, version **épinglée** en mode release.
+
+        En mode release, on ne suit délibérément pas la dernière release amont.
+        L'archive est vérifiée contre une empreinte figée dans ce dépôt
+        (``darwin_brush``/``linux_brush``) : suivre « latest » garantissait qu'au
+        premier tag publié en amont, l'empreinte ne corresponde plus et que
+        l'installation soit refusée — la panne constatée le 2026-08-07. Pire,
+        ``base.py`` comparant cette valeur à la version locale, il aurait proposé
+        la mise à jour à *chaque* démarrage, vers un échec certain.
+
+        Version et empreinte vivent donc côte à côte dans ``checksums.json`` et
+        se bumpent ensemble, en une seule modification relue. Adopter une
+        nouvelle release reste un geste délibéré, pas un effet de bord du
+        calendrier de publication d'un tiers.
+        """
         config = {}
         with contextlib.suppress(OSError, json.JSONDecodeError):
             config = json.loads((self.root / "config.json").read_text())
@@ -32,6 +46,28 @@ class BrushEngineDep(EngineDependency):
         if build_mode == "source":
             return self._get_head_commit()
 
+        pinned = load_expected_checksums().get("brush_release", "")
+        if not pinned:
+            print("⚠️ Aucune version Brush épinglée (clé 'brush_release' de checksums.json).")
+            return ""
+
+        latest = self._fetch_latest_release_tag()
+        if latest and latest != pinned:
+            print(
+                f"ℹ️  Brush {latest} est disponible en amont ; ce dépôt épingle {pinned}.\n"
+                f"   Pour l'adopter : mettre à jour 'brush_release' ET l'empreinte "
+                f"'darwin_brush'/'linux_brush' dans app/scripts/checksums.json.\n"
+                f"   Empreintes publiées par le projet : "
+                f"https://github.com/ArthurBrussee/brush/releases/download/{latest}/sha256.sum"
+            )
+        return pinned
+
+    def _fetch_latest_release_tag(self) -> str:
+        """Dernier tag publié en amont — purement informatif.
+
+        Ne sert **pas** à choisir ce qui est installé (cf. ``get_remote_version``) :
+        uniquement à signaler qu'un bump de l'épinglage est possible.
+        """
         import json as _json
         import urllib.request
         try:
@@ -39,15 +75,11 @@ class BrushEngineDep(EngineDependency):
                 "https://api.github.com/repos/ArthurBrussee/brush/releases/latest",
                 headers={"Accept": "application/vnd.github+json", "User-Agent": "CorbeauSplat"}
             )
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                data = _json.loads(resp.read())
-                tag = data.get("tag_name", "")
-                if tag:
-                    print(f"Latest Brush release: {tag}")
-                    return tag
+            with urllib.request.urlopen(req, timeout=8) as resp:  # nosec B310 - URL https littérale (API GitHub releases), pas de schéma file:
+                return _json.loads(resp.read()).get("tag_name", "")
         except Exception as e:
             print(f"⚠️ Could not fetch latest Brush version: {e}")
-        return ""
+            return ""
 
     def _get_head_commit(self) -> str:
         """Returns the short HEAD commit hash of the remote repo."""
@@ -71,7 +103,13 @@ class BrushEngineDep(EngineDependency):
             remote_ref = self._get_head_commit()
             release_version = None
         else:
-            remote_ref = self.get_remote_version() or "v0.3.0"
+            # Pas de repli en dur ici : ce serait un troisième endroit où la
+            # version vivrait, donc une troisième occasion de diverger de
+            # l'empreinte. checksums.json est la seule source.
+            remote_ref = self.get_remote_version()
+            if not remote_ref:
+                print("❌ Version Brush épinglée introuvable — installation annulée.")
+                return
             release_version = remote_ref
 
         if self.bin_path.exists():
@@ -136,7 +174,7 @@ class BrushEngineDep(EngineDependency):
         archive_path = self.engines_dir / f"brush-app-{platform_suffix}"
         try:
             req = urllib.request.Request(release_url)
-            with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as out_f:
+            with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as out_f:  # nosec B310 - URL https littérale construite depuis le tag de release
                 out_f.write(resp.read())
         except Exception as e:
             print(f"⚠️ Download failed: {e}")
@@ -146,11 +184,22 @@ class BrushEngineDep(EngineDependency):
 
         checksums = load_expected_checksums()
         checksum_key = "darwin_brush" if system == "Darwin" else "linux_brush"
-        if not verify_download(archive_path, checksums.get(checksum_key, "")):
-            print(f"⚠️ Brush archive SHA256 mismatch (checksum key: {checksum_key}). Continuing anyway.")
+        # Fail-closed: an unknown or mismatching hash aborts the install rather
+        # than extracting and running an unverified binary.
+        if not verify_download_strict(archive_path, checksums.get(checksum_key, "")):
+            archive_path.unlink(missing_ok=True)
+            print(
+                f"❌ Brush archive SHA256 mismatch or missing reference hash "
+                f"(checksum key: {checksum_key}) — installation refusée."
+            )
+            return False
 
         def _is_safe_member(name: str, dest: Path) -> bool:
-            return (dest / name).resolve().is_relative_to(dest.resolve())
+            # Reject absolute paths and ``..`` traversal without resolving through
+            # symlinks that a previous member may already have created.
+            if os.path.isabs(name) or ".." in Path(name).parts:
+                return False
+            return (dest / name).is_relative_to(dest)
 
         print("Extracting Brush...")
         extract_dir = self.engines_dir / f"brush-extract-{version}"
@@ -163,12 +212,20 @@ class BrushEngineDep(EngineDependency):
                         if not _is_safe_member(member.filename, dest_resolved):
                             print(f"⚠️ Rejected unsafe archive member: {member.filename}")
                             continue
+                        # Upper 16 bits of external_attr hold the Unix mode; 0xA000
+                        # marks a symlink, which could redirect later members.
+                        if (member.external_attr >> 16) & 0xF000 == 0xA000:
+                            print(f"⚠️ Rejected symlink archive member: {member.filename}")
+                            continue
                         zf.extract(member, extract_dir)
             else:
                 with tarfile.open(archive_path, 'r:xz') as tf:
                     for tar_member in tf.getmembers():
                         if not _is_safe_member(tar_member.name, dest_resolved):
                             print(f"⚠️ Rejected unsafe archive member: {tar_member.name}")
+                            continue
+                        if tar_member.issym() or tar_member.islnk():
+                            print(f"⚠️ Rejected link archive member: {tar_member.name}")
                             continue
                         tf.extract(tar_member, extract_dir)
         except Exception as e:
@@ -200,7 +257,7 @@ class BrushEngineDep(EngineDependency):
         shutil.rmtree(str(extract_dir), ignore_errors=True)
 
         if system != "Windows":
-            os.chmod(str(dest), 0o755)
+            os.chmod(str(dest), 0o755)  # nosec B103 - binaire moteur : doit être exécutable, hash vérifié en amont
 
         self.save_local_version(version)
         print(f"✅ Brush {version} installed successfully from release binary.")

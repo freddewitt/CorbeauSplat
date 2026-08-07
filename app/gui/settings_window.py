@@ -19,7 +19,7 @@ Restart/Quit are no longer here: they are global actions of the main window
 buried in this dialog.
 """
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -44,6 +44,24 @@ _LANGUAGES = (
 )
 # (code thème, libellé) — miroir de ConfigTab.
 _THEMES = (("slate", "Slate + Indigo"), ("graphite", "Graphite + Teal"), ("blue", "Bleu modernisé"))
+
+
+class _NoScrollComboBox(QComboBox):
+    """Combo box that unconditionally ignores the mouse wheel.
+
+    Theme and language are persisted the moment the selection changes, so a
+    stray scroll over this dialog would otherwise silently switch the whole UI
+    to another language and save it. Selection must go through a click on the
+    dropdown list instead — clicking the closed combo also gives it focus, so
+    a focus-based check was not a reliable guard here.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def wheelEvent(self, event):
+        event.ignore()
 
 
 class ResetDialog(QDialog):
@@ -96,6 +114,7 @@ class SettingsWindow(QDialog):
 
     loadRequested = Signal()
     saveRequested = Signal()
+    deleteRequested = Signal()
     resetRequested = Signal(bool)
     notificationsToggled = Signal(bool)
 
@@ -111,7 +130,7 @@ class SettingsWindow(QDialog):
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
 
         # Thème (fonctionnel)
-        self.combo_theme = QComboBox()
+        self.combo_theme = _NoScrollComboBox()
         self.combo_theme.setMinimumWidth(200)
         self.combo_theme.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         for code, label in _THEMES:
@@ -124,7 +143,7 @@ class SettingsWindow(QDialog):
         form.addRow(self.lbl_theme, self.combo_theme)
 
         # Langue (fonctionnel)
-        self.combo_lang = QComboBox()
+        self.combo_lang = _NoScrollComboBox()
         self.combo_lang.setMinimumWidth(200)
         self.combo_lang.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         for code, label in _LANGUAGES:
@@ -154,6 +173,9 @@ class SettingsWindow(QDialog):
         self.btn_save = QPushButton(tr("settings_save", "Sauvegarder…"))
         self.btn_save.clicked.connect(self.saveRequested.emit)
         cfg_row.addWidget(self.btn_save)
+        self.btn_delete_config = QPushButton(tr("settings_delete", "Supprimer…"))
+        self.btn_delete_config.clicked.connect(self.deleteRequested.emit)
+        cfg_row.addWidget(self.btn_delete_config)
         layout.addLayout(cfg_row)
 
         # Reset (Restart/Quit now live in StudioWindow's bottom bar — global

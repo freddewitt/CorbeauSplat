@@ -360,3 +360,85 @@ Tests : 385 passed, 1 skipped, 15 deselected
 **Décision prise** : SessionManager orphelin → rebranché (RESTE À FAIRE item 2 résolu). Commentaires code applicatifs passés anglais (préférence utilisateur).
 
 **Reste** : Validation manuelle utilisateur données réelles (3 pipelines + 7 modules OUTILS).
+## 2026-07-19 (session 10, clôture) — archivée 2026-08-06
+
+**Refonte UI 8 lots TERMINÉE** : socle préparatoire + câblage réel 7 workers OUTILS (18c52f6), Lot 5 orchestration COLMAP-only (78ba2a8, 9 tests), i18n 22 clés (56a5588, 9 locales), Lot 7 bascule StudioWindow (619705d, suppression 11 onglets), SuperSplat réel (4de8d53), débordement QFormLayout (149111d, 18 endroits), accessibilité lancement Finder/terminal simplifié (984d465). **Tous commits sur main, 385 tests stables.** Bilan : interfaces branchées workers réels, closeEvent() sécurité SuperSplat. **Reste P0 : validation manuelle utilisateur données réelles (3 pipelines + 7 modules OUTILS).** manifest.md RESTE À FAIRE mis à jour.
+- **2026-08-06 (session 12 — version Phase 1)** — P3 E2E 360 Extractor (4 tests, layout ring) + P5 Phase A COLMAP dégradé (4 tests, génération vidéo synthétique ffmpeg, itération 1 cam×48 frames×1024×768). Fichiers créés : test_e2e_extractor_360.py, _synthetic_video.py, test_e2e_4dgs.py. Correction layout grid→ring (CLI 360Extractor). Suite complète 389/390/24 désélectionnés. Reste P5 Phase B (nerfstudio .venv_4dgs, ~2-3 j).
+
+## Session 13 — 2026-08-07 — Audit complet + corrections intégrales
+
+**Lots** : Phase 1 audit complet (7/10), Phase 2 corrections 23/23, Phase 3 bugs bloquants.
+
+**Findings majeurs corrigés** :
+- **A2-C1** : checksum fail-open → fail-closed (3 appelants, abandon sur mismatch)
+- **A2-I1** : blur GUI mort → apply_source_blur_settings() reconstruction_logic.py
+- **A2-I4** : export 3 boucles Python → np.savetxt vectorisé
+- **A2-I6** : i18n 376 orphelines supprimées (633→257 clés, 9 locales)
+- **A2-I7** : ColmapEngine CC40 éclaté 5 méthodes (C19)
+- **A2-I9/I10** : UpscalePanel/Extractor360Panel combos vides → peuplés + tests
+
+**Livrables** : audit-report-2026-08-07.md, tests/test_locales.py, tests/test_panel_contracts.py, docs/archive/ (7 docs).
+
+**Tests** : 418 pass, 1 skip, 24 deselect | graphify 2605 nœuds, 4430 arêtes, 193 communautés.
+
+**État** : aucun commit (working tree). À vérifier sur Mac : filtre flou GUI, export gain, checksum abandon, modèle upscayl ⬇️, 13 panneaux i18n.
+
+**2026-08-07 (session 14)** — Refonte UI studio final 4 phases parallèles : Phase 0 ETAT_DES_LIEUX.md régénéré, Phase 1 source_panel combo Mode/FPS conditionnel/bannière mélange + 5 panneaux + wheelEvent fix, Phase 2 TopBar supprimée/chaînage Entraînement→Export/colonne droite détection structurelle, Phase 3 i18n 265→272 clés (test faiblesse découverte), Phase 4 rail 3-level statique QSS pur. Bug refine_mode restauré. Incidents stash/pop concurrent agents. Tests 418 pass/1 skip. Reste routing modes, validation macOS.
+## Session 12 — 2026-08-07 — Upscale devient étape pipeline
+
+PIPELINE_STEPS passe 6→7: upscale inséré entre source/reconstruction.
+Upscale quitte TOOL_KEYS (7→6), devient étape PARAMÈTRES dans rail.
+Nouveau drapeau upscaler_avant (défaut False), sérialisé via _FLAG_DEFAULTS.
+UpscalePanel intégré centre QScrollArea; get_state/set_state ajoutés.
+Rail: PARAMÈTRES groupe liste dur, upscale première position; icône ⤢ → _STEP_ICONS.
+Architecture dual-path:
+  - Images: UpscaleImagesWorker → <sortie>/<projet>/images_upscaled (avant COLMAP)
+  - Vidéo: upscale_config déféré ColmapEngine (après extraction frames)
+Helper _resolve_source_type() extrait de _build_colmap_worker, partagé avec upscale.
+run_upscale_job() fonction module-level upscale_widgets.py, partagée TestWorker/UpscaleImagesWorker.
+I18n: 265→275 clés (9 locales; 46 clés up_* + rail_step_upscale + chain_upscale_before + run_upscale_deferred).
+Tests: 422 passed, 1 skipped, 24 deselected; intégration 45 passed, 1 skipped.
+Reste: 7 vérifications manuelles macOS (rail UI, colonne droite vide, toggle, images/vidéo, déféré, Lancer local, config nommée).
+
+
+## Session 12 — 2026-08-07 — Upscale devient étape du pipeline
+
+PIPELINE_STEPS 6→7 : upscale inséré PARAMÈTRES avant reconstruction, drapeau upscaler_avant (défaut False).
+Rail : TOOL_KEYS 7→6, upscale groupe PARAMÈTRES première position.
+UpscalePanel QScrollArea + get_state/set_state collect_config/apply_config.
+Architecture dual-path : images→UpscaleImagesWorker→<sortie>/<projet>/images_upscaled (avant COLMAP) ; vidéo→upscale_params→ColmapEngine (déféré après extraction).
+Helper _resolve_source_type() source classification (Images/Vidéo).
+i18n 265→275 clés (46 préfixe up_), 9 locales.
+Tests 422 pass + 45 intégration pass.
+
+### 2026-08-07 (12 suite final) — Démarrage correctifs + Brush épinglage + deptry + rail/logbar refonte
+
+**Version** : 2.0.0-beta.1 (CHANGELOG + manifest.md mis à jour).
+
+**Démarrage** : 4 correctifs validés terrain. (1) Brush v0.3.0 pin obsolète checksums.json → recoupé 3 sources (GitHub API/sidecar/sha256.sum amont), fail-closed réappliquée; (2) Message succès mensonger → conditionné is_installed(); (3) --clean oubliait .venv_4dgs → tous 4 venvs purgés; (4) trimesh installé en doute → contrôle sans install, log ordonnancé.
+
+**Épinglage Brush** : contradiction conception (install() vs _install_from_release()) → checksums.json reçoit brush_release:v0.3.0; get_remote_version() retourne version épinglée; tag amont information seule (ℹ️); repli dur retiré. Délibérément rejeté sidecar upstream (même source = pas garantie). 9 tests test_brush_pinning.py, dont cohérence version/empreinte.
+
+**Deptry** : 4 signalements (DEP002 requests/urllib3 PIL→retirés; DEP003 spz/open3d/bpy →ignorées). Ajouté requirements-dev + extra dev; job lint câblé CI.
+
+**Rail** : ordre affichage (reconstruction, entraînement, upscale, nettoyage, export, visualiser, 360), non ordre exécution. Icônes : Projet ⌂, Nettoyage ⊘, 360 ⬡; 14 items unique. QFontMetrics.inFont() vérification réelle.
+
+**LogBar refonte** : logbar.py supprimé→activity_bar.py (étape + détail + progression + Annuler) + logs_window.py (non-modal, historique complet). Journal ne s'ouvre jamais (solo décision À CONFIRMER).
+
+**Barre bas** : boutons coupés → diagnostic mesure (collage bord); padding (8,2,8,2)→(10,6,10,8), 43px, marge 8px.
+
+**Tests** : 456 pass, 1 skip, 24 deselected; ruff/deptry clean; GUI offscreen réelle.
+
+**Solo décisions attendant** : CollapseState code mort (5 tests), Brush progression parsing (format inconnu), journal ouverture erreur (solo retrait).
+
+
+## 2026-08-07 (session 12 suite — troisième/finale)
+**Remous UI finaux avant traduction lanceur**
+
+- **Cancel buttons**: retirés barre du bas, ajoutés sous Lancer de 9 panneaux. Tous s'activent ensemble (un worker tourne). Widget CancelButton unique.
+- **SplatTransform btn_run vide**: corrigé via `btn_run.setText()` dans `retranslate_ui()` — seul panneau manquait cette ligne.
+- **ProgressRing**: anneau 52px centré au-dessus Lancer Projet. Indéterminé (rotation) pendant Brush, déterminé (arc %) quand COLMAP/360/Sharp/Export émettent. Masqué hors run.
+- **Suivi automatique page**: `follow_step()` et `_auto_follow` supprimés. Page reste sur Projet pendant run, icône du rail se met à jour.
+- **Résultat**: 456 tests pass, 1 skip, 24 deselected. ruff clean. deptry clean. Code prêt.
+- **Fichiers**: NEW cancel_button.py (9L), progress_ring.py (111L). MOD: 9 panneaux, studio_window.py, activity_bar.py.
+- **Prochaine tâche**: traduction CorbeauSplat.command en anglais.

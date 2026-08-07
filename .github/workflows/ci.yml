@@ -19,13 +19,26 @@ jobs:
 
       - name: Install linters
         run: |
-          pip install ruff mypy
+          pip install ruff mypy bandit deptry
 
       - name: Ruff lint
         run: ruff check .
 
+      # Écarts entre imports et dépendances déclarées. Configuré dans
+      # pyproject.toml ([tool.deptry]) depuis longtemps mais jamais exécuté —
+      # l'outil n'était installé nulle part, d'où 4 signalements accumulés en
+      # silence (2026-08-07). Tourne sans installer les dépendances runtime :
+      # les backends optionnels sont couverts par per_rule_ignores.
+      - name: Deptry dependency check
+        run: deptry .
+
       - name: Mypy type check
         run: mypy app/ --ignore-missing-imports
+
+      # -ll : ne remonte que MEDIUM et HIGH. Les 109 findings LOW sont du bruit
+      # (assert, try/except/pass, subprocess sans shell) déjà arbitrés.
+      - name: Bandit security lint
+        run: bandit -r app/ -ll
 
   test:
     runs-on: ${{ matrix.os }}

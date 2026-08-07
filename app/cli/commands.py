@@ -72,35 +72,48 @@ def _resolve_matching_type(feature_type: str, matching_type: str | None) -> str:
     return FEATURE_TO_DEFAULT_MATCHING.get(feature_type, 'SIFT_BRUTEFORCE')
 
 
-def run_colmap(args):
-    feat_type = getattr(args, 'feature_type', 'ALIKED_N32')
+def _build_colmap_params(args) -> ColmapParams:
+    """Construit un ColmapParams complet depuis les arguments CLI.
+
+    Fonction partagée par ``run_colmap`` et ``run_pipeline`` pour garantir
+    que les deux sous-commandes produisent des reconstructions identiques à
+    options équivalentes. Les paramètres optionnels absents de ``args``
+    prennent les défauts de ``ColmapParams``.
+    """
+    feat_type = getattr(args, 'feature_type', 'SIFT')
     match_type = _resolve_matching_type(feat_type, getattr(args, 'matching_type', None))
     params = ColmapParams(
         camera_model=args.camera_model,
-        single_camera=not args.no_single_camera,
-        max_image_size=args.max_image_size,
-        max_num_features=args.max_num_features,
+        single_camera=not getattr(args, 'no_single_camera', False),
+        max_image_size=getattr(args, 'max_image_size', 3200),
+        max_num_features=getattr(args, 'max_num_features', 8192),
         feature_type=feat_type,
         matching_type=match_type,
-        estimate_affine_shape=args.estimate_affine_shape,
-        domain_size_pooling=not args.no_domain_size_pooling,
-        max_ratio=args.max_ratio,
-        max_distance=args.max_distance,
-        cross_check=not args.no_cross_check,
-        ba_refine_focal_length=not args.no_refine_focal,
-        ba_refine_principal_point=args.refine_principal,
-        ba_refine_extra_params=not args.no_refine_extra,
-        min_num_matches=args.min_num_matches,
-        matcher_type=args.matcher_type,
+        estimate_affine_shape=getattr(args, 'estimate_affine_shape', True),
+        domain_size_pooling=not getattr(args, 'no_domain_size_pooling', False),
+        max_ratio=getattr(args, 'max_ratio', 0.8),
+        max_distance=getattr(args, 'max_distance', 0.7),
+        cross_check=not getattr(args, 'no_cross_check', False),
+        ba_refine_focal_length=not getattr(args, 'no_refine_focal', False),
+        ba_refine_principal_point=getattr(args, 'refine_principal', False),
+        ba_refine_extra_params=not getattr(args, 'no_refine_extra', False),
+        min_num_matches=getattr(args, 'min_num_matches', 15),
+        matcher_type=getattr(args, 'matcher_type', 'exhaustive'),
+        sequential_overlap=getattr(args, 'sequential_overlap', 30),
         undistort_images=args.undistort,
-        filter_blurry=args.filter_blur,
-        blur_factor=blur_factor_from_strength(args.blur_strength),
+        filter_blurry=getattr(args, 'filter_blur', False),
+        blur_factor=blur_factor_from_strength(getattr(args, 'blur_strength', 'medium')),
         use_view_graph_calibration=getattr(args, 'view_graph_calibration', True),
         ignore_watermarks=getattr(args, 'ignore_watermarks', True),
-        thermal_throttling=args.thermal_throttling,
+        thermal_throttling=getattr(args, 'thermal_throttling', False),
     )
-    if getattr(args, "robust", False):
+    if getattr(args, 'robust', False):
         params = _apply_robust(params)
+    return params
+
+
+def run_colmap(args):
+    params = _build_colmap_params(args)
 
     print(tr("cli_start_colmap"))
     print(tr("cli_input", args.input))
@@ -575,23 +588,7 @@ def run_pipeline(args):
     if args.type == "video":
         print(f"  FPS         : {args.fps}")
 
-    feat_type = getattr(args, 'feature_type', 'ALIKED_N32')
-    match_type = _resolve_matching_type(feat_type, getattr(args, 'matching_type', None))
-    colmap_params = ColmapParams(
-        camera_model=args.camera_model,
-        feature_type=feat_type,
-        matching_type=match_type,
-        matcher_type=args.matcher_type,
-        max_image_size=args.max_image_size,
-        undistort_images=args.undistort,
-        filter_blurry=getattr(args, "filter_blur", False),
-        blur_factor=blur_factor_from_strength(getattr(args, "blur_strength", "medium")),
-        use_view_graph_calibration=getattr(args, 'view_graph_calibration', True),
-        ignore_watermarks=getattr(args, 'ignore_watermarks', True),
-        thermal_throttling=getattr(args, 'thermal_throttling', False),
-    )
-    if getattr(args, "robust", False):
-        colmap_params = _apply_robust(colmap_params)
+    colmap_params = _build_colmap_params(args)
 
     colmap_engine = ColmapEngine(
         colmap_params, args.input, args.output, args.type, args.fps,

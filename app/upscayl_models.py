@@ -28,30 +28,6 @@ class UpscaylModel:
             (models_dir / f"{self.id}.param").exists()
         )
 
-    def verify_integrity(self, models_dir: Path) -> bool:
-        """Verify downloaded model files against known SHA256 hashes.
-        Returns True if hashes match, or if no hash is configured (fallback)."""
-        import hashlib
-        for ext, attr in ((".bin", "sha256_bin"), (".param", "sha256_param")):
-            expected = getattr(self, attr, "")
-            if not expected:
-                continue
-            path = models_dir / f"{self.id}{ext}"
-            if not path.exists():
-                return False
-            actual = hashlib.sha256(path.read_bytes()).hexdigest()
-            if actual != expected:
-                return False
-        return True
-
-    def size_on_disk_mb(self, models_dir: Path) -> float:
-        total = sum(
-            (models_dir / f"{self.id}{ext}").stat().st_size
-            for ext in (".bin", ".param")
-            if (models_dir / f"{self.id}{ext}").exists()
-        )
-        return round(total / 1024 / 1024, 1)
-
 
 # ---------------------------------------------------------------------------
 # Catalogue  (6 models, each with a distinct use case)

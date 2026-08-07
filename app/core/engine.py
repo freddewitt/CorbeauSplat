@@ -48,10 +48,10 @@ if sys.platform == "darwin":
         _clonefile: Any = _libc.clonefile
         _clonefile.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
         _clonefile.restype = ctypes.c_int
-        # Quick check: call clonefile with a non-existent src to verify
-        # the symbol exists (expected to fail with ENOENT, not ENOSYS)
-        _clonefile(b"/nonexistent/path", b"/tmp/test_clone", 0)
-    except (AttributeError, OSError):
+        # clonefile symbol exists in libc; don't probe with a call
+        # that could leave side-effects (ENOENT is caught by OSError
+        # but some configurations may behave unexpectedly).
+    except AttributeError:
         _clonefile = None
     else:
         _CLONEFILE_SUPPORTED = True
@@ -130,7 +130,6 @@ class ColmapEngine(BaseEngine):
         self.project_name = project_name
         self.is_silicon = is_apple_silicon()
         self.num_threads = get_optimal_threads()
-        self._current_process = None
         # Reprise COLMAP : réutilise les images déjà extraites (saute extraction/upscale)
         self.resume_colmap = False
         self.progress = progress_callback if progress_callback else lambda x: None
@@ -386,97 +385,109 @@ class ColmapEngine(BaseEngine):
     def _prepare_images(self, images_dir: Path) -> bool:
         """Gère l'extraction vidéo ou la copie d'images."""
         if self.input_type == "video":
+            return self._prepare_images_from_video(images_dir)
+        return self._prepare_images_from_files(images_dir)
+
+    def _collect_video_paths(self) -> list[Path]:
+        """Vidéos à traiter : contenu d'un dossier, ou liste séparée par des « | »."""
+        if self.input_path.is_dir():
+            supported_exts = {'.mp4', '.mov', '.avi', '.mkv'}
+            return sorted(
+                f for f in self.input_path.rglob('*')
+                if f.is_file() and f.suffix.lower() in supported_exts
+            )
+        return [Path(p.strip()) for p in str(self.input_path).split("|") if p.strip()]
+
+    def _prepare_images_from_video(self, images_dir: Path) -> bool:
+        """Extrait les frames de chaque vidéo source vers ``images_dir``."""
+        if self.is_cancelled():
+            return False
+
+        video_paths = self._collect_video_paths()
+        total_videos = len(video_paths)
+        if total_videos == 0:
+            self.log(f"Aucune vidéo trouvée dans: {self.input_path}")
+            return False
+
+        for i, video_path in enumerate(video_paths):
             if self.is_cancelled():
                 return False
 
-            video_paths = []
-            if self.input_path.is_dir():
-                supported_exts = {'.mp4', '.mov', '.avi', '.mkv'}
-                video_paths = [
-                    f for f in self.input_path.rglob('*')
-                    if f.is_file() and f.suffix.lower() in supported_exts
-                ]
-                video_paths.sort()
-            else:
-                video_paths = [Path(p.strip()) for p in str(self.input_path).split("|") if p.strip()]
+            if not video_path.exists():
+                self.log(f"Attention: Video introuvable: {video_path}")
+                continue
 
-            total_videos = len(video_paths)
+            base_name = video_path.stem
+            prefix = "".join([c for c in base_name if c.isalnum() or c in ('_', '-')])
 
-            if total_videos == 0:
-                self.log(f"Aucune vidéo trouvée dans: {self.input_path}")
+            self.log(f"Extraction video ({i+1}/{total_videos}): {base_name}")
+
+            if not self.extract_frames_from_video(str(video_path), images_dir, prefix=prefix):
+                self.log(f"Echec extraction video: {base_name}")
                 return False
+        return True
 
-            for i, video_path in enumerate(video_paths):
+    def _collect_source_images(self, images_dir: Path) -> list[Path] | None:
+        """Images sources à copier, ou ``None`` si la copie est inutile.
+
+        Trois formes d'entrée : liste « a|b|c », fichier unique, dossier.
+        Les masques ``*.mask.png`` sont toujours exclus.
+        """
+        raw_input = str(self.input_path)
+
+        def _keep(p: Path) -> bool:
+            return _is_valid_image_path(p) and not p.name.lower().endswith('.mask.png')
+
+        if "|" in raw_input:
+            return [p for p in (Path(s.strip()) for s in raw_input.split("|") if s.strip()) if _keep(p)]
+        if self.input_path.is_file():
+            return [self.input_path] if _keep(self.input_path) else []
+        if self.input_path.is_dir():
+            if self.input_path.resolve() == images_dir.resolve():
+                self.log("Les images sont déjà dans le dossier de destination. Copie ignorée.")
+                return None
+            return [f for f in self.input_path.rglob('*') if _keep(f)]
+        return []
+
+    @staticmethod
+    def _unique_target_path(images_dir: Path, file_path: Path) -> Path:
+        """Chemin de destination libre, en préfixant par le dossier parent au besoin."""
+        target_path = images_dir / file_path.name
+        counter = 1
+        while target_path.exists():
+            target_path = images_dir / f"{file_path.parent.name}_{counter}_{file_path.name}"
+            counter += 1
+        return target_path
+
+    def _prepare_images_from_files(self, images_dir: Path) -> bool:
+        """Copie les images sources vers ``images_dir`` (copie APFS si possible)."""
+        self.log("Copie des images sources vers le dossier de travail...")
+        try:
+            src_files = self._collect_source_images(images_dir)
+            if src_files is None:
+                return True
+
+            total_files = len(src_files)
+            self.log(f"{total_files} images trouvées.")
+            if total_files == 0:
+                return True
+
+            for i, file_path in enumerate(src_files):
                 if self.is_cancelled():
                     return False
 
-                if not video_path.exists():
-                    self.log(f"Attention: Video introuvable: {video_path}")
-                    continue
+                _apfs_copy(file_path, self._unique_target_path(images_dir, file_path))
 
-                base_name = video_path.stem
-                prefix = "".join([c for c in base_name if c.isalnum() or c in ('_', '-')])
+                if i % 10 == 0 or i == total_files - 1:
+                    pct = 5 + int((i / total_files) * 15)
+                    self.progress(pct)
+                    self.status(f"Copie des images : {i+1} / {total_files}")
 
-                self.log(f"Extraction video ({i+1}/{total_videos}): {base_name}")
-
-                if not self.extract_frames_from_video(str(video_path), images_dir, prefix=prefix):
-                     self.log(f"Echec extraction video: {base_name}")
-                     return False
+            self.log(f"✅ {total_files} images copiées vers {images_dir}")
             return True
-        else:
-            self.log("Copie des images sources vers le dossier de travail...")
-            try:
-                raw_input = str(self.input_path)
-                src_files = []
-
-                if "|" in raw_input:
-                    paths = [Path(p.strip()) for p in raw_input.split("|") if p.strip()]
-                    for p in paths:
-                        if _is_valid_image_path(p) and not p.name.lower().endswith('.mask.png'):
-                            src_files.append(p)
-                elif self.input_path.is_file():
-                    if _is_valid_image_path(self.input_path) and not self.input_path.name.lower().endswith('.mask.png'):
-                        src_files.append(self.input_path)
-                elif self.input_path.is_dir():
-                    if self.input_path.resolve() == images_dir.resolve():
-                        self.log("Les images sont déjà dans le dossier de destination. Copie ignorée.")
-                        return True
-                    src_files = [
-                        f for f in self.input_path.rglob('*')
-                        if _is_valid_image_path(f)
-                        and not f.name.lower().endswith('.mask.png')
-                    ]
-
-                total_files = len(src_files)
-                self.log(f"{total_files} images trouvées.")
-
-                if total_files == 0:
-                    return True
-
-                for i, file_path in enumerate(src_files):
-                    if self.is_cancelled():
-                        return False
-                    target_path = images_dir / file_path.name
-                    if target_path.exists():
-                        counter = 1
-                        while True:
-                            target_path = images_dir / f"{file_path.parent.name}_{counter}_{file_path.name}"
-                            if not target_path.exists():
-                                break
-                            counter += 1
-
-                    _apfs_copy(file_path, target_path)
-
-                    if i % 10 == 0 or i == total_files - 1:
-                        pct = 5 + int((i / total_files) * 15)
-                        self.progress(pct)
-                        self.status(f"Copie des images : {i+1} / {total_files}")
-
-                self.log(f"✅ {total_files} images copiées vers {images_dir}")
-                return True
-            except Exception as e:
-                self.log(f"Erreur copie images: {e}")
-                return False
+        except Exception as e:
+            self.log(f"Erreur copie images: {e}")
+            return False
 
     def _run_upscale(self, project_dir: Path, images_dir: Path) -> bool:
         """Gère l'upscaling via upscayl-bin."""
@@ -773,26 +784,20 @@ class ColmapEngine(BaseEngine):
                         continue
                     if column not in table_columns.get(table, set()):
                         continue
-                    con.execute(
-                        f"""
-                        UPDATE {table}
-                        SET {column} = (
-                            SELECT new_id + ?
-                            FROM image_id_map
-                            WHERE old_id = {table}.{column}
-                        )
-                        WHERE {column} IN (SELECT old_id FROM image_id_map)
-                        """,
-                        (offset,),
+                    # nosec B608 - `table` et `column` ne viennent pas d'une entrée
+                    # utilisateur : ce sont des littéraux de la liste ci-dessus,
+                    # re-filtrés par ALLOWED_COLUMNS puis par PRAGMA table_info.
+                    # Les valeurs, elles, passent par des paramètres liés « ? ».
+                    shift_sql = (
+                        f"UPDATE {table} SET {column} = "  # nosec B608
+                        f"(SELECT new_id + ? FROM image_id_map WHERE old_id = {table}.{column}) "
+                        f"WHERE {column} IN (SELECT old_id FROM image_id_map)"
                     )
-                    con.execute(
-                        f"""
-                        UPDATE {table}
-                        SET {column} = {column} - ?
-                        WHERE {column} > ?
-                        """,
-                        (offset, offset),
+                    con.execute(shift_sql, (offset,))
+                    unshift_sql = (
+                        f"UPDATE {table} SET {column} = {column} - ? WHERE {column} > ?"  # nosec B608
                     )
+                    con.execute(unshift_sql, (offset, offset))
 
                 con.execute("DROP TABLE image_id_map")
                 con.execute(
@@ -892,9 +897,12 @@ class ColmapEngine(BaseEngine):
         Only allows deletion if target_path is contained within project_root
         or user home directory.
         """
+        from .base_engine import validate_path_standalone
         from .system import resolve_project_root
 
-        safe_path = Path(target_path).resolve()
+        safe_path = validate_path_standalone(target_path)
+        if safe_path is None:
+            return False, "Chemin invalide ou non résolu."
         project_root = resolve_project_root().resolve()
         home = Path.home().resolve()
 

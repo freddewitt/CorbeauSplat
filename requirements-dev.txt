@@ -4,6 +4,9 @@
 # Linting and type checking
 ruff>=0.11,<1
 mypy>=1.15,<2
+# Configuré dans pyproject.toml ([tool.deptry]) mais absent d'ici jusqu'ici :
+# l'outil n'était donc jamais installable, ni exécutable.
+deptry>=0.23,<1
 
 # Testing
 pytest>=9.0,<10

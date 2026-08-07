@@ -51,8 +51,8 @@ def get_parser():
                    choices=["SIMPLE_PINHOLE","PINHOLE","SIMPLE_RADIAL","RADIAL","OPENCV","OPENCV_FISHEYE"],
                    help="Modèle de caméra COLMAP (défaut: SIMPLE_RADIAL)")
     p.add_argument("--undistort",  action="store_true", help="Undistortion après reconstruction")
-    p.add_argument("--feature_type", choices=["SIFT","ALIKED_N16ROT","ALIKED_N32"], default="ALIKED_N32",
-                   help="Extracteur de features (défaut: ALIKED_N32). ALIKED requiert ONNX (intégré dans brew colmap)")
+    p.add_argument("--feature_type", choices=["SIFT","ALIKED_N16ROT","ALIKED_N32"], default="SIFT",
+                   help="Extracteur de features (défaut: SIFT). ALIKED requiert ONNX (intégré dans brew colmap)")
     p.add_argument("--matching_type", choices=["SIFT_BRUTEFORCE","ALIKED_BRUTEFORCE","SIFT_LIGHTGLUE","ALIKED_LIGHTGLUE"], default=None,
                    help="Algorithme de matching (défaut: auto selon --feature-type). LightGlue = matching neuronal")
     p.add_argument("--matcher_type", choices=["exhaustive","sequential","vocab_tree"], default="exhaustive",

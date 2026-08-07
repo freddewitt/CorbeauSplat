@@ -180,8 +180,16 @@ class DependencyManager:
                     print(f">>> Auto-installing {name.capitalize()} on startup...")
                     try:
                         engine.install()
-                        print(f"✅ {name.capitalize()} installed automatically.")
-                        engine.on_startup_ready()
+                        # install() signale ses échecs par un retour, pas par une
+                        # exception (cf. BrushInstaller._install_from_release, qui
+                        # imprime son erreur et renvoie False). Sans revérifier
+                        # ici, un échec affichait quand même « installed
+                        # automatically », juste avant le « ❌ Missing » du bilan.
+                        if engine.is_installed():
+                            print(f"✅ {name.capitalize()} installed automatically.")
+                            engine.on_startup_ready()
+                        else:
+                            print(f"❌ Auto-install failed for {name}.")
                     except Exception as e:
                         print(f"❌ Auto-install failed for {name}: {e}")
                 else:

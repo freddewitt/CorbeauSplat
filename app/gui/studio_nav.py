@@ -3,7 +3,7 @@
 Les classes qui héritent d'un widget Qt ne sont pas instanciables sous le mock
 PySide6 des tests (elles deviennent des MagicMock). On extrait donc ici la
 logique pure — mapping des pages, sélection courante, état de repli — que le
-rail, la logbar et la fenêtre Studio délèguent. Ces objets sont testables en CI ;
+rail et la fenêtre Studio délèguent. Ces objets sont testables en CI ;
 le rendu Qt reste validé manuellement sur Apple Silicon.
 """
 
