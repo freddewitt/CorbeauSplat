@@ -1,5 +1,18 @@
 # CorbeauSplat
 
+## 📦 Versions & Branches
+
+| Version | Branch | Status | Release |
+|---------|--------|--------|---------|
+| **v1.5.1** | `main` | ✅ Stable | [v1.5.1](https://github.com/freddewitt/CorbeauSplat/releases/tag/v1.5.1) |
+| **v2.0.0-beta.1** | `beta` | 🚧 Early Access | [v2.0.0-beta.1](https://github.com/freddewitt/CorbeauSplat/releases/tag/v2.0.0-beta.1) |
+
+**v2.0.0-beta.1** features a complete UI refonte: reorganized rail (3 tiers), TopBar removed, Settings in panels, PySide6 migration, i18n (283 keys, 9 languages).
+
+⚠️ **Beta**: early testing only. For production use, stay on `main` (v1.5.1).
+
+---
+
 **CorbeauSplat** is an all-in-one Gaussian Splatting automation tool designed specifically for **macOS Silicon**. It streamlines the entire workflow from raw video/images to a fully trained and viewable 3D scene (Gaussian Splat).
 
 <div align="center">
