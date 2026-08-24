@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -24,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from app.core.i18n import add_language_observer, tr
 from app.gui.widgets.cancel_button import CancelButton
-from app.gui.widgets.dialog_utils import get_existing_directory
+from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_name
 from app.gui.widgets.drop_line_edit import DropLineEdit
 
 
@@ -123,7 +124,26 @@ class UpscalePanel:
         return QWidget()
 
     def _browse_input(self):
-        path = get_existing_directory(self.center, tr("btn_browse", "Parcourir"))
+        """Input accepts a single image OR a folder of images (cf. ``run_upscale_job``
+        docstring: "dossier ou fichier unique") — ask which one to browse for,
+        since Qt has no native picker that lets the user pick either."""
+        box = QMessageBox(self.center)
+        box.setWindowTitle(tr("btn_browse", "Parcourir"))
+        box.setText(tr("up_browse_kind", "Sélectionner une image ou un dossier ?"))
+        btn_file = box.addButton(tr("up_browse_file", "Image"), QMessageBox.ButtonRole.AcceptRole)
+        btn_dir = box.addButton(tr("up_browse_dir", "Dossier"), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is btn_file:
+            path, _ = get_open_file_name(
+                self.center, tr("btn_browse", "Parcourir"), "",
+                "Images (*.png *.jpg *.jpeg *.webp *.tif *.tiff)",
+            )
+        elif clicked is btn_dir:
+            path = get_existing_directory(self.center, tr("btn_browse", "Parcourir"))
+        else:
+            path = None
         if path:
             self.input_path.setText(path)
 

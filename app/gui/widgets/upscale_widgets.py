@@ -46,7 +46,6 @@ def run_upscale_job(input_path, output_dir, params, log_callback, cancel_check):
     besoin exactement de la même invocation (mode x1 = upscale puis retour à la
     taille d'origine, dossier ou fichier unique), seule leur destination diffère.
     """
-    import shutil as _shutil
     import tempfile as _tempfile
 
     from app.upscayl_manager import find_binary, resize_to_original, run_upscayl
@@ -77,40 +76,57 @@ def run_upscale_job(input_path, output_dir, params, log_callback, cancel_check):
         "compression": params.get("compression", 0),
     }
 
+    # Stage every source image under a name that already carries the model
+    # and scale used (<stem>_<model_id>_x<scale>.<fmt>) *before* upscayl-bin
+    # ever runs. This guarantees the output file can never collide with —
+    # and so never silently overwrite — an existing file, including the
+    # original itself when input and output folders happen to be the same.
+    suffix = f"_{model_id}_x{req_scale}"
     if src.is_dir():
-        if x1_mode:
-            from PIL import Image as _PIL
-            image_exts = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
-            orig_sizes = {}
-            for f in src.iterdir():
-                if f.is_file() and f.suffix.lower() in image_exts:
-                    with _PIL.open(f) as im:
-                        orig_sizes[f.stem + "." + fmt] = im.size
+        image_exts = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
+        sources = [f for f in src.iterdir() if f.is_file() and f.suffix.lower() in image_exts]
+    else:
+        sources = [src]
+
+    with _tempfile.TemporaryDirectory(prefix="upscayl_in_") as tmp_in:
+        tmp_in_path = Path(tmp_in)
+        orig_sizes = {}
+        for f in sources:
+            staged_name = f"{f.stem}{suffix}.{fmt}"
+            _copy_as_supported_image(f, tmp_in_path / staged_name)
+            if x1_mode:
+                from PIL import Image as _PIL
+                with _PIL.open(f) as im:
+                    orig_sizes[staged_name] = im.size
 
         success = [False]
-        run_upscayl(str(src), output_dir, upscayl_params,
+        run_upscayl(tmp_in, output_dir, upscayl_params,
                     log_callback=log_callback,
                     done_callback=lambda ok: success.__setitem__(0, ok),
                     cancel_check=cancel_check)
         if success[0] and x1_mode:
             resize_to_original(output_dir, orig_sizes)
-    else:
-        if x1_mode:
-            from PIL import Image as _PIL
-            with _PIL.open(src) as im:
-                orig_sizes = {src.stem + "." + fmt: im.size}
-
-        with _tempfile.TemporaryDirectory(prefix="upscayl_in_") as tmp_in:
-            _shutil.copy2(src, Path(tmp_in) / src.name)
-            success = [False]
-            run_upscayl(tmp_in, output_dir, upscayl_params,
-                        log_callback=log_callback,
-                        done_callback=lambda ok: success.__setitem__(0, ok),
-                        cancel_check=cancel_check)
-            if success[0] and x1_mode:
-                resize_to_original(output_dir, orig_sizes)
 
     return success[0], (output_dir if success[0] else "Upscale échoué.")
+
+
+def _copy_as_supported_image(src: Path, dest: Path) -> None:
+    """Copies *src* to *dest*, re-encoding it as 8-bit RGB/RGBA first.
+
+    upscayl-bin's image loader rejects some real-world scans (CMYK, 16-bit,
+    palette/indexed color, interlaced PNG…) with a generic "channels: 0"
+    error. Re-saving through Pillow normalizes the pixel format before the
+    binary ever sees the file. Falls back to a raw copy if Pillow can't open
+    it (e.g. an already-unsupported format), so the original error surfaces.
+    """
+    from PIL import Image as _PIL
+    try:
+        with _PIL.open(src) as im:
+            has_alpha = im.mode in ("RGBA", "LA", "PA") or "transparency" in im.info
+            im.convert("RGBA" if has_alpha else "RGB").save(dest)
+    except Exception:
+        import shutil as _shutil
+        _shutil.copy2(src, dest)
 
 
 class TestWorker(QThread):

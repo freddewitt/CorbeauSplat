@@ -34,8 +34,13 @@ class UpscaleEngine(BaseEngine):
         system memory to avoid swapping on low-RAM Apple Silicon systems:
           - < 8 GB total  → tile=256 (conservative)
           - 8-16 GB total  → tile=512 (balanced)
-          - ≥ 16 GB total  → tile=0   (let upscayl-bin decide)
+          - ≥ 16 GB total  → tile=1024 (large but still tiled)
         Memory pressure > 80% reduces tile by one step.
+
+        tile=0 (no tiling at all) is never used here: on unified-memory Apple
+        Silicon, processing a large image in one pass can exceed the GPU's
+        working set and crash upscayl-bin with SIGBUS, even when system RAM
+        looks abundant.
         """
         if not self.is_installed():
             self.log("upscayl-bin not found.")
@@ -61,23 +66,20 @@ class UpscaleEngine(BaseEngine):
             elif total_gb < 16:
                 tile = 512
             else:
-                tile = 0  # plenty of RAM — let upscayl-bin decide
+                tile = 1024  # plenty of RAM, but still tiled to protect GPU memory
 
             # Under high memory pressure, reduce tile to avoid swap
-            if tile > 0 and pressure > 80:
+            if pressure > 80:
                 tile = max(128, tile // 2)
                 self.log(
                     f"⚠️ Mémoire sous pression ({pressure}%) — "
                     f"tile réduit à {tile}px pour éviter le swap."
                 )
 
-            if tile > 0:
-                self.log(
-                    f"🧠 {total_gb:.0f} Go RAM — tile adaptatif : {tile}px "
-                    f"(pression mémoire: {pressure}%)"
-                )
-            else:
-                self.log(f"🧠 {total_gb:.0f} Go RAM — tile laissé en auto (0)")
+            self.log(
+                f"🧠 {total_gb:.0f} Go RAM — tile adaptatif : {tile}px "
+                f"(pression mémoire: {pressure}%)"
+            )
 
         return {
             "model_id": model_id, "scale": scale,

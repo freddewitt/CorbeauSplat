@@ -868,7 +868,20 @@ class StudioWindow(QMainWindow):
     # ── Lancement des modules OUTILS (bouton local, hors chaîne pipeline) ────────
     def _start_tool_worker(self, worker, finished_signal=None):
         """Démarre un worker OUTILS en tâche de fond : logs relayés vers la
-        barre de logs, SourcePanel basculé en Annuler, résultat affiché à la fin."""
+        barre de logs, SourcePanel basculé en Annuler, résultat affiché à la fin.
+
+        Un second clic sur Lancer pendant qu'un worker tourne déjà écraserait
+        ``self._active_worker`` sans garder de référence Python vers l'ancien
+        thread : celui-ci se ferait garbage-collecter par Qt alors que son
+        thread OS tourne encore ("QThread: Destroyed while thread is still
+        running") — crash immédiat (SIGABRT). D'où le garde-fou ci-dessous.
+        """
+        existing = self._active_worker
+        if existing is not None and existing.isRunning():
+            self.logs_window.append_log(
+                tr("err_worker_already_running", "Un traitement est déjà en cours.")
+            )
+            return
         self._active_worker = worker
         # Un worker OUTILS n'a pas d'étape de pipeline : on nomme la page depuis
         # laquelle il a été lancé, qui est celle que l'utilisateur regarde.

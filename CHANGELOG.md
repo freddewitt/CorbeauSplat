@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.0-beta.2] - 2026-08-24
+
+### 🐛 Fixes
+- **Upscale: GPU memory crash on Apple Silicon with high RAM.** On M-series Macs with ≥16 GB RAM, upscayl-bin crashed mid-processing (returned -10, killed by SIGBUS) because `tile=0` (disabled tiling) caused the engine to process the entire image at once, exceeding unified GPU memory. Fixed `UpscaleEngine.load_model()` to enforce a minimum tile size (1024px) instead of "auto" mode, and `run_upscayl()` now retries with progressively smaller tiles (÷2 down to 128px) if the binary crashes (returncode < 0).
+- **Upscale: PNG input refused with "Couldn't read image... (channels: 0)" error.** upscayl-bin's C++ loader rejects certain real-world PNG formats (16-bit, palette/indexed, interlaced, CMYK sidecars) that Pillow can open fine. Added `_copy_as_supported_image()` to normalize all input images to 8-bit RGB/RGBA before staging them for processing, re-encoding through Pillow then falling back to a raw copy if Pillow fails (so original errors still surface).
+- **Upscale: huge images crashed with PIL DecompressionBombWarning.** upscale in x1 mode (scale then resize back) reopens the result (~288 Mpx for a 3610×5000 upscaled 4× to 14440×20000) to resize it; Pillow's decompression-bomb guard (default limit 89 Mpx) refused photogrammetry/drone imagery. Globally disabled `PIL.Image.MAX_IMAGE_PIXELS = None` at app startup — the guard is meant for untrusted server uploads, not local desktop work on the user's own media. (Desktop app, no DoS risk.)
+- **Upscale panel browse button only offered folder picker.** `_browse_input()` called `get_existing_directory()` unconditionally, making it impossible to select a single image file. Now prompts the user (Image / Folder choice) and opens the appropriate dialog.
+- **Upscale output file silent overwrote original when input and output folders matched.** Staging and naming were handled *after* upscayl-bin ran, so if the output folder happened to equal the source folder, collisions were inevitable. Refactored `run_upscale_job()` to apply the model/scale suffix (`<stem>_<model_id>_x<scale>.<fmt>`) to the staged input filename *before* calling upscayl-bin, guaranteeing the output name is unique and cannot collide with any existing file (tested: single-file and batch modes with output = input folder).
+- **Upscale: fatal "QThread: Destroyed while thread is still running" on double-click during processing.** A second click on Launch while a worker was active would overwrite `self._active_worker` without keeping a Python ref to the running thread, causing Qt to destroy it while its OS thread still ran (SIGABRT, "Abort trap: 6"). Added re-entrancy guard in `_start_tool_worker()`: if a worker is already running, the new launch is silently ignored with a log message, not a crash.
+
+### 🌍 i18n
+- 4 new keys: `up_browse_kind`, `up_browse_file`, `up_browse_dir` (Image/Folder picker prompt), `err_worker_already_running` (re-entrancy guard). All 9 locales updated; `test_locales.py` confirms key alignment.
+
+### 📝 Changed
+- Output file naming: upscaled images now always include the model and scale in the filename (`photo_realesrgan-x4plus_x4.png`), making the parameters visible without opening the file.
+
 ## [2.0.0-beta.1] - 2026-08-07
 
 ### 🚀 Startup & packaging

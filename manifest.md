@@ -1,6 +1,6 @@
 # CorbeauSplat — Project Manifest
 
-> Version 2.0.0-beta.1 — macOS Apple Silicon Gaussian Splatting Pipeline
+> Version 2.0.0-beta.2 — macOS Apple Silicon Gaussian Splatting Pipeline
 
 ## Identity
 
@@ -44,6 +44,7 @@ Détail (fichiers, classes, patterns, moteurs, dépendances, sécurité) → `gr
 
 | Version | Key Changes |
 |---------|-------------|
+| **2.0.0-beta.2** (2026-08-24) | **Upscale engine** : GPU memory crash fix (SIGBUS on Apple Silicon, tile trop grand) ; PNG format normalization (16-bit, palette) ; input file protection (staging with model/scale suffix prevents overwrites when output=input folder) ; QThread re-entrancy safety (double-click crash). **UI fixes** : Upscale panel now allows selecting single image files (not just folders) ; `PIL.Image.MAX_IMAGE_PIXELS` disabled globally for large photogrammetry/drone images. i18n : 4 new keys. **456 tests pass.** |
 | **2.0.0-beta.1** (2026-08-07) | Refonte Studio (Projet au centre, PARAMÈTRES/OUTILS, TopBar supprimée) ; **Upscale** et **Extraction 360** promus étapes du pipeline (`PIPELINE_STEPS` 6 → 8), chaînées par les drapeaux `upscaler_avant`/`source_360`, avec un canal unique `_pipeline_images_dir` pour propager le dossier d'images entre étapes ; chaînage réel Entraînement → Nettoyage → Export → Visualiser ; câblage des champs `checkpoint_dest`/`export_dir`/`export_format` (jusque-là sans effet) ; suppression de presets Brush et de configurations nommées depuis l'UI. i18n 283 clés × 9 locales. **447 tests + 45 d'intégration.** Validation manuelle GUI en attente (cf. RESTE À FAIRE §7). |
 | **1.2.2** (2026-07-06) | SfM COLMAP : défaut **SIFT + DSP-SIFT** (`estimate_affine_shape=True`, force CPU) ; `vocab_tree` fonctionnel (était un no-op silencieux) ; `loop_detection` séquentiel (SIFT) ; **repli auto** `global_mapper`→`mapper` incrémental si pas de `sparse/0` valide (`_has_valid_sparse_model`). GUI responsive (5 onglets `QScrollArea`). `adapt_max_splats` : branche thermique morte corrigée (fair/serious/critical). Sécurité : `delete_project_content` bloque `/`, `$HOME`, dossier app + ancêtres. Réparation suite de tests (gel infini `readline`/EOF, pollution `cv2` session-wide) → **262 pass, 2 skip**. |
 | **1.2.1** (2026-07-06) | Fix timeout Brush 3600s → 14400s configurable (`training_timeout`) ; `inactivity_timeout` dans `BaseEngine._execute_command()` (désactivé pour Brush — phases silencieuses). Rétrocompatible. |

@@ -259,49 +259,66 @@ def run_upscayl(input_path, output_path, params,
     tta         = params.get("tta", False)
     compression = params.get("compression", 0)
 
-    cmd = [
-        str(binary),
-        "-i", str(input_path),
-        "-o", str(output_path),
-        "-n", model_id,
-        "-s", str(scale),
-        "-f", fmt,
-        "-t", str(tile),
-    ]
+    cmd_base = [str(binary), "-i", str(input_path), "-o", str(output_path),
+                "-n", model_id, "-s", str(scale), "-f", fmt]
     if models_dir:
         models_arg = os.path.relpath(str(models_dir), str(Path(binary).parent))
-        cmd += ["-m", models_arg]
+        cmd_base += ["-m", models_arg]
     if tta:
-        cmd.append("-x")
+        cmd_base.append("-x")
     if compression > 0 and fmt in ("jpg", "webp"):
-        cmd += ["-c", str(compression)]
+        cmd_base += ["-c", str(compression)]
 
-    _log(f"upscayl-bin: {' '.join(cmd)}")
+    # Tile sizes to try, largest first. A crash (killed by signal, e.g. SIGBUS
+    # from a GPU out-of-memory condition) triggers a retry with a smaller
+    # tile instead of failing outright — tile=0 is never retried since it
+    # disables tiling entirely and is the most crash-prone setting.
+    tile_attempts = [tile] if tile > 0 else [1024]
+    while tile_attempts[-1] > 128:
+        tile_attempts.append(tile_attempts[-1] // 2)
+
     success = False
-    try:
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-        )
-        for line in proc.stdout:
-            if cancel_check and cancel_check():
-                proc.terminate()
-                _log("⚠ Upscale interrompu par l'utilisateur.")
-                break
-            _log(line.rstrip())
+    for attempt, cur_tile in enumerate(tile_attempts):
+        cmd = cmd_base + ["-t", str(cur_tile)]
+        _log(f"upscayl-bin: {' '.join(cmd)}")
+        crashed = False
         try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            _log("⚠ upscayl-bin ne répond pas après SIGTERM — envoi de SIGKILL.")
-            proc.kill()
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            )
+            for line in proc.stdout:
+                if cancel_check and cancel_check():
+                    proc.terminate()
+                    _log("⚠ Upscale interrompu par l'utilisateur.")
+                    break
+                _log(line.rstrip())
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                _log("❌ Impossible de terminer upscayl-bin.")
-        success = (proc.returncode == 0) and not (cancel_check and cancel_check())
-        if proc.returncode != 0 and not (cancel_check and cancel_check()):
-            _log(f"❌ upscayl-bin a retourné le code {proc.returncode}")
-    except Exception as e:
-        _log(f"❌ Exception upscayl : {e}")
+                _log("⚠ upscayl-bin ne répond pas après SIGTERM — envoi de SIGKILL.")
+                proc.kill()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    _log("❌ Impossible de terminer upscayl-bin.")
+            cancelled = bool(cancel_check and cancel_check())
+            success = (proc.returncode == 0) and not cancelled
+            if proc.returncode != 0 and not cancelled:
+                _log(f"❌ upscayl-bin a retourné le code {proc.returncode}")
+                crashed = proc.returncode < 0
+            if cancelled:
+                break
+        except Exception as e:
+            _log(f"❌ Exception upscayl : {e}")
+            break
+
+        if success or not crashed:
+            break
+        if attempt + 1 < len(tile_attempts):
+            _log(
+                f"⚠ Crash upscayl-bin (signal) — nouvelle tentative avec "
+                f"tile réduit à {tile_attempts[attempt + 1]}px."
+            )
 
     if done_callback:
         done_callback(success)
