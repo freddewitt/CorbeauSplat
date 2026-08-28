@@ -17,6 +17,7 @@ from app.scripts.installers.base import (
 )
 from app.scripts.installers.brush import BrushEngineDep
 from app.scripts.installers.extractor_360 import Extractor360EngineDep
+from app.scripts.installers.four_dgs import FourDGSEngineDep
 from app.scripts.installers.mapping import ColmapBrewDep
 from app.scripts.installers.sharp import SharpEngineDep
 from app.scripts.installers.splat_transform import SplatTransformEngineDep
@@ -46,6 +47,7 @@ __all__ = [
     "DependencyManager",
     "EngineDependency",
     "Extractor360EngineDep",
+    "FourDGSEngineDep",
     "PipEngine",
     "SharpEngineDep",
     "SplatTransformEngineDep",
@@ -128,6 +130,7 @@ def main():
     manager.register(UpscaylEngineDep())
     manager.register(SpzEngineDep())
     manager.register(SplatTransformEngineDep())
+    manager.register(FourDGSEngineDep())
 
     check_only = "--check" in sys.argv
     startup = "--startup" in sys.argv

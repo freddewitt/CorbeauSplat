@@ -1,15 +1,19 @@
-"""Rail gauche de la fenêtre Studio : "Projet" + groupes PARAMÈTRES et OUTILS.
+"""Rail gauche de la fenêtre Studio : "Projet" + groupes ENTRAÎNEMENT, OPTIONS
+et OUTILS.
 
 - "Projet" (étape ``source``) : item racine, en tête, style permanent distinct
   (fond teinté + liseré accent) pour marquer que c'est la racine de l'arbre.
-- PARAMÈTRES : 7 étapes affichées dans l'ordre Reconstruction, Entraînement,
-  Upscale, Nettoyage, Export, Visualiser, Extraction 360 — ordre de *lecture*
-  (le cœur du pipeline d'abord), qui ne reflète volontairement pas l'ordre
-  d'*exécution* : Extraction 360 et Upscale s'exécutent avant Reconstruction.
-  La séquence réelle est portée par ``PIPELINE_STEPS`` et ``plan_pipeline()``.
-  Visuellement enfants de "Projet" (filet vertical + tiret par item), chacune avec icône + libellé toujours affichés ensemble, et
-  un marqueur d'état (coche / activité / erreur) piloté par ``StepStatus``.
-  Toujours visibles, aucun repli.
+- ENTRAÎNEMENT : cœur du pipeline — Reconstruction, Entraînement, Visualiser.
+- OPTIONS : traitements optionnels chaînés au pipeline (cases à cocher type
+  ``upscaler_avant``) — Upscale, Nettoyage, Export, Extraction 360. Cet ordre
+  de *lecture* ne reflète volontairement pas l'ordre d'*exécution* :
+  Extraction 360 et Upscale s'exécutent avant Reconstruction. La séquence
+  réelle est portée par ``PIPELINE_STEPS`` et ``plan_pipeline()``.
+  ENTRAÎNEMENT et OPTIONS sont toutes deux visuellement enfants de "Projet"
+  (filet vertical + tiret par item, chacune avec icône + libellé toujours
+  affichés ensemble, et un marqueur d'état coche / activité / erreur piloté
+  par ``StepStatus``) — pour ne pas laisser croire qu'elles sont indépendantes
+  du projet, contrairement à OUTILS. Toujours visibles, aucun repli.
 - OUTILS : 6 modules indépendants, séparés par un filet horizontal, sans lien
   d'arbre avec "Projet". Toujours visibles, aucun repli.
 
@@ -33,8 +37,11 @@ from app.core.i18n import add_language_observer, tr
 from app.core.run_state import PIPELINE_STEPS, StepStatus
 from app.gui.styles import DEFAULT_THEME, THEMES, get_saved_theme
 
-# Modules OUTILS, dans l'ordre du rail.
-TOOL_KEYS = ("brush", "sharp", "supersplat", "splattransform", "4dgs", "360")
+# Modules OUTILS, dans l'ordre du rail. "360" (Extractor360Panel autonome) a
+# été retiré : contrairement à Brush/SuperSplat, il n'apportait aucun
+# comportement distinct de l'étape "extraction360" (OPTIONS), qui se lance
+# déjà seule depuis son propre bouton — la double instance était redondante.
+TOOL_KEYS = ("brush", "sharp", "supersplat", "splattransform", "4dgs")
 
 # Group layout, in rail order. "kind" drives how _build_group() renders it:
 #  - "root": Projet alone, no label, no tree line, permanent accent styling.
@@ -45,20 +52,20 @@ TOOL_KEYS = ("brush", "sharp", "supersplat", "splattransform", "4dgs", "360")
 _GROUPS = (
     {"id": "source", "kind": "root", "keys": ("source",), "label": None},
     {
-        "id": "parametres",
+        "id": "entrainement",
         "kind": "tree",
-        # Ordre de LECTURE, délibérément distinct de l'ordre d'exécution : le
-        # cœur du pipeline (Reconstruction, Entraînement) d'abord, les
-        # traitements optionnels ensuite. À l'exécution, Extraction 360 et
-        # Upscale tournent AVANT Reconstruction — c'est PIPELINE_STEPS
-        # (run_state.py) et plan_pipeline() qui font foi pour la séquence. Cette
-        # liste ne pilote que l'affichage : le rail retrouve ses boutons par clé
-        # (self._buttons[key]), jamais par position.
-        "keys": (
-            "reconstruction", "entrainement", "upscale",
-            "nettoyage", "export", "visualiser", "extraction360",
-        ),
-        "label": ("rail_section_parametres", "PARAMÈTRES"),
+        "keys": ("reconstruction", "entrainement", "visualiser"),
+        "label": ("rail_section_entrainement", "ENTRAÎNEMENT"),
+    },
+    {
+        "id": "options",
+        "kind": "tree",
+        # À l'exécution, Extraction 360 et Upscale tournent AVANT Reconstruction
+        # — c'est PIPELINE_STEPS (run_state.py) et plan_pipeline() qui font foi
+        # pour la séquence. Cette liste ne pilote que l'affichage : le rail
+        # retrouve ses boutons par clé (self._buttons[key]), jamais par position.
+        "keys": ("upscale", "nettoyage", "export", "extraction360"),
+        "label": ("rail_section_options", "OPTIONS"),
     },
     {
         "id": "outils",
@@ -79,14 +86,8 @@ _STEP_ICONS = {
     "nettoyage": "⊘", "export": "↥", "visualiser": "◉", "extraction360": "◍",
 }
 _TOOL_ICONS = {
-    # "360" ne partage plus ◍ avec l'étape "extraction360" : les 14 items du
-    # rail sont désormais tous distincts. C'était déjà la convention des deux
-    # autres paires jumelles (◆ entraînement / ◐ brush, ◉ visualiser /
-    # ⊙ supersplat), et un rail sert d'abord à se repérer — deux entrées
-    # identiques nuisent au balayage. Hexagone parce que c'est la seule famille
-    # de formes encore libre (cinq cercles et deux losanges sont déjà pris).
     "brush": "◐", "sharp": "◇", "supersplat": "⊙",
-    "splattransform": "⇄", "4dgs": "▷", "360": "⬡",
+    "splattransform": "⇄", "4dgs": "▷",
 }
 _STEP_LABEL_KEYS = {
     "source": ("rail_step_projet", "Projet"),
@@ -104,7 +105,6 @@ _TOOL_LABEL_KEYS = {
     "supersplat": ("rail_tool_supersplat", "SuperSplat"),
     "splattransform": ("rail_tool_splattransform", "SplatTransform"),
     "4dgs": ("rail_tool_4dgs", "4DGS"),
-    "360": ("rail_tool_360", "360 Extractor"),
 }
 
 # Theme colors resolved once at import time. styles.py does not currently

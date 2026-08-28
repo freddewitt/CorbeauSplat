@@ -102,9 +102,9 @@ class TestToolLaunchOrchestration:
         panel.input_path = _FakeLineEdit("/videos_dir")
         panel.output_path = _FakeLineEdit("/out_dir")
         panel.get_params.return_value = {"interval": 1}
-        window.panels["360"] = panel
+        window.panels["extraction360"] = panel
 
-        window._launch_extractor360()
+        window._launch_extraction360()
 
         mock_worker_cls.assert_called_once_with("/videos_dir", "/out_dir", {"interval": 1})
         instance = mock_worker_cls.return_value
@@ -118,33 +118,47 @@ class TestToolLaunchOrchestration:
         monkeypatch.setattr(sw, "FourDGSWorker", mock_worker_cls)
         panel = MagicMock()
         panel.get_params.return_value = {
-            "input_path": "/videos_dir", "output_path": "/out_dir", "fps": 5,
+            "input_path": "/videos_dir", "output_path": "/out_dir", "fps": 5, "upscale": False,
         }
+        upscale_panel = MagicMock()
+        upscale_panel.get_params.return_value = {"scale": 4}
         window.panels["4dgs"] = panel
+        window.panels["upscale"] = upscale_panel
 
         window._launch_fourdgs()
 
-        mock_worker_cls.assert_called_once_with("/videos_dir", "/out_dir", 5)
+        mock_worker_cls.assert_called_once_with(
+            "/videos_dir", "/out_dir", 5,
+            upscale_params={"scale": 4, "active": False},
+        )
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
         assert window._active_worker is instance
         window.panels["source"].set_running.assert_called_once_with(True)
 
     def test_fourdgs_colmap_only_launch_starts_fourdgs_worker_without_videos(self, monkeypatch):
-        """Bouton « Reconstruction COLMAP seulement » : réutilise FourDGSWorker
-        avec videos_dir=None (mode COLMAP seul, cf. ancien FourDGSTab.run_colmap_only)."""
+        """Case « Reconstruction COLMAP seulement » cochée : ignore le champ
+        Source même rempli, FourDGSWorker reçoit videos_dir=None (mode COLMAP
+        seul, cf. ancien FourDGSTab.run_colmap_only)."""
         window = _make_window()
         mock_worker_cls = MagicMock()
         monkeypatch.setattr(sw, "FourDGSWorker", mock_worker_cls)
         panel = MagicMock()
         panel.get_params.return_value = {
-            "input_path": "", "output_path": "/out_dir", "fps": 5,
+            "input_path": "/videos_dir", "output_path": "/out_dir", "fps": 5,
+            "upscale": False, "colmap_only": True,
         }
+        upscale_panel = MagicMock()
+        upscale_panel.get_params.return_value = {"scale": 4}
         window.panels["4dgs"] = panel
+        window.panels["upscale"] = upscale_panel
 
-        window._launch_fourdgs_colmap_only()
+        window._launch_fourdgs()
 
-        mock_worker_cls.assert_called_once_with(None, "/out_dir", 5)
+        mock_worker_cls.assert_called_once_with(
+            None, "/out_dir", 5,
+            upscale_params={"scale": 4, "active": False},
+        )
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
         assert window._active_worker is instance

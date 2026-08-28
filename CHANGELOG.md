@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.0-beta.3] - 2026-08-28
+
+### ✨ Added
+- **4DGS: optional upscale before reconstruction.** New "Upscaler avant reconstruction" checkbox in the 4DGS panel. When checked, `FourDGSEngine.upscale_dataset_images()` runs the shared Upscale engine on each extracted `images/cam_XX` folder (moved to `cam_XX_src`, re-populated with the upscaled output) before COLMAP or `ns-process-data` consume the frames. No-op if the option is off or upscayl-bin isn't installed.
+- **4DGS: dedicated dependency installer.** `FourDGSEngineDep` (`app/scripts/installers/four_dgs.py`) manages the `.venv_4dgs` Nerfstudio install through `setup_dependencies.py` like the other engines, instead of an ad-hoc path.
+- **4DGS: COLMAP tuning parameters.** `FourDGSEngine.run_colmap()` now accepts `camera_model`, `single_camera`, `matcher_type` (`exhaustive`/`sequential`), and `sequential_overlap`, for multi-camera rigs with heterogeneous camera models or long frame sequences. Not yet exposed in the GUI panel — reachable via `colmap_params` on `FourDGSWorker`/CLI.
+
+### 🐛 Fixes
+- **4DGS: macOS AppleDouble files (`._*`) crashed frame extraction.** `process_dataset()` picked up `._cam01.mp4` sidecar metadata files (created when copying from certain USB/external drives) as if they were videos, feeding garbage to ffmpeg. Now filtered out alongside the existing extension check.
+
+### 🔁 Changed
+- **4DGS: "Reconstruction COLMAP seulement" is now a checkbox**, not a separate button. Unchecked (default): Lancer runs full extraction + COLMAP. Checked: Lancer skips extraction and re-runs COLMAP only on frames already on disk — same behavior as the former dedicated button, one launch path instead of two.
+- **Rail reorganized**: the PARAMÈTRES group is split into **ENTRAÎNEMENT** (Reconstruction, Entraînement, Visualiser) and **OPTIONS** (Upscale, Nettoyage, Export, Extraction 360). The OUTILS "360 Extractor" entry was removed — it duplicated the OPTIONS "Extraction 360" step with no distinct behavior.
+
+### 🌍 i18n
+- New key `four_dgs_upscale_before`; `rail_section_parametres` split into `rail_section_entrainement` + `rail_section_options`; `rail_tool_360` removed. All 9 locales updated.
+
 ## [2.0.0-beta.2] - 2026-08-24
 
 ### 🐛 Fixes

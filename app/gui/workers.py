@@ -662,11 +662,13 @@ class SplatTransformWorker(BaseWorker):
 
 
 class FourDGSWorker(BaseWorker):
-    def __init__(self, videos_dir, output_dir, fps=5, engine=None):
+    def __init__(self, videos_dir, output_dir, fps=5, upscale_params=None, colmap_params=None, engine=None):
         super().__init__()
         self.videos_dir = videos_dir
         self.output_dir = output_dir
         self.fps = fps
+        self.upscale_params = upscale_params
+        self.colmap_params = colmap_params or {}
         # DIP : Injection
         self.engine = engine or FourDGSEngine(
             logger_callback=self.log_signal.emit,
@@ -676,15 +678,21 @@ class FourDGSWorker(BaseWorker):
 
     def run(self):
         self.log_signal.emit("--- Démarrage 4DGS ---")
-
+        if self.upscale_params and self.upscale_params.get("active", False):
+            self.engine.upscale_config = self.upscale_params
 
         try:
-            # COLMAP ONLY MODE si pas de vidéos
-            success = (
-                self.engine.process_dataset(self.videos_dir, self.output_dir, self.fps)
-                if self.videos_dir
-                else self.engine.run_colmap(self.output_dir)
-            )
+            if self.videos_dir:
+                success = self.engine.process_dataset(
+                    self.videos_dir, self.output_dir, self.fps, colmap_params=self.colmap_params,
+                )
+            else:
+                # COLMAP ONLY MODE : les frames existent déjà (process_dataset, qui
+                # gère l'upscale d'habitude, est sauté) — on l'applique donc ici.
+                success = (
+                    self.engine.upscale_dataset_images(self.output_dir)
+                    and self.engine.run_colmap(self.output_dir, **self.colmap_params)
+                )
 
             self.finished_signal.emit(success, "Dataset 4DGS créé avec succès." if success else "Échec du traitement 4DGS.")
         except Exception as e:

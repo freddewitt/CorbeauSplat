@@ -1,3 +1,4 @@
+import shutil
 import sys
 from pathlib import Path
 
@@ -36,6 +37,8 @@ class FourDGSEngine(BaseEngine):
         self.colmap = resolve_binary("colmap") or "colmap"
         self.venv_python = get_venv_4dgs_python()
         self.ns_process_data = str(_get_ns_process_data_path())
+        # Set by the GUI (mirrors ColmapEngine.upscale_config) — see upscale_dataset_images()
+        self.upscale_config = None
 
     def check_nerfstudio(self):
         """Vérifie si ns-process-data est disponible dans le venv dédié"""
@@ -66,8 +69,16 @@ class FourDGSEngine(BaseEngine):
         # Grosses vidéos / disques externes lents : même palier que Brush (4h).
         return self._execute_command(cmd, timeout=14400) == 0
 
-    def run_colmap(self, dataset_root):
-        """Lance le pipeline COLMAP : Feature Extractor -> Matcher -> Mapper"""
+    def run_colmap(self, dataset_root, camera_model="OPENCV", single_camera=True,
+                   matcher_type="exhaustive", sequential_overlap=10):
+        """Lance le pipeline COLMAP : Feature Extractor -> Matcher -> Mapper.
+
+        ``camera_model``/``single_camera`` : à ajuster pour un rig multi-caméras
+        composé de modèles hétérogènes (le défaut suppose un même modèle pour
+        toutes les vues). ``matcher_type="sequential"`` accélère le matching sur
+        de longues séquences de frames au prix de l'exhaustivité des paires
+        testées ; ``sequential_overlap`` règle le nombre de frames voisines
+        comparées dans ce mode."""
         if self.stop_requested:
             return False
 
@@ -84,8 +95,8 @@ class FourDGSEngine(BaseEngine):
             self.colmap, "feature_extractor",
             "--database_path", str(db_path),
             "--image_path", str(images_path),
-            "--ImageReader.camera_model", "OPENCV",
-            "--ImageReader.single_camera", "1"
+            "--ImageReader.camera_model", camera_model,
+            "--ImageReader.single_camera", "1" if single_camera else "0"
         ]
 
         if self._execute_command(cmd_extract, timeout=14400) != 0:
@@ -93,10 +104,17 @@ class FourDGSEngine(BaseEngine):
 
         self.log("--- COLMAP: Feature Matching ---")
         self.status("Matching des features...")
-        cmd_match = [
-            self.colmap, "exhaustive_matcher",
-            "--database_path", str(db_path),
-        ]
+        if matcher_type == "sequential":
+            cmd_match = [
+                self.colmap, "sequential_matcher",
+                "--database_path", str(db_path),
+                "--SequentialMatching.overlap", str(sequential_overlap),
+            ]
+        else:
+            cmd_match = [
+                self.colmap, "exhaustive_matcher",
+                "--database_path", str(db_path),
+            ]
 
         if self._execute_command(cmd_match, timeout=14400) != 0:
             return False
@@ -116,7 +134,68 @@ class FourDGSEngine(BaseEngine):
 
         return self._execute_command(cmd_mapper, timeout=14400) == 0
 
-    def process_dataset(self, videos_dir, output_dir, fps=5):
+    def upscale_dataset_images(self, output_dir) -> bool:
+        """Upscale extracted camera frames in-place via the shared Upscale engine.
+
+        Runs once per ``<output_dir>/images/cam_XX`` subfolder, before COLMAP or
+        ns-process-data consume them. No-op if ``upscale_config`` is not active.
+        """
+        upscale_conf = self.upscale_config or {}
+        if not upscale_conf.get("active", False):
+            return True
+        if self.stop_requested:
+            return False
+
+        from .engine import _first_available_model
+        from .upscale_engine import UpscaleEngine
+
+        upscaler = UpscaleEngine(logger_callback=self.log)
+        if not upscaler.is_installed():
+            self.log("WARNING: upscayl-bin not found. Upscale skipped.")
+            return True
+
+        images_root = Path(output_dir) / "images"
+        cam_dirs = sorted(d for d in images_root.iterdir() if d.is_dir()) if images_root.is_dir() else []
+        if not cam_dirs:
+            return True
+
+        model_id    = upscale_conf.get("model_id") or _first_available_model()
+        scale       = upscale_conf.get("scale", 4)
+        out_format  = upscale_conf.get("format", "png")
+        tile        = upscale_conf.get("tile", 0)
+        tta         = upscale_conf.get("tta", False)
+        compression = upscale_conf.get("compression", 0)
+
+        for cam_dir in cam_dirs:
+            if self.stop_requested:
+                return False
+            src_dir = cam_dir.parent / f"{cam_dir.name}_src"
+            if src_dir.exists():
+                self.log(f"'{src_dir.name}' already exists — {cam_dir.name} already upscaled.")
+                continue
+
+            self.log(f"Upscaling {cam_dir.name} x{scale} with model '{model_id}'...")
+            shutil.move(str(cam_dir), str(src_dir))
+            cam_dir.mkdir(parents=True, exist_ok=True)
+            success, msg = upscaler.upscale_folder(
+                input_dir=str(src_dir),
+                output_dir=str(cam_dir),
+                model_id=model_id,
+                scale=scale,
+                output_format=out_format,
+                tile=tile,
+                tta=tta,
+                compression=compression,
+                cancel_check=lambda: self.stop_requested,
+            )
+            if not success:
+                self.log(f"Upscale failed for {cam_dir.name}: {msg}")
+                return False
+
+        self.log("Upscale complete.")
+        return True
+
+    def process_dataset(self, videos_dir, output_dir, fps=5, colmap_params=None):
         safe_in = self.validate_path(videos_dir)
         safe_out = self.validate_path(output_dir) or self.validate_path(str(Path(output_dir).parent))
         if safe_in is None:
@@ -128,7 +207,10 @@ class FourDGSEngine(BaseEngine):
         self.log(f"Scan du dossier : {videos_dir}")
         supported_ext = (".mp4", ".mov", ".avi", ".mkv")
         videos_path = Path(videos_dir)
-        videos = sorted([f for f in videos_path.iterdir() if f.suffix.lower() in supported_ext])
+        videos = sorted([
+            f for f in videos_path.iterdir()
+            if f.suffix.lower() in supported_ext and not f.name.startswith("._")
+        ])
 
         if not videos:
             self.log("Aucune vidéo trouvée.")
@@ -153,6 +235,9 @@ class FourDGSEngine(BaseEngine):
 
         self.log("Extraction terminée.")
 
+        if not self.upscale_dataset_images(output_dir):
+            return False
+
         if self.check_nerfstudio():
             self.log("ns-process-data détecté (venv_4dgs). Lancement du processing Nerfstudio...")
             self.status("Traitement Nerfstudio en cours...")
@@ -172,4 +257,4 @@ class FourDGSEngine(BaseEngine):
             return True
         else:
             self.log("Nerfstudio non trouvé. Lancement mode dégradé (COLMAP manuel uniquement).")
-            return self.run_colmap(output_dir)
+            return self.run_colmap(output_dir, **(colmap_params or {}))

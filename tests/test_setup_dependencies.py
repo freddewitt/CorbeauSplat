@@ -371,3 +371,25 @@ class TestPipEngine:
             engine.python_bin.parent.mkdir(parents=True)
             engine.python_bin.write_text("python")
             assert engine.is_installed() is True
+
+
+class TestFourDGSEngineDep:
+    """Tests pour FourDGSEngineDep (nerfstudio, isolé dans .venv_4dgs)."""
+
+    def test_venv_matches_four_dgs_engine_path(self, tmp_path):
+        """Le venv déclaré doit matcher .venv_4dgs, attendu par FourDGSEngine."""
+        from app.scripts.installers.four_dgs import FourDGSEngineDep
+
+        with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):
+            dep = FourDGSEngineDep()
+            assert dep.venv_dir == tmp_path / ".venv_4dgs"
+
+    def test_disabled_by_default(self, tmp_path):
+        """Pas d'installation automatique tant que four_dgs_enabled n'est pas actif."""
+        from app.scripts.installers.four_dgs import FourDGSEngineDep
+
+        with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):
+            dep = FourDGSEngineDep()
+            assert dep.is_enabled_in_config({}) is False
+            assert dep.is_enabled_in_config({"four_dgs_enabled": True}) is True
+            assert dep.is_enabled_in_config({"four_dgs_params": {"enabled": True}}) is True

@@ -1,6 +1,6 @@
 [project]
 name = "corbeausplat"
-version = "2.0.0-beta.2"
+version = "2.0.0-beta.3"
 description = "Gaussian Splatting toolkit with GUI"
 requires-python = ">=3.10"
 # Doit rester synchronisé avec requirements.txt (source du lock et de la CI).

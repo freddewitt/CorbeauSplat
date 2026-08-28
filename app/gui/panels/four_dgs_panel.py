@@ -5,6 +5,7 @@ Pas de sortie .ply exploitable → pas de chaînage Nettoyer/Exporter/Visualiser
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -65,9 +66,6 @@ class FourDGSPanel:
         out_row.addWidget(self.btn_browse_output)
         layout.addLayout(out_row)
 
-        self.btn_colmap_only = QPushButton()
-        layout.addWidget(self.btn_colmap_only)
-
         self.btn_run = QPushButton()
         self.btn_run.setStyleSheet("font-weight: bold;")
         layout.addWidget(self.btn_run)
@@ -93,6 +91,14 @@ class FourDGSPanel:
         self.fps_spin.setValue(5)
         self.lbl_fps = QLabel()
         form.addRow(self.lbl_fps, self.fps_spin)
+        self.chk_upscale_before = QCheckBox()
+        self.lbl_upscale_before = QLabel()
+        form.addRow(self.lbl_upscale_before, self.chk_upscale_before)
+        # Décoché par défaut : Lancer fait l'extraction + COLMAP complets ;
+        # cocher saute l'extraction et relance juste COLMAP (ex-bouton dédié).
+        self.chk_colmap_only = QCheckBox()
+        self.lbl_colmap_only = QLabel()
+        form.addRow(self.lbl_colmap_only, self.chk_colmap_only)
         scroll.setWidget(content)
         outer.addWidget(scroll)
         return w
@@ -113,6 +119,8 @@ class FourDGSPanel:
             "input_path": self.input_path.text(),
             "output_path": self.output_path.text(),
             "fps": self.fps_spin.value(),
+            "upscale": self.chk_upscale_before.isChecked(),
+            "colmap_only": self.chk_colmap_only.isChecked(),
         }
 
     def retranslate_ui(self):
@@ -128,6 +136,7 @@ class FourDGSPanel:
         ))
         self.lbl_input.setText(tr("four_dgs_input", "Source vidéos (dossier multi-caméras)"))
         self.lbl_output.setText(tr("four_dgs_output", "Destination dataset"))
-        self.btn_colmap_only.setText(tr("four_dgs_colmap_only", "Reconstruction COLMAP seulement"))
+        self.lbl_colmap_only.setText(tr("four_dgs_colmap_only", "Reconstruction COLMAP seulement"))
         self.lbl_fps.setText(tr("four_dgs_lbl_fps", "Extraction FPS"))
+        self.lbl_upscale_before.setText(tr("four_dgs_upscale_before", "Upscaler avant reconstruction"))
         self.btn_run.setText(tr("btn_run", "Lancer"))

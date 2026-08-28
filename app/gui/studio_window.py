@@ -12,7 +12,7 @@ Le journal n'est plus dans la fenêtre principale : il a la sienne
 Lancée par défaut depuis ``main.py`` (via ``_launch_gui()`` dans
 ``app/cli/__init__.py``). Les panneaux PIPELINE (Source, Reconstruction,
 Entraînement, Nettoyage, Export, Visualiser) et OUTILS (Brush, Sharp,
-SuperSplat, Upscale, SplatTransform, 4DGS, Extracteur 360) sont instanciés
+SuperSplat, Upscale, SplatTransform, 4DGS) sont instanciés
 dynamiquement et gérés par ``PageRegistry``.
 """
 
@@ -188,7 +188,6 @@ class StudioWindow(QMainWindow):
             "supersplat": VisualiserPanel(self.run_state),
             "splattransform": SplatTransformPanel(self.run_state),
             "4dgs": FourDGSPanel(self.run_state),
-            "360": Extractor360Panel(self.run_state),
         }
 
         # Bouton « Lancer » local des modules OUTILS (et de Reconstruction/
@@ -197,10 +196,8 @@ class StudioWindow(QMainWindow):
         # l'exécution (cf. _start_tool_worker / on_launch_clicked).
         self.panels["nettoyage"].btn_run.clicked.connect(self._launch_cleaner)
         self.panels["export"].btn_run.clicked.connect(self._launch_export)
-        self.panels["360"].btn_run.clicked.connect(self._launch_extractor360)
         self.panels["extraction360"].btn_run.clicked.connect(self._launch_extraction360)
         self.panels["4dgs"].btn_run.clicked.connect(self._launch_fourdgs)
-        self.panels["4dgs"].btn_colmap_only.clicked.connect(self._launch_fourdgs_colmap_only)
         self.panels["sharp"].btn_run.clicked.connect(self._launch_sharp)
         self.panels["splattransform"].btn_run.clicked.connect(self._launch_splat_transform)
         # Upscale est une étape PARAMÈTRES : ce bouton ne lance que l'upscale
@@ -281,7 +278,7 @@ class StudioWindow(QMainWindow):
         # Réglages généraux (ex-topbar) : déplacé ici avec la disparition de la
         # TopBar, réutilise la même clé i18n de tooltip. Le glyphe seul étant
         # ambigu, un libellé texte l'accompagne (clé dédiée : le style petites
-        # capitales de rail_section_parametres ne convient pas à ce contexte).
+        # capitales de rail_section_entrainement ne convient pas à ce contexte).
         self.btn_settings = QPushButton(f"⚙ {tr('btn_settings_label', 'Paramètres')}")
         self.btn_settings.setToolTip(tr("topbar_settings", "Réglages généraux"))
         self.btn_settings.clicked.connect(self.open_settings)
@@ -529,9 +526,8 @@ class StudioWindow(QMainWindow):
         return Extractor360Worker(input_path, str(safe_out), panel.get_params())
 
     def _launch_extraction360(self):
-        """Lancement autonome de l'étape Extraction 360 depuis PARAMÈTRES, sur
-        les chemins saisis dans le panneau — même idiome que
-        ``_launch_extractor360`` pour l'instance OUTILS."""
+        """Lancement autonome de l'étape Extraction 360 depuis OPTIONS, sur les
+        chemins saisis dans le panneau — sans passer par la chaîne complète."""
         panel = self.panels["extraction360"]
         input_path = panel.input_path.text().strip()
         output_path = panel.output_path.text().strip()
@@ -963,31 +959,26 @@ class StudioWindow(QMainWindow):
         if worker is not None:
             self._start_tool_worker(worker)
 
-    def _launch_extractor360(self):
-        panel = self.panels["360"]
-        input_path = panel.input_path.text().strip()
-        output_path = panel.output_path.text().strip()
-        if not self._check_paths(input_path, output_path):
-            return
-        worker = Extractor360Worker(input_path, output_path, panel.get_params())
-        self._start_tool_worker(worker)
+    def _fourdgs_upscale_params(self, params):
+        """Merges the shared Upscale panel's settings (model, scale, tile...) with
+        the 4DGS checkbox's own on/off state — same pattern as ``_launch_sharp``."""
+        upscale_checked = params.get("upscale", False)
+        return {**self.panels["upscale"].get_params(), "active": upscale_checked}
 
     def _launch_fourdgs(self):
+        """Décochée (défaut) : extraction + COLMAP complets, sur les vidéos du
+        champ Source. Cochée : « COLMAP seul », vidéos ignorées (videos_dir=None,
+        cf. ancienne logique ``FourDGSTab.run_colmap_only``) — pour relancer la
+        reconstruction sur des frames déjà extraites sans repasser par FFmpeg."""
         panel = self.panels["4dgs"]
         params = panel.get_params()
         if not self._check_paths(params["output_path"]):
             return
-        worker = FourDGSWorker(params["input_path"] or None, params["output_path"], params["fps"])
-        self._start_tool_worker(worker)
-
-    def _launch_fourdgs_colmap_only(self):
-        """Réutilise le mode « COLMAP seul » de ``FourDGSWorker`` (videos_dir
-        vide, cf. ancienne logique ``FourDGSTab.run_colmap_only``)."""
-        panel = self.panels["4dgs"]
-        params = panel.get_params()
-        if not self._check_paths(params["output_path"]):
-            return
-        worker = FourDGSWorker(None, params["output_path"], params["fps"])
+        videos_dir = None if params.get("colmap_only") else (params["input_path"] or None)
+        worker = FourDGSWorker(
+            videos_dir, params["output_path"], params["fps"],
+            upscale_params=self._fourdgs_upscale_params(params),
+        )
         self._start_tool_worker(worker)
 
     def _launch_sharp(self):

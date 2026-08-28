@@ -260,3 +260,69 @@ class TestFourDGSEngine:
                         result = engine.process_dataset(str(videos_dir), str(output_dir), fps=5)
                         assert result is True
                         mock_colmap.assert_called_once_with(str(output_dir))
+
+    def test_process_dataset_ignores_appledouble_files(self, tmp_path):
+        """macOS AppleDouble files (._*) must not be treated as videos (crashes ffmpeg)."""
+        with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
+            with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
+                mock_resolve.side_effect = lambda x: x
+
+                from app.core.four_dgs_engine import FourDGSEngine
+
+                engine = FourDGSEngine(logger_callback=print)
+                engine.runner = MagicMock()
+                engine.runner.start.return_value = None
+                engine.runner.stdout_iter.return_value = iter([])
+                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
+                engine.runner.wait.return_value = 0
+
+                videos_dir = tmp_path / "videos"
+                videos_dir.mkdir()
+                (videos_dir / "cam01.mp4").write_bytes(b"fake_video")
+                (videos_dir / "._cam01.mp4").write_bytes(b"appledouble_metadata")
+                output_dir = tmp_path / "output"
+
+                with patch.object(engine, 'check_nerfstudio', return_value=False):
+                    with patch.object(engine, 'extract_frames', return_value=True) as mock_extract:
+                        with patch.object(engine, 'run_colmap', return_value=True):
+                            result = engine.process_dataset(str(videos_dir), str(output_dir), fps=5)
+                            assert result is True
+                            assert mock_extract.call_count == 1
+                            called_video_path = mock_extract.call_args[0][0]
+                            assert called_video_path.name == "cam01.mp4"
+
+    def test_upscale_dataset_images_inactive_is_noop(self, tmp_path):
+        """upscale_config absent/inactif → aucune tentative d'upscale."""
+        with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
+            with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
+                mock_resolve.side_effect = lambda x: x
+
+                from app.core.four_dgs_engine import FourDGSEngine
+
+                engine = FourDGSEngine(logger_callback=print)
+                assert engine.upscale_dataset_images(str(tmp_path)) is True
+
+    def test_upscale_dataset_images_upscales_each_camera_folder(self, tmp_path):
+        """upscale_config actif → chaque sous-dossier cam_XX est upscalé via UpscaleEngine."""
+        with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
+            with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
+                mock_resolve.side_effect = lambda x: x
+
+                from app.core.four_dgs_engine import FourDGSEngine
+
+                engine = FourDGSEngine(logger_callback=print)
+                engine.upscale_config = {"active": True, "model_id": "realesrgan-x4plus", "scale": 4}
+
+                output_dir = tmp_path / "output"
+                images_root = output_dir / "images"
+                (images_root / "cam_00").mkdir(parents=True)
+                (images_root / "cam_01").mkdir(parents=True)
+
+                with patch("app.core.upscale_engine.UpscaleEngine.is_installed", return_value=True):
+                    with patch("app.core.upscale_engine.UpscaleEngine.upscale_folder",
+                               return_value=(True, "ok")) as mock_upscale:
+                        result = engine.upscale_dataset_images(str(output_dir))
+                        assert result is True
+                        assert mock_upscale.call_count == 2
+                        assert (images_root / "cam_00_src").is_dir()
+                        assert (images_root / "cam_01_src").is_dir()
