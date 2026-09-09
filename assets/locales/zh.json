@@ -258,6 +258,7 @@
   "settings_relaunch": "重新启动",
   "settings_quit": "退出",
   "settings_title": "常规设置",
+  "settings_changelog_link": "查看更新日志",
   "rail_step_projet": "项目",
   "rail_step_reconstruction": "重建",
   "rail_step_entrainement": "训练",

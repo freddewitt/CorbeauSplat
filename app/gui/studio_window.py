@@ -68,7 +68,7 @@ from app.gui.panels.upscale_panel import UpscalePanel
 from app.gui.panels.visualiser_panel import VisualiserPanel
 from app.gui.pipeline_planner import plan_pipeline
 from app.gui.rail import TOOL_KEYS, Rail, item_label
-from app.gui.settings_window import SettingsWindow
+from app.gui.settings_window import ResetDialog, SettingsWindow
 from app.gui.studio_nav import PageRegistry
 from app.gui.styles import set_dark_theme
 from app.gui.widgets.upscale_widgets import TestWorker, UpscaleImagesWorker
@@ -209,6 +209,12 @@ class StudioWindow(QMainWindow):
         self.panels["source"].btn_delete_dataset.clicked.connect(self._delete_dataset)
         # Bouton Lancer/Annuler unique (ex-topbar), désormais porté par SourcePanel.
         self.panels["source"].btn_run.clicked.connect(self.on_launch_clicked)
+        # Settings block (moved from the General Settings window: config
+        # load/save/delete and factory reset are project-workflow actions).
+        self.panels["source"].btn_settings_load.clicked.connect(self.load_config_dialog)
+        self.panels["source"].btn_settings_save.clicked.connect(self.save_config_dialog)
+        self.panels["source"].btn_settings_delete.clicked.connect(self.delete_config_dialog)
+        self.panels["source"].btn_settings_reset.clicked.connect(self._on_reset_clicked)
         # Stop button under every panel's Run button. A single worker runs at a
         # time (``_active_worker``), so they all interrupt the same thing —
         # whichever page the user happens to be on.
@@ -1166,13 +1172,16 @@ class StudioWindow(QMainWindow):
     def open_settings(self):
         if self._settings_window is None:
             self._settings_window = SettingsWindow(self)
-            self._settings_window.saveRequested.connect(self.save_config_dialog)
-            self._settings_window.loadRequested.connect(self.load_config_dialog)
-            self._settings_window.deleteRequested.connect(self.delete_config_dialog)
             self._settings_window.notificationsToggled.connect(self.set_notifications_enabled)
-            self._settings_window.resetRequested.connect(self.reset_factory)
         self._settings_window.show()
         self._settings_window.raise_()
+
+    def _on_reset_clicked(self):
+        """Destructive reset: never executed without explicit confirmation
+        (Light/Deep choice) in ``ResetDialog``."""
+        diag = ResetDialog(self)
+        if diag.exec():
+            self.reset_factory(diag.result_deep)
 
     def restart_application(self):
         """Relance l'application (cf. ``AppLifecycle.restart``)."""

@@ -258,6 +258,7 @@
   "settings_relaunch": "再起動",
   "settings_quit": "終了",
   "settings_title": "一般設定",
+  "settings_changelog_link": "変更履歴を見る",
   "rail_step_projet": "プロジェクト",
   "rail_step_reconstruction": "再構築",
   "rail_step_entrainement": "トレーニング",

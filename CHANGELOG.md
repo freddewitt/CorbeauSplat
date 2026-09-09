@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### 🔁 Changed
+- **General Settings window slimmed down to app-wide preferences only.** Theme, Language, and end-of-run notifications remain; the app identity footer (name + version, centered, small font) and a "View changelog" link (opens `CHANGELOG.md` in the OS default app) now sit at the bottom, with extra spacing below the notifications checkbox.
+- **Config Load/Save/Delete and factory reset moved to the Project panel.** These are project-workflow actions, not app-wide preferences — they now live in a "Current settings" block in the Project tab's right sidebar, below Automation, instead of the General Settings window.
+
+### 🌍 i18n
+- New key `settings_changelog_link` (changelog link label). All 9 locales updated.
+
 ## [2.0.0-beta.3] - 2026-08-28
 
 ### ✨ Added

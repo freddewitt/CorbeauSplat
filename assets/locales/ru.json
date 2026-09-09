@@ -258,6 +258,7 @@
   "settings_relaunch": "Перезапустить",
   "settings_quit": "Выход",
   "settings_title": "Общие настройки",
+  "settings_changelog_link": "Просмотреть журнал изменений",
   "rail_step_projet": "Проект",
   "rail_step_reconstruction": "Реконструкция",
   "rail_step_entrainement": "Обучение",

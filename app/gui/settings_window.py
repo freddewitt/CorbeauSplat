@@ -1,25 +1,29 @@
 """Independent general settings window (gear icon in the top bar).
 
 Groups what isn't specific to any one workflow tab: Theme, Language,
-Load/Save the full configuration, end-of-run notifications, factory reset.
+end-of-run notifications, plus an app identity footer (name/version and a
+changelog link).
 
 Anything specific to a single panel (e.g. Brush build mode, COLMAP thermal
 throttling) belongs in that panel's own right-side sidebar instead — this
 window is for cross-cutting, app-wide settings only.
 
+Load/Save/Delete of the full configuration and the factory reset now live in
+``SourcePanel``'s right sidebar (Settings block, below Automation) — they are
+project-workflow actions the user reaches for right where they work, not
+app-wide preferences. ``ResetDialog`` (Light/Deep choice) still lives in this
+module and is reused from ``StudioWindow`` for that button.
+
 Theme and Language are functional (styling / i18n, not business logic).
-Load/Save and notifications are exposed as signals/state, wired to the
-engines elsewhere. Factory reset is wired to ``AppLifecycle``
-(``app/gui/managers.py``) — equivalent of the old ``ConfigTab``/``ResetDialog``:
-``resetRequested`` is only emitted after explicit confirmation in
-``ResetDialog`` (Light/Deep choice or Cancel).
+Notifications are exposed as signals/state, wired to the engines elsewhere.
 
 Restart/Quit are no longer here: they are global actions of the main window
 (always accessible), moved to ``StudioWindow``'s bottom bar instead of being
 buried in this dialog.
 """
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QUrl, Qt, Signal
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -33,7 +37,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from app import VERSION
 from app.core.i18n import add_language_observer, get_current_lang, set_language, tr
+from app.core.system import resolve_project_root
 from app.gui.styles import get_saved_theme, save_theme, set_dark_theme
 
 # (language code, native label) — mirrors ConfigTab, the project's 9 locales.
@@ -112,10 +118,6 @@ class ResetDialog(QDialog):
 class SettingsWindow(QDialog):
     """General settings. Emits signals for actions wired elsewhere."""
 
-    loadRequested = Signal()
-    saveRequested = Signal()
-    deleteRequested = Signal()
-    resetRequested = Signal(bool)
     notificationsToggled = Signal(bool)
 
     def __init__(self, parent=None):
@@ -161,28 +163,34 @@ class SettingsWindow(QDialog):
         form.addRow(self.chk_notifications)
 
         layout.addLayout(form)
+        layout.addStretch(1)
 
-        # Load / Save the full configuration (Batch 6 wiring)
-        self.lbl_current_config = QLabel(tr("settings_current_config", "Paramètres actuels"))
-        self.lbl_current_config.setStyleSheet("font-weight: bold;")
-        layout.addWidget(self.lbl_current_config)
-        cfg_row = QHBoxLayout()
-        self.btn_load = QPushButton(tr("settings_load", "Charger…"))
-        self.btn_load.clicked.connect(self.loadRequested.emit)
-        cfg_row.addWidget(self.btn_load)
-        self.btn_save = QPushButton(tr("settings_save", "Sauvegarder…"))
-        self.btn_save.clicked.connect(self.saveRequested.emit)
-        cfg_row.addWidget(self.btn_save)
-        self.btn_delete_config = QPushButton(tr("settings_delete", "Supprimer…"))
-        self.btn_delete_config.clicked.connect(self.deleteRequested.emit)
-        cfg_row.addWidget(self.btn_delete_config)
-        layout.addLayout(cfg_row)
+        # Footer: app identity (name + version) and a changelog link, pinned
+        # to the bottom via the stretch above, centered and set apart from
+        # the form with extra top margin so it doesn't crowd the last row.
+        footer = QVBoxLayout()
+        footer.setContentsMargins(0, 24, 0, 0)
+        footer.setSpacing(4)
 
-        # Reset (Restart/Quit now live in StudioWindow's bottom bar — global
-        # actions, not settings).
-        self.btn_reset = QPushButton(tr("settings_reset", "Réinitialiser"))
-        self.btn_reset.clicked.connect(self._on_reset_clicked)
-        layout.addWidget(self.btn_reset)
+        self.lbl_app_identity = QLabel(f"CorbeauSplat v{VERSION}")
+        self.lbl_app_identity.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        self.lbl_app_identity.setStyleSheet("color: #666666; font-size: 10px;")
+        footer.addWidget(self.lbl_app_identity)
+
+        self.btn_changelog = QPushButton(tr("settings_changelog_link", "Voir le changelog"))
+        self.btn_changelog.setFlat(True)
+        self.btn_changelog.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_changelog.setStyleSheet(
+            "border: none; padding: 0; color: #7aa2f7; font-size: 10px;"
+        )
+        self.btn_changelog.clicked.connect(self._open_changelog)
+        changelog_row = QHBoxLayout()
+        changelog_row.addStretch(1)
+        changelog_row.addWidget(self.btn_changelog)
+        changelog_row.addStretch(1)
+        footer.addLayout(changelog_row)
+
+        layout.addLayout(footer)
 
         self.setWindowTitle(tr("settings_title", "Réglages généraux"))
 
@@ -198,19 +206,12 @@ class SettingsWindow(QDialog):
         if code and code != get_current_lang():
             set_language(code)
 
-    def _on_reset_clicked(self):
-        """Destructive reset: never executed without explicit confirmation
-        (Light/Deep choice) in ``ResetDialog``."""
-        diag = ResetDialog(self)
-        if diag.exec():
-            self.resetRequested.emit(diag.result_deep)
+    def _open_changelog(self):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(resolve_project_root() / "CHANGELOG.md")))
 
     def retranslate_ui(self):
         self.setWindowTitle(tr("settings_title", "Réglages généraux"))
-        self.lbl_current_config.setText(tr("settings_current_config", "Paramètres actuels"))
         self.lbl_theme.setText(tr("theme_change", "Thème"))
         self.lbl_lang.setText(tr("lang_change", "Langue"))
         self.chk_notifications.setText(tr("settings_notifications", "Notifications de fin d'exécution"))
-        self.btn_load.setText(tr("settings_load", "Charger…"))
-        self.btn_save.setText(tr("settings_save", "Sauvegarder…"))
-        self.btn_reset.setText(tr("settings_reset", "Réinitialiser"))
+        self.btn_changelog.setText(tr("settings_changelog_link", "Voir le changelog"))

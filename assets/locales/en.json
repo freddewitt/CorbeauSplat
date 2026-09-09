@@ -258,6 +258,7 @@
   "settings_relaunch": "Relaunch",
   "settings_quit": "Quit",
   "settings_title": "General settings",
+  "settings_changelog_link": "View changelog",
   "rail_step_projet": "Project",
   "rail_step_reconstruction": "Reconstruction",
   "rail_step_entrainement": "Training",
