@@ -1,5 +1,6 @@
 """COLMAP engine dependency installer."""
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -53,12 +54,17 @@ class ColmapBrewDep(EngineDependency):
         if not shutil.which("brew"):
             print("❌ Homebrew requis pour mettre à jour COLMAP.")
             return
+        # Homebrew always upgrades a formula's own dependencies as needed
+        # (unavoidable, required for compatibility). Without this env var it
+        # also cascades to upgrading unrelated formulae that merely depend on
+        # colmap ("installed dependents check"), which is the invasive part.
+        env = {**os.environ, "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK": "1"}
         try:
             if self.is_installed():
                 print("Mise à jour de COLMAP via Homebrew...")
-                subprocess.check_call(["brew", "upgrade", "colmap"])
+                subprocess.check_call(["brew", "upgrade", "colmap"], env=env)
             else:
                 print("Installation de COLMAP via Homebrew...")
-                subprocess.check_call(["brew", "install", "colmap"])
+                subprocess.check_call(["brew", "install", "colmap"], env=env)
         except subprocess.CalledProcessError:
             print("⚠️ brew upgrade/install colmap a échoué (peut-être déjà à jour).")
