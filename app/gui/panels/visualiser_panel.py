@@ -1,16 +1,16 @@
-"""Panneau Visualiser (étape PIPELINE, optionnelle) — équivalent de SuperSplatTab.
+"""View panel (optional PIPELINE step) — equivalent of SuperSplatTab.
 
-Centre : sélection du fichier (.ply/.spz), bouton Démarrer/Arrêter local
-(indépendant du bouton Lancer global), statut serveur, rappel URL, ports,
-No UI, position et rotation caméra. Barre de droite : vide (contenu fusionné
-dans le centre, cf. ``app.gui.panels`` docstring).
+Center: file selection (.ply/.spz), local Start/Stop button (independent of
+the global Launch button), server status, URL reminder, ports, No UI, camera
+position and rotation. Right bar: empty (content merged into the center, cf.
+``app.gui.panels`` docstring).
 
-Le démarrage/arrêt réel du serveur (``SuperSplatEngine.start_supersplat`` +
-``start_data_server``) est câblé sur le bouton local ``btn_toggle`` — pas un
-``Worker``/``QThread`` comme les autres modules (serveur continu, pas un
-traitement avec fin), donc indépendant du bouton Lancer/Annuler global de la
-topbar. ``StudioWindow.closeEvent`` appelle ``self.engine.stop_all()`` en
-sécurité pour ne pas laisser de serveur orphelin à la fermeture.
+The server's actual start/stop (``SuperSplatEngine.start_supersplat`` +
+``start_data_server``) is wired to the local ``btn_toggle`` button — not a
+``Worker``/``QThread`` like the other modules (a continuous server, not a
+task with an end), hence independent of the topbar's global Launch/Cancel
+button. ``StudioWindow.closeEvent`` calls ``self.engine.stop_all()`` as a
+safety net so no orphaned server is left running on close.
 """
 
 import webbrowser
@@ -39,14 +39,14 @@ from app.gui.widgets.drop_line_edit import DropLineEdit
 
 
 class VisualiserPanel:
-    """Panneau plain exposant ``center`` et ``right``."""
+    """Plain panel exposing ``center`` and ``right``."""
 
     def __init__(self, run_state):
         self.run_state = run_state
         self._running = False
-        # Instancié dès maintenant (comme l'ancien SuperSplatTab) pour que le
-        # closeEvent de StudioWindow puisse toujours appeler stop_all(), même
-        # avant que toggle_server() ne soit câblé au moteur réel.
+        # Instantiated right away (like the old SuperSplatTab) so that
+        # StudioWindow's closeEvent can always call stop_all(), even before
+        # toggle_server() is wired to the real engine.
         self.engine = SuperSplatEngine()
         self.center = self._build_center()
         self.right = self._build_right()
@@ -88,9 +88,9 @@ class VisualiserPanel:
         self.btn_reopen.clicked.connect(self._open_browser)
         layout.addWidget(self.btn_reopen)
 
-        # ── Migré depuis _build_right : ports, No UI, position/rotation caméra ──
+        # ── Migrated from _build_right: ports, No UI, camera position/rotation ──
         form = QFormLayout()
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
 
         self.splat_port = QSpinBox()
         self.splat_port.setRange(1024, 65535)
@@ -136,8 +136,8 @@ class VisualiserPanel:
         return QWidget()
 
     def toggle_server(self):
-        """Démarre ou arrête réellement le serveur SuperSplat (bouton local
-        indépendant du bouton Lancer/Annuler global)."""
+        """Actually start or stop the SuperSplat server (local button
+        independent of the global Launch/Cancel button)."""
         if self._running:
             self._stop_server()
         else:
@@ -165,7 +165,7 @@ class VisualiserPanel:
         self._running = True
         self.btn_reopen.setEnabled(True)
         self._refresh_status()
-        # Ouvre le navigateur après 1.5s pour laisser le serveur démarrer.
+        # Opens the browser after 1.5s to let the server start.
         QTimer.singleShot(1500, self._open_browser)
 
     def _stop_server(self):

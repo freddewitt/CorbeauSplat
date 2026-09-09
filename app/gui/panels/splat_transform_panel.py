@@ -1,4 +1,4 @@
-"""Module OUTILS SplatTransform. Produit .ply/.spz/.splat → chaînage possible."""
+"""TOOLS module SplatTransform. Produces .ply/.spz/.splat → chaining possible."""
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -79,7 +79,7 @@ class SplatTransformPanel:
         layout = QVBoxLayout(content)
 
         form = QFormLayout()
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.combo_format = QComboBox()
         self.combo_format.addItems(["ply", "spz", "splat"])
         self.lbl_format = QLabel()
@@ -137,7 +137,7 @@ class SplatTransformPanel:
             self.output_path.setText(path)
 
     def get_params(self):
-        """Retourne les paramètres SplatTransform sous forme de dict."""
+        """Return the SplatTransform parameters as a dict."""
         return {
             "format": self.combo_format.currentText(),
             "filter_nan": self.chk_filter_nan.isChecked(),
@@ -147,8 +147,8 @@ class SplatTransformPanel:
         }
 
     def retranslate_ui(self):
-        # Seul panneau des dix à avoir oublié cette ligne : son bouton Lancer
-        # s'affichait donc vide, construit sans texte et jamais retraduit.
+        # The only panel of the ten to have forgotten this line: its Launch
+        # button used to show up empty, built with no text and never retranslated.
         self.btn_run.setText(tr("btn_run", "Lancer"))
         self.lbl_status.setText(tr("st_status", "Moteur SplatTransform"))
         self.lbl_input.setText(tr("st_input", "Entrée (.ply/.spz/.splat)"))

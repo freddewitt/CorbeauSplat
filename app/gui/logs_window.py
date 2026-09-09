@@ -1,12 +1,12 @@
-"""Fenêtre dédiée au journal d'exécution.
+"""Dedicated window for the execution log.
 
-Le journal occupait le bas de la fenêtre principale, replié par défaut : illisible
-une fois déplié (quelques lignes de haut), et il écrasait le contenu de l'écran en
-s'ouvrant. Il vit désormais dans sa propre fenêtre, **non modale** — on peut la
-laisser ouverte pendant un run et continuer à travailler dans le Studio.
+The log used to occupy the bottom of the main window, collapsed by default:
+unreadable once expanded (a few lines tall), and it crowded out the screen
+content when opened. It now lives in its own window, **non-modal** — it can
+stay open during a run while work continues in the Studio.
 
-Le contenu EST un ``LogsTab``, comme l'ancienne barre : recherche, copie,
-sauvegarde et verrou d'auto-défilement y sont déjà en place, rien à réimplémenter.
+The content IS a ``LogsTab``, like the old bar: search, copy, save and the
+auto-scroll lock are already in place there, nothing to reimplement.
 """
 
 from PySide6.QtWidgets import QDialog, QVBoxLayout
@@ -16,12 +16,12 @@ from app.gui.tabs.logs_tab import LogsTab
 
 
 class LogsWindow(QDialog):
-    """Journal complet, ouvert à la demande depuis la barre du bas."""
+    """Full log, opened on demand from the bottom bar."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        # Non modale : un run peut durer des heures, bloquer le Studio pendant
-        # qu'on lit ses logs n'aurait aucun sens.
+        # Non-modal: a run can last hours, blocking the Studio while
+        # reading its logs would make no sense.
         self.setModal(False)
         self.resize(900, 520)
 
@@ -33,12 +33,12 @@ class LogsWindow(QDialog):
         add_language_observer(self.retranslate_ui)
         self.retranslate_ui()
 
-    # ── Délégation vers le LogsTab encapsulé ────────────────────────────────────
+    # ── Delegation to the embedded LogsTab ──────────────────────────────────────
     def append_log(self, message):
-        """Alimentée en continu, que la fenêtre soit visible ou non.
+        """Fed continuously, whether the window is visible or not.
 
-        C'est délibéré : l'historique complet du run doit être là à la première
-        ouverture, y compris ce qui s'est produit avant qu'on pense à regarder.
+        This is deliberate: the full run history must be there on first
+        opening, including whatever happened before anyone thought to look.
         """
         self.logs.append_log(message)
 
@@ -46,7 +46,7 @@ class LogsWindow(QDialog):
         self.logs.clear_log()
 
     def show_logs(self, search: str = ""):
-        """Affiche la fenêtre (et la ramène au premier plan si déjà ouverte)."""
+        """Show the window (and bring it to front if already open)."""
         self.show()
         self.raise_()
         self.activateWindow()

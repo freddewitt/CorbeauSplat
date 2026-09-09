@@ -1,24 +1,25 @@
-"""Rail gauche de la fenêtre Studio : "Projet" + groupes ENTRAÎNEMENT, OPTIONS
-et OUTILS.
+"""Left rail of the Studio window: "Projet" + ENTRAÎNEMENT, OPTIONS
+and OUTILS groups.
 
-- "Projet" (étape ``source``) : item racine, en tête, style permanent distinct
-  (fond teinté + liseré accent) pour marquer que c'est la racine de l'arbre.
-- ENTRAÎNEMENT : cœur du pipeline — Reconstruction, Entraînement, Visualiser.
-- OPTIONS : traitements optionnels chaînés au pipeline (cases à cocher type
-  ``upscaler_avant``) — Upscale, Nettoyage, Export, Extraction 360. Cet ordre
-  de *lecture* ne reflète volontairement pas l'ordre d'*exécution* :
-  Extraction 360 et Upscale s'exécutent avant Reconstruction. La séquence
-  réelle est portée par ``PIPELINE_STEPS`` et ``plan_pipeline()``.
-  ENTRAÎNEMENT et OPTIONS sont toutes deux visuellement enfants de "Projet"
-  (filet vertical + tiret par item, chacune avec icône + libellé toujours
-  affichés ensemble, et un marqueur d'état coche / activité / erreur piloté
-  par ``StepStatus``) — pour ne pas laisser croire qu'elles sont indépendantes
-  du projet, contrairement à OUTILS. Toujours visibles, aucun repli.
-- OUTILS : 6 modules indépendants, séparés par un filet horizontal, sans lien
-  d'arbre avec "Projet". Toujours visibles, aucun repli.
+- "Projet" (``source`` step): root item, at the top, distinct permanent
+  style (tinted background + accent stripe) to mark it as the tree's root.
+- ENTRAÎNEMENT: core of the pipeline — Reconstruction, Entraînement, Visualiser.
+- OPTIONS: optional processing chained to the pipeline (checkboxes such as
+  ``upscaler_avant``) — Upscale, Nettoyage, Export, Extraction 360. This
+  *reading* order intentionally does not reflect the *execution* order:
+  Extraction 360 and Upscale run before Reconstruction. The actual sequence
+  is carried by ``PIPELINE_STEPS`` and ``plan_pipeline()``.
+  ENTRAÎNEMENT and OPTIONS are both visual children of "Projet"
+  (vertical trunk + dash per item, each with icon + label always displayed
+  together, and a status marker check / running / error driven by
+  ``StepStatus``) — so as not to suggest they are independent from the
+  project, unlike OUTILS. Always visible, never collapsed.
+- OUTILS: 6 independent modules, separated by a horizontal rule, with no
+  tree link back to "Projet". Always visible, never collapsed.
 
-L'ensemble est dans une ``QScrollArea`` (14 items cumulés → risque de dépassement
-vertical sur petit écran, déjà géré ainsi ailleurs dans l'app).
+Everything lives inside a ``QScrollArea`` (14 items combined → risk of
+vertical overflow on a small screen, already handled this way elsewhere
+in the app).
 """
 
 from PySide6.QtCore import Qt, Signal
@@ -37,10 +38,10 @@ from app.core.i18n import add_language_observer, tr
 from app.core.run_state import PIPELINE_STEPS, StepStatus
 from app.gui.styles import DEFAULT_THEME, THEMES, get_saved_theme
 
-# Modules OUTILS, dans l'ordre du rail. "360" (Extractor360Panel autonome) a
-# été retiré : contrairement à Brush/SuperSplat, il n'apportait aucun
-# comportement distinct de l'étape "extraction360" (OPTIONS), qui se lance
-# déjà seule depuis son propre bouton — la double instance était redondante.
+# OUTILS modules, in rail order. "360" (standalone Extractor360Panel) was
+# removed: unlike Brush/SuperSplat, it added no behavior distinct from the
+# "extraction360" step (OPTIONS), which already launches on its own from its
+# own button — the double instance was redundant.
 TOOL_KEYS = ("brush", "sharp", "supersplat", "splattransform", "4dgs")
 
 # Group layout, in rail order. "kind" drives how _build_group() renders it:
@@ -60,10 +61,10 @@ _GROUPS = (
     {
         "id": "options",
         "kind": "tree",
-        # À l'exécution, Extraction 360 et Upscale tournent AVANT Reconstruction
-        # — c'est PIPELINE_STEPS (run_state.py) et plan_pipeline() qui font foi
-        # pour la séquence. Cette liste ne pilote que l'affichage : le rail
-        # retrouve ses boutons par clé (self._buttons[key]), jamais par position.
+        # At runtime, Extraction 360 and Upscale run BEFORE Reconstruction —
+        # PIPELINE_STEPS (run_state.py) and plan_pipeline() are the source of
+        # truth for the sequence. This list only drives the display: the rail
+        # looks up its buttons by key (self._buttons[key]), never by position.
         "keys": ("upscale", "nettoyage", "export", "extraction360"),
         "label": ("rail_section_options", "OPTIONS"),
     },
@@ -75,13 +76,13 @@ _GROUPS = (
     },
 )
 
-# Icônes minimalistes : glyphes géométriques monochromes (pas d'emoji couleur),
-# qui héritent de la couleur du texte. « icône + libellé toujours ensemble ».
+# Minimalist icons: monochrome geometric glyphs (no color emoji), which
+# inherit the text color. "icon + label always together".
 _STEP_ICONS = {
-    # Projet = racine de l'arbre, d'où la maison (⌂ U+2302, symbole technique
-    # monochrome — pas l'emoji 🏠, qui casserait l'héritage de couleur).
-    # Nettoyage est passé de ◈ à ⊘ : deux losanges (◆/◈) côte à côte dans la
-    # même colonne étaient indistinguables à 13px, et ⊘ dit mieux le retrait.
+    # Projet = root of the tree, hence the house (⌂ U+2302, monochrome
+    # technical symbol — not the 🏠 emoji, which would break color inheritance).
+    # Nettoyage moved from ◈ to ⊘: two diamonds (◆/◈) side by side in the
+    # same column were indistinguishable at 13px, and ⊘ better conveys removal.
     "source": "⌂", "reconstruction": "▦", "entrainement": "◆", "upscale": "⤢",
     "nettoyage": "⊘", "export": "↥", "visualiser": "◉", "extraction360": "◍",
 }
@@ -121,8 +122,8 @@ _MUTED_COLOR = _THEME["muted"]
 # live theme accent, so it never drifts from the existing selection color.
 _ROOT_ACCENT = "#7aa2f7"
 
-# Style commun des items : alignés à gauche, compacts, minimalistes. La sélection
-# et le survol se traduisent par un léger fond (pas de bordure).
+# Common item style: left-aligned, compact, minimalist. Selection and hover
+# are conveyed by a light background (no border).
 _ITEM_STYLE = (
     "QPushButton { text-align: left; padding: 3px 8px; border: none; background: transparent; }"
     "QPushButton:checked { background: rgba(122,162,247,0.20); border-radius: 4px; }"
@@ -160,7 +161,7 @@ _GROUP_LABEL_STYLE = (
     " letter-spacing: 1px; background: transparent;"
 )
 
-# Marqueur d'état préfixé au libellé d'une étape PIPELINE.
+# Status marker prefixed to a PIPELINE step's label.
 _STATUS_MARKER = {
     StepStatus.IDLE: "",
     StepStatus.RUNNING: "⏳ ",
@@ -170,11 +171,11 @@ _STATUS_MARKER = {
 
 
 def item_label(key: str) -> str:
-    """Libellé traduit d'un item du rail — étape ou outil, chaîne vide si inconnu.
+    """Translated label of a rail item — step or tool, empty string if unknown.
 
-    Exposé pour la barre d'activité, qui doit nommer l'étape en cours avec
-    exactement le même mot que le rail : deux tables de libellés parallèles
-    auraient dérivé au premier renommage.
+    Exposed for the activity bar, which must name the current step with
+    exactly the same word as the rail: two parallel label tables would have
+    drifted apart at the first renaming.
     """
     if key in _STEP_LABEL_KEYS:
         return tr(*_STEP_LABEL_KEYS[key])
@@ -184,7 +185,7 @@ def item_label(key: str) -> str:
 
 
 class Rail(QWidget):
-    """Colonne de navigation gauche. Émet ``itemSelected(key)`` à chaque clic."""
+    """Left navigation column. Emits ``itemSelected(key)`` on every click."""
 
     itemSelected = Signal(str)
 
@@ -208,11 +209,11 @@ class Rail(QWidget):
         self._layout.setContentsMargins(4, 4, 4, 4)
         self._layout.setSpacing(2)
 
-        # Un seul groupe exclusif pour toute sélection (14 items).
+        # A single exclusive group for the whole selection (14 items).
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)
 
-        # ── Projet, PARAMÈTRES, OUTILS — toujours visibles, aucun repli ────────
+        # ── Projet, PARAMÈTRES, OUTILS — always visible, never collapsed ──────
         for spec in _GROUPS:
             self._build_group(spec)
 
@@ -304,17 +305,17 @@ class Rail(QWidget):
         layout.addWidget(btn)
         return btn
 
-    # ── Sélection ─────────────────────────────────────────────────────────────
+    # ── Selection ─────────────────────────────────────────────────────────────
     def _on_item_clicked(self, key):
         self.itemSelected.emit(key)
 
     def select(self, key):
-        """Sélectionne programmatiquement un item (auto-follow pendant un run)."""
+        """Programmatically select an item (auto-follow during a run)."""
         btn = self._buttons.get(key)
         if btn is not None:
             btn.setChecked(True)
 
-    # ── État des étapes ────────────────────────────────────────────────────────
+    # ── Step state ────────────────────────────────────────────────────────────
     def set_step_status(self, step: str, status: StepStatus):
         if step not in self._status:
             raise KeyError(f"Étape inconnue: {step}")

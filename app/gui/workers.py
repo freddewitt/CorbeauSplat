@@ -16,11 +16,11 @@ from app.gui.base_worker import BaseWorker
 
 
 class Extractor360Worker(BaseWorker):
-    """Thread worker pour exécuter 360Extractor"""
+    """Thread worker for running 360Extractor"""
 
     def __init__(self, input_path, output_path, params, engine=None):
         super().__init__()
-        # DIP : Injection
+        # DIP: Injection
         self.engine = engine or Extractor360Engine(logger_callback=self.log_signal.emit)
 
         self.input_path = input_path
@@ -53,7 +53,7 @@ class Extractor360Worker(BaseWorker):
             self.finished_signal.emit(False, tr("err_360_failed", "Erreur lors de l'extraction."))
 
     def parse_line(self, line):
-        """Extraction naïve de la progression [XX%]"""
+        """Naive extraction of the [XX%] progress marker"""
         if "%]" in line and "[" in line:
             try:
                 part = line.split("[")[1].split("%]")[0].strip()
@@ -62,14 +62,14 @@ class Extractor360Worker(BaseWorker):
                 pass
 
 class ColmapWorker(BaseWorker):
-    """Thread worker pour exécuter COLMAP via le moteur"""
+    """Thread worker for running COLMAP through the engine"""
 
     def __init__(self, params, input_path, output_path, input_type, fps, project_name="Untitled", upscale_params=None, extractor_360_params=None, engine=None):
         super().__init__()
         self.upscale_params = upscale_params
         self.extractor_360_params = extractor_360_params
         self.extractor_engine = None
-        # DIP : Injection
+        # DIP: Injection
         self.engine = engine or ColmapEngine(
             params, input_path, output_path, input_type, fps, project_name,
             logger_callback=self.log_signal.emit,
@@ -137,11 +137,11 @@ class ColmapWorker(BaseWorker):
         self.finished_signal.emit(success, message)
 
 class BrushWorker(BaseWorker):
-    """Thread worker pour exécuter Brush"""
+    """Thread worker for running Brush"""
 
     def __init__(self, input_path, output_path, params, engine=None, project_name="", keep_only_latest=False):
         super().__init__()
-        # DIP : Injection
+        # DIP: Injection
         self.engine = engine or BrushEngine(logger_callback=self.log_signal.emit)
 
         self.input_path = input_path
@@ -152,14 +152,14 @@ class BrushWorker(BaseWorker):
 
     def resolve_dataset_root(self, path: Path) -> Path:
         """
-        Tente de resoudre la racine du dataset si l'utilisateur a selectionne
-        un sous-dossier comme sparse/0 ou sparse.
+        Tries to resolve the dataset root if the user selected a subfolder
+        such as sparse/0 or sparse.
         """
-        # Cas sparse/0 -> remonter de 2 niveaux
+        # sparse/0 case -> go up 2 levels
         if path.name == "0" and path.parent.name == "sparse":
             return path.parent.parent
 
-        # Cas sparse -> remonter de 1 niveau
+        # sparse case -> go up 1 level
         if path.name == "sparse":
             return path.parent
 
@@ -175,7 +175,7 @@ class BrushWorker(BaseWorker):
             self.log_signal.emit(f"Input: {self.input_path}")
             self.log_signal.emit(f"Output: {self.output_path}")
 
-            # Resolution automatique du chemin dataset
+            # Automatic dataset path resolution
             resolved_input = self.resolve_dataset_root(Path(self.input_path))
 
             if str(resolved_input) != str(self.input_path):
@@ -185,14 +185,14 @@ class BrushWorker(BaseWorker):
                 self.finished_signal.emit(False, f"Le dossier dataset n'existe pas: {resolved_input}")
                 return
 
-            # Gestion Refine Auto (Prioritaire sur Init PLY manuel)
+            # Auto Refine handling (takes priority over manual Init PLY)
             refine_mode = self.params.get("refine_mode")
 
             if refine_mode:
                 self.log_signal.emit("Mode Raffinement (Refine) activé...")
                 checkpoints_dir = resolved_input / "checkpoints"
 
-                # 1. Trouver le dernier PLY
+                # 1. Find the latest PLY
                 latest_ply = None
                 last_mtime = 0
                 if checkpoints_dir.exists():
@@ -206,7 +206,7 @@ class BrushWorker(BaseWorker):
                 if latest_ply:
                     self.log_signal.emit(f"Checkpoint trouvé: {latest_ply.name}")
 
-                    # 2. Créer dossier Refine
+                    # 2. Create Refine folder
                     refine_dir = resolved_input / "Refine"
                     self.log_signal.emit(f"Préparation du dossier de raffinement: {refine_dir}")
 
@@ -220,7 +220,7 @@ class BrushWorker(BaseWorker):
                         self.finished_signal.emit(False, f"Erreur dossier Refine: {e}")
                         return
 
-                    # 3. Copier init.ply
+                    # 3. Copy init.ply
                     dest_init = refine_dir / "init.ply"
                     try:
                         shutil.copy2(latest_ply, dest_init)
@@ -230,7 +230,7 @@ class BrushWorker(BaseWorker):
                         self.finished_signal.emit(False, f"Erreur copie init.ply: {e}")
                         return
 
-                    # 4. Symlinks sparse & images
+                    # 4. Symlinks for sparse & images
                     try:
                         self.log_signal.emit("Création des liens symboliques pour sparse et images...")
                         try:
@@ -246,7 +246,7 @@ class BrushWorker(BaseWorker):
 
                         self.log_signal.emit("Liens symboliques/copies terminés.")
 
-                        # 5. Rediriger l'entraînement
+                        # 5. Redirect training
                         resolved_input = refine_dir
                         self.output_path = refine_dir / "checkpoints"
                         self.output_path.mkdir(parents=True, exist_ok=True)
@@ -268,14 +268,14 @@ class BrushWorker(BaseWorker):
                 else:
                     self.log_signal.emit("AVERTISSEMENT: Mode Refine activé mais aucun checkpoint (.ply) trouvé. Lancement mode normal.")
 
-            # Fin gestion Init / Refine
+            # End of Init / Refine handling
 
-            # Renommer les checkpoints existants avant l'archivage ou l'entraînement
+            # Rename existing checkpoints before archiving or training
             if self.project_name:
                 self._rename_checkpoints_with_project_name()
 
-            # Mode "new" : s'assurer que Brush parte d'un dossier vide
-            # Brush auto-reprend depuis les checkpoints existants → on les archive
+            # "new" mode: ensure Brush starts from an empty folder
+            # Brush auto-resumes from existing checkpoints → archive them
             if not refine_mode:
                 output_dir = Path(self.output_path)
                 has_checkpoints = output_dir.exists() and any(output_dir.rglob("*.ply"))
@@ -310,7 +310,7 @@ class BrushWorker(BaseWorker):
             self.finished_signal.emit(False, f"Exception: {e}")
 
     def handle_ply_rename(self):
-        """Gère le renommage sécurisé du fichier PLY"""
+        """Handles the safe renaming of the PLY file"""
         ply_name = self.params.get("ply_name")
         if not ply_name:
             return
@@ -369,7 +369,7 @@ class BrushWorker(BaseWorker):
             self.log_signal.emit("Attention: Aucun fichier PLY trouvé à renommer.")
 
     def _rename_checkpoints_with_project_name(self):
-        """Renomme tous les PLY de checkpoints pour inclure le nom du projet."""
+        """Rename all checkpoint PLYs to include the project name."""
         prefix = f"{self.project_name}_"
         output_path = Path(self.output_path)
         renamed = 0
@@ -386,7 +386,7 @@ class BrushWorker(BaseWorker):
             self.log_signal.emit(f"Checkpoints renommés avec le préfixe '{prefix}' ({renamed} fichiers)")
 
     def _prune_to_latest_checkpoint(self):
-        """Ne conserve que le checkpoint .ply le plus récent dans le dossier de sortie."""
+        """Keep only the most recent .ply checkpoint in the output folder."""
         output_path = Path(self.output_path)
         plys = [p for p in output_path.rglob("*.ply") if p.is_file()]
         if len(plys) <= 1:
@@ -403,7 +403,7 @@ class BrushWorker(BaseWorker):
             except OSError as e:
                 self.log_signal.emit(f"Erreur suppression {ply.name}: {e}")
 
-        # Supprimer les sous-dossiers désormais vides (du plus profond au plus superficiel)
+        # Remove now-empty subfolders (deepest first, then shallower ones)
         for d in sorted(output_path.rglob("*"), key=lambda p: len(p.parts), reverse=True):
             if d.is_dir():
                 with contextlib.suppress(OSError):
@@ -415,13 +415,13 @@ class BrushWorker(BaseWorker):
             )
 
 class SharpWorker(BaseWorker):
-    """Thread worker pour exécuter Apple ML Sharp"""
+    """Thread worker for running Apple ML Sharp"""
 
     def __init__(self, input_path, output_path, params, engine=None):
         super().__init__()
-        # On importe ici pour eviter les cycles si besoin, ou juste par proprete
+        # Imported here to avoid cycles if needed, or just for tidiness
         from app.core.sharp_engine import SharpEngine
-        # DIP : Injection
+        # DIP: Injection
         self.engine = engine or SharpEngine(logger_callback=self.log_signal.emit)
 
         self.input_path = input_path
@@ -485,7 +485,7 @@ class SharpWorker(BaseWorker):
             # Use refactored predict method
             self.status_signal.emit(tr("status_sharp", "Amélioration avec ML Sharp..."))
 
-            # Délégation à la Template Method
+            # Delegated to the Template Method
             returncode = self.engine.predict(self.input_path, self.output_path, self.params)
             success = (returncode == 0)
 
@@ -536,7 +536,7 @@ class SharpVideoWorker(BaseWorker):
 
 
 class CleanerWorker(BaseWorker):
-    """Thread worker pour nettoyer un ou plusieurs fichiers .ply (Gaussian Splat)."""
+    """Thread worker for cleaning one or more .ply (Gaussian Splat) files."""
 
     def __init__(self, input_path, output_path, params, recursive=False):
         super().__init__()
@@ -550,7 +550,7 @@ class CleanerWorker(BaseWorker):
             self.log_signal.emit("--- Démarrage du nettoyage PLY ---")
 
             if self.input_path.is_dir():
-                # Mode dossier
+                # Folder mode
                 self.log_signal.emit(f"Nettoyage par lots : {self.input_path} → {self.output_path}")
                 self.output_path.mkdir(parents=True, exist_ok=True)
 
@@ -601,7 +601,7 @@ class CleanerWorker(BaseWorker):
                 self.finished_signal.emit(fail_count == 0, msg)
 
             else:
-                # Mode fichier unique (comportement existant)
+                # Single-file mode (existing behavior)
                 self.log_signal.emit(f"Nettoyage de {self.input_path}...")
                 stats = clean_ply(
                     self.input_path, self.output_path,
@@ -669,7 +669,7 @@ class FourDGSWorker(BaseWorker):
         self.fps = fps
         self.upscale_params = upscale_params
         self.colmap_params = colmap_params or {}
-        # DIP : Injection
+        # DIP: Injection
         self.engine = engine or FourDGSEngine(
             logger_callback=self.log_signal.emit,
             status_callback=self.status_signal.emit
@@ -687,8 +687,8 @@ class FourDGSWorker(BaseWorker):
                     self.videos_dir, self.output_dir, self.fps, colmap_params=self.colmap_params,
                 )
             else:
-                # COLMAP ONLY MODE : les frames existent déjà (process_dataset, qui
-                # gère l'upscale d'habitude, est sauté) — on l'applique donc ici.
+                # COLMAP ONLY MODE: the frames already exist (process_dataset, which
+                # usually handles upscaling, is skipped) — so apply it here instead.
                 success = (
                     self.engine.upscale_dataset_images(self.output_dir)
                     and self.engine.run_colmap(self.output_dir, **self.colmap_params)

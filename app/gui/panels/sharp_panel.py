@@ -1,10 +1,11 @@
-"""Module OUTILS ML Sharp (Photo/Vidéo → PLY).
+"""TOOLS module ML Sharp (Photo/Video → PLY).
 
-Centre : statut moteur, toggle Image/Vidéo, entrée (DropLineEdit), sortie.
-Barre de droite : device, checkpoint optionnel, verbose, upscaler avant, et
-toggles Nettoyer/Exporter/Visualiser après (le module produit un .ply).
+Center: engine status, Image/Video toggle, input (DropLineEdit), output.
+Right bar: device, optional checkpoint, verbose, upscale before, and
+Clean/Export/View-after toggles (the module produces a .ply).
 
-Lot 5 : UI + params. Lancement réel (SharpWorker/SharpVideoWorker) = phase moteurs.
+Batch 5: UI + params. Actual launch (SharpWorker/SharpVideoWorker) = engine
+wiring phase.
 """
 
 from PySide6.QtCore import Qt
@@ -94,7 +95,7 @@ class SharpPanel:
         layout = QVBoxLayout(content)
 
         form = QFormLayout()
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.device_combo = QComboBox()
         self.device_combo.addItems(["mps", "cuda", "cpu"])
         self.lbl_device = QLabel()
@@ -139,7 +140,7 @@ class SharpPanel:
         return self.radio_video.isChecked()
 
     def get_params(self):
-        """Retourne les paramètres Sharp sous forme de dict."""
+        """Return the Sharp parameters as a dict."""
         return {
             "mode": "video" if self.is_video() else "image",
             "input_path": self.input_path.text(),

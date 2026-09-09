@@ -1,17 +1,17 @@
-"""Panneau Reconstruction (étape PIPELINE) — équivalent de ParamsTab.
+"""Reconstruction panel (PIPELINE step) — equivalent of ParamsTab.
 
-Reprend les accordéons Feature Extraction / Matching / Mapper de ``ParamsTab``
-dans le centre (fusionnés depuis l'ancienne barre de droite, cf.
-``app.gui.panels`` docstring), et migre ici la logique « Reprise de COLMAP »
-(avant dans ConfigTab), étendue au cas « dossier externe → nouveau projet à
-la volée » (cf. reconstruction_logic.classify_resume_folder).
+Carries over the Feature Extraction / Matching / Mapper accordions from
+``ParamsTab`` into the center (merged from the former right bar, cf.
+``app.gui.panels`` docstring), and migrates here the "Resume COLMAP" logic
+(previously in ConfigTab), extended to the "external folder → new project on
+the fly" case (cf. reconstruction_logic.classify_resume_folder).
 
-``undistort_images`` est exécuté réellement ici (section Mapper) et bindé sur le
-``RunState`` partagé — dupliqué en raccourci dans Source, même source de vérité.
-Les toggles Entraînement/Visualiser après sont aussi bindés sur run_state.
+``undistort_images`` is actually run here (Mapper section) and bound to the
+shared ``RunState`` — duplicated as a shortcut in Source, same source of
+truth. The Training/View-after toggles are also bound to run_state.
 
-Lot 3b : UI + params + détection de reprise. Le dispatch réel (lancer COLMAP,
-créer le projet à la volée) est câblé au sous-lot 3c.
+Batch 3b: UI + params + resume detection. The actual dispatch (launch COLMAP,
+create the project on the fly) is wired in sub-batch 3c.
 """
 
 from PySide6.QtCore import Qt
@@ -55,7 +55,7 @@ _MATCHER_TYPES = ['exhaustive', 'sequential', 'vocab_tree']
 
 
 class ReconstructionPanel:
-    """Panneau plain exposant ``center`` et ``right`` (widgets Qt)."""
+    """Plain panel exposing ``center`` and ``right`` (Qt widgets)."""
 
     def __init__(self, run_state):
         self.run_state = run_state
@@ -65,7 +65,7 @@ class ReconstructionPanel:
         add_language_observer(self.retranslate_ui)
         self.retranslate_ui()
 
-    # ── Centre (reprise + projet + chaînage + accordéons) ───────────────────────
+    # ── Center (resume + project + chaining + accordions) ───────────────────────
     def _build_center(self):
         w = QWidget()
         outer = QVBoxLayout(w)
@@ -78,7 +78,7 @@ class ReconstructionPanel:
         layout = QVBoxLayout(content)
 
 
-        # Bannière Apple Silicon (reprise telle quelle de ParamsTab)
+        # Apple Silicon banner (carried over as-is from ParamsTab)
         self.info_label = QLabel()
         self.info_label.setWordWrap(True)
         self.info_label.setVisible(is_apple_silicon())
@@ -100,7 +100,7 @@ class ReconstructionPanel:
         self.lbl_resume_status.setWordWrap(True)
         layout.addWidget(self.lbl_resume_status)
 
-        # Nom projet / dossier de sortie (si pas déjà connus du contexte)
+        # Project name / output folder (if not already known from context)
         self.lbl_project = QLabel()
         self.input_project_name = QLineEdit()
         self.input_project_name.setPlaceholderText("MonProjet")
@@ -117,7 +117,7 @@ class ReconstructionPanel:
         layout.addWidget(self.lbl_output)
         layout.addLayout(out_row)
 
-        # Chaînage (mêmes drapeaux que Source, source de vérité unique)
+        # Chaining (same flags as Source, single source of truth)
         self.chk_entrainement = QCheckBox()
         self._bind(self.chk_entrainement, "entrainement_apres")
         layout.addWidget(self.chk_entrainement)
@@ -125,10 +125,10 @@ class ReconstructionPanel:
         self._bind(self.chk_visualiser, "visualiser_apres")
         layout.addWidget(self.chk_visualiser)
 
-        # ── Migré depuis _build_right : accordéons Feature Extraction / Matching / Mapper ──
+        # ── Migrated from _build_right: Feature Extraction / Matching / Mapper accordions ──
         self.extract_group = QGroupBox()
         ex = QFormLayout(self.extract_group)
-        ex.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        ex.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.camera_model_combo = QComboBox()
         self.camera_model_combo.addItems(_CAMERA_MODELS)
         self.camera_model_combo.setCurrentText('SIMPLE_RADIAL')
@@ -167,7 +167,7 @@ class ReconstructionPanel:
         # Matching
         self.match_group = QGroupBox()
         mt = QFormLayout(self.match_group)
-        mt.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        mt.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.matcher_type_combo = QComboBox()
         self.matcher_type_combo.addItems(_MATCHER_TYPES)
         self.matcher_type_combo.setCurrentText('exhaustive')
@@ -213,7 +213,7 @@ class ReconstructionPanel:
         # Mapper
         self.mapper_group = QGroupBox()
         mp = QFormLayout(self.mapper_group)
-        mp.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        mp.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.refine_focal_check = QCheckBox()
         self.refine_focal_check.setChecked(True)
         self.lbl_focal = QLabel()
@@ -236,7 +236,7 @@ class ReconstructionPanel:
         self.thermal_throttling_check = QCheckBox()
         self.lbl_thermal = QLabel()
         mp.addRow(self.lbl_thermal, self.thermal_throttling_check)
-        # undistort exécuté ici, bindé run_state (dupliqué avec Source)
+        # undistort executed here, bound to run_state (duplicated with Source)
         self.undistort_check = QCheckBox()
         self._bind(self.undistort_check, "undistort_images")
         self.lbl_undistort = QLabel()
@@ -299,7 +299,7 @@ class ReconstructionPanel:
 
     # ── Params ────────────────────────────────────────────────────────────────────
     def get_params(self):
-        """Construit ColmapParams depuis les widgets ; undistort depuis run_state."""
+        """Build ColmapParams from the widgets; undistort from run_state."""
         return ColmapParams(
             camera_model=self.camera_model_combo.currentText(),
             single_camera=self.single_camera_check.isChecked(),

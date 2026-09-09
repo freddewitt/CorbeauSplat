@@ -1,37 +1,38 @@
-"""Planification du run pipeline (chaînage conditionnel), isolée de Qt.
+"""Pipeline run planning (conditional chaining), isolated from Qt.
 
-Décide, selon le mode (Gsplat / Sharp / 4DGS) et les drapeaux de ``RunState``,
-la liste ordonnée des étapes à exécuter au clic sur « Lancer ». Logique pure,
-donc testable sous le mock PySide6 (le prompt Lot 3 demande explicitement de
-tester ce chaînage conditionnel).
+Decides, based on the mode (Gsplat / Sharp / 4DGS) and ``RunState`` flags, the
+ordered list of steps to run when clicking "Launch". Pure logic, hence
+testable under the mocked PySide6 (the Batch 3 prompt explicitly asks for
+this conditional chaining to be tested).
 
-Règles :
-- **Extraction 360** : intercalée juste après Source si ``source_360`` — elle
-  convertit une source équirectangulaire en un *nouveau* dossier d'images
-  planaires, que les étapes suivantes consomment à la place de la source.
-- **Upscale** : intercalé entre Source et Reconstruction si ``upscaler_avant``
-  (il agrandit les images *avant* que COLMAP ne les lise), tous modes confondus.
-- **Gsplat** : Source → Reconstruction (COLMAP), puis Entraînement (Brush) si
-  ``entrainement_apres`` ; les post-étapes suivent leurs propres toggles.
-- **Sharp** : Source → Reconstruction (inférence Sharp, pas d'Entraînement),
-  puis post-étapes selon toggles.
-- **4DGS** : tronqué à Source → (Extraction 360) → (Upscale) → Reconstruction (pas de sortie .ply
-  exploitable).
+Rules:
+- **Extraction 360**: inserted right after Source if ``source_360`` — it
+  converts an equirectangular source into a *new* folder of planar images,
+  which the following steps consume in place of the source.
+- **Upscale**: inserted between Source and Reconstruction if
+  ``upscaler_avant`` (it enlarges the images *before* COLMAP reads them),
+  regardless of mode.
+- **Gsplat**: Source → Reconstruction (COLMAP), then Training (Brush) if
+  ``entrainement_apres``; the post-steps follow their own toggles.
+- **Sharp**: Source → Reconstruction (Sharp inference, no Training), then
+  post-steps based on toggles.
+- **4DGS**: truncated at Source → (Extraction 360) → (Upscale) →
+  Reconstruction (no usable .ply output).
 """
 
 _MODES = ("gsplat", "sharp", "4dgs")
 
 
 def plan_pipeline(mode, run_state):
-    """Retourne la liste ordonnée des clés d'étapes à exécuter."""
+    """Return the ordered list of step keys to run."""
     if mode not in _MODES:
         mode = "gsplat"
 
-    # Pré-étape optionnelle : elle doit précéder Reconstruction, sinon COLMAP
-    # aurait déjà consommé les images d'origine.
+    # Optional pre-step: it must precede Reconstruction, otherwise COLMAP
+    # would already have consumed the original images.
     pre_steps = ["source"]
-    # Ordre imposé par les données : l'extraction 360 produit le dossier
-    # d'images planaires que l'upscale agrandit ensuite, et que COLMAP lit.
+    # Order imposed by the data: 360 extraction produces the folder of planar
+    # images that upscale then enlarges, and that COLMAP reads.
     if run_state.source_360:
         pre_steps.append("extraction360")
     if run_state.upscaler_avant:
@@ -42,11 +43,11 @@ def plan_pipeline(mode, run_state):
 
     steps = [*pre_steps, "reconstruction"]
 
-    # Entraînement : Gsplat uniquement, et seulement si demandé.
+    # Training: Gsplat only, and only if requested.
     if mode == "gsplat" and run_state.entrainement_apres:
         steps.append("entrainement")
 
-    # Post-étapes optionnelles, communes Gsplat/Sharp, pilotées par leurs toggles.
+    # Optional post-steps, shared by Gsplat/Sharp, driven by their toggles.
     if run_state.nettoyer_apres:
         steps.append("nettoyage")
     if run_state.exporter_apres:

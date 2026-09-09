@@ -1,15 +1,14 @@
-"""Panneau Export (étape PIPELINE, optionnelle).
+"""Export panel (optional PIPELINE step).
 
-Construit directement sur ``ExportEngine``/``ExportWorker`` (cf. audit Lot 0 :
-l'ancienne ExportTab a été supprimée, pas de résurrection — on s'appuie sur le
-moteur intact).
+Built directly on ``ExportEngine``/``ExportWorker`` (cf. audit Batch 0: the
+old ExportTab was removed, no resurrection — relies on the untouched engine).
 
-Centre : sélection PLY (unique/multiple), dossier de sortie, format cible,
-échelle, avertissement de dépendance manquante. Barre de droite : vide
-(contenu fusionné dans le centre, cf. ``app.gui.panels`` docstring).
+Center: PLY selection (single/multiple), output folder, target format, scale,
+missing-dependency warning. Right bar: empty (content merged into the center,
+cf. ``app.gui.panels`` docstring).
 
-Lot 4 : UI + params. Le lancement réel (ExportWorker) passe par le dispatch /
-bouton local (câblage moteurs, phase Apple Silicon).
+Batch 4: UI + params. The actual launch (ExportWorker) goes through the
+dispatch / local button (engine wiring, Apple Silicon phase).
 """
 
 from PySide6.QtCore import Qt
@@ -34,7 +33,7 @@ from app.gui.widgets.drop_line_edit import DropLineEdit
 
 
 class ExportPanel:
-    """Panneau plain exposant ``center`` et ``right``."""
+    """Plain panel exposing ``center`` and ``right``."""
 
     def __init__(self, run_state):
         self.run_state = run_state
@@ -74,9 +73,9 @@ class ExportPanel:
         out_row.addWidget(self.btn_browse_output)
         layout.addLayout(out_row)
 
-        # ── Migré depuis _build_right : format cible, échelle, avertissement ────
+        # ── Migrated from _build_right: target format, scale, warning ───────────
         form = QFormLayout()
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.combo_format = QComboBox()
         for fmt in ExportEngine.SUPPORTED_FORMATS:
             self.combo_format.addItem(fmt, fmt)
@@ -131,7 +130,7 @@ class ExportPanel:
             self.spin_scale.setValue(state["scale"])
 
     def _update_warning(self, *_):
-        # GLB nécessite une dépendance optionnelle (trimesh/open3d/assimp/blender).
+        # GLB requires an optional dependency (trimesh/open3d/assimp/blender).
         if self.get_format() == "glb":
             self.lbl_warning.setText(tr("export_glb_warning",
                                         "GLB nécessite trimesh/open3d (ou assimp/blender)."))

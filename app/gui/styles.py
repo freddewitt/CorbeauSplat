@@ -6,8 +6,8 @@ from PySide6.QtWidgets import QApplication
 
 from app.core.system import resolve_project_root
 
-# Thèmes sombres disponibles. Chaque thème est un jeu de couleurs cohérent ;
-# la structure de la feuille de style est commune (voir _STYLESHEET).
+# Available dark themes. Each theme is a coherent color set; the stylesheet
+# structure is shared (see _STYLESHEET).
 THEMES = {
     "slate": {  # Slate + Indigo
         "window": "#1a1b26", "surface": "#24283b", "base": "#16161e",
@@ -23,7 +23,7 @@ THEMES = {
         "btn_press": "#262626", "disabled": "#6b7280",
         "highlight_text": "#0a0a0a", "bright": "#f87171",
     },
-    "blue": {  # Bleu modernisé
+    "blue": {  # Modernized blue
         "window": "#1c2028", "surface": "#262b35", "base": "#12151a",
         "text": "#e5e9f0", "muted": "#9aa5b5", "accent": "#3b82f6",
         "border": "#333a47", "btn": "#2b313d", "btn_hover": "#353d4c",
@@ -116,7 +116,7 @@ _STYLESHEET = Template("""
 
 
 def get_saved_theme():
-    """Lit le thème enregistré dans config.json (défaut : slate)."""
+    """Read the theme saved in config.json (default: slate)."""
     try:
         config_file = resolve_project_root() / "config.json"
         if config_file.exists():
@@ -130,7 +130,7 @@ def get_saved_theme():
 
 
 def save_theme(name):
-    """Enregistre le thème choisi dans config.json (préserve les autres clés)."""
+    """Save the chosen theme to config.json (preserves the other keys)."""
     if name not in THEMES:
         return
     try:
@@ -149,7 +149,7 @@ def save_theme(name):
 
 
 def set_dark_theme(app_instance=None, theme=None):
-    """Applique un thème sombre. theme=None → thème enregistré dans config.json."""
+    """Apply a dark theme. theme=None → theme saved in config.json."""
     if app_instance is None:
         app_instance = QApplication.instance()
     if theme is None:

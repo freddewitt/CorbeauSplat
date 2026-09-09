@@ -1,6 +1,6 @@
-"""Module OUTILS 4DGS (préparation dataset multi-caméras pour Nerfstudio).
+"""TOOLS module 4DGS (multi-camera dataset preparation for Nerfstudio).
 
-Pas de sortie .ply exploitable → pas de chaînage Nettoyer/Exporter/Visualiser.
+No usable .ply output → no Clean/Export/View chaining.
 """
 
 from PySide6.QtCore import Qt
@@ -85,7 +85,7 @@ class FourDGSPanel:
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         content = QWidget()
         form = QFormLayout(content)
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.fps_spin = QSpinBox()
         self.fps_spin.setRange(1, 60)
         self.fps_spin.setValue(5)
@@ -94,8 +94,8 @@ class FourDGSPanel:
         self.chk_upscale_before = QCheckBox()
         self.lbl_upscale_before = QLabel()
         form.addRow(self.lbl_upscale_before, self.chk_upscale_before)
-        # Décoché par défaut : Lancer fait l'extraction + COLMAP complets ;
-        # cocher saute l'extraction et relance juste COLMAP (ex-bouton dédié).
+        # Unchecked by default: Launch does the full extraction + COLMAP;
+        # checking it skips extraction and just reruns COLMAP (ex-dedicated button).
         self.chk_colmap_only = QCheckBox()
         self.lbl_colmap_only = QLabel()
         form.addRow(self.lbl_colmap_only, self.chk_colmap_only)
@@ -114,7 +114,7 @@ class FourDGSPanel:
             self.output_path.setText(path)
 
     def get_params(self):
-        """Retourne les paramètres 4DGS sous forme de dict."""
+        """Return the 4DGS parameters as a dict."""
         return {
             "input_path": self.input_path.text(),
             "output_path": self.output_path.text(),

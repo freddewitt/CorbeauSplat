@@ -15,7 +15,7 @@ from app.gui.widgets.dialog_utils import get_save_file_name
 
 
 class LogsTab(QWidget):
-    """Onglet des logs"""
+    """Logs tab"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -26,7 +26,7 @@ class LogsTab(QWidget):
     def init_ui(self):
         layout = QVBoxLayout(self)
 
-        # Barre de recherche (cachée par défaut)
+        # Search bar (hidden by default)
         self.search_container = QWidget()
         search_layout = QHBoxLayout(self.search_container)
         search_layout.setContentsMargins(0, 0, 0, 0)
@@ -99,7 +99,7 @@ class LogsTab(QWidget):
         self._auto_scroll = value >= scrollbar.maximum() - 1
 
     def append_log(self, message):
-        """Ajoute au log"""
+        """Append to the log"""
         self.log_text.append(message)
         if self._auto_scroll:
             cursor = self.log_text.textCursor()
@@ -110,11 +110,11 @@ class LogsTab(QWidget):
         self.log_text.clear()
 
     def copy_logs(self):
-        """Copie les logs dans le presse-papiers"""
+        """Copy the logs to the clipboard"""
         QApplication.clipboard().setText(self.log_text.toPlainText())
 
     def save_logs(self):
-        """Sauvegarde les logs"""
+        """Save the logs"""
         filename, _ = get_save_file_name(
             self, tr("btn_save_log"),
             "", "Fichier texte (*.txt);;Tous (*.*)"

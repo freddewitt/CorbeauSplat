@@ -1,10 +1,10 @@
-"""Étape PARAMÈTRES : Upscale (upscayl-ncnn), exécutée avant Reconstruction.
+"""OPTIONS step: Upscale (upscayl-ncnn), run before Reconstruction.
 
-Double emploi, comme les autres étapes du groupe : le bouton local lance un
-upscale indépendant sur les chemins saisis ici, tandis que la chaîne « Lancer »
-n'inclut l'étape que si le drapeau ``upscaler_avant`` est actif (cf.
-``pipeline_planner.plan_pipeline``), auquel cas elle travaille sur les images du
-projet et non sur ces chemins.
+Dual purpose, like the other steps in the group: the local button launches a
+standalone upscale on the paths entered here, while the "Launch" chain only
+includes the step if the ``upscaler_avant`` flag is active (cf.
+``pipeline_planner.plan_pipeline``), in which case it works on the project's
+images rather than on these paths.
 """
 
 from PySide6.QtCore import Qt
@@ -152,14 +152,14 @@ class UpscalePanel:
         if path:
             self.output_path.setText(path)
 
-    # ── Catalogue de modèles ────────────────────────────────────────────────────
+    # ── Model catalog ────────────────────────────────────────────────────────────
 
     def refresh_models(self):
-        """Peuple la liste des modèles, ✅ installé / ⬇️ à télécharger.
+        """Populate the model list, ✅ installed / ⬇️ to download.
 
-        Appelée à la construction et après chaque téléchargement. Sans cet appel
-        le combo reste vide et ``get_params()`` renvoie un ``model_id`` vide, ce
-        qui fait échouer ``run_upscayl`` avec « Aucun modèle sélectionné ».
+        Called on construction and after each download. Without this call the
+        combo stays empty and ``get_params()`` returns an empty ``model_id``,
+        which makes ``run_upscayl`` fail with "No model selected".
         """
         from app.upscayl_manager import get_models_dir
         from app.upscayl_models import MODELS
@@ -179,9 +179,9 @@ class UpscalePanel:
             self.combo_model.addItem(tr("up_no_models", "Aucun modèle disponible"), None)
         idx = self.combo_model.findData(previous) if previous else -1
         if idx < 0:
-            # Par défaut, présélectionner un modèle déjà installé : sinon le
-            # premier de la liste est sélectionné sans être téléchargé et
-            # « Lancer » échoue sur un modèle introuvable.
+            # By default, preselect an already-installed model: otherwise the
+            # first one in the list is selected without being downloaded and
+            # "Launch" fails on a model that can't be found.
             installed = next((m.id for m in MODELS if m.is_downloaded(models_dir)), None)
             idx = self.combo_model.findData(installed) if installed else -1
         if idx >= 0:
@@ -189,7 +189,7 @@ class UpscalePanel:
         self.combo_model.blockSignals(False)
 
     def _on_model_changed(self, _index=None):
-        """Déclenche le téléchargement si le modèle choisi n'est pas installé."""
+        """Trigger the download if the chosen model isn't installed."""
         from app.upscayl_manager import get_models_dir
         from app.upscayl_models import get_model
 
@@ -219,7 +219,7 @@ class UpscalePanel:
         self.refresh_models()
 
     def get_params(self):
-        """Retourne les paramètres d'upscale sous forme de dict."""
+        """Return the upscale parameters as a dict."""
         return {
             "model_id": self.combo_model.currentData() or "",
             "scale": self.combo_scale.currentData(),
@@ -230,11 +230,11 @@ class UpscalePanel:
         }
 
     def get_state(self):
-        """État sérialisable dans une configuration nommée (ChainConfig.upscale).
+        """State serializable into a named configuration (ChainConfig.upscale).
 
-        Les chemins ne sont pas repris de ``get_params`` : ils ne concernent que
-        le lancement local depuis cette page (la chaîne, elle, travaille sur les
-        images du projet, cf. ``StudioWindow._build_upscale_worker``)."""
+        Paths aren't taken from ``get_params``: they only concern the local
+        launch from this page (the chain itself works on the project's
+        images, cf. ``StudioWindow._build_upscale_worker``)."""
         return {
             "input_path": self.input_path.text(),
             "output_path": self.output_path.text(),

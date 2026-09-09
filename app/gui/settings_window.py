@@ -36,13 +36,13 @@ from PySide6.QtWidgets import (
 from app.core.i18n import add_language_observer, get_current_lang, set_language, tr
 from app.gui.styles import get_saved_theme, save_theme, set_dark_theme
 
-# (code langue, libellé natif) — miroir de ConfigTab, les 9 locales du projet.
+# (language code, native label) — mirrors ConfigTab, the project's 9 locales.
 _LANGUAGES = (
     ("fr", "Français"), ("en", "English"), ("de", "Deutsch"), ("it", "Italiano"),
     ("es", "Español"), ("ar", "العربية"), ("ru", "Русский"), ("zh", "中文"),
     ("ja", "日本語"),
 )
-# (code thème, libellé) — miroir de ConfigTab.
+# (theme code, label) — mirrors ConfigTab.
 _THEMES = (("slate", "Slate + Indigo"), ("graphite", "Graphite + Teal"), ("blue", "Bleu modernisé"))
 
 
@@ -65,8 +65,8 @@ class _NoScrollComboBox(QComboBox):
 
 
 class ResetDialog(QDialog):
-    """Confirmation avant réinitialisation aux valeurs d'usine (Light/Deep),
-    équivalent de l'ancien ``ConfigTab.ResetDialog``."""
+    """Confirmation before resetting to factory values (Light/Deep),
+    equivalent of the old ``ConfigTab.ResetDialog``."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -110,7 +110,7 @@ class ResetDialog(QDialog):
 
 
 class SettingsWindow(QDialog):
-    """Réglages généraux. Émet des signaux pour les actions câblées ailleurs."""
+    """General settings. Emits signals for actions wired elsewhere."""
 
     loadRequested = Signal()
     saveRequested = Signal()
@@ -127,9 +127,9 @@ class SettingsWindow(QDialog):
         self.setModal(False)
         layout = QVBoxLayout(self)
         form = QFormLayout()
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
 
-        # Thème (fonctionnel)
+        # Theme (functional)
         self.combo_theme = _NoScrollComboBox()
         self.combo_theme.setMinimumWidth(200)
         self.combo_theme.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
@@ -155,14 +155,14 @@ class SettingsWindow(QDialog):
         self.lbl_lang = QLabel(tr("lang_change", "Langue"))
         form.addRow(self.lbl_lang, self.combo_lang)
 
-        # notifications de fin d'exécution
+        # end-of-run notifications
         self.chk_notifications = QCheckBox(tr("settings_notifications", "Notifications de fin d'exécution"))
         self.chk_notifications.toggled.connect(self.notificationsToggled.emit)
         form.addRow(self.chk_notifications)
 
         layout.addLayout(form)
 
-        # Charger / Sauvegarder la configuration complète (câblage Lot 6)
+        # Load / Save the full configuration (Batch 6 wiring)
         self.lbl_current_config = QLabel(tr("settings_current_config", "Paramètres actuels"))
         self.lbl_current_config.setStyleSheet("font-weight: bold;")
         layout.addWidget(self.lbl_current_config)
@@ -199,8 +199,8 @@ class SettingsWindow(QDialog):
             set_language(code)
 
     def _on_reset_clicked(self):
-        """Réinitialisation destructive : jamais exécutée sans confirmation
-        explicite (choix Light/Deep) dans ``ResetDialog``."""
+        """Destructive reset: never executed without explicit confirmation
+        (Light/Deep choice) in ``ResetDialog``."""
         diag = ResetDialog(self)
         if diag.exec():
             self.resetRequested.emit(diag.result_deep)

@@ -1,10 +1,10 @@
-"""Logique (hors Qt) du panneau Reconstruction — testable sous mock PySide6.
+"""Logic (Qt-free) for the Reconstruction panel — testable under a mocked PySide6.
 
-Classe le dossier passé au sélecteur « Reprise de COLMAP » en deux cas gérés par
-le même champ (spec §3 Reconstruction) :
-- **projet CorbeauSplat existant** → reprise classique (réutilise ``images/``,
-  écrase ``sparse/`` + ``database.db``) ;
-- **dossier externe d'images** → nouveau projet créé à la volée.
+Classifies the folder passed to the "Resume COLMAP" selector into two cases
+handled by the same field (spec §3 Reconstruction):
+- **existing CorbeauSplat project** → classic resume (reuses ``images/``,
+  overwrites ``sparse/`` + ``database.db``);
+- **external image folder** → new project created on the fly.
 """
 
 from pathlib import Path
@@ -12,11 +12,11 @@ from typing import Literal
 
 from app.core.params import blur_factor_from_strength
 
-# Mêmes extensions que ColmapEngine (app/core/engine.py).
+# Same extensions as ColmapEngine (app/core/engine.py).
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
-# Mêmes extensions vidéo que ColmapEngine._collect_video_paths (app/core/engine.py)
-# et studio_window._VIDEO_EXTS (app/gui/studio_window.py) — les trois call sites
-# doivent s'accorder sur ce qui compte comme une vidéo.
+# Same video extensions as ColmapEngine._collect_video_paths (app/core/engine.py)
+# and studio_window._VIDEO_EXTS (app/gui/studio_window.py) — all three call
+# sites must agree on what counts as a video.
 _VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv"}
 
 RESUME_COLMAP_PROJECT = "colmap_project"
@@ -25,11 +25,11 @@ RESUME_INVALID = "invalid"
 
 
 def classify_resume_folder(path):
-    """Retourne l'une des constantes ``RESUME_*`` selon le contenu du dossier.
+    """Return one of the ``RESUME_*`` constants based on the folder's content.
 
-    - projet COLMAP : présence de ``images/``, ``database.db`` ou ``sparse/`` ;
-    - dossier externe : au moins un fichier image directement dedans ;
-    - invalide sinon (dossier absent, vide, ou non-dossier).
+    - COLMAP project: presence of ``images/``, ``database.db`` or ``sparse/``;
+    - external folder: at least one image file directly inside;
+    - invalid otherwise (missing folder, empty, or not a folder).
     """
     try:
         p = Path(path)

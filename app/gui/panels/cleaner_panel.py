@@ -1,13 +1,14 @@
-"""Panneau Nettoyage (étape PIPELINE, optionnelle) — équivalent de CleanerTab.
+"""Cleaning panel (optional PIPELINE step) — equivalent of CleanerTab.
 
-Centre : mode (fichier unique / batch), sélection PLY, dossier/fichier de
-sortie, intensité (Léger/Moyen/Fort) + réglages avancés (opacity_min,
-scale_pct, outlier_pct). Réutilise ``resolve_params`` / ``PRESETS`` de
-``ply_cleaner`` (moteur inchangé). Barre de droite : vide (contenu fusionné
-dans le centre, cf. ``app.gui.panels`` docstring).
+Center: mode (single file / batch), PLY selection, output folder/file,
+strength (Light/Medium/Strong) + advanced settings (opacity_min, scale_pct,
+outlier_pct). Reuses ``resolve_params`` / ``PRESETS`` from ``ply_cleaner``
+(engine unchanged). Right bar: empty (content merged into the center, cf.
+``app.gui.panels`` docstring).
 
-Lot 4 : UI params. Le lancement réel (CleanerWorker) le dispatch
-orchestré / le bouton local (câblage moteurs, phase Apple Silicon).
+Batch 4: UI params. The actual launch (CleanerWorker) is either the
+orchestrated dispatch or the local button (engine wiring, Apple Silicon
+phase).
 """
 
 from PySide6.QtCore import Qt
@@ -35,7 +36,7 @@ _STRENGTHS = (("light", "Léger"), ("medium", "Moyen"), ("strong", "Fort"))
 
 
 class CleanerPanel:
-    """Panneau plain exposant ``center`` et ``right``."""
+    """Plain panel exposing ``center`` and ``right``."""
 
     def __init__(self, run_state):
         self.run_state = run_state
@@ -85,9 +86,9 @@ class CleanerPanel:
         out_row.addWidget(self.btn_browse_output)
         layout.addLayout(out_row)
 
-        # ── Migré depuis _build_right : intensité + réglages avancés ────────────
+        # ── Migrated from _build_right: strength + advanced settings ────────────
         form = QFormLayout()
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.combo_strength = QComboBox()
         for value, _label in _STRENGTHS:
             self.combo_strength.addItem(value, value)
@@ -100,7 +101,7 @@ class CleanerPanel:
         self.advanced_group.setCheckable(True)
         self.advanced_group.setChecked(False)
         ag = QFormLayout(self.advanced_group)
-        ag.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        ag.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.spin_opacity = QDoubleSpinBox()
         self.spin_opacity.setRange(0.0, 1.0)
         self.spin_opacity.setSingleStep(0.01)
@@ -142,7 +143,7 @@ class CleanerPanel:
         return self.combo_mode.currentData() == "batch"
 
     def get_params(self):
-        """Retourne les paramètres de nettoyage résolus (preset ou surcharges)."""
+        """Return the resolved cleaning parameters (preset or overrides)."""
         strength = self.combo_strength.currentData()
         if self.advanced_group.isChecked():
             overrides = {

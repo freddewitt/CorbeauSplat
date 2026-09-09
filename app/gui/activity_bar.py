@@ -1,22 +1,22 @@
-"""Barre d'activité, en bas de la fenêtre Studio.
+"""Activity bar, at the bottom of the Studio window.
 
-Remplace l'ancienne ``LogBar``. Le journal n'est plus ici — il a sa propre
-fenêtre (``logs_window.py``), ouverte par un bouton de la barre du bas. Ne reste
-que ce qu'on veut voir en permanence sans rien ouvrir :
+Replaces the former ``LogBar``. The log is no longer here — it has its own
+window (``logs_window.py``), opened by a button on the bottom bar. What
+remains is only what should be visible at all times without opening anything:
 
     Reconstruction   Feature extraction: image 42/210   [████░░ 42%]
 
-L'arrêt n'est plus ici : il vit sous le bouton Lancer de chaque panneau
-(``widgets/cancel_button.py``), au contact de l'action qu'il interrompt.
+Cancel is no longer here either: it lives under each panel's Launch button
+(``widgets/cancel_button.py``), next to the action it interrupts.
 
-- **l'étape** en cours (libellé du rail, donc traduit) ;
-- **le détail** de ce qu'elle fait à l'instant : dernière ligne remontée par le
-  worker, tronquée au milieu — les chemins de fichiers se ressemblent tous par
-  la gauche, c'est la fin qui identifie la ligne ;
-- **la progression**, uniquement pour les workers qui en émettent une. COLMAP,
-  360, Sharp vidéo et Export le font ; l'entraînement Brush non (son moteur ne
-  reçoit qu'un ``logger_callback``), d'où une barre masquée dans ce cas plutôt
-  qu'une barre figée à 0 % qui laisserait croire à un blocage.
+- **the current step** (rail label, already translated);
+- **the detail** of what it's doing right now: the last line reported by the
+  worker, elided in the middle — file paths all look alike from the left, it's
+  the end that identifies the line;
+- **the progress**, only for workers that emit one. COLMAP, 360, video Sharp
+  and Export do; Brush training does not (its engine only receives a
+  ``logger_callback``), hence a hidden bar in that case rather than a bar
+  stuck at 0% that would suggest a freeze.
 """
 
 from PySide6.QtCore import Qt
@@ -31,13 +31,13 @@ from PySide6.QtWidgets import (
 from app.core.i18n import add_language_observer
 from app.gui.styles import DEFAULT_THEME, THEMES, get_saved_theme
 
-# Résolu à l'import, comme dans rail.py : styles.py ne diffuse pas de signal de
-# changement de thème auquel un widget vivant pourrait s'abonner.
+# Resolved at import time, as in rail.py: styles.py doesn't broadcast a theme
+# change signal that a live widget could subscribe to.
 _MUTED = THEMES.get(get_saved_theme(), THEMES[DEFAULT_THEME])["muted"]
 
 
 class ActivityBar(QWidget):
-    """Étape courante + détail + progression. Toujours visible, sans action."""
+    """Current step + detail + progress. Always visible, no action."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -67,15 +67,15 @@ class ActivityBar(QWidget):
         self.progress.setVisible(False)
         row.addWidget(self.progress)
 
-    # ── Étape et détail ─────────────────────────────────────────────────────────
+    # ── Step and detail ─────────────────────────────────────────────────────────
     def set_step(self, label):
-        """Étape en cours, libellé déjà traduit (cf. ``rail.item_label``)."""
+        """Current step, label already translated (cf. ``rail.item_label``)."""
         self.lbl_step.setText(str(label or ""))
 
     def set_activity(self, message):
-        """Détail courant. Branché à la fois sur ``log_signal`` et
-        ``status_signal`` : ``BrushWorker`` n'émet que le premier, se limiter au
-        statut laisserait l'entraînement sans le moindre retour visible."""
+        """Current detail. Wired to both ``log_signal`` and ``status_signal``:
+        ``BrushWorker`` only emits the former, sticking to status would leave
+        training with no visible feedback at all."""
         text = str(message or "").strip()
         self._detail = text.splitlines()[-1] if text else ""
         self._refresh_detail()
@@ -91,13 +91,13 @@ class ActivityBar(QWidget):
         super().resizeEvent(event)
         self._refresh_detail()
 
-    # ── Progression ─────────────────────────────────────────────────────────────
+    # ── Progress ─────────────────────────────────────────────────────────────────
     def set_progress(self, value):
         self.progress.setVisible(True)
         self.progress.setValue(max(0, min(100, int(value))))
 
     def reset_activity(self):
-        """Fin de run : ni libellé résiduel, ni barre figée sur sa dernière valeur."""
+        """End of run: no leftover label, no bar stuck on its last value."""
         self._detail = ""
         self.lbl_step.clear()
         self.lbl_detail.clear()
@@ -105,6 +105,6 @@ class ActivityBar(QWidget):
         self.progress.setVisible(False)
 
     def retranslate_ui(self):
-        """Rien à retraduire aujourd'hui : l'étape et le détail sont poussés
-        déjà traduits par ``StudioWindow``. Conservée pour rester abonnable au
-        changement de langue si un libellé fixe apparaît ici."""
+        """Nothing to retranslate today: the step and detail are pushed already
+        translated by ``StudioWindow``. Kept so this stays subscribable to
+        language changes if a fixed label shows up here."""

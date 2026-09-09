@@ -6,11 +6,11 @@ from app.upscayl_models import get_model
 
 
 class ModelDownloadWorker(QThread):
-    """Télécharge les fichiers .bin/.param d'un modèle hors du thread GUI.
+    """Downloads a model's .bin/.param files off the GUI thread.
 
-    ``download_model_files`` fait des requêtes réseau bloquantes (jusqu'à 120 s
-    de timeout par fichier) : l'appeler directement depuis un slot Qt gèlerait
-    l'interface.
+    ``download_model_files`` makes blocking network requests (up to a 120s
+    timeout per file): calling it directly from a Qt slot would freeze the
+    interface.
     """
 
     log_signal = Signal(str)
@@ -39,12 +39,12 @@ class ModelDownloadWorker(QThread):
 
 
 def run_upscale_job(input_path, output_dir, params, log_callback, cancel_check):
-    """Exécute un upscale upscayl-bin et retourne ``(succès, message)``.
+    """Run an upscayl-bin upscale and return ``(success, message)``.
 
-    Extrait du corps de :class:`TestWorker` pour être partagé avec
-    :class:`UpscaleImagesWorker` (étape PARAMÈTRES « Upscale ») : les deux ont
-    besoin exactement de la même invocation (mode x1 = upscale puis retour à la
-    taille d'origine, dossier ou fichier unique), seule leur destination diffère.
+    Extracted from :class:`TestWorker`'s body to be shared with
+    :class:`UpscaleImagesWorker` (OPTIONS "Upscale" step): both need exactly
+    the same invocation (x1 mode = upscale then resize back to original size,
+    folder or single file), only their destination differs.
     """
     import tempfile as _tempfile
 
@@ -130,8 +130,8 @@ def _copy_as_supported_image(src: Path, dest: Path) -> None:
 
 
 class TestWorker(QThread):
-    """Lancement local de l'upscale depuis la page PARAMÈTRES › Upscale
-    (chemins saisis dans le panneau, hors chaîne pipeline)."""
+    """Local upscale launch from the OPTIONS › Upscale page
+    (paths entered in the panel, outside the pipeline chain)."""
 
     log_signal = Signal(str)
     finished   = Signal(bool, str)
@@ -144,8 +144,8 @@ class TestWorker(QThread):
         self.stopped_by_user = False
 
     def stop(self):
-        """Annulation propre : run_upscayl termine le sous-processus upscayl-bin
-        dès que ``cancel_check`` (isInterruptionRequested) devient vrai."""
+        """Clean cancellation: run_upscayl terminates the upscayl-bin
+        subprocess as soon as ``cancel_check`` (isInterruptionRequested) turns true."""
         self.stopped_by_user = True
         self.requestInterruption()
 
@@ -162,15 +162,15 @@ class TestWorker(QThread):
 
 
 class UpscaleImagesWorker(QThread):
-    """Étape ``upscale`` de la chaîne : agrandit les images sources du projet
-    vers ``output_dir``, que Reconstruction consommera ensuite à la place du
-    dossier d'origine (cf. ``StudioWindow._build_colmap_worker``).
+    """``upscale`` chain step: enlarges the project's source images into
+    ``output_dir``, which Reconstruction will then consume instead of the
+    original folder (cf. ``StudioWindow._build_colmap_worker``).
 
-    Le dossier source de l'utilisateur n'est jamais modifié : même principe de
-    précaution que ``ColmapEngine._run_upscale``, qui déplace les originaux dans
-    ``images_src`` plutôt que de les écraser. Expose ``finished_signal`` (et non
-    ``finished`` comme :class:`TestWorker`) pour être pilotable par
-    ``_start_pipeline_worker``, comme les autres workers d'étape.
+    The user's source folder is never modified: same precautionary principle
+    as ``ColmapEngine._run_upscale``, which moves the originals into
+    ``images_src`` rather than overwriting them. Exposes ``finished_signal``
+    (not ``finished`` like :class:`TestWorker`) to be drivable by
+    ``_start_pipeline_worker``, like the other step workers.
     """
 
     log_signal = Signal(str)
@@ -191,8 +191,8 @@ class UpscaleImagesWorker(QThread):
         from app.core.upscale_engine import UpscaleEngine
 
         try:
-            # Même garde-fou de chemin que tous les moteurs (BaseEngine.validate_path) :
-            # l'étape écrit un dossier entier, elle ne fait pas exception.
+            # Same path safeguard as all engines (BaseEngine.validate_path):
+            # this step writes an entire folder, it's no exception.
             engine = UpscaleEngine(logger_callback=self.log_signal.emit)
             safe_in = engine.validate_path(self.images_dir)
             if safe_in is None or not safe_in.is_dir():

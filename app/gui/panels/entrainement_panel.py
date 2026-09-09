@@ -1,19 +1,19 @@
-"""Panneau Entraînement (étape PIPELINE) — équivalent de l'onglet Brush.
+"""Training panel (PIPELINE step) — equivalent of the Brush tab.
 
-Centre : mode manuel/indépendant (dataset/export/PLY), toggle Visualiser
-après (bindé run_state), Preset (dropdown, presets intégrés + personnalisés
-via ``merge_presets``), bouton « Enregistrer preset », champs essentiels
-(Steps, SH Degree, Max Splats, Device), toggle Avancé (Résolution max, Args
-supplémentaires, Viewer, Mode de build — auto-détecté depuis le binaire
-installé, cf. ``get_brush_build_mode``), sections repliables Densification et
-Checkpoints, mode Nouveau/Refine. S'appuie sur ``BrushParams`` (Lot 1) :
-``get_params()`` retourne un BrushParams, ``to_engine_params()`` produit la
-chaîne moteur (tokens inchangés, allowlist côté BrushEngine). Barre de
-droite : vide (contenu fusionné dans le centre, cf. ``app.gui.panels``
+Center: manual/standalone mode (dataset/export/PLY), Visualize after toggle
+(bound to run_state), Preset (dropdown, built-in + custom presets via
+``merge_presets``), "Save preset" button, essential fields (Steps, SH
+Degree, Max Splats, Device), Advanced toggle (Max resolution, Extra args,
+Viewer, Build mode — auto-detected from the installed binary, cf.
+``get_brush_build_mode``), collapsible Densification and Checkpoints
+sections, New/Refine mode. Built on ``BrushParams`` (Batch 1):
+``get_params()`` returns a BrushParams, ``to_engine_params()`` produces the
+engine string (tokens unchanged, allowlist on the BrushEngine side). Right
+bar: empty (content merged into the center, cf. ``app.gui.panels``
 docstring).
 
-Lot 3c : UI + BrushParams + presets. Le lancement réel (BrushWorker) passe par
-le dispatch orchestré du StudioWindow.
+Batch 3c: UI + BrushParams + presets. The actual run (BrushWorker) goes
+through StudioWindow's orchestrated dispatch.
 """
 
 from PySide6.QtCore import Qt
@@ -59,7 +59,7 @@ _BUILD_MODES = (("release", "settings_build_release", "Binaire release"),
 
 
 class EntrainementPanel:
-    """Panneau plain exposant ``center`` et ``right`` (widgets Qt)."""
+    """Plain panel exposing ``center`` and ``right`` (Qt widgets)."""
 
     def __init__(self, run_state, standalone=False):
         self.run_state = run_state
@@ -71,7 +71,7 @@ class EntrainementPanel:
         add_language_observer(self.retranslate_ui)
         self.retranslate_ui()
 
-    # ── Centre (mode manuel + suivi + preset → essentiel → avancé) ──────────────
+    # ── Center (manual mode + tracking + preset → essential → advanced) ────────
     def _build_center(self):
         w = QWidget()
         outer = QVBoxLayout(w)
@@ -114,8 +114,8 @@ class EntrainementPanel:
         self._bind(self.chk_visualiser, "visualiser_apres")
         layout.addWidget(self.chk_visualiser)
 
-        # ── Migré depuis _build_right : preset → essentiel → avancé ─────────────
-        # Preset + enregistrer
+        # ── Migrated from _build_right: preset → essential → advanced ──────────
+        # Preset + save
         preset_row = QHBoxLayout()
         self.lbl_preset = QLabel()
         self.combo_preset = QComboBox()
@@ -131,9 +131,9 @@ class EntrainementPanel:
         layout.addLayout(preset_row)
         self._sync_delete_preset_enabled()
 
-        # Essentiels
+        # Essentials
         essential = QFormLayout()
-        essential.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        essential.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.spin_total_steps = QSpinBox()
         self.spin_total_steps.setRange(1, 1_000_000)
         self.spin_total_steps.setValue(30000)
@@ -155,14 +155,14 @@ class EntrainementPanel:
         essential.addRow(self.lbl_device, self.device_combo)
         layout.addLayout(essential)
 
-        # Avancé (mémorisé plus tard — Lot 6)
+        # Advanced (persisted later — Batch 6)
         self.btn_advanced = QPushButton()
         self.btn_advanced.setCheckable(True)
         self.btn_advanced.toggled.connect(self._on_advanced_toggled)
         layout.addWidget(self.btn_advanced)
         self.advanced_group = QWidget()
         ag = QFormLayout(self.advanced_group)
-        ag.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        ag.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.max_resolution_spin = QSpinBox()
         self.max_resolution_spin.setRange(0, 8192)
         self.lbl_res = QLabel()
@@ -192,12 +192,12 @@ class EntrainementPanel:
         self.advanced_group.setVisible(False)
         layout.addWidget(self.advanced_group)
 
-        # Densification (repliable)
+        # Densification (collapsible)
         self.densif_group = QGroupBox()
         self.densif_group.setCheckable(True)
         self.densif_group.setChecked(False)
         dg = QFormLayout(self.densif_group)
-        dg.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs)
+        dg.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.spin_start_iter = QSpinBox()
         self.spin_start_iter.setRange(0, 1_000_000)
         self.lbl_start_iter = QLabel()
@@ -227,12 +227,12 @@ class EntrainementPanel:
         dg.addRow(self.lbl_growth_stop, self.spin_growth_stop)
         layout.addWidget(self.densif_group)
 
-        # Checkpoints (repliable)
+        # Checkpoints (collapsible)
         self.ckpt_group = QGroupBox()
         self.ckpt_group.setCheckable(True)
         self.ckpt_group.setChecked(False)
         cg = QFormLayout(self.ckpt_group)
-        cg.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # évite débordement horizontal (libellés longs, bug combo_mode)
+        cg.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels, combo_mode issue)
         self.spin_checkpoint_interval = QSpinBox()
         self.spin_checkpoint_interval.setRange(0, 1_000_000)
         self.spin_checkpoint_interval.setValue(7000)
@@ -269,7 +269,7 @@ class EntrainementPanel:
 
     # ── Presets ─────────────────────────────────────────────────────────────────
     def _reload_presets(self):
-        """Recharge le dropdown : « défaut » + intégrés + personnalisés."""
+        """Reload the dropdown: "default" + built-in + custom."""
         self.combo_preset.blockSignals(True)
         self.combo_preset.clear()
         self.combo_preset.addItem(tr("brush_preset_default", "Défaut"), None)
@@ -279,13 +279,13 @@ class EntrainementPanel:
         self._sync_delete_preset_enabled()
 
     def _sync_delete_preset_enabled(self):
-        """Le bouton 🗑 n'est actif que sur un preset *utilisateur*.
+        """The 🗑 button is only active on a *user* preset.
 
-        « Défaut » (data None) et les presets intégrés (``BRUSH_PRESETS``, livrés
-        avec l'app) ne sont pas supprimables : seuls les noms présents dans
-        ``load_user_presets()`` le sont. Un preset utilisateur qui masque un
-        intégré homonyme reste supprimable — l'intégré réapparaît alors, ce qui
-        est le comportement attendu de ``merge_presets``."""
+        "Default" (data None) and the built-in presets (``BRUSH_PRESETS``,
+        shipped with the app) are not deletable: only names present in
+        ``load_user_presets()`` are. A user preset that shadows a built-in
+        preset of the same name stays deletable — the built-in one then
+        reappears, which is ``merge_presets``'s expected behavior."""
         self.btn_delete_preset.setEnabled(is_deletable(self.combo_preset.currentData()))
 
     def _delete_selected_preset(self):
@@ -295,11 +295,11 @@ class EntrainementPanel:
         confirm = QMessageBox.question(
             self.center,
             tr("brush_delete_preset", "Supprimer le preset"),
-            # Pas de défaut passé à tr() : quand la clé existe, LanguageManager.tr()
-            # consomme tout argument supplémentaire comme argument de .format(),
-            # ce qui injecterait le texte par défaut dans le {0}. La clé est
-            # définie dans les 9 locales ; le repli (nom de clé brut) est un
-            # garde-fou défensif, jamais atteint en pratique.
+            # No default passed to tr(): when the key exists, LanguageManager.tr()
+            # consumes any extra argument as the argument to .format(), which
+            # would inject the default text into the {0}. The key is defined
+            # in all 9 locales; the fallback (raw key name) is a defensive
+            # guard, never actually reached in practice.
             tr("brush_delete_preset_confirm").format(name),
         )
         if confirm != QMessageBox.StandardButton.Yes:
