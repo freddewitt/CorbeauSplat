@@ -5,9 +5,9 @@
 | Version | Branch | Status | Release |
 |---------|--------|--------|---------|
 | **v1.5.1** | `main` | ✅ Stable | [v1.5.1](https://github.com/freddewitt/CorbeauSplat/releases/tag/v1.5.1) |
-| **v2.0.0-beta.2** | `beta` | 🚧 Early Access | [v2.0.0-beta.2](https://github.com/freddewitt/CorbeauSplat/releases/tag/v2.0.0-beta.2) |
+| **v2.0.0-beta.3** | `beta` | 🚧 Early Access | [v2.0.0-beta.3](https://github.com/freddewitt/CorbeauSplat/releases/tag/v2.0.0-beta.3) |
 
-**v2.0.0-beta.2** adds Upscale engine fixes: SIGBUS GPU crash on Apple Silicon, PNG format normalization, input file protection (no overwrites), and QThread re-entrancy safety. v2.0.0-beta.1 features complete UI refonte: reorganized rail (3 tiers), TopBar removed, Settings in panels, PySide6 migration, i18n (283 keys, 9 languages).
+**v2.0.0-beta.3** adds 4DGS: optional pre-COLMAP upscaling of extracted camera frames (shared Upscale engine), the old dedicated "COLMAP only" button merged into a single Launch checkbox, a fix for macOS AppleDouble (`._*`) files wrongly fed to ffmpeg as videos, and a dedicated installer for its own venv. The rail's PARAMÈTRES group is split into ENTRAÎNEMENT/OPTIONS, and the redundant OUTILS "360 Extractor" entry was removed. v2.0.0-beta.2 adds Upscale engine fixes: SIGBUS GPU crash on Apple Silicon, PNG format normalization, input file protection (no overwrites), and QThread re-entrancy safety. v2.0.0-beta.1 features complete UI refonte: reorganized rail (3 tiers), TopBar removed, Settings in panels, PySide6 migration, i18n (283 keys, 9 languages).
 
 ⚠️ **Beta**: early testing only. For production use, stay on `main` (v1.5.1).
 
