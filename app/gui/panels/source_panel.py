@@ -1,17 +1,17 @@
-"""Panneau Source (étape PIPELINE).
+"""Source panel (PIPELINE step).
 
-Reprend la logique de saisie de ``ConfigTab`` (input, dossier de sortie,
-destination checkpoints, FPS, suppression dataset) dans le nouveau layout
-centre + barre de droite, avec la hiérarchie essentiel/avancé.
+Carries over ``ConfigTab``'s input logic (input, output folder, checkpoint
+destination, FPS, dataset deletion) into the new center + right bar layout,
+with the essential/advanced hierarchy.
 
-Point d'architecture clé : les toggles de chaînage (« Entraînement après »,
-« Nettoyer après », « Exporter après », « Visualiser après ») et
-``undistort_images`` sont **bindés sur le ``RunState`` partagé** — pas d'état
-interne dupliqué (cf. dette technique cluster B).
+Key architecture point: the chaining toggles ("Train after", "Clean after",
+"Export after", "Visualize after") and ``undistort_images`` are **bound to
+the shared ``RunState``** — no duplicated internal state (cf. cluster B
+technical debt).
 
-Lot 3a : saisie + binding run_state. Le dispatch réel du run (Source →
-Reconstruction → Entraînement) est câblé au sous-lot 3c, une fois les 3 panneaux
-présents.
+Batch 3a: input + run_state binding. The actual run dispatch (Source →
+Reconstruction → Training) is wired in sub-batch 3c, once the 3 panels
+are in place.
 """
 
 from PySide6.QtCore import Qt, QTimer
@@ -50,7 +50,7 @@ PIPELINE_MODES = (
 )
 
 # Source type dropdown (internal value, i18n key, French default). "auto" lets
-# detect_source_kind() decide from the Entrée field content; the other two
+# detect_source_kind() decide from the Input field content; the other two
 # force the resolved kind regardless of what's on disk.
 _SOURCE_TYPES = (
     ("auto", "source_type_auto", "Auto"),
@@ -60,18 +60,18 @@ _SOURCE_TYPES = (
 
 
 class SourcePanel:
-    """Panneau plain exposant ``center`` et ``right`` (widgets Qt)."""
+    """Plain panel exposing ``center`` and ``right`` (Qt widgets)."""
 
     def __init__(self, run_state):
         self.run_state = run_state
-        # Conserver les observateurs run_state vivants (évite le GC des closures).
+        # Keep the run_state observers alive (avoids GC of the closures).
         self._bindings = []
         self.center = self._build_center()
         self.right = self._build_right()
         add_language_observer(self.retranslate_ui)
         self.retranslate_ui()
 
-    # ── Centre ──────────────────────────────────────────────────────────────────
+    # ── Center ────────────────────────────────────────────────────────────────
     def _build_center(self):
         w = QWidget()
         layout = QVBoxLayout(w)
@@ -79,13 +79,13 @@ class SourcePanel:
         self.lbl_project = QLabel()
         self.input_project_name = QLineEdit()
         self.input_project_name.setPlaceholderText("MonProjet")
-        # Miroir de la top bar : source de vérité unique dans run_state (cf.
-        # bind_text_field, même idiome que les drapeaux de chaînage).
+        # Mirror of the top bar: single source of truth in run_state (cf.
+        # bind_text_field, same idiom as the chaining flags).
         self._bindings.append(bind_text_field(self.input_project_name, self.run_state, "project_name"))
         layout.addWidget(self.lbl_project)
         layout.addWidget(self.input_project_name)
 
-        # Mode pipeline (migré depuis topbar.py, qui va disparaître).
+        # Pipeline mode (migrated from topbar.py, which will disappear).
         # KNOWN LIMITATION (cf. ETAT_DES_LIEUX.md §11 question 1): only "gsplat"
         # actually routes to COLMAP+Brush when btn_run is clicked. "sharp" and
         # "4dgs" stay selectable here but launching does not execute them — they
@@ -110,25 +110,25 @@ class SourcePanel:
         mode_row.addWidget(self.combo_mode)
         layout.addLayout(mode_row)
 
-        # Type de source (Images / Vidéo / Auto) — pilote la visibilité du champ FPS.
+        # Source type (Images / Video / Auto) — drives the FPS field's visibility.
         self.lbl_source_type = QLabel()
         source_type_row = QHBoxLayout()
         self.combo_source_type = QComboBox()
         for value, key, default in _SOURCE_TYPES:
             self.combo_source_type.addItem(tr(key, default), value)
-        self.combo_source_type.setCurrentIndex(0)  # "auto" par défaut
+        self.combo_source_type.setCurrentIndex(0)  # "auto" by default
         self.combo_source_type.currentIndexChanged.connect(self._evaluate_source_type)
         source_type_row.addWidget(self.lbl_source_type)
         source_type_row.addWidget(self.combo_source_type)
         layout.addLayout(source_type_row)
 
-        # Entrée (glisser-déposer dossier/fichier/vidéo)
+        # Input (drag-and-drop folder/file/video)
         self.lbl_input = QLabel()
         layout.addWidget(self.lbl_input)
         in_row = QHBoxLayout()
         self.input_path = DropLineEdit()
-        # Debounce ~300ms : évite de rescanner le disque à chaque frappe quand
-        # "Auto" est sélectionné.
+        # Debounce ~300ms: avoids rescanning the disk on every keystroke when
+        # "Auto" is selected.
         self._source_type_timer = QTimer()
         self._source_type_timer.setSingleShot(True)
         self._source_type_timer.timeout.connect(self._evaluate_source_type)
@@ -142,14 +142,25 @@ class SourcePanel:
         in_row.addWidget(self.btn_browse_input_file)
         layout.addLayout(in_row)
 
-        # Bannière d'erreur — mélange images+vidéo détecté en mode Auto.
+        # FPS (video)
+        fps_row = QHBoxLayout()
+        self.lbl_fps = QLabel()
+        self.fps_spin = QSpinBox()
+        self.fps_spin.setRange(1, 60)
+        self.fps_spin.setValue(2)
+        fps_row.addWidget(self.lbl_fps)
+        fps_row.addWidget(self.fps_spin)
+        fps_row.addStretch(1)
+        layout.addLayout(fps_row)
+
+        # Error banner — images+video mix detected in Auto mode.
         self.lbl_err_mixed = QLabel()
         self.lbl_err_mixed.setWordWrap(True)
         self.lbl_err_mixed.setStyleSheet("color: #e0af68;")
         self.lbl_err_mixed.setVisible(False)
         layout.addWidget(self.lbl_err_mixed)
 
-        # Dossier de sortie
+        # Output folder
         self.lbl_output = QLabel()
         layout.addWidget(self.lbl_output)
         out_row = QHBoxLayout()
@@ -160,7 +171,7 @@ class SourcePanel:
         out_row.addWidget(self.btn_browse_output)
         layout.addLayout(out_row)
 
-        # Destination checkpoints (optionnel)
+        # Checkpoint destination (optional)
         self.lbl_ckpt = QLabel()
         self.lbl_ckpt.setWordWrap(True)
         layout.addWidget(self.lbl_ckpt)
@@ -172,22 +183,11 @@ class SourcePanel:
         ck_row.addWidget(self.btn_browse_ckpt)
         layout.addLayout(ck_row)
 
-        # FPS (vidéo)
-        fps_row = QHBoxLayout()
-        self.lbl_fps = QLabel()
-        self.fps_spin = QSpinBox()
-        self.fps_spin.setRange(1, 60)
-        self.fps_spin.setValue(2)
-        fps_row.addWidget(self.lbl_fps)
-        fps_row.addWidget(self.fps_spin)
-        fps_row.addStretch(1)
-        layout.addLayout(fps_row)
-
         layout.addStretch(1)
 
-        # Bouton d'action principale, séparé visuellement au-dessus du bouton
-        # destructif. Pas de connexion ici — StudioWindow s'y connecte dans une
-        # passe ultérieure (remplace topbar.launchRequested).
+        # Main action button, visually separated above the destructive
+        # button. Not connected here — StudioWindow connects to it in a
+        # later pass (replaces topbar.launchRequested).
         self.btn_run = QPushButton()
         # objectName-based rule in styles.py's _STYLESHEET ($accent /
         # $highlight_text) so this button stays the single accented primary
@@ -208,8 +208,8 @@ class SourcePanel:
 
         layout.addWidget(self.btn_run)
 
-        # Espacement généreux + filet séparateur : l'action destructive ne
-        # doit jamais pouvoir être confondue avec l'action primaire ci-dessus.
+        # Generous spacing + separator rule: the destructive action must
+        # never be mistaken for the primary action above.
         layout.addSpacing(20)
         delete_separator = QFrame()
         delete_separator.setFrameShape(QFrame.Shape.HLine)
@@ -224,7 +224,7 @@ class SourcePanel:
         self._evaluate_source_type()
         return w
 
-    # ── Barre de droite (essentiel / avancé) ────────────────────────────────────
+    # ── Right bar (essential / advanced) ────────────────────────────────────────
     def _build_right(self):
         w = QWidget()
         outer = QVBoxLayout(w)
@@ -236,13 +236,19 @@ class SourcePanel:
         content = QWidget()
         layout = QVBoxLayout(content)
 
-        # ── Options avancées ─── toujours visibles (plus de repli/dépli)
+        # ── Advanced options ─── always visible (no more collapse/expand)
         self.lbl_advanced = QLabel()
         self.lbl_advanced.setStyleSheet("font-weight: bold;")
         layout.addWidget(self.lbl_advanced)
 
         self.advanced_group = QWidget()
         ag = QVBoxLayout(self.advanced_group)
+        # Source 360°: first pre-step. It produces the folder of planar
+        # images that Upscale then COLMAP consume — hence its position first,
+        # before Undistort. Unchecked by default.
+        self.chk_360 = QCheckBox()
+        self._bind(self.chk_360, "source_360")
+        ag.addWidget(self.chk_360)
         self.chk_undistort = QCheckBox()
         self._bind(self.chk_undistort, "undistort_images")
         ag.addWidget(self.chk_undistort)
@@ -259,39 +265,32 @@ class SourcePanel:
         ag.addLayout(blur_row)
         layout.addWidget(self.advanced_group)
 
-        # ── Automatisation (chaînage) ─── ordre d'exécution réel :
-        # 360 → Upscale → Brush → Nettoyage → Export → Vue
+        # ── Automation (chaining) ─── actual execution order:
+        # 360 → Upscale → Brush → Clean → Export → View
         self.lbl_automation = QLabel()
         self.lbl_automation.setStyleSheet("font-weight: bold;")
         layout.addWidget(self.lbl_automation)
 
-        # Source 360° : première pré-étape. Elle produit le dossier d'images
-        # planaires que l'Upscale puis COLMAP consomment — d'où sa position en
-        # tête, avant Upscale. Décochée par défaut.
-        self.chk_360 = QCheckBox()
-        self._bind(self.chk_360, "source_360")
-        layout.addWidget(self.chk_360)
-
-        # Upscale : seconde pré-étape (elle agrandit les images avant COLMAP).
-        # Décochée par défaut, contrairement à Brush.
+        # Upscale: second pre-step (it enlarges images before COLMAP).
+        # Unchecked by default, unlike Brush.
         self.chk_upscaler = QCheckBox()
         self._bind(self.chk_upscaler, "upscaler_avant")
         layout.addWidget(self.chk_upscaler)
 
         self.chk_entrainement = QCheckBox()
         self._bind(self.chk_entrainement, "entrainement_apres")
-        # Brush cochée par défaut — bind_flag_checkbox() vient d'imposer la valeur
-        # run_state ("entrainement_apres" par défaut False) ; on la corrige après
-        # coup (émet toggled -> synchronise run_state).
+        # Brush checked by default — bind_flag_checkbox() just imposed the
+        # run_state value ("entrainement_apres" defaults to False); we correct
+        # it afterward (emits toggled -> syncs run_state).
         self.chk_entrainement.setChecked(True)
         layout.addWidget(self.chk_entrainement)
 
-        # Nettoyer (n'ouvre rien de plus ici — réglages dans l'étape Nettoyage)
+        # Clean (opens nothing more here — settings live in the Clean step)
         self.chk_nettoyer = QCheckBox()
         self._bind(self.chk_nettoyer, "nettoyer_apres")
         layout.addWidget(self.chk_nettoyer)
 
-        # Exporter → révèle dossier + format
+        # Export → reveals folder + format
         self.chk_exporter = QCheckBox()
         self._bind(self.chk_exporter, "exporter_apres")
         layout.addWidget(self.chk_exporter)
@@ -301,8 +300,8 @@ class SourcePanel:
         self.export_dir.setPlaceholderText("…")
         eg.addWidget(self.export_dir)
         self.combo_export_format = QComboBox()
-        # Même source que le combo du panneau Export : deux listes en dur
-        # divergeraient et `findData` ignorerait silencieusement le réglage.
+        # Same source as the Export panel's combo: two hardcoded lists would
+        # drift apart, and `findData` would silently ignore the setting.
         for fmt in ExportEngine.SUPPORTED_FORMATS:
             self.combo_export_format.addItem(fmt, fmt)
         eg.addWidget(self.combo_export_format)
@@ -322,7 +321,7 @@ class SourcePanel:
     def _bind(self, checkbox, flag):
         self._bindings.append(bind_flag_checkbox(checkbox, self.run_state, flag))
 
-    # ── API publique ─────────────────────────────────────────────────────────────
+    # ── Public API ───────────────────────────────────────────────────────────────
     def current_mode(self) -> str:
         """Same semantics as the former ``TopBar.current_mode()``."""
         return self.combo_mode.itemData(self.combo_mode.currentIndex())
@@ -347,7 +346,7 @@ class SourcePanel:
     # ── Handlers ────────────────────────────────────────────────────────────────
     def _evaluate_source_type(self):
         """Re-derive FPS field visibility and the mixed-content banner from the
-        current Entrée field + Type de source selection."""
+        current Input field + Source type selection."""
         forced = self.combo_source_type.currentData()
         if forced in ("images", "video"):
             is_video = forced == "video"
@@ -379,7 +378,7 @@ class SourcePanel:
         if path:
             self.checkpoint_dest.setText(path)
 
-    # ── Persistance (utilisée par config_io plus tard) ──────────────────────────
+    # ── Persistence (used by config_io later) ────────────────────────────────────
     def get_state(self):
         return {
             "project_name": self.input_project_name.text(),
