@@ -20,5 +20,9 @@ class Extractor360EngineDep(PipEngine):
         self.create_venv()
         req_file = self.target_dir / "requirements.txt"
         if req_file.exists():
-            self.pip_install(["-r", str(req_file)])
+            # v4.x's requirements.txt uses paths relative to the repo itself
+            # (e.g. "-c constraints/security-minimums.txt", "."), so pip must
+            # run from target_dir or it resolves them against CorbeauSplat's
+            # own root instead.
+            self.pip_install(["-r", str(req_file)], cwd=str(self.target_dir))
         self.save_local_version(self.get_remote_version())
