@@ -190,6 +190,73 @@ class TestFourDGSEngine:
                 result = engine.run_colmap(str(dataset_root))
                 assert result is False
 
+    def test_run_colmap_uses_single_reference_frame_per_camera(self, tmp_path):
+        """run_colmap doit lancer COLMAP sur 1 frame/caméra, pas sur toutes les frames
+        de tous les timesteps (COLMAP suppose une scène statique)."""
+        with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
+            with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
+                mock_resolve.side_effect = lambda x: x
+
+                from app.core.four_dgs_engine import FourDGSEngine
+
+                engine = FourDGSEngine(logger_callback=print)
+                engine.runner = MagicMock()
+                engine.runner.start.return_value = None
+                engine.runner.stdout_iter.return_value = iter([])
+                engine.runner.readline.return_value = ""
+                engine.runner.wait.return_value = 0
+
+                dataset_root = tmp_path / "dataset"
+                images_root = dataset_root / "images"
+                for cam in ("cam_00", "cam_01"):
+                    cam_dir = images_root / cam
+                    cam_dir.mkdir(parents=True)
+                    for i in range(3):
+                        (cam_dir / f"{i:05d}.jpg").write_bytes(b"fake")
+                # Upscale leftover, must not be treated as a third camera
+                (images_root / "cam_00_src").mkdir(parents=True)
+                (images_root / "cam_00_src" / "00000.jpg").write_bytes(b"fake")
+
+                result = engine.run_colmap(str(dataset_root))
+                assert result is True
+
+                staging_dir = dataset_root / "colmap_reference_frames"
+                staged = sorted(p.name for p in staging_dir.iterdir())
+                assert staged == ["cam_00.jpg", "cam_01.jpg"]
+
+                extract_cmd = engine.runner.start.call_args_list[0][0][0]
+                mapper_cmd = engine.runner.start.call_args_list[2][0][0]
+                assert str(staging_dir) in extract_cmd
+                assert str(staging_dir) in mapper_cmd
+
+    def test_run_colmap_flat_images_no_camera_subfolders(self, tmp_path):
+        """Sans sous-dossiers cam_XX (dataset mono-caméra à plat) : pas de mise en scène,
+        COLMAP tourne directement sur images/."""
+        with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
+            with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
+                mock_resolve.side_effect = lambda x: x
+
+                from app.core.four_dgs_engine import FourDGSEngine
+
+                engine = FourDGSEngine(logger_callback=print)
+                engine.runner = MagicMock()
+                engine.runner.start.return_value = None
+                engine.runner.stdout_iter.return_value = iter([])
+                engine.runner.readline.return_value = ""
+                engine.runner.wait.return_value = 0
+
+                dataset_root = tmp_path / "dataset"
+                images_root = dataset_root / "images"
+                images_root.mkdir(parents=True)
+                (images_root / "00000.jpg").write_bytes(b"fake")
+
+                result = engine.run_colmap(str(dataset_root))
+                assert result is True
+                assert not (dataset_root / "colmap_reference_frames").exists()
+
+                extract_cmd = engine.runner.start.call_args_list[0][0][0]
+                assert str(images_root) in extract_cmd
+
     def test_process_dataset_no_videos(self, tmp_path):
         """process_dataset sans vidéos → False."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):

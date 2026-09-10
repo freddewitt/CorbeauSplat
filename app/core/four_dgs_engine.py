@@ -69,9 +69,46 @@ class FourDGSEngine(BaseEngine):
         # Grosses vidéos / disques externes lents : même palier que Brush (4h).
         return self._execute_command(cmd, timeout=14400) == 0
 
+    def _build_static_reference_set(self, images_path, staging_path):
+        """Stage a single reference frame per camera for static-scene SfM.
+
+        COLMAP assumes a rigid, static scene: matching frames captured at
+        different timesteps of a moving scene breaks that assumption and
+        corrupts the reconstruction. Reference multi-view 4DGS pipelines
+        (e.g. hustvl/4DGaussians' multipleviewprogress.sh + extractimages.py)
+        run SfM on exactly one synchronized frame per camera and reuse those
+        poses for every timestep, since the camera rig itself does not move.
+        Falls back to ``images_path`` unchanged if it holds no per-camera
+        subfolders (flat single-camera dataset).
+        """
+        cam_dirs = sorted(
+            d for d in images_path.iterdir()
+            if d.is_dir() and not d.name.endswith("_src")
+        ) if images_path.is_dir() else []
+        if not cam_dirs:
+            return images_path
+
+        if staging_path.exists():
+            shutil.rmtree(staging_path)
+        staging_path.mkdir(parents=True)
+
+        for cam_dir in cam_dirs:
+            frames = sorted(f for f in cam_dir.iterdir() if f.is_file())
+            if not frames:
+                continue
+            reference = frames[0]
+            shutil.copy2(reference, staging_path / f"{cam_dir.name}{reference.suffix}")
+
+        self.log(f"Static reference set: {len(cam_dirs)} camera(s), 1 frame each -> {staging_path}")
+        return staging_path
+
     def run_colmap(self, dataset_root, camera_model="OPENCV", single_camera=True,
                    matcher_type="exhaustive", sequential_overlap=10):
         """Lance le pipeline COLMAP : Feature Extractor -> Matcher -> Mapper.
+
+        SfM tourne sur un jeu de référence statique — une frame par caméra,
+        cf. ``_build_static_reference_set`` — pas sur l'ensemble des frames
+        de toutes les caméras à tous les instants.
 
         ``camera_model``/``single_camera`` : à ajuster pour un rig multi-caméras
         composé de modèles hétérogènes (le défaut suppose un même modèle pour
@@ -88,13 +125,15 @@ class FourDGSEngine(BaseEngine):
         sparse_path = root / "sparse"
         sparse_path.mkdir(parents=True, exist_ok=True)
 
+        colmap_images_path = self._build_static_reference_set(images_path, root / "colmap_reference_frames")
+
         # 1. Feature Extraction
         self.log("--- COLMAP: Feature Extraction ---")
         self.status("Extraction des features (COLMAP)...")
         cmd_extract = [
             self.colmap, "feature_extractor",
             "--database_path", str(db_path),
-            "--image_path", str(images_path),
+            "--image_path", str(colmap_images_path),
             "--ImageReader.camera_model", camera_model,
             "--ImageReader.single_camera", "1" if single_camera else "0"
         ]
@@ -125,7 +164,7 @@ class FourDGSEngine(BaseEngine):
         cmd_mapper = [
             self.colmap, "mapper",
             "--database_path", str(db_path),
-            "--image_path", str(images_path),
+            "--image_path", str(colmap_images_path),
             "--output_path", str(sparse_path)
         ]
 

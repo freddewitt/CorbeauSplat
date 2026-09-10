@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 🐛 Fixes
+- **4DGS: COLMAP ran SfM on every extracted frame of every camera instead of one synchronized snapshot.** `FourDGSEngine.run_colmap()` passed the whole `images/` tree (all `cam_XX` subfolders, every timestep) to `feature_extractor`/`mapper`, violating COLMAP's static-scene assumption — matching frames from different instants of a moving scene produces invalid correspondences and corrupts the reconstruction. Confirmed against the reference `hustvl/4DGaussians` pipeline, which runs SfM on exactly one frame per camera and reuses those poses for every timestep. New `_build_static_reference_set()` stages one frame (first by name) per `cam_XX` folder into `colmap_reference_frames/` before running COLMAP; `cam_XX_src` upscale leftovers are excluded. Falls back to the unmodified `images/` folder for flat, single-camera datasets. The `ns-process-data` (nerfstudio) path was not audited for the same issue.
+
 ### 🔁 Changed
 - **General Settings window slimmed down to app-wide preferences only.** Theme, Language, and end-of-run notifications remain; the app identity footer (name + version, centered, small font) and a "View changelog" link (opens `CHANGELOG.md` in the OS default app) now sit at the bottom, with extra spacing below the notifications checkbox.
 - **Config Load/Save/Delete and factory reset moved to the Project panel.** These are project-workflow actions, not app-wide preferences — they now live in a "Current settings" block in the Project tab's right sidebar, below Automation, instead of the General Settings window.
