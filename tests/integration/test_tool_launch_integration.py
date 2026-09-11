@@ -222,8 +222,8 @@ class TestToolLaunchOrchestration:
         panel.input_path = _FakeLineEdit("/in.ply")
         panel.output_path = _FakeLineEdit("/out_dir")
         panel.get_params.return_value = {
-            "format": "spz", "filter_nan": False, "morton": False,
-            "harmonics": False, "decimate": 100,
+            "format": "spz", "filter_nan": False, "filter_floaters": False,
+            "morton": False, "harmonics": False, "decimate": 100,
         }
         window.panels["splattransform"] = panel
 
@@ -243,8 +243,8 @@ class TestToolLaunchOrchestration:
         panel.input_path = _FakeLineEdit("/in.ply")
         panel.output_path = _FakeLineEdit("/out_dir")
         panel.get_params.return_value = {
-            "format": "ply", "filter_nan": False, "morton": False,
-            "harmonics": False, "decimate": 50,
+            "format": "ply", "filter_nan": False, "filter_floaters": False,
+            "morton": False, "harmonics": False, "decimate": 50,
         }
         window.panels["splattransform"] = panel
 
@@ -255,6 +255,25 @@ class TestToolLaunchOrchestration:
         )
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
+
+    def test_splat_transform_filter_floaters_adds_flag(self, monkeypatch):
+        window = _make_window()
+        mock_worker_cls = MagicMock()
+        monkeypatch.setattr(sw, "SplatTransformWorker", mock_worker_cls)
+        panel = MagicMock()
+        panel.input_path = _FakeLineEdit("/in.ply")
+        panel.output_path = _FakeLineEdit("/out_dir")
+        panel.get_params.return_value = {
+            "format": "ply", "filter_nan": False, "filter_floaters": True,
+            "morton": False, "harmonics": False, "decimate": 100,
+        }
+        window.panels["splattransform"] = panel
+
+        window._launch_splat_transform()
+
+        mock_worker_cls.assert_called_once_with(
+            "/in.ply", "/out_dir/in.ply", {"--overwrite": True, "--filter-floaters": True}
+        )
 
     def test_splat_transform_decimate_with_non_ply_output_blocks_launch(self, monkeypatch):
         """splat-transform's --decimate requires a .ply output; picking spz/splat
@@ -268,8 +287,8 @@ class TestToolLaunchOrchestration:
         panel.input_path = _FakeLineEdit("/in.ply")
         panel.output_path = _FakeLineEdit("/out_dir")
         panel.get_params.return_value = {
-            "format": "spz", "filter_nan": False, "morton": False,
-            "harmonics": False, "decimate": 50,
+            "format": "spz", "filter_nan": False, "filter_floaters": False,
+            "morton": False, "harmonics": False, "decimate": 50,
         }
         window.panels["splattransform"] = panel
 

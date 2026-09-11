@@ -82,6 +82,7 @@ class SplatTransformPanel:
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.combo_format = QComboBox()
         self.combo_format.addItems(["ply", "spz", "splat"])
+        self.combo_format.currentTextChanged.connect(self._on_format_changed)
         self.lbl_format = QLabel()
         form.addRow(self.lbl_format, self.combo_format)
         layout.addLayout(form)
@@ -90,6 +91,8 @@ class SplatTransformPanel:
         fg = QVBoxLayout(self.filter_group)
         self.chk_filter_nan = QCheckBox()
         fg.addWidget(self.chk_filter_nan)
+        self.chk_filter_floaters = QCheckBox()
+        fg.addWidget(self.chk_filter_floaters)
         self.chk_morton = QCheckBox()
         fg.addWidget(self.chk_morton)
         self.chk_harmonics = QCheckBox()
@@ -125,6 +128,15 @@ class SplatTransformPanel:
     def _bind(self, checkbox, flag):
         self._bindings.append(bind_flag_checkbox(checkbox, self.run_state, flag))
 
+    def _on_format_changed(self, fmt):
+        # --decimate requires a .ply output upstream; grey it out for other
+        # formats instead of letting the user hit the launch-time error.
+        is_ply = fmt == "ply"
+        self.spin_decimate.setEnabled(is_ply)
+        self.lbl_decimate.setEnabled(is_ply)
+        if not is_ply:
+            self.spin_decimate.setValue(100.0)
+
     def _browse_input(self):
         path, _ = get_open_file_name(self.center, tr("btn_browse", "Parcourir"), "",
                                      "Splats (*.ply *.spz *.splat);;Tous (*.*)")
@@ -141,6 +153,7 @@ class SplatTransformPanel:
         return {
             "format": self.combo_format.currentText(),
             "filter_nan": self.chk_filter_nan.isChecked(),
+            "filter_floaters": self.chk_filter_floaters.isChecked(),
             "morton": self.chk_morton.isChecked(),
             "harmonics": self.chk_harmonics.isChecked(),
             "decimate": self.spin_decimate.value(),
@@ -156,6 +169,7 @@ class SplatTransformPanel:
         self.lbl_format.setText(tr("st_lbl_format", "Format de sortie"))
         self.filter_group.setTitle(tr("st_group_filters", "Filtres"))
         self.chk_filter_nan.setText(tr("st_filter_nan", "Supprimer splats dégénérés"))
+        self.chk_filter_floaters.setText(tr("st_filter_floaters", "Supprimer îlots isolés"))
         self.chk_morton.setText(tr("st_morton", "Optimiser l'ordre spatial"))
         self.chk_harmonics.setText(tr("st_harmonics", "Réduire harmoniques sphériques"))
         self.lbl_decimate.setText(tr("st_decimate", "Décimer (% conservé)"))

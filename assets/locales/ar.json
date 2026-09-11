@@ -186,6 +186,7 @@
   "st_input": "الإدخال (.ply/.spz/.splat)",
   "st_output": "مجلد الإخراج",
   "st_filter_nan": "إزالة الـ splats المشوّهة",
+  "st_filter_floaters": "إزالة الجزر المعزولة",
   "st_morton": "تحسين الترتيب المكاني",
   "st_harmonics": "تقليل التوافقيات الكروية",
   "st_decimate": "تقليل (% المحتفظ به)",

@@ -186,6 +186,7 @@
   "st_input": "Entrada (.ply/.spz/.splat)",
   "st_output": "Carpeta de salida",
   "st_filter_nan": "Eliminar splats degenerados",
+  "st_filter_floaters": "Eliminar islas aisladas",
   "st_morton": "Optimizar el orden espacial",
   "st_harmonics": "Reducir armónicos esféricos",
   "st_decimate": "Diezmar (% conservado)",

@@ -186,6 +186,7 @@
   "st_input": "输入 (.ply/.spz/.splat)",
   "st_output": "输出文件夹",
   "st_filter_nan": "移除退化 splats",
+  "st_filter_floaters": "移除孤立浮点",
   "st_morton": "优化空间顺序",
   "st_harmonics": "降低球谐函数",
   "st_decimate": "抽稀（保留 %）",

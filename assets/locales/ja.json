@@ -186,6 +186,7 @@
   "st_input": "入力 (.ply/.spz/.splat)",
   "st_output": "出力フォルダ",
   "st_filter_nan": "不正な splat を削除",
+  "st_filter_floaters": "孤立した浮遊点を削除",
   "st_morton": "空間順序を最適化",
   "st_harmonics": "球面調和関数を削減",
   "st_decimate": "デシメート（保持 %）",

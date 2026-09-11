@@ -186,6 +186,7 @@
   "st_input": "Eingabe (.ply/.spz/.splat)",
   "st_output": "Ausgabeordner",
   "st_filter_nan": "Entartete Splats entfernen",
+  "st_filter_floaters": "Isolierte Ausreißer entfernen",
   "st_morton": "Räumliche Reihenfolge optimieren",
   "st_harmonics": "Kugelflächenfunktionen reduzieren",
   "st_decimate": "Dezimieren (% behalten)",

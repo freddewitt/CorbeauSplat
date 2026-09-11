@@ -186,6 +186,7 @@
   "st_input": "Input (.ply/.spz/.splat)",
   "st_output": "Output folder",
   "st_filter_nan": "Remove degenerate splats",
+  "st_filter_floaters": "Remove isolated floaters",
   "st_morton": "Optimize spatial order",
   "st_harmonics": "Reduce spherical harmonics",
   "st_decimate": "Decimate (% kept)",

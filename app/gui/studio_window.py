@@ -1039,6 +1039,8 @@ class StudioWindow(QMainWindow):
         st_params = {"--overwrite": True}
         if src_params["filter_nan"]:
             st_params["--filter-nan"] = True
+        if src_params["filter_floaters"]:
+            st_params["--filter-floaters"] = True
         if src_params["morton"]:
             st_params["--morton-order"] = True
         if src_params["harmonics"]:
