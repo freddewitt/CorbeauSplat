@@ -205,6 +205,7 @@ class StudioWindow(QMainWindow):
         # chaîne (que pilote le drapeau ``upscaler_avant`` côté Projet).
         self.panels["upscale"].btn_run.clicked.connect(self._launch_upscale)
         self.panels["brush"].btn_run.clicked.connect(self._launch_brush)
+        self.panels["entrainement"].btn_run.clicked.connect(self._launch_entrainement)
         self.panels["reconstruction"].btn_run.clicked.connect(self._launch_reconstruction)
         self.panels["source"].btn_delete_dataset.clicked.connect(self._delete_dataset)
         # Bouton Lancer/Annuler unique (ex-topbar), désormais porté par SourcePanel.
@@ -962,6 +963,18 @@ class StudioWindow(QMainWindow):
         de construction (chemins manquants, source mixte…), il échoue déjà
         proprement l'étape via ``_fail_pipeline_step``."""
         worker = self._build_colmap_worker()
+        if worker is not None:
+            self._start_tool_worker(worker)
+
+    def _launch_entrainement(self):
+        """Lancement autonome (hors chaîne) de l'onglet Entraînement (PIPELINE),
+        même idiome que ``_launch_reconstruction``. Réutilise
+        ``_build_brush_worker`` — dataset = dossier du projet produit par
+        COLMAP (Source/output + nom de projet), PAS les champs manuels
+        ``input_path``/``output_path`` du mode standalone (ceux-ci ne sont
+        jamais renseignés ici et pointeraient vers le mauvais dossier,
+        cf. module OUTILS "Brush" pour l'usage manuel)."""
+        worker = self._build_brush_worker()
         if worker is not None:
             self._start_tool_worker(worker)
 

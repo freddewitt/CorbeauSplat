@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### ✨ Added
+- **Training tab now has its own local Launch/Cancel button.** Previously, starting Brush independently (outside the full pipeline chain) was only possible from the separate OUTILS → Brush module. `EntrainementPanel` builds `btn_run`/`btn_cancel` unconditionally now (was `standalone`-only); `StudioWindow._launch_entrainement()` wires it to the same `_build_brush_worker()` used by the pipeline chain (dataset resolved from the Source panel's output path + project name, checkpoints via `resolve_checkpoints_dir()`) — not the manual path fields used by the standalone Brush module, which would resolve to the wrong folder for this tab.
+
 ### 🐛 Fixes
 - **4DGS: COLMAP ran SfM on every extracted frame of every camera instead of one synchronized snapshot.** `FourDGSEngine.run_colmap()` passed the whole `images/` tree (all `cam_XX` subfolders, every timestep) to `feature_extractor`/`mapper`, violating COLMAP's static-scene assumption — matching frames from different instants of a moving scene produces invalid correspondences and corrupts the reconstruction. Confirmed against the reference `hustvl/4DGaussians` pipeline, which runs SfM on exactly one frame per camera and reuses those poses for every timestep. New `_build_static_reference_set()` stages one frame (first by name) per `cam_XX` folder into `colmap_reference_frames/` before running COLMAP; `cam_XX_src` upscale leftovers are excluded. Falls back to the unmodified `images/` folder for flat, single-camera datasets. The `ns-process-data` (nerfstudio) path was not audited for the same issue.
 

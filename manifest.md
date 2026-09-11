@@ -102,6 +102,13 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
   - Autres : ~41 files (priorité 3, non commencé)
 - **From now on**: ALL new comments MUST be in English (GUI, core, tests, CLI). Rule applies retroactively to existing code when touched.
 
+### ⚠️ Décision en attente — bouton Lancer local onglet Entraînement (2026-09-11)
+- Ajouté puis corrigé en session : `EntrainementPanel` (onglet Training, `app/gui/panels/entrainement_panel.py`) a maintenant un bouton Lancer/Annuler local, câblé sur `StudioWindow._launch_entrainement()` qui réutilise `_build_brush_worker()` (même calcul de chemin que la chaîne pipeline — PAS les champs manuels `input_path`/`output_path` du mode standalone OUTILS→Brush).
+- **Contexte** : le premier câblage (incorrect, lisait les champs manuels jamais renseignés pour cet onglet) a fait déplacer par erreur le dossier racine complet d'un projet utilisateur via la logique d'archivage checkpoints de `BrushWorker` (`shutil.move` vers un dossier frère `checkpoints_backup_<timestamp>`, contenu retrouvé intact, rien supprimé). Corrigé, tests 463 pass inchangés.
+- Utilisateur a marqué une pause suite à la frayeur ; **à trancher avant de continuer** : garder le bouton (corrigé) ou le retirer.
+- Fichiers modifiés non commités : `app/gui/panels/entrainement_panel.py`, `app/gui/studio_window.py`.
+- `graphify update .` refusé 2x cette session (garde-fou node count 2676/2678 vs graph.json existant 2678, bâti sur commit 898e100) — graph legèrement désynchronisé des fichiers ci-dessus. À investiguer/forcer si jugé sûr.
+
 ### Autres tâches
 
 1. **Validation manuelle utilisateur sur données réelles** ✅ — confirmé par l'utilisateur sur données réelles (clic-par-clic dans `StudioWindow`)** — les moteurs sous-jacents sont désormais vérifiés par tests e2e réels (COLMAP→Brush→Nettoyage→Export SPZ, Sharp image/vidéo, Upscale : 20/20, vrais binaires) et le bug qui empêchait tout lancement d'entraînement depuis l'UI est corrigé (session 2026-07-19). Reste : passage utilisateur réel dans l'interface avec ses propres fichiers/3 pipelines/7 modules OUTILS, sur Apple Silicon — aucun outil automatisé ne remplace ce contrôle.

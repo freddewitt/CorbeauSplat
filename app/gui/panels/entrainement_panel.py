@@ -249,16 +249,17 @@ class EntrainementPanel:
         scroll.setWidget(content)
         outer.addWidget(scroll)
 
-        # Local Launch button: standalone use only (OUTILS "Brush" module). The
-        # PIPELINE Training step is driven by the top bar's single Launch/Cancel
-        # button instead (cf. StudioWindow._run_pipeline_step).
-        if self.standalone:
-            self.btn_run = QPushButton()
-            self.btn_run.setStyleSheet("font-weight: bold;")
-            outer.addWidget(self.btn_run)
+        # Local Launch button: available both in standalone mode (OUTILS
+        # "Brush" module) and in the PIPELINE Training tab, so training can
+        # also be started independently right after a manual Reconstruction
+        # run (cf. StudioWindow._launch_brush). The chain itself is still
+        # driven by the top bar's single Launch/Cancel button.
+        self.btn_run = QPushButton()
+        self.btn_run.setStyleSheet("font-weight: bold;")
+        outer.addWidget(self.btn_run)
 
-            self.btn_cancel = CancelButton()
-            outer.addWidget(self.btn_cancel)
+        self.btn_cancel = CancelButton()
+        outer.addWidget(self.btn_cancel)
         return w
 
     def _build_right(self):
@@ -404,8 +405,7 @@ class EntrainementPanel:
         self.lbl_export.setText(tr("brush_lbl_output", "Dossier export"))
         self.lbl_ply.setText(tr("brush_lbl_ply", "Nom du fichier PLY (optionnel)"))
         self.chk_visualiser.setText(tr("chain_view_after", "Lancer dans SuperSplat"))
-        if self.standalone:
-            self.btn_run.setText(tr("btn_run", "Lancer"))
+        self.btn_run.setText(tr("btn_run", "Lancer"))
         self.lbl_preset.setText(tr("brush_lbl_preset", "Preset"))
         self.btn_save_preset.setToolTip(tr("brush_save_preset", "Enregistrer la config comme preset"))
         self.btn_delete_preset.setToolTip(tr("brush_delete_preset", "Supprimer le preset"))
