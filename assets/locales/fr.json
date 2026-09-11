@@ -74,6 +74,7 @@
   "msg_warning": "Attention",
   "confirm_delete": "Voulez-vous vraiment supprimer le dataset ?\n\n{}\n\nCette action est irreversible!",
   "confirm_delete_dataset": "Supprimer tout le contenu de ce projet, à l'exception des images ? Le contenu sera mis à la corbeille.",
+  "err_decimate_ply_only": "La décimation nécessite une sortie au format .ply.",
   "err_no_paths": "Veuillez selectionner les dossiers d'entree et de sortie",
   "err_worker_already_running": "Un traitement est déjà en cours.",
   "USER_CANCELLED": "Interrompu par l'utilisateur",

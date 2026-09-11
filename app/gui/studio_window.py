@@ -1044,6 +1044,13 @@ class StudioWindow(QMainWindow):
         if src_params["harmonics"]:
             st_params["--filter-harmonics"] = "0"
         if src_params["decimate"] < 100:
+            if src_params["format"] != "ply":
+                QMessageBox.critical(
+                    self, tr("msg_error", "Erreur"),
+                    tr("err_decimate_ply_only",
+                       "La décimation nécessite une sortie au format .ply."),
+                )
+                return
             st_params["--decimate"] = f"{src_params['decimate']:.0f}%"
         worker = SplatTransformWorker(input_path, output_path, st_params)
         self._start_tool_worker(worker)

@@ -74,6 +74,7 @@
   "msg_warning": "警告",
   "confirm_delete": "データセットを削除してもよろしいですか？\n\n{}\n\nこの操作は元に戻せません！",
   "confirm_delete_dataset": "画像を除くこのプロジェクトの全内容を削除しますか？内容はゴミ箱に移動されます。",
+  "err_decimate_ply_only": "間引きには.ply形式の出力が必要です。",
   "err_no_paths": "入力および出力フォルダを選択してください",
   "err_worker_already_running": "処理は既に実行中です。",
   "USER_CANCELLED": "ユーザーによってキャンセルされました",

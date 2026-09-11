@@ -25,11 +25,12 @@ class SplatTransformEngine(BaseEngine):
 
     # Flags that take no value
     ALLOWED_FLAGS_BOOLEAN = {
-        "--filter-nan",    # Remove NaN/degenerate splats (closest to "filterFloaters")
-        "--morton-order",  # Optimize spatial ordering
+        "--filter-nan",      # Remove NaN/degenerate splats
+        "--filter-floaters",  # Remove splats not contributing to any solid voxel
+        "--morton-order",    # Optimize spatial ordering
         "--quiet",
         "--overwrite",
-        "--summary",
+        "--stats",  # Renamed from "--summary" upstream; bare flag defaults to text output
     }
 
     # Flags that take exactly one value argument

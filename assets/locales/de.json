@@ -74,6 +74,7 @@
   "msg_warning": "Warnung",
   "confirm_delete": "Möchten Sie das Dataset wirklich löschen?\n\n{}\n\nDiese Aktion ist unwiderruflich!",
   "confirm_delete_dataset": "Den gesamten Inhalt dieses Projekts außer den Bildern löschen? Der Inhalt wird in den Papierkorb verschoben.",
+  "err_decimate_ply_only": "Dezimierung erfordert das Ausgabeformat .ply.",
   "err_no_paths": "Bitte wählen Sie Eingabe- und Ausgabeordner aus",
   "err_worker_already_running": "Ein Vorgang läuft bereits.",
   "USER_CANCELLED": "Vom Benutzer abgebrochen",

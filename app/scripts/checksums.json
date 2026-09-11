@@ -1,12 +1,10 @@
 {
-  "_instructions": "Calculated via: shasum -a 256 <binary>. Update after each binary upgrade. For rustup, download the script first: curl -fsSL https://sh.rustup.rs -o rustup-init.sh && shasum -a 256 rustup-init.sh. For brush, do NOT re-hash the archive you just downloaded — that only attests to what the server served. Upstream publishes its own digests per release: https://github.com/ArthurBrussee/brush/releases/download/<tag>/sha256.sum (and a <asset>.sha256 sidecar). darwin_brush is pinned to v0.3.0; it must be re-pinned whenever get_remote_version() starts resolving to a newer tag, otherwise the fail-closed check aborts the install.",
+  "_instructions": "Calculated via: shasum -a 256 <binary>. Update after each binary upgrade. For rustup, download the script first: curl -fsSL https://sh.rustup.rs -o rustup-init.sh && shasum -a 256 rustup-init.sh. For brush, do NOT re-hash the archive you just downloaded — that only attests to what the server served. Upstream publishes its own digests per release: https://github.com/ArthurBrussee/brush/releases/download/<tag>/sha256.sum (and a <asset>.sha256 sidecar). darwin_brush is pinned to v0.3.0; it must be re-pinned whenever get_remote_version() starts resolving to a newer tag, otherwise the fail-closed check aborts the install. upscayl-ncnn publishes no checksum sidecar upstream, so darwin_upscayl/linux_upscayl are re-hashed from the downloaded release zip directly (tag 20251207-174704) — re-pin on every new release since get_remote_version() always tracks 'latest', unlike brush's deliberate pin.",
   "brush_release": "v0.3.0",
   "darwin_brush": "65b2631398c839be3c1d4d7160fe2326389dec87830aac0710985e6690a1048c",
   "linux_brush": "",
-  "darwin_upscayl": "b7f54f362fc10d5f334e587fb90917e95a5557ec1cfefbddce78657dd3fee055",
-  "linux_upscayl": "",
-  "darwin_glomap": "23c7983ee6e1d62dd96d43cec40803e457b1325424b2c28d13aed22901414aba",
-  "linux_glomap": "",
+  "darwin_upscayl": "277419791281a56eae0c739c70120b974d7267cf7c2de8e86dc09798d4b314db",
+  "linux_upscayl": "a9fab3c770b62f2b7a35d8d6d61eb4e8b3aef79128b665c919d080b85a2292f2",
   "darwin_rustup": "6c30b75a75b28a96fd913a037c8581b580080b6ee9b8169a3c0feb1af7fe8caf",
   "linux_rustup": "6c30b75a75b28a96fd913a037c8581b580080b6ee9b8169a3c0feb1af7fe8caf"
 }

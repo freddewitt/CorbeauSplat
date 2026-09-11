@@ -74,6 +74,7 @@
   "msg_warning": "警告",
   "confirm_delete": "您真的要删除数据集吗？\n\n{}\n\n此操作不可逆！",
   "confirm_delete_dataset": "删除此项目的全部内容（图片除外）？内容将移至废纸篓。",
+  "err_decimate_ply_only": "抽稀需要 .ply 输出格式。",
   "err_no_paths": "请选择输入和输出文件夹",
   "err_worker_already_running": "已有一个任务正在进行中。",
   "USER_CANCELLED": "用户已取消",

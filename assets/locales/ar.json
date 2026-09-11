@@ -74,6 +74,7 @@
   "msg_warning": "تحذير",
   "confirm_delete": "تأكيد الحذف؟",
   "confirm_delete_dataset": "هل تريد حذف كل محتوى هذا المشروع باستثناء الصور؟ سيتم نقل المحتوى إلى سلة المهملات.",
+  "err_decimate_ply_only": "يتطلب التخفيف تنسيق إخراج .ply.",
   "err_no_paths": "مسارات مفقودة",
   "err_worker_already_running": "توجد مهمة قيد التشغيل بالفعل.",
   "USER_CANCELLED": "تم الإلغاء",

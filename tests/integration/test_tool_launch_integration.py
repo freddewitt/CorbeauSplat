@@ -235,6 +235,49 @@ class TestToolLaunchOrchestration:
         assert window._active_worker is instance
         window.panels["source"].set_running.assert_called_once_with(True)
 
+    def test_splat_transform_decimate_with_ply_output_adds_decimate_flag(self, monkeypatch):
+        window = _make_window()
+        mock_worker_cls = MagicMock()
+        monkeypatch.setattr(sw, "SplatTransformWorker", mock_worker_cls)
+        panel = MagicMock()
+        panel.input_path = _FakeLineEdit("/in.ply")
+        panel.output_path = _FakeLineEdit("/out_dir")
+        panel.get_params.return_value = {
+            "format": "ply", "filter_nan": False, "morton": False,
+            "harmonics": False, "decimate": 50,
+        }
+        window.panels["splattransform"] = panel
+
+        window._launch_splat_transform()
+
+        mock_worker_cls.assert_called_once_with(
+            "/in.ply", "/out_dir/in.ply", {"--overwrite": True, "--decimate": "50%"}
+        )
+        instance = mock_worker_cls.return_value
+        instance.start.assert_called_once()
+
+    def test_splat_transform_decimate_with_non_ply_output_blocks_launch(self, monkeypatch):
+        """splat-transform's --decimate requires a .ply output; picking spz/splat
+        alongside decimation must be blocked before the worker is built, not fail
+        silently at the CLI level."""
+        window = _make_window()
+        mock_worker_cls = MagicMock()
+        monkeypatch.setattr(sw, "SplatTransformWorker", mock_worker_cls)
+        monkeypatch.setattr(sw, "QMessageBox", MagicMock())
+        panel = MagicMock()
+        panel.input_path = _FakeLineEdit("/in.ply")
+        panel.output_path = _FakeLineEdit("/out_dir")
+        panel.get_params.return_value = {
+            "format": "spz", "filter_nan": False, "morton": False,
+            "harmonics": False, "decimate": 50,
+        }
+        window.panels["splattransform"] = panel
+
+        window._launch_splat_transform()
+
+        mock_worker_cls.assert_not_called()
+        sw.QMessageBox.critical.assert_called_once()
+
     def test_upscale_launch_starts_test_worker(self, monkeypatch):
         window = _make_window()
         mock_worker_cls = MagicMock()
