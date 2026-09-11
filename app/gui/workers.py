@@ -275,17 +275,26 @@ class BrushWorker(BaseWorker):
                 self._rename_checkpoints_with_project_name()
 
             # "new" mode: ensure Brush starts from an empty folder
-            # Brush auto-resumes from existing checkpoints → archive them
+            # Brush auto-resumes from existing checkpoints → archive them.
+            # Only the .ply files are relocated (structure preserved under the
+            # backup folder) — the output directory itself is never moved.
+            # Moving the whole directory is what turned a wrong output_path
+            # (e.g. standalone Brush pointed at an unrelated project folder)
+            # into wholesale relocation of that folder's entire contents.
             if not refine_mode:
                 output_dir = Path(self.output_path)
-                has_checkpoints = output_dir.exists() and any(output_dir.rglob("*.ply"))
-                if has_checkpoints:
+                existing_plys = list(output_dir.rglob("*.ply")) if output_dir.exists() else []
+                if existing_plys:
                     backup_name = f"checkpoints_backup_{int(time.time())}"
                     backup_dir = output_dir.parent / backup_name
-                    shutil.move(str(output_dir), str(backup_dir))
-                    output_dir.mkdir(parents=True, exist_ok=True)
-                    self.output_path = output_dir
-                    self.log_signal.emit(f"Nouveau training : anciens checkpoints archivés dans '{backup_name}'")
+                    for ply_path in existing_plys:
+                        dest = backup_dir / ply_path.relative_to(output_dir)
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.move(str(ply_path), str(dest))
+                    self.log_signal.emit(
+                        f"Nouveau training : {len(existing_plys)} checkpoint(s) "
+                        f"archivé(s) dans '{backup_name}'"
+                    )
 
             # Construct CMD
             self.log_signal.emit("Lancement de la commande Brush...")

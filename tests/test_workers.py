@@ -281,6 +281,72 @@ class TestBrushWorker:
             worker._prune_to_latest_checkpoint()
             assert only.exists()
 
+    def test_run_archives_only_checkpoint_plys_not_whole_directory(self, mock_engine, tmp_path):
+        """run() en mode "new" n'archive que les .ply, jamais le dossier
+        output_path lui-même. Régression: un mauvais output_path (ex. module
+        OUTILS Brush pointé sur un dossier de projet contenant d'autres
+        sous-dossiers) faisait déplacer tout l'arbre via shutil.move sur le
+        dossier entier, au lieu des seuls checkpoints."""
+        output_dir = tmp_path / "output"
+        old_ckpt = output_dir / "point_cloud" / "iteration_1000" / "point_cloud.ply"
+        old_ckpt.parent.mkdir(parents=True)
+        old_ckpt.write_bytes(b"old")
+        unrelated_dir = output_dir / "unrelated_project"
+        unrelated_dir.mkdir()
+        unrelated_file = unrelated_dir / "keepme.txt"
+        unrelated_file.write_text("do not touch")
+
+        dataset_dir = tmp_path / "dataset"
+        dataset_dir.mkdir()
+
+        worker = BrushWorker.__new__(BrushWorker)
+        with patch.object(worker, 'log_signal', MagicMock()):
+            with patch.object(worker, 'status_signal', MagicMock()):
+                with patch.object(worker, 'finished_signal', MagicMock()):
+                    with patch.object(worker, 'isInterruptionRequested', return_value=False):
+                        worker.engine = mock_engine
+                        worker.input_path = str(dataset_dir)
+                        worker.output_path = str(output_dir)
+                        worker.params = {"refine_mode": False}
+                        worker.project_name = ""
+                        worker.keep_only_latest = False
+
+                        worker.run()
+
+        # The output directory itself is never moved/renamed.
+        assert output_dir.exists()
+        # Unrelated content stays exactly where it was.
+        assert unrelated_file.exists()
+        assert unrelated_file.read_text() == "do not touch"
+        # The old checkpoint is gone from its original location...
+        assert not old_ckpt.exists()
+        # ...archived under a sibling backup folder, same relative subpath.
+        backups = list(tmp_path.glob("checkpoints_backup_*"))
+        assert len(backups) == 1
+        assert (backups[0] / "point_cloud" / "iteration_1000" / "point_cloud.ply").exists()
+
+    def test_run_no_archive_when_no_existing_checkpoints(self, mock_engine, tmp_path):
+        """run() en mode "new" sans checkpoint existant → pas de backup créé."""
+        output_dir = tmp_path / "output"
+        dataset_dir = tmp_path / "dataset"
+        dataset_dir.mkdir()
+
+        worker = BrushWorker.__new__(BrushWorker)
+        with patch.object(worker, 'log_signal', MagicMock()):
+            with patch.object(worker, 'status_signal', MagicMock()):
+                with patch.object(worker, 'finished_signal', MagicMock()):
+                    with patch.object(worker, 'isInterruptionRequested', return_value=False):
+                        worker.engine = mock_engine
+                        worker.input_path = str(dataset_dir)
+                        worker.output_path = str(output_dir)
+                        worker.params = {"refine_mode": False}
+                        worker.project_name = ""
+                        worker.keep_only_latest = False
+
+                        worker.run()
+
+        assert not list(tmp_path.glob("checkpoints_backup_*"))
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SharpWorker tests
