@@ -961,10 +961,22 @@ class StudioWindow(QMainWindow):
         idiome que ``_launch_cleaner``/``_launch_export``. Réutilise
         ``_build_colmap_worker`` (déjà pilote la chaîne pipeline) — sur échec
         de construction (chemins manquants, source mixte…), il échoue déjà
-        proprement l'étape via ``_fail_pipeline_step``."""
+        proprement l'étape via ``_fail_pipeline_step``.
+
+        La case « Lancer Brush » (``run_state.entrainement_apres``) est visible
+        dans ce panneau : sans le hook ci-dessous, elle ne faisait rien pour ce
+        bouton (seule la chaîne globale Source la lisait), ce qui la rendait
+        trompeuse. On enchaîne donc manuellement sur Brush si elle est cochée."""
         worker = self._build_colmap_worker()
         if worker is not None:
+            worker.finished_signal.connect(self._on_reconstruction_standalone_finished)
             self._start_tool_worker(worker)
+
+    def _on_reconstruction_standalone_finished(self, success, message):
+        """Enchaîne sur Brush après une reconstruction standalone réussie, si
+        « Lancer Brush » est coché — cf. ``_launch_reconstruction``."""
+        if success and self.run_state.entrainement_apres:
+            self._launch_entrainement()
 
     def _launch_entrainement(self):
         """Lancement autonome (hors chaîne) de l'onglet Entraînement (PIPELINE),
