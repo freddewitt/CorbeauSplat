@@ -246,3 +246,111 @@ class TestSharpPredict:
             with patch("importlib.util.find_spec", return_value=None):
                 with patch("shutil.which", return_value=None):
                     assert engine.is_installed() is False
+
+
+class TestVideoRunSafety:
+    """Annulation, estimation de durée et suppression de dossiers (audit I14)."""
+
+    def _engine_with_frames(self, tmp_path, frame_count=3):
+        """SharpEngine dont le faux FFmpeg dépose `frame_count` images."""
+        from app.core.sharp_engine import SharpEngine
+
+        frames_dir = tmp_path / "output" / "temp_frames"
+
+        def ffmpeg_side_effect(cmd, env=None, **kwargs):
+            frames_dir.mkdir(parents=True, exist_ok=True)
+            for i in range(1, frame_count + 1):
+                (frames_dir / f"frame_{i:04d}.png").write_bytes(b"fake_png")
+
+        engine = SharpEngine(logger_callback=print)
+        engine.runner = MagicMock()
+        engine.runner.start.side_effect = ffmpeg_side_effect
+        engine.runner.readline.return_value = ""
+        engine.runner.wait.return_value = 0
+        return engine
+
+    def test_stop_requested_interrupts_the_loop(self, tmp_path):
+        """stop() interrompt la boucle même sans cancel_check.
+
+        Régression : seul cancel_check était testé, donc stop() laissait le
+        traitement parcourir toutes les images restantes.
+        """
+        engine = self._engine_with_frames(tmp_path, frame_count=3)
+
+        with patch.object(engine, 'predict', return_value=0) as mock_predict:
+            engine.stop_requested = True
+            result = engine.process_video_frames(
+                video_path=str(tmp_path / "input.mp4"),
+                output_dir=str(tmp_path / "output"),
+                params={},
+                log_callback=print,
+            )
+
+        assert result == 0
+        mock_predict.assert_not_called()
+
+    def test_existing_user_folder_is_never_deleted(self, tmp_path):
+        """Un dossier utilisateur homonyme d'une frame n'est ni écrasé ni supprimé."""
+        output_dir = tmp_path / "output"
+        engine = self._engine_with_frames(tmp_path, frame_count=1)
+
+        # Collides with the name derived from frame_0001.png.
+        user_dir = output_dir / "frame_0001"
+        user_dir.mkdir(parents=True)
+        user_file = user_dir / "important.txt"
+        user_file.write_text("do not touch")
+
+        def predict_side_effect(frame_path, frame_out_dir, params):
+            out = Path(frame_out_dir)
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "result.ply").write_bytes(b"ply_data")
+            return 0
+
+        with patch.object(engine, 'predict', side_effect=predict_side_effect):
+            engine.process_video_frames(
+                video_path=str(tmp_path / "input.mp4"),
+                output_dir=str(output_dir),
+                params={},
+                log_callback=print,
+            )
+
+        assert user_file.exists()
+        assert user_file.read_text() == "do not touch"
+
+    def test_long_run_confirmation_aborts_before_any_inference(self, tmp_path):
+        """Refuser la confirmation arrête avant toute inférence, et purge les frames."""
+        from app.core.sharp_engine import LONG_RUN_CONFIRM_SECONDS, SECONDS_PER_FRAME_ESTIMATE
+
+        frame_count = int(LONG_RUN_CONFIRM_SECONDS / SECONDS_PER_FRAME_ESTIMATE) + 1
+        engine = self._engine_with_frames(tmp_path, frame_count=frame_count)
+        asked = []
+
+        with patch.object(engine, 'predict', return_value=0) as mock_predict:
+            result = engine.process_video_frames(
+                video_path=str(tmp_path / "input.mp4"),
+                output_dir=str(tmp_path / "output"),
+                params={},
+                log_callback=print,
+                confirm_callback=lambda n, secs: asked.append((n, secs)) or False,
+            )
+
+        assert result == 0
+        mock_predict.assert_not_called()
+        assert asked and asked[0][0] == frame_count
+        assert not (tmp_path / "output" / "temp_frames").exists()
+
+    def test_short_run_is_not_confirmed(self, tmp_path):
+        """En deçà du seuil, aucune confirmation n'est demandée."""
+        engine = self._engine_with_frames(tmp_path, frame_count=1)
+        asked = []
+
+        with patch.object(engine, 'predict', return_value=0):
+            engine.process_video_frames(
+                video_path=str(tmp_path / "input.mp4"),
+                output_dir=str(tmp_path / "output"),
+                params={},
+                log_callback=print,
+                confirm_callback=lambda n, secs: asked.append(n) or True,
+            )
+
+        assert asked == []

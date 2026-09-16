@@ -1,11 +1,13 @@
 """Tests pour app/gui/workers.py — BaseWorker et workers spécialisés."""
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
 import pytest
+from PySide6.QtCore import QMutex, QWaitCondition
 
 from app.gui.base_worker import BaseWorker
 from app.gui.workers import (
@@ -321,8 +323,10 @@ class TestBrushWorker:
         assert unrelated_file.read_text() == "do not touch"
         # The old checkpoint is gone from its original location...
         assert not old_ckpt.exists()
-        # ...archived under a sibling backup folder, same relative subpath.
-        backups = list(tmp_path.glob("checkpoints_backup_*"))
+        # ...archived *inside* the chosen output folder, same relative subpath.
+        # A sibling backup folder would write outside the folder the user picked.
+        assert not list(tmp_path.glob("checkpoints_backup_*"))
+        backups = list(output_dir.glob("checkpoints_backup_*"))
         assert len(backups) == 1
         assert (backups[0] / "point_cloud" / "iteration_1000" / "point_cloud.ply").exists()
 
@@ -347,6 +351,86 @@ class TestBrushWorker:
                         worker.run()
 
         assert not list(tmp_path.glob("checkpoints_backup_*"))
+
+    def test_run_leaves_user_plys_alone(self, mock_engine, tmp_path):
+        """Les .ply de l'utilisateur dans le dossier de sortie ne sont pas archivés.
+
+        Régression de l'incident du 2026-09-11 : un output_path pointé sur un
+        dossier de travail faisait déplacer les PLY qui s'y trouvaient.
+        """
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        user_ply = output_dir / "mon_scan_final.ply"
+        user_ply.write_bytes(b"mine")
+        checkpoint = output_dir / "export_5000.ply"
+        checkpoint.write_bytes(b"ckpt")
+
+        dataset_dir = tmp_path / "dataset"
+        dataset_dir.mkdir()
+
+        worker = BrushWorker.__new__(BrushWorker)
+        with patch.object(worker, 'log_signal', MagicMock()):
+            with patch.object(worker, 'status_signal', MagicMock()):
+                with patch.object(worker, 'finished_signal', MagicMock()):
+                    with patch.object(worker, 'isInterruptionRequested', return_value=False):
+                        worker.engine = mock_engine
+                        worker.input_path = str(dataset_dir)
+                        worker.output_path = str(output_dir)
+                        worker.params = {"refine_mode": False}
+                        worker.project_name = ""
+                        worker.keep_only_latest = False
+
+                        worker.run()
+
+        assert user_ply.exists()
+        assert user_ply.read_bytes() == b"mine"
+        backups = list(output_dir.glob("checkpoints_backup_*"))
+        assert len(backups) == 1
+        assert (backups[0] / "export_5000.ply").exists()
+
+    def test_prune_spares_user_plys_and_earlier_backups(self, tmp_path):
+        """_prune_to_latest_checkpoint ne supprime que des checkpoints."""
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        old_ckpt = output_dir / "export_1000.ply"
+        new_ckpt = output_dir / "export_2000.ply"
+        user_ply = output_dir / "notes_scan.ply"
+        archived = output_dir / "checkpoints_backup_1700000000" / "export_500.ply"
+        archived.parent.mkdir()
+        for f in (old_ckpt, new_ckpt, user_ply, archived):
+            f.write_bytes(b"data")
+        os.utime(old_ckpt, (1000, 1000))
+        os.utime(new_ckpt, (2000, 2000))
+        os.utime(user_ply, (3000, 3000))
+        os.utime(archived, (4000, 4000))
+
+        worker = BrushWorker.__new__(BrushWorker)
+        with patch.object(worker, 'log_signal', MagicMock()):
+            worker.output_path = str(output_dir)
+            worker._prune_to_latest_checkpoint()
+
+        assert new_ckpt.exists()
+        assert not old_ckpt.exists()
+        # Neither the user's file (most recent of all) nor the archive is touched.
+        assert user_ply.exists()
+        assert archived.exists()
+
+    def test_rename_with_project_name_spares_user_plys(self, tmp_path):
+        """Le préfixe projet n'est appliqué qu'aux checkpoints."""
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        (output_dir / "export_1000.ply").write_bytes(b"data")
+        (output_dir / "mon_scan.ply").write_bytes(b"data")
+
+        worker = BrushWorker.__new__(BrushWorker)
+        with patch.object(worker, 'log_signal', MagicMock()):
+            worker.output_path = str(output_dir)
+            worker.project_name = "test_scene"
+            worker._rename_checkpoints_with_project_name()
+
+        assert (output_dir / "test_scene_export_1000.ply").exists()
+        assert (output_dir / "mon_scan.ply").exists()
+        assert not (output_dir / "test_scene_mon_scan.ply").exists()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -400,6 +484,38 @@ class TestSharpWorker:
 
 class TestSharpVideoWorker:
     """Tests pour SharpVideoWorker."""
+
+    def _blank_worker(self):
+        """SharpVideoWorker sans QThread initialisé, avec la mécanique d'attente."""
+        worker = SharpVideoWorker.__new__(SharpVideoWorker)
+        worker._answer_mutex = QMutex()
+        worker._answer_ready = QWaitCondition()
+        worker._long_run_accepted = None
+        return worker
+
+    @pytest.mark.parametrize("accepted", [True, False])
+    def test_long_run_confirmation_handshake(self, accepted):
+        """_confirm_long_run pose la question puis attend la réponse du thread GUI."""
+        worker = self._blank_worker()
+        result = {}
+
+        with patch.object(worker, 'long_run_signal', MagicMock()):
+            def ask():
+                result["answer"] = worker._confirm_long_run(500, 71000.0)
+
+            thread = threading.Thread(target=ask)
+            thread.start()
+
+            deadline = time.time() + 5
+            while not worker.long_run_signal.emit.called and time.time() < deadline:
+                time.sleep(0.01)
+            assert worker.long_run_signal.emit.called, "la question n'a pas été posée"
+
+            worker.answer_long_run(accepted)
+            thread.join(timeout=5)
+
+        assert not thread.is_alive(), "le worker est resté bloqué après la réponse"
+        assert result["answer"] is accepted
 
     def test_run_success(self):
         """SharpVideoWorker.run() avec moteur mocké."""

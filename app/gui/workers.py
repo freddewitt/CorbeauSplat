@@ -7,13 +7,60 @@ import time
 import traceback
 from pathlib import Path
 
+from PySide6.QtCore import QMutex, QMutexLocker, QWaitCondition, Signal
+
 from app.core.brush_engine import BrushEngine
 from app.core.engine import ColmapEngine
 from app.core.extractor_360_engine import Extractor360Engine
 from app.core.four_dgs_engine import FourDGSEngine
 from app.core.i18n import tr
-from app.core.ply_cleaner import clean_ply
+from app.core.ply_cleaner import CleaningCancelled, clean_ply
 from app.gui.base_worker import BaseWorker
+
+# Brush names its checkpoints from the `--export-name` default, `export_{iter}.ply`.
+# Two older layouts are still recognised because earlier runs (and other trainers)
+# produced them: `iteration_<n>.ply` at the root, and the nested
+# `point_cloud/iteration_<n>/point_cloud.ply`. Any of these may carry a project
+# prefix added afterwards by _rename_checkpoints_with_project_name().
+_CHECKPOINT_FILE_RE = re.compile(r"^(?:.+_)?(?:export|iteration)_\d+\.ply$")
+_CHECKPOINT_NESTED_DIR_RE = re.compile(r"^iteration_\d+$")
+_CHECKPOINT_BACKUP_DIR_RE = re.compile(r"^checkpoints_backup_\d+$")
+
+
+def is_checkpoint_ply(path: Path, root: Path) -> bool:
+    """True when `path` is a training checkpoint produced under `root`.
+
+    Anything else found in the output folder belongs to the user — a training
+    run must never move, rename or delete it. This guards the case where the
+    output folder is also a working folder holding the user's own .ply files.
+    Files already archived under `checkpoints_backup_*` are excluded too, so a
+    later run cannot re-archive or prune away an earlier backup.
+    """
+    try:
+        rel = path.relative_to(root)
+    except ValueError:
+        return False
+
+    parts = rel.parts
+    if any(_CHECKPOINT_BACKUP_DIR_RE.match(part) for part in parts[:-1]):
+        return False
+
+    if _CHECKPOINT_FILE_RE.match(path.name):
+        return True
+
+    return (
+        len(parts) >= 3
+        and parts[-3] == "point_cloud"
+        and _CHECKPOINT_NESTED_DIR_RE.match(parts[-2]) is not None
+        and path.name.endswith("point_cloud.ply")
+    )
+
+
+def find_checkpoint_plys(root: Path) -> list[Path]:
+    """All checkpoint .ply files under `root`, sorted, user files left out."""
+    if not root.exists():
+        return []
+    return sorted(p for p in root.rglob("*.ply") if p.is_file() and is_checkpoint_ply(p, root))
 
 
 class Extractor360Worker(BaseWorker):
@@ -277,21 +324,22 @@ class BrushWorker(BaseWorker):
 
             # "new" mode: ensure Brush starts from an empty folder
             # Brush auto-resumes from existing checkpoints → archive them.
-            # Only the .ply files are relocated (structure preserved under the
-            # backup folder) — the output directory itself is never moved.
-            # Moving the whole directory is what turned a wrong output_path
-            # (e.g. standalone Brush pointed at an unrelated project folder)
-            # into wholesale relocation of that folder's entire contents.
+            # Only checkpoint .ply files are relocated, and only inside
+            # output_dir: a wrong output_path (e.g. standalone Brush pointed at
+            # an unrelated project folder) must not touch the user's own files,
+            # nor create a backup folder outside the folder they picked.
             if not refine_mode:
                 output_dir = Path(self.output_path)
-                existing_plys = list(output_dir.rglob("*.ply")) if output_dir.exists() else []
+                existing_plys = find_checkpoint_plys(output_dir)
                 if existing_plys:
                     backup_name = f"checkpoints_backup_{int(time.time())}"
-                    backup_dir = output_dir.parent / backup_name
+                    backup_dir = output_dir / backup_name
                     for ply_path in existing_plys:
-                        dest = backup_dir / ply_path.relative_to(output_dir)
+                        rel = ply_path.relative_to(output_dir)
+                        dest = backup_dir / rel
                         dest.parent.mkdir(parents=True, exist_ok=True)
                         shutil.move(str(ply_path), str(dest))
+                        self.log_signal.emit(f"  archivé : {rel}")
                     self.log_signal.emit(
                         f"Nouveau training : {len(existing_plys)} checkpoint(s) "
                         f"archivé(s) dans '{backup_name}'"
@@ -390,11 +438,14 @@ class BrushWorker(BaseWorker):
                 return
 
             for file_path in directory.iterdir():
-                if file_path.is_file() and file_path.suffix == '.ply' and file_path.name != ply_name:
-                    mt = file_path.stat().st_mtime
-                    if mt > last_mtime:
-                        last_mtime = mt
-                        found_ply = file_path
+                if not (file_path.is_file() and file_path.name != ply_name):
+                    continue
+                if not is_checkpoint_ply(file_path, output_path):
+                    continue
+                mt = file_path.stat().st_mtime
+                if mt > last_mtime:
+                    last_mtime = mt
+                    found_ply = file_path
 
         # 1. Check likely paths first
         for path in search_paths:
@@ -402,7 +453,7 @@ class BrushWorker(BaseWorker):
 
         # 2. If nothing found, fallback to walk
         if not found_ply:
-            for ply_file_path in output_path.rglob("*.ply"):
+            for ply_file_path in find_checkpoint_plys(output_path):
                 if ply_file_path.name != ply_name:
                     mt = ply_file_path.stat().st_mtime
                     if mt > last_mtime:
@@ -424,7 +475,7 @@ class BrushWorker(BaseWorker):
         prefix = f"{self.project_name}_"
         output_path = Path(self.output_path)
         renamed = 0
-        for ply_path in output_path.rglob("*.ply"):
+        for ply_path in find_checkpoint_plys(output_path):
             if not ply_path.name.startswith(prefix):
                 new_name = f"{prefix}{ply_path.name}"
                 dest = ply_path.parent / new_name
@@ -437,28 +488,40 @@ class BrushWorker(BaseWorker):
             self.log_signal.emit(f"Checkpoints renommés avec le préfixe '{prefix}' ({renamed} fichiers)")
 
     def _prune_to_latest_checkpoint(self):
-        """Keep only the most recent .ply checkpoint in the output folder."""
+        """Keep only the most recent .ply checkpoint in the output folder.
+
+        Deletes checkpoints only. Files the user put in the output folder and
+        earlier `checkpoints_backup_*` archives are never candidates.
+        """
         output_path = Path(self.output_path)
-        plys = [p for p in output_path.rglob("*.ply") if p.is_file()]
+        plys = find_checkpoint_plys(output_path)
         if len(plys) <= 1:
             return
 
         latest = max(plys, key=lambda p: p.stat().st_mtime)
         removed = 0
+        emptied_dirs = set()
         for ply in plys:
             if ply == latest:
                 continue
             try:
                 ply.unlink()
                 removed += 1
+                emptied_dirs.add(ply.parent)
             except OSError as e:
                 self.log_signal.emit(f"Erreur suppression {ply.name}: {e}")
 
-        # Remove now-empty subfolders (deepest first, then shallower ones)
-        for d in sorted(output_path.rglob("*"), key=lambda p: len(p.parts), reverse=True):
-            if d.is_dir():
-                with contextlib.suppress(OSError):
-                    d.rmdir()
+        # Remove the folders those checkpoints lived in, once empty, walking up
+        # to output_path. Only these — an unrelated empty folder of the user's
+        # is not ours to remove.
+        for directory in sorted(emptied_dirs, key=lambda p: len(p.parts), reverse=True):
+            current = directory
+            while current != output_path and output_path in current.parents:
+                try:
+                    current.rmdir()
+                except OSError:
+                    break
+                current = current.parent
 
         if removed:
             self.log_signal.emit(
@@ -547,6 +610,12 @@ class SharpWorker(BaseWorker):
 class SharpVideoWorker(BaseWorker):
     """Thread worker for executing Apple ML Sharp on a sequence of frames from a video."""
 
+    # Emitted once the frame count is known, when the run looks long enough to
+    # be worth confirming. Carries the worker itself so the receiver can answer
+    # without sender(). Connect it to a bound method of a GUI-thread QObject:
+    # that is what makes Qt deliver it queued, which this handshake relies on.
+    long_run_signal = Signal(object, int, float)
+
     def __init__(self, video_path, output_path, params, engine=None):
         super().__init__()
         from app.core.sharp_engine import SharpEngine
@@ -555,10 +624,41 @@ class SharpVideoWorker(BaseWorker):
         self.video_path = video_path
         self.output_path = output_path
         self.params = params
+        self._answer_mutex = QMutex()
+        self._answer_ready = QWaitCondition()
+        self._long_run_accepted = None
 
     def stop(self):
         self.engine.stop()
+        # Release a run still waiting on the confirmation dialog, otherwise
+        # Cancel would leave the thread parked for good.
+        self.answer_long_run(False)
         super().stop()
+
+    def answer_long_run(self, accepted: bool):
+        """Hand the GUI thread's answer back to the waiting worker."""
+        with QMutexLocker(self._answer_mutex):
+            self._long_run_accepted = accepted
+            self._answer_ready.wakeAll()
+
+    def _confirm_long_run(self, total_frames: int, estimated_seconds: float) -> bool:
+        """Ask the GUI and block until it answers.
+
+        A modal dialog cannot be opened from a worker thread, so the question
+        travels as a queued signal and this thread sleeps on a wait condition
+        until answer_long_run() — or stop() — wakes it.
+        """
+        with QMutexLocker(self._answer_mutex):
+            self._long_run_accepted = None
+
+        # Emitted outside the lock: were the connection ever direct, answering
+        # from inside emit() would deadlock on a mutex we still held.
+        self.long_run_signal.emit(self, total_frames, estimated_seconds)
+
+        with QMutexLocker(self._answer_mutex):
+            while self._long_run_accepted is None:
+                self._answer_ready.wait(self._answer_mutex)
+            return self._long_run_accepted
 
     def run(self):
         """Process video frames using the shared SharpEngine.process_video_frames pipeline."""
@@ -574,6 +674,7 @@ class SharpVideoWorker(BaseWorker):
                 status_callback=self.status_signal.emit,
                 progress_callback=self.progress_signal.emit,
                 cancel_check=self.isInterruptionRequested,
+                confirm_callback=self._confirm_long_run,
             )
 
             if success_count > 0:
@@ -632,12 +733,16 @@ class CleanerWorker(BaseWorker):
                             ply_path, out_path,
                             log=self.log_signal.emit,
                             overrides=self.params,
+                            cancel_check=self.isInterruptionRequested,
                         )
                         self.log_signal.emit(
                             f"  ✓ {stats['kept']}/{stats['total']} splats conservés "
                             f"({stats['removed']} retirés)"
                         )
                         success_count += 1
+                    except CleaningCancelled:
+                        self.log_signal.emit("Nettoyage annulé par l'utilisateur.")
+                        break
                     except ValueError as e:
                         self.log_signal.emit(f"  ⚠️  {ply_path.name}: ignoré ({e})")
                         fail_count += 1
@@ -654,11 +759,17 @@ class CleanerWorker(BaseWorker):
             else:
                 # Single-file mode (existing behavior)
                 self.log_signal.emit(f"Nettoyage de {self.input_path}...")
-                stats = clean_ply(
-                    self.input_path, self.output_path,
-                    log=self.log_signal.emit,
-                    overrides=self.params,
-                )
+                try:
+                    stats = clean_ply(
+                        self.input_path, self.output_path,
+                        log=self.log_signal.emit,
+                        overrides=self.params,
+                        cancel_check=self.isInterruptionRequested,
+                    )
+                except CleaningCancelled:
+                    self.log_signal.emit("Nettoyage annulé par l'utilisateur.")
+                    self.finished_signal.emit(False, "Nettoyage annulé.")
+                    return
                 msg = (
                     f"Nettoyage terminé : {stats['kept']}/{stats['total']} splats conservés "
                     f"({stats['removed']} retirés)"

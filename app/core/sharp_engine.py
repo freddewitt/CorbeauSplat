@@ -7,9 +7,24 @@ from pathlib import Path
 from .base_engine import BaseEngine
 from .system import is_apple_silicon, resolve_project_root
 
+# Sharp runs inference one image at a time, and slowly: the reference figure
+# comes from tests/integration/test_e2e_sharp.py on Apple Silicon. Used only to
+# warn the user up front — a 300-frame video is roughly a twelve-hour run.
+SECONDS_PER_FRAME_ESTIMATE = 142.0
+
+# Above this estimate, ask before starting rather than committing the machine.
+LONG_RUN_CONFIRM_SECONDS = 30 * 60
+
+
+def _format_duration(seconds: float) -> str:
+    """Render a duration as `Xh YYmin` or `Ymin`, for log lines."""
+    minutes = int(seconds // 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours} h {minutes:02d} min" if hours else f"{minutes} min"
+
 
 class SharpEngine(BaseEngine):
-    """Moteur d'execution pour Apple ML Sharp"""
+    """Execution engine for Apple ML Sharp."""
 
     def __init__(self, logger_callback=None):
         super().__init__("Sharp", logger_callback)
@@ -119,7 +134,8 @@ class SharpEngine(BaseEngine):
                              log_callback: Callable | None = None,
                              status_callback: Callable | None = None,
                              progress_callback: Callable | None = None,
-                             cancel_check: Callable | None = None) -> int:
+                             cancel_check: Callable | None = None,
+                             confirm_callback: Callable | None = None) -> int:
         """Shared video frame extraction + Sharp prediction pipeline.
 
         Extracts frames from a video via ffmpeg, runs Sharp on each frame,
@@ -141,6 +157,11 @@ class SharpEngine(BaseEngine):
             Called with integer percentage (0-100).
         cancel_check: callable, optional
             Called before each frame; if returns True, processing stops.
+            stop() is honoured at the same points, whether or not it is given.
+        confirm_callback: callable, optional
+            Called as confirm_callback(total_frames, estimated_seconds) once the
+            frame count is known, before any inference. Returning False aborts.
+            When omitted the run proceeds — CLI callers are non-interactive.
 
         Returns
         -------
@@ -210,9 +231,25 @@ class SharpEngine(BaseEngine):
         if log_callback:
             log_callback(f"Total frames extraites: {total_frames}")
 
+        estimated_seconds = total_frames * SECONDS_PER_FRAME_ESTIMATE
+        if log_callback:
+            log_callback(
+                f"Durée estimée : {_format_duration(estimated_seconds)} "
+                f"({total_frames} images × ~{SECONDS_PER_FRAME_ESTIMATE:.0f} s, inférence séquentielle)."
+            )
+        if confirm_callback and estimated_seconds >= LONG_RUN_CONFIRM_SECONDS and not confirm_callback(
+            total_frames, estimated_seconds
+        ):
+            if log_callback:
+                log_callback("--- Annulé avant le démarrage ---")
+            shutil.rmtree(frames_dir, ignore_errors=True)
+            return 0
+
         success_count = 0
         for idx, frame_path in enumerate(frames):
-            if cancel_check and cancel_check():
+            # stop() sets stop_requested without going through cancel_check —
+            # testing only the latter left stop() unable to interrupt the loop.
+            if self.stop_requested or (cancel_check and cancel_check()):
                 if log_callback:
                     log_callback("--- Arrêté par l'utilisateur ---")
                 break
@@ -223,7 +260,15 @@ class SharpEngine(BaseEngine):
             if log_callback:
                 log_callback(f"Processing frame {display_idx}/{total_frames}: {frame_path.name}")
 
+            # Only ever write to a path that does not exist yet: frame_out_dir
+            # is deleted after each frame, and a name collision with a folder of
+            # the user's would otherwise have it deleted along with its contents.
             frame_out_dir = out / frame_path.stem
+            collision = 1
+            while frame_out_dir.exists():
+                frame_out_dir = out / f"{frame_path.stem}_sharp_{collision}"
+                collision += 1
+
             returncode = self.predict(str(frame_path), str(frame_out_dir), params)
 
             if returncode == 0:
