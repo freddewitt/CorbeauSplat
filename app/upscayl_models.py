@@ -4,6 +4,7 @@ upscayl_models.py — Catalogue of upscayl-ncnn compatible models.
 Models marked bundled=True are included in the upscayl-bin release archive.
 Custom models require individual download via url_bin / url_param.
 """
+import contextlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,6 +28,19 @@ class UpscaylModel:
             (models_dir / f"{self.id}.bin").exists() and
             (models_dir / f"{self.id}.param").exists()
         )
+
+    def size_on_disk_mb(self, models_dir: Path) -> int:
+        """Rounded megabytes taken by the model's two files, 0 if absent.
+
+        Shown on the gallery cards so the user can weigh a download or a
+        deletion; models range from a few MB to ~70 MB.
+        """
+        total = 0
+        for ext in (".bin", ".param"):
+            path = models_dir / f"{self.id}{ext}"
+            with contextlib.suppress(OSError):
+                total += path.stat().st_size
+        return round(total / (1024 * 1024))
 
 
 # ---------------------------------------------------------------------------

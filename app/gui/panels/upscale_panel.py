@@ -121,7 +121,98 @@ class UpscalePanel:
         return w
 
     def _build_right(self):
-        return QWidget()
+        """Model gallery: one ``ModelCard`` per catalogue entry.
+
+        The centre pane's dropdown only marks installed vs missing; the gallery
+        is where each model is described, weighed and managed. Cards are built
+        once and refreshed in place, so their signal connections survive.
+        """
+        from app.gui.widgets.upscale_widgets import ModelCard
+        from app.upscayl_manager import get_models_dir
+        from app.upscayl_models import MODELS
+
+        w = QWidget()
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        self.lbl_gallery = QLabel()
+        self.lbl_gallery.setWordWrap(True)
+        outer.addWidget(self.lbl_gallery)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        container = QWidget()
+        cards_layout = QVBoxLayout(container)
+        cards_layout.setSpacing(4)
+        cards_layout.setContentsMargins(0, 0, 0, 0)
+
+        models_dir = get_models_dir()
+        self._model_cards = {}
+        for model in MODELS:
+            card = ModelCard(model, models_dir)
+            card.download_requested.connect(self._download_model)
+            card.delete_requested.connect(self._delete_model)
+            self._model_cards[model.id] = card
+            cards_layout.addWidget(card)
+        cards_layout.addStretch(1)
+
+        scroll.setWidget(container)
+        outer.addWidget(scroll)
+        return w
+
+    # ── Model gallery actions ────────────────────────────────────────────────
+
+    def _download_model(self, model_id):
+        """Fetch a model on the gallery's demand, reusing the combo's worker.
+
+        One download at a time: ``_dl_worker`` is the shared guard, so a card
+        click and a dropdown change cannot start two transfers at once.
+        """
+        from app.gui.widgets.upscale_widgets import ModelDownloadWorker
+        from app.upscayl_models import get_model
+
+        if self._dl_worker is not None:
+            return
+        model = get_model(model_id)
+        if model is None or not model.url_bin:
+            return
+        card = self._model_cards.get(model_id)
+        if card is not None:
+            card.set_downloading(True)
+        self.lbl_status.setText(tr("up_model_downloading").format(model.label))
+        self.combo_model.setEnabled(False)
+        self.btn_run.setEnabled(False)
+
+        self._dl_worker = ModelDownloadWorker(model_id)
+        self._dl_worker.finished_signal.connect(self._on_model_downloaded)
+        self._dl_worker.start()
+
+    def _delete_model(self, model_id):
+        """Remove a downloaded model's two files, after confirmation.
+
+        Only touches ``<models_dir>/<id>.bin`` and ``.param``, never the
+        bundled models shipped inside the upscayl-bin archive (their cards
+        offer no action).
+        """
+        from app.upscayl_manager import get_models_dir
+        from app.upscayl_models import get_model
+
+        model = get_model(model_id)
+        label = model.label if model is not None else model_id
+        reply = QMessageBox.question(
+            self.center,
+            tr("up_delete_title", "Supprimer le modèle"),
+            tr("up_delete_body", "Supprimer « {} » du disque ?").format(label),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        models_dir = get_models_dir()
+        for ext in (".bin", ".param"):
+            (models_dir / f"{model_id}{ext}").unlink(missing_ok=True)
+        self.refresh_models()
 
     def _browse_input(self):
         """Input accepts a single image OR a folder of images (cf. ``run_upscale_job``
@@ -187,6 +278,10 @@ class UpscalePanel:
         if idx >= 0:
             self.combo_model.setCurrentIndex(idx)
         self.combo_model.blockSignals(False)
+
+        # Both views read the same catalogue; keep them in step.
+        for card in getattr(self, "_model_cards", {}).values():
+            card.refresh()
 
     def _on_model_changed(self, _index=None):
         """Trigger the download if the chosen model isn't installed."""
@@ -272,6 +367,7 @@ class UpscalePanel:
     def retranslate_ui(self):
         self.lbl_status.setText(tr("up_status", "Moteur Upscale"))
         self.lbl_catalog.setText(tr("up_catalog", "Catalogue des modèles (à télécharger/gérer)"))
+        self.lbl_gallery.setText(tr("up_models", "Modèles disponibles"))
         self.lbl_input.setText(tr("up_input", "Source (fichier ou dossier)"))
         self.lbl_output.setText(tr("up_output", "Destination"))
         self.lbl_model.setText(tr("up_model", "Modèle actif"))

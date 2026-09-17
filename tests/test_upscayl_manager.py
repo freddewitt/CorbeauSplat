@@ -476,3 +476,31 @@ class TestUpscaylHelpers:
             assert result == tmp_path / "models" / "upscayl"
             assert result.exists()
 
+
+
+class TestModelSizeOnDisk:
+    """``size_on_disk_mb`` alimente les cartes de la galerie Upscale : sans
+    poids affiché, l'utilisateur ne peut ni arbitrer un téléchargement ni
+    décider ce qu'il supprime."""
+
+    @staticmethod
+    def _model():
+        from app.upscayl_models import MODELS
+        return MODELS[0]
+
+    def test_returns_zero_when_files_are_absent(self, tmp_path):
+        assert self._model().size_on_disk_mb(tmp_path) == 0
+
+    def test_sums_both_files_and_rounds_to_megabytes(self, tmp_path):
+        model = self._model()
+        (tmp_path / f"{model.id}.bin").write_bytes(b"\0" * (3 * 1024 * 1024))
+        (tmp_path / f"{model.id}.param").write_bytes(b"\0" * (1024 * 1024))
+        assert model.size_on_disk_mb(tmp_path) == 4
+
+    def test_partial_install_still_measures_what_exists(self, tmp_path):
+        """Un .bin sans .param n'est pas « installé » mais occupe le disque :
+        la carte doit pouvoir le signaler plutôt que d'échouer."""
+        model = self._model()
+        (tmp_path / f"{model.id}.bin").write_bytes(b"\0" * (2 * 1024 * 1024))
+        assert not model.is_downloaded(tmp_path)
+        assert model.size_on_disk_mb(tmp_path) == 2
