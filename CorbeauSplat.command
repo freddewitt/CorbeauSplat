@@ -211,7 +211,10 @@ fi
 
 # --- Phase 3: Dependency Synchronization ---
 phase "Phase 3 — Synchronizing Dependencies"
-"$PYTHON_CMD" -m pip install --upgrade pip > /dev/null 2>&1
+# setuptools/wheel are required at build time by packages without a
+# precompiled wheel for the running Python version (e.g. pyobjc on a
+# very recent Python release); venv does not always bundle them.
+"$PYTHON_CMD" -m pip install --upgrade pip setuptools wheel > /dev/null 2>&1
 
 if [ -f "requirements.lock" ]; then
 	say "Lockfile found: requirements.lock"
