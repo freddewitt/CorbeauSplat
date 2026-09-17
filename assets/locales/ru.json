@@ -251,6 +251,7 @@
   "topbar_settings": "Общие настройки",
   "btn_settings_label": "Настройки",
   "logbar_title": "Логи",
+  "btn_view_logs": "Показать журнал",
   "settings_build_mode": "Режим сборки Brush",
   "settings_notifications": "Уведомления о завершении",
   "settings_current_config": "Текущие параметры",

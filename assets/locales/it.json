@@ -251,6 +251,7 @@
   "topbar_settings": "Impostazioni generali",
   "btn_settings_label": "Impostazioni",
   "logbar_title": "Log",
+  "btn_view_logs": "Visualizza il registro",
   "settings_build_mode": "Modalità build di Brush",
   "settings_notifications": "Notifiche di fine esecuzione",
   "settings_current_config": "Impostazioni attuali",

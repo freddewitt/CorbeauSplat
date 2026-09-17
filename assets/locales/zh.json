@@ -251,6 +251,7 @@
   "topbar_settings": "常规设置",
   "btn_settings_label": "设置",
   "logbar_title": "日志",
+  "btn_view_logs": "查看日志",
   "settings_build_mode": "Brush 构建模式",
   "settings_notifications": "运行结束通知",
   "settings_current_config": "当前设置",

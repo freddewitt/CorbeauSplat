@@ -817,12 +817,9 @@ class StudioWindow(QMainWindow):
         self._set_cancel_enabled(False)
         self.activity_bar.reset_activity()
         self.panels["source"].progress_ring.stop()
-        # Le journal ne s'ouvre plus tout seul, même sur erreur : la boîte de
-        # dialogue ci-dessous porte déjà le message, et l'étape passe en ⛔ dans
-        # le rail — un clic dessus ouvre le journal (cf. on_rail_selected).
         if not stopped_by_user:
             self.notify(tr("msg_error", "Erreur"), message)
-            QMessageBox.warning(self, tr("msg_error", "Erreur"), message)
+            self._show_error_dialog(message)
 
     def _fail_pipeline_step(self, step, message):
         """Échec de construction d'un worker (ex. chemins manquants) : même
@@ -836,7 +833,25 @@ class StudioWindow(QMainWindow):
         self.panels["source"].progress_ring.stop()
         self._active_worker = None
         self.notify(tr("msg_error", "Erreur"), message)
-        QMessageBox.warning(self, tr("msg_error", "Erreur"), message)
+        self._show_error_dialog(message)
+
+    def _show_error_dialog(self, message):
+        """Error dialog offering the log rather than forcing it open.
+
+        The log window is never raised on its own; the failed step also turns ⛔
+        in the rail, and clicking it opens the log (cf. on_rail_selected).
+        """
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(tr("msg_error", "Erreur"))
+        box.setText(message)
+        btn_logs = box.addButton(
+            tr("btn_view_logs", "Voir le journal"), QMessageBox.ButtonRole.ActionRole
+        )
+        box.addButton(QMessageBox.StandardButton.Ok)
+        box.exec()
+        if box.clickedButton() is btn_logs:
+            self.logs_window.show_logs()
 
     def _finish_pipeline_chain(self, success, message):
         """Fin (normale ou volontairement interrompue) de la chaîne pipeline."""

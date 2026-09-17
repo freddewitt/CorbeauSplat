@@ -251,6 +251,7 @@
   "topbar_settings": "General settings",
   "btn_settings_label": "Settings",
   "logbar_title": "Logs",
+  "btn_view_logs": "View log",
   "settings_build_mode": "Brush build mode",
   "settings_notifications": "End-of-run notifications",
   "settings_current_config": "Current settings",

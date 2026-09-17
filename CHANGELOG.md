@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### 🔁 Changed
+- **A failed step now offers the log instead of leaving you to find it.** The log window still never opens on its own — that was deliberate — but the error dialog was a bare OK, so the only way back to the details was knowing that clicking the ⛔ step in the rail opens them. It now carries a "Voir le journal" button next to OK (`StudioWindow._show_error_dialog()`, shared by `_on_worker_finished` and `_fail_pipeline_step`); opening the log stays the user's own action.
+
+### 🌍 i18n
+- New key `btn_view_logs` (error dialog's log button). All 9 locales updated.
+
 ### 🔥 Removed
 - **`CollapseState` (`app/gui/studio_nav.py`) deleted along with its 3 tests.** It tracked the collapsed/expanded state of a section, and `logbar.py` was its only application consumer — that module was removed during the UI refonte, leaving the class reachable from nothing but its own tests. Kept until now because deleting tested code was left to the user's call.
 

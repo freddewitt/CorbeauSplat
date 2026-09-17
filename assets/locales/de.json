@@ -251,6 +251,7 @@
   "topbar_settings": "Allgemeine Einstellungen",
   "btn_settings_label": "Einstellungen",
   "logbar_title": "Logs",
+  "btn_view_logs": "Protokoll anzeigen",
   "settings_build_mode": "Brush-Build-Modus",
   "settings_notifications": "Benachrichtigungen bei Abschluss",
   "settings_current_config": "Aktuelle Einstellungen",

@@ -251,6 +251,7 @@
   "topbar_settings": "الإعدادات العامة",
   "btn_settings_label": "الإعدادات",
   "logbar_title": "السجلات",
+  "btn_view_logs": "عرض السجل",
   "settings_build_mode": "وضع بناء Brush",
   "settings_notifications": "إشعارات انتهاء التنفيذ",
   "settings_current_config": "الإعدادات الحالية",

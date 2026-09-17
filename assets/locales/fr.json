@@ -251,6 +251,7 @@
   "topbar_settings": "Réglages généraux",
   "btn_settings_label": "Paramètres",
   "logbar_title": "Logs",
+  "btn_view_logs": "Voir le journal",
   "settings_build_mode": "Mode de build Brush",
   "settings_notifications": "Notifications de fin d'exécution",
   "settings_current_config": "Paramètres actuels",

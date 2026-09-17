@@ -251,6 +251,7 @@
   "topbar_settings": "一般設定",
   "btn_settings_label": "設定",
   "logbar_title": "ログ",
+  "btn_view_logs": "ログを表示",
   "settings_build_mode": "Brush のビルドモード",
   "settings_notifications": "実行完了の通知",
   "settings_current_config": "現在の設定",
