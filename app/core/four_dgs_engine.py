@@ -281,10 +281,19 @@ class FourDGSEngine(BaseEngine):
             self.log("ns-process-data détecté (venv_4dgs). Lancement du processing Nerfstudio...")
             self.status("Traitement Nerfstudio en cours...")
 
+            # Same static-scene constraint as run_colmap: ns-process-data runs
+            # COLMAP internally, so handing it images_root would feed SfM every
+            # frame of every camera at every timestep — a moving scene, which
+            # corrupts the reconstruction. It also expects a flat folder and
+            # would not descend into the cam_XX subfolders anyway.
+            ns_images = self._build_static_reference_set(
+                images_root, Path(output_dir) / "colmap_reference_frames"
+            )
+
             # Use the dedicated venv script
             cmd_ns = [
                 self.ns_process_data, "images",
-                "--data", str(images_root),
+                "--data", str(ns_images),
                 "--output-dir", str(output_dir),
                 "--verbose"
             ]
