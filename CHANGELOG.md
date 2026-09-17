@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### ✨ Added
+- **Brush training now shows a coarse progress estimate instead of nothing at all.** Brush reports no progress of its own and making it do so would mean patching Brush itself, so `BrushWorker._start_checkpoint_progress()` infers it from the `.ply` checkpoints landing on disk, against the `total_steps / checkpoint_interval` count we already pass on the command line. It is deliberately coarse — one tick per `--export-every` interval (4 ticks for 30 000 steps at 7 000), and nothing before the first export — a sign of life rather than a real progress bar. The watched directory is read at launch, once refine-mode redirection and checkpoint archiving have settled `output_path`, and `.ply` files already present are excluded so a resumed run doesn't start out at 100%. Disabled entirely when `checkpoint_interval` is 0 or no step count is set.
+
 ### 🔁 Changed
 - **A failed step now offers the log instead of leaving you to find it.** The log window still never opens on its own — that was deliberate — but the error dialog was a bare OK, so the only way back to the details was knowing that clicking the ⛔ step in the rail opens them. It now carries a "Voir le journal" button next to OK (`StudioWindow._show_error_dialog()`, shared by `_on_worker_finished` and `_fail_pipeline_step`); opening the log stays the user's own action.
 

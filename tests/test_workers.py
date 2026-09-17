@@ -1,6 +1,7 @@
 """Tests pour app/gui/workers.py — BaseWorker et workers spécialisés."""
 import os
 import sys
+import time
 from pathlib import Path
 from unittest.mock import ANY, MagicMock, patch
 
@@ -463,3 +464,65 @@ class TestExtractor360Worker:
         with patch.object(worker, 'progress_signal', MagicMock()):
             worker.parse_line("Starting extraction...")
             worker.progress_signal.emit.assert_not_called()
+
+
+class TestBrushCheckpointProgress:
+    """_start_checkpoint_progress: progress inferred from exported checkpoints."""
+
+    def _worker(self, tmp_path, params):
+        worker = BrushWorker.__new__(BrushWorker)
+        worker.params = params
+        worker.output_path = tmp_path
+        return worker
+
+    def test_returns_none_without_usable_interval(self, tmp_path):
+        """No step count or a disabled export interval → no estimate at all."""
+        for params in (
+            {"total_steps": 30000, "checkpoint_interval": 0},
+            {"total_steps": None, "checkpoint_interval": 7000},
+            {},
+        ):
+            worker = self._worker(tmp_path, params)
+            assert worker._start_checkpoint_progress() is None
+
+    def test_preexisting_checkpoints_are_not_counted(self, tmp_path):
+        """A resumed run must not start out looking already complete."""
+        for i in range(4):
+            (tmp_path / f"old_{i}.ply").write_bytes(b"")
+        worker = self._worker(
+            tmp_path, {"total_steps": 28000, "checkpoint_interval": 7000}
+        )
+        emitted = []
+        with patch.object(worker, "progress_signal", MagicMock()) as sig:
+            sig.emit.side_effect = emitted.append
+            stop = worker._start_checkpoint_progress(poll_interval=0.02)
+            assert stop is not None
+            try:
+                (tmp_path / "new_0.ply").write_bytes(b"")
+                deadline = time.time() + 10
+                while not emitted and time.time() < deadline:
+                    time.sleep(0.1)
+            finally:
+                stop.set()
+        assert emitted, "poller never reported progress"
+        # 1 new checkpoint out of 4 expected, the 4 preexisting ones ignored.
+        assert emitted[0] == 25
+
+    def test_progress_is_capped_below_completion(self, tmp_path):
+        """More checkpoints than expected must not report a finished run."""
+        worker = self._worker(
+            tmp_path, {"total_steps": 14000, "checkpoint_interval": 7000}
+        )
+        emitted = []
+        with patch.object(worker, "progress_signal", MagicMock()) as sig:
+            sig.emit.side_effect = emitted.append
+            stop = worker._start_checkpoint_progress(poll_interval=0.02)
+            try:
+                for i in range(5):
+                    (tmp_path / f"ckpt_{i}.ply").write_bytes(b"")
+                deadline = time.time() + 10
+                while not emitted and time.time() < deadline:
+                    time.sleep(0.1)
+            finally:
+                stop.set()
+        assert emitted and emitted[0] == 99

@@ -2,6 +2,7 @@ import contextlib
 import os
 import re
 import shutil
+import threading
 import time
 import traceback
 from pathlib import Path
@@ -299,7 +300,12 @@ class BrushWorker(BaseWorker):
             # Construct CMD
             self.log_signal.emit("Lancement de la commande Brush...")
             # Use refactored train method (Template Method)
-            returncode = self.engine.train(resolved_input, self.output_path, self.params)
+            stop_progress = self._start_checkpoint_progress()
+            try:
+                returncode = self.engine.train(resolved_input, self.output_path, self.params)
+            finally:
+                if stop_progress is not None:
+                    stop_progress.set()
 
             # Delegate handling to Template Method return logic
             success = (returncode == 0)
@@ -317,6 +323,42 @@ class BrushWorker(BaseWorker):
         except Exception as e:
             self.log_signal.emit(f"EXCEPTION dans BrushWorker: {e}\n{traceback.format_exc()}")
             self.finished_signal.emit(False, f"Exception: {e}")
+
+    def _start_checkpoint_progress(self, poll_interval=3.0):
+        """Approximate training progress from the checkpoints Brush drops on disk.
+
+        Brush reports no progress of its own, so this counts exported ``.ply``
+        files instead. Coarse by nature: one tick per ``--export-every``
+        interval, and nothing at all before the first export.
+
+        The output directory can only be read here, once refine-mode
+        redirection and checkpoint archiving have settled ``self.output_path``.
+        Files already present are snapshotted and excluded, so a resumed run
+        doesn't start out looking complete.
+
+        Returns the Event that stops the poller, or None when the interval or
+        step count make the estimate meaningless.
+        """
+        total_steps = self.params.get("total_steps")
+        interval = self.params.get("checkpoint_interval", 7000)
+        if not total_steps or not interval or int(interval) <= 0:
+            return None
+        expected = max(1, int(total_steps) // int(interval))
+
+        out = Path(self.output_path)
+        preexisting = {p for p in out.rglob("*.ply")} if out.exists() else set()
+        stop = threading.Event()
+
+        def poll():
+            while not stop.wait(poll_interval):
+                if not out.exists():
+                    continue
+                with contextlib.suppress(OSError):
+                    produced = sum(1 for p in out.rglob("*.ply") if p not in preexisting)
+                    self.progress_signal.emit(min(99, round(100 * produced / expected)))
+
+        threading.Thread(target=poll, daemon=True).start()
+        return stop
 
     def handle_ply_rename(self):
         """Handles the safe renaming of the PLY file"""
