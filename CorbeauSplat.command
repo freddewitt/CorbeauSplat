@@ -177,14 +177,33 @@ if [ ! -d "$VENV_DIR" ] || [ ! -f "$PYTHON_CMD" ]; then
 	say "Creating virtual environment..."
 	if [ -d "$VENV_DIR" ]; then echo "⚠️  Corrupted environment detected. Rebuilding..."; rm -rf "$VENV_DIR"; fi
 
-	PY_CANDIDATES=("python3.13" "python3.12" "python3.11" "python3.10" "python3")
+	# Only versions actually tested by CorbeauSplat. No bare "python3" fallback:
+	# on a machine with no named 3.10-3.13 binary, generic "python3" can silently
+	# resolve to whatever is newest (e.g. 3.14+), which breaks source builds of
+	# dependencies without a precompiled wheel yet for that version (e.g. pyobjc).
+	PY_CANDIDATES=("python3.13" "python3.12" "python3.11" "python3.10")
 	SELECTED_PY=""
 	for py in "${PY_CANDIDATES[@]}"; do
 		if command -v $py >/dev/null 2>&1; then SELECTED_PY=$py; break; fi
 	done
 
+	if [ -z "$SELECTED_PY" ] && [ -n "$BREW_BIN" ]; then
+		echo ""
+		echo "⚠️  No supported Python found (3.10–3.13). Only newer/untested versions are visible,"
+		echo "    which can fail building some dependencies (e.g. pyobjc) from source."
+		read -p "    Install Python 3.13 via Homebrew now? (y/n) " -n 1 -r
+		echo
+		if [[ $REPLY =~ ^[YyOo]$ ]]; then
+			say ">>> Installing python@3.13 via Homebrew..."
+			"$BREW_BIN" install python@3.13
+			for py in "python3.13" "$("$BREW_BIN" --prefix python@3.13 2>/dev/null)/bin/python3.13"; do
+				if command -v "$py" >/dev/null 2>&1 || [ -x "$py" ]; then SELECTED_PY="$py"; break; fi
+			done
+		fi
+	fi
+
 	if [ -z "$SELECTED_PY" ]; then
-		echo "❌ Python 3 not found. Please install Python 3.13 (or newer) then relaunch CorbeauSplat."
+		echo "❌ Python 3.10-3.13 not found. Please install Python 3.13 then relaunch CorbeauSplat."
 		exit 1
 	fi
 	say "Python detected: $SELECTED_PY"
@@ -197,13 +216,18 @@ say "✅ Environment configured."
 
 # Integrity check
 _REBUILD_COUNT="${_REBUILD_COUNT:-0}"
-if ! "$PYTHON_CMD" -c "import json, os, sys" > /dev/null 2>&1; then
+PY_MINOR="$("$PYTHON_CMD" -c 'import sys; print(sys.version_info[1])' 2>/dev/null || echo 0)"
+if ! "$PYTHON_CMD" -c "import json, os, sys" > /dev/null 2>&1 || [ "$PY_MINOR" -gt 13 ]; then
 	_REBUILD_COUNT=$((_REBUILD_COUNT + 1))
 	if [ "$_REBUILD_COUNT" -gt 2 ]; then
 		echo "❌ Unable to prepare environment after multiple attempts. Aborting."
 		exit 1
 	fi
-	echo "⚠️  Python environment is unstable. Rebuilding (${_REBUILD_COUNT}/2)..."
+	if [ "$PY_MINOR" -gt 13 ]; then
+		echo "⚠️  Existing environment uses an untested Python version (3.${PY_MINOR}). Rebuilding with a supported one (${_REBUILD_COUNT}/2)..."
+	else
+		echo "⚠️  Python environment is unstable. Rebuilding (${_REBUILD_COUNT}/2)..."
+	fi
 	rm -rf "$VENV_DIR"
 	_REBUILD_COUNT="$_REBUILD_COUNT" "$0" "${FILTERED_ARGS[@]}"
 	exit $?
