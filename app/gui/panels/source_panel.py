@@ -86,12 +86,9 @@ class SourcePanel:
         layout.addWidget(self.input_project_name)
 
         # Pipeline mode (migrated from topbar.py, which will disappear).
-        # KNOWN LIMITATION (cf. ETAT_DES_LIEUX.md §11 question 1): only "gsplat"
-        # actually routes to COLMAP+Brush when btn_run is clicked. "sharp" and
-        # "4dgs" stay selectable here but launching does not execute them — they
-        # are only reachable via OUTILS > Sharp and OUTILS > 4DGS (COLMAP dataset
-        # prep only for the latter). 4DGS has no Apple Silicon trainer available
-        # to date, so this is not a regression, just an unfinished routing.
+        # All three values route on Launch, via
+        # StudioWindow._build_reconstruction_worker. 4DGS stops at dataset prep:
+        # no Apple Silicon 4D trainer exists to date, hence the tooltip below.
         mode_row = QHBoxLayout()
         self.lbl_mode = QLabel()
         self.combo_mode = QComboBox()

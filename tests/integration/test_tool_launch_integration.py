@@ -326,3 +326,78 @@ class TestToolLaunchOrchestration:
         instance.start.assert_called_once()
         assert window._active_worker is instance
         window.panels["source"].set_running.assert_called_once_with(True)
+
+
+class TestReconstructionModeRouting:
+    """L'étape « reconstruction » du plan ne désigne pas toujours COLMAP : le
+    mode choisi dans SourcePanel décide du moteur (Gsplat/Sharp/4DGS)."""
+
+    @staticmethod
+    def _window_with_source(mode):
+        window = _make_window()
+        window.current_pipeline_mode = mode
+        window._pipeline_images_dir = None
+        window._pending_upscale_params = None
+        source = MagicMock()
+        source.get_state.return_value = {
+            "input_path": "/in_dir", "output_path": "/out_dir",
+            "project_name": "proj", "fps": 5,
+        }
+        window.panels["source"] = source
+        return window
+
+    def test_gsplat_mode_builds_colmap_worker(self, monkeypatch):
+        window = self._window_with_source("gsplat")
+        sentinel = object()
+        monkeypatch.setattr(sw.StudioWindow, "_build_colmap_worker", lambda self: sentinel)
+        assert window._build_reconstruction_worker() is sentinel
+
+    def test_sharp_mode_builds_sharp_worker(self, monkeypatch):
+        window = self._window_with_source("sharp")
+        mock_worker_cls = MagicMock()
+        monkeypatch.setattr(sw, "SharpWorker", mock_worker_cls)
+        panel = MagicMock()
+        panel.get_params.return_value = {"mode": "video", "device": "mps"}
+        window.panels["sharp"] = panel
+
+        worker = window._build_reconstruction_worker()
+
+        assert worker is mock_worker_cls.return_value
+        args, _ = mock_worker_cls.call_args
+        assert args[0] == "/in_dir"
+        assert args[1] == "/out_dir"
+        # Le mode vidéo du panneau OUTILS n'a pas de sens dans la chaîne.
+        assert args[2]["mode"] == "image"
+
+    def test_fourdgs_mode_builds_fourdgs_worker(self, monkeypatch):
+        window = self._window_with_source("4dgs")
+        mock_worker_cls = MagicMock()
+        monkeypatch.setattr(sw, "FourDGSWorker", mock_worker_cls)
+        panel = MagicMock()
+        panel.get_params.return_value = {
+            "fps": 12, "camera_model": "OPENCV", "single_camera": True,
+            "matcher_type": "sequential", "sequential_overlap": 7,
+        }
+        window.panels["4dgs"] = panel
+
+        worker = window._build_reconstruction_worker()
+
+        assert worker is mock_worker_cls.return_value
+        args, kwargs = mock_worker_cls.call_args
+        assert args[0] == "/in_dir"
+        assert args[1].endswith("/out_dir/proj")
+        assert kwargs["colmap_params"]["sequential_overlap"] == 7
+
+    def test_missing_paths_fail_the_step(self, monkeypatch):
+        window = self._window_with_source("sharp")
+        window.panels["source"].get_state.return_value = {
+            "input_path": "", "output_path": "", "project_name": "", "fps": 5,
+        }
+        window.panels["sharp"] = MagicMock()
+        window._fail_pipeline_step = MagicMock()
+        mock_worker_cls = MagicMock()
+        monkeypatch.setattr(sw, "SharpWorker", mock_worker_cls)
+
+        assert window._build_reconstruction_worker() is None
+        mock_worker_cls.assert_not_called()
+        window._fail_pipeline_step.assert_called_once()

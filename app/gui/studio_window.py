@@ -96,6 +96,7 @@ class StudioWindow(QMainWindow):
         self.run_state = RunState()
         self.nav = PageRegistry(_PAGE_KEYS)   # mapping pages + sélection courante
         self.current_plan = []
+        self.current_pipeline_mode = "gsplat"
         self._plan_index = 0
         self._active_pipeline_step = None
         # Dossier d'images courant de la chaîne : chaque pré-étape qui produit
@@ -375,6 +376,9 @@ class StudioWindow(QMainWindow):
         mode = self.panels["source"].current_mode()
         plan = plan_pipeline(mode, self.run_state)
         self.current_plan = plan
+        # The plan only names steps; "reconstruction" means COLMAP, Sharp or the
+        # 4DGS dataset prep depending on the mode, so the chain has to remember it.
+        self.current_pipeline_mode = mode
         self._pipeline_images_dir = None
         self._pending_upscale_params = None
         self.run_state.reset_status()
@@ -436,7 +440,7 @@ class StudioWindow(QMainWindow):
             return
 
         if step == "reconstruction":
-            worker = self._build_colmap_worker()
+            worker = self._build_reconstruction_worker()
             if worker is not None:
                 self._start_pipeline_worker("reconstruction", worker)
             return
@@ -583,6 +587,62 @@ class StudioWindow(QMainWindow):
         upscaled_dir = Path(output_path) / project_name / "images_upscaled"
         self._pipeline_images_dir = str(upscaled_dir)
         return UpscaleImagesWorker(input_path, str(upscaled_dir), params)
+
+    def _build_reconstruction_worker(self):
+        """Pick the Reconstruction worker matching the Source panel's mode.
+
+        The three modes share the step slot but not the engine: Gsplat runs
+        COLMAP, Sharp runs Apple ML Sharp inference, 4DGS prepares a Nerfstudio
+        dataset. Before this, every mode fell through to COLMAP, so picking
+        Sharp or 4DGS in the Source dropdown changed nothing on Launch."""
+        if self.current_pipeline_mode == "sharp":
+            return self._build_sharp_pipeline_worker()
+        if self.current_pipeline_mode == "4dgs":
+            return self._build_fourdgs_pipeline_worker()
+        return self._build_colmap_worker()
+
+    def _build_sharp_pipeline_worker(self):
+        """``SharpWorker`` for the Sharp mode, fed by the Source paths.
+
+        Sharp's own settings (device, checkpoint, verbose) still come from the
+        OUTILS Sharp panel; only the paths are taken from Source, so that the
+        chained run and the standalone button stay consistent. Video inputs are
+        rejected here: the pipeline's Source step feeds image folders, and
+        Sharp's video mode has its own worker in the OUTILS panel."""
+        source_state = self.panels["source"].get_state()
+        input_path = self._pipeline_images_dir or source_state["input_path"].strip()
+        output_path = source_state["output_path"].strip()
+        if not input_path or not output_path:
+            self._fail_pipeline_step("reconstruction", tr("err_no_paths", "Chemins manquants."))
+            return None
+        params = self.panels["sharp"].get_params()
+        params.update({"mode": "image", "input_path": input_path, "output_path": output_path})
+        return SharpWorker(input_path, output_path, params)
+
+    def _build_fourdgs_pipeline_worker(self):
+        """``FourDGSWorker`` for the 4DGS mode, fed by the Source paths.
+
+        Source points at the multi-camera video folder; the 4DGS panel keeps
+        supplying FPS and the COLMAP settings. Upscale is already handled by the
+        pipeline's own Upscale step, hence no ``upscale_params`` here."""
+        source_state = self.panels["source"].get_state()
+        videos_dir = source_state["input_path"].strip()
+        output_path = source_state["output_path"].strip()
+        if not videos_dir or not output_path:
+            self._fail_pipeline_step("reconstruction", tr("err_no_paths", "Chemins manquants."))
+            return None
+        panel_params = self.panels["4dgs"].get_params()
+        colmap_params = {
+            key: panel_params[key]
+            for key in ("camera_model", "single_camera", "matcher_type", "sequential_overlap")
+            if key in panel_params
+        }
+        project_name = source_state["project_name"].strip() or "Untitled"
+        return FourDGSWorker(
+            videos_dir, str(Path(output_path) / project_name),
+            source_state["fps"] or panel_params["fps"],
+            colmap_params=colmap_params,
+        )
 
     def _build_colmap_worker(self):
         """Construit le ``ColmapWorker`` de l'étape Reconstruction depuis les
