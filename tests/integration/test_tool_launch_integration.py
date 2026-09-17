@@ -119,6 +119,8 @@ class TestToolLaunchOrchestration:
         panel = MagicMock()
         panel.get_params.return_value = {
             "input_path": "/videos_dir", "output_path": "/out_dir", "fps": 5, "upscale": False,
+            "camera_model": "OPENCV", "single_camera": True,
+            "matcher_type": "sequential", "sequential_overlap": 10,
         }
         upscale_panel = MagicMock()
         upscale_panel.get_params.return_value = {"scale": 4}
@@ -130,6 +132,10 @@ class TestToolLaunchOrchestration:
         mock_worker_cls.assert_called_once_with(
             "/videos_dir", "/out_dir", 5,
             upscale_params={"scale": 4, "active": False},
+            colmap_params={
+                "camera_model": "OPENCV", "single_camera": True,
+                "matcher_type": "sequential", "sequential_overlap": 10,
+            },
         )
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()
@@ -147,6 +153,8 @@ class TestToolLaunchOrchestration:
         panel.get_params.return_value = {
             "input_path": "/videos_dir", "output_path": "/out_dir", "fps": 5,
             "upscale": False, "colmap_only": True,
+            "camera_model": "OPENCV", "single_camera": True,
+            "matcher_type": "exhaustive", "sequential_overlap": 10,
         }
         upscale_panel = MagicMock()
         upscale_panel.get_params.return_value = {"scale": 4}
@@ -158,6 +166,10 @@ class TestToolLaunchOrchestration:
         mock_worker_cls.assert_called_once_with(
             None, "/out_dir", 5,
             upscale_params={"scale": 4, "active": False},
+            colmap_params={
+                "camera_model": "OPENCV", "single_camera": True,
+                "matcher_type": "exhaustive", "sequential_overlap": 10,
+            },
         )
         instance = mock_worker_cls.return_value
         instance.start.assert_called_once()

@@ -1021,9 +1021,15 @@ class StudioWindow(QMainWindow):
         if not self._check_paths(params["output_path"]):
             return
         videos_dir = None if params.get("colmap_only") else (params["input_path"] or None)
+        colmap_params = {
+            key: params[key]
+            for key in ("camera_model", "single_camera", "matcher_type", "sequential_overlap")
+            if key in params
+        }
         worker = FourDGSWorker(
             videos_dir, params["output_path"], params["fps"],
             upscale_params=self._fourdgs_upscale_params(params),
+            colmap_params=colmap_params,
         )
         self._start_tool_worker(worker)
 

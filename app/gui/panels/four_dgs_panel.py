@@ -6,6 +6,7 @@ No usable .ply output → no Clean/Export/View chaining.
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -20,6 +21,11 @@ from PySide6.QtWidgets import (
 from app.core.i18n import add_language_observer, tr
 from app.gui.widgets.cancel_button import CancelButton
 from app.gui.widgets.dialog_utils import get_existing_directory
+
+_CAMERA_MODELS = ['SIMPLE_PINHOLE', 'PINHOLE', 'SIMPLE_RADIAL', 'RADIAL', 'OPENCV', 'OPENCV_FISHEYE']
+# Only the two modes FourDGSEngine.run_colmap actually implements; vocab_tree,
+# offered by the Reconstruction panel, would silently fall back to exhaustive here.
+_MATCHER_TYPES = ['exhaustive', 'sequential']
 
 
 class FourDGSPanel:
@@ -99,9 +105,40 @@ class FourDGSPanel:
         self.chk_colmap_only = QCheckBox()
         self.lbl_colmap_only = QLabel()
         form.addRow(self.lbl_colmap_only, self.chk_colmap_only)
+
+        # COLMAP settings. Defaults mirror FourDGSEngine.run_colmap: OPENCV and
+        # a single camera model, which suits a homogeneous multi-camera rig.
+        self.camera_model_combo = QComboBox()
+        self.camera_model_combo.addItems(_CAMERA_MODELS)
+        self.camera_model_combo.setCurrentText('OPENCV')
+        self.lbl_camera_model = QLabel()
+        form.addRow(self.lbl_camera_model, self.camera_model_combo)
+
+        self.single_camera_check = QCheckBox()
+        self.single_camera_check.setChecked(True)
+        self.lbl_single_cam = QLabel()
+        form.addRow(self.lbl_single_cam, self.single_camera_check)
+
+        self.matcher_type_combo = QComboBox()
+        self.matcher_type_combo.addItems(_MATCHER_TYPES)
+        self.matcher_type_combo.setCurrentText('exhaustive')
+        self.matcher_type_combo.currentTextChanged.connect(self._update_sequential_enabled)
+        self.lbl_match_type = QLabel()
+        form.addRow(self.lbl_match_type, self.matcher_type_combo)
+
+        self.sequential_overlap_spin = QSpinBox()
+        self.sequential_overlap_spin.setRange(1, 100)
+        self.sequential_overlap_spin.setValue(10)
+        self.lbl_sequential_overlap = QLabel()
+        form.addRow(self.lbl_sequential_overlap, self.sequential_overlap_spin)
+        self._update_sequential_enabled()
+
         scroll.setWidget(content)
         outer.addWidget(scroll)
         return w
+
+    def _update_sequential_enabled(self, *_):
+        self.sequential_overlap_spin.setEnabled(self.matcher_type_combo.currentText() == "sequential")
 
     def _browse_input(self):
         path = get_existing_directory(self.center, tr("btn_browse", "Parcourir"))
@@ -121,6 +158,10 @@ class FourDGSPanel:
             "fps": self.fps_spin.value(),
             "upscale": self.chk_upscale_before.isChecked(),
             "colmap_only": self.chk_colmap_only.isChecked(),
+            "camera_model": self.camera_model_combo.currentText(),
+            "single_camera": self.single_camera_check.isChecked(),
+            "matcher_type": self.matcher_type_combo.currentText(),
+            "sequential_overlap": self.sequential_overlap_spin.value(),
         }
 
     def retranslate_ui(self):
@@ -139,4 +180,8 @@ class FourDGSPanel:
         self.lbl_colmap_only.setText(tr("four_dgs_colmap_only", "Reconstruction COLMAP seulement"))
         self.lbl_fps.setText(tr("four_dgs_lbl_fps", "Extraction FPS"))
         self.lbl_upscale_before.setText(tr("four_dgs_upscale_before", "Upscaler avant reconstruction"))
+        self.lbl_camera_model.setText(tr("lbl_camera_model", "Modèle caméra"))
+        self.lbl_single_cam.setText(tr("check_single_cam", "Caméra unique"))
+        self.lbl_match_type.setText(tr("lbl_match_type", "Type de matcher"))
+        self.lbl_sequential_overlap.setText(tr("lbl_sequential_overlap", "Chevauchement séquentiel"))
         self.btn_run.setText(tr("btn_run", "Lancer"))
