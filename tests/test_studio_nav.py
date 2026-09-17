@@ -7,7 +7,7 @@ rendu Qt lui-même est validé manuellement sur Apple Silicon (vérifs Lot 2).
 
 from app.core.run_state import PIPELINE_STEPS
 from app.gui.rail import TOOL_KEYS
-from app.gui.studio_nav import CollapseState, PageRegistry
+from app.gui.studio_nav import PageRegistry
 
 _ALL_KEYS = tuple(PIPELINE_STEPS) + tuple(TOOL_KEYS)
 
@@ -50,20 +50,3 @@ def test_registry_empty():
     assert reg.current is None
     assert reg.index_of("x") is None
     assert reg.select("x") is None
-
-
-# ── CollapseState ────────────────────────────────────────────────────────────
-def test_collapse_default_collapsed():
-    assert CollapseState().collapsed is True
-
-
-def test_collapse_set_and_toggle():
-    st = CollapseState()
-    assert st.set(False) is False
-    assert st.collapsed is False
-    assert st.toggle() is True
-    assert st.toggle() is False
-
-
-def test_collapse_can_start_expanded():
-    assert CollapseState(collapsed=False).collapsed is False

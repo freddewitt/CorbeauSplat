@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### 🔥 Removed
+- **`CollapseState` (`app/gui/studio_nav.py`) deleted along with its 3 tests.** It tracked the collapsed/expanded state of a section, and `logbar.py` was its only application consumer — that module was removed during the UI refonte, leaving the class reachable from nothing but its own tests. Kept until now because deleting tested code was left to the user's call.
+
 ## [2.0.0-beta.4] - 2026-09-17
 
 ### ✨ Added

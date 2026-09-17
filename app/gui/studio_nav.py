@@ -35,18 +35,3 @@ class PageRegistry:
 
     def as_dict(self):
         return dict(self._index)
-
-
-class CollapseState:
-    """État de repli d'une section (OUTILS, barre de logs). Repliée par défaut."""
-
-    def __init__(self, collapsed=True):
-        self.collapsed = bool(collapsed)
-
-    def set(self, collapsed):
-        self.collapsed = bool(collapsed)
-        return self.collapsed
-
-    def toggle(self):
-        self.collapsed = not self.collapsed
-        return self.collapsed
