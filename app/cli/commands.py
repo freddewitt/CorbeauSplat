@@ -14,6 +14,10 @@ from app.core.sharp_engine import SharpEngine
 from app.core.superplat_engine import SuperSplatEngine
 from app.core.system import get_brush_build_mode
 
+# Pure logic despite living under app/gui: no Qt import, so the CLI can share
+# the exact checkpoint semantics the interface uses instead of a second copy.
+from app.gui.chaining_logic import find_checkpoint_plys, resolve_checkpoints_dir
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Brush defaults and presets
 # ─────────────────────────────────────────────────────────────────────────────
@@ -94,6 +98,7 @@ def _build_colmap_params(args) -> ColmapParams:
         max_ratio=getattr(args, 'max_ratio', 0.8),
         max_distance=getattr(args, 'max_distance', 0.7),
         cross_check=not getattr(args, 'no_cross_check', False),
+        guided_matching=getattr(args, 'guided_matching', False),
         ba_refine_focal_length=not getattr(args, 'no_refine_focal', False),
         ba_refine_principal_point=getattr(args, 'refine_principal', False),
         ba_refine_extra_params=not getattr(args, 'no_refine_extra', False),
@@ -574,14 +579,18 @@ def run_extract360(args):
         sys.exit(1)
 
 
-def run_pipeline(args):
-    """Pipeline complet COLMAP → Brush."""
+def _sep(title):
+    return print(f"\n{'─' * 50}\n  {title}\n{'─' * 50}")
 
-    def _sep(title):
-        return print(f"\n{'─' * 50}\n  {title}\n{'─' * 50}")
+
+def run_pipeline(args):
+    """Pipeline COLMAP → Brush, puis Nettoyage et Export si demandés."""
+    # Step count depends on the opt-in flags, so the headers do not promise
+    # "1/2" while four steps are about to run.
+    total_steps = 2 + bool(getattr(args, "clean", None)) + bool(getattr(args, "export", None))
 
     # ── Step 1: COLMAP ────────────────────────────────────────────────────────
-    _sep("Étape 1/2 — Reconstruction COLMAP")
+    _sep(f"Étape 1/{total_steps} — Reconstruction COLMAP")
     print(f"  Input       : {args.input}")
     print(f"  Output      : {args.output}")
     print(f"  Projet      : {args.project_name}")
@@ -613,7 +622,7 @@ def run_pipeline(args):
     print(f"\nDataset prêt : {dataset_path}")
 
     # ── Step 2: Brush ─────────────────────────────────────────────────────────
-    _sep("Étape 2/2 — Entraînement Brush")
+    _sep(f"Étape 2/{total_steps} — Entraînement Brush")
 
     brush_params = dict(BRUSH_DEFAULTS)
 
@@ -631,7 +640,20 @@ def run_pipeline(args):
     if args.ply_name:
         brush_params["ply_name"] = args.ply_name
 
+    # Same checkpoint layout as the GUI. The CLI used to pass dataset_path as
+    # its own output, so a project started here and reopened in the interface
+    # (or the reverse) did not find its checkpoints where the other expected
+    # them. resolve_checkpoints_dir() is the single source of that semantics.
+    checkpoints_dir = resolve_checkpoints_dir({
+        "output_path": args.output,
+        "project_name": args.project_name,
+        "checkpoint_dest": "",
+    }) or dataset_path
+    checkpoints_dir = _Path(checkpoints_dir)
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+
     print(f"  Dataset     : {dataset_path}")
+    print(f"  Checkpoints : {checkpoints_dir}")
     print(f"  Preset      : {args.preset}")
     print(f"  Steps       : {brush_params['total_steps']}")
     print(f"  SH degree   : {brush_params['sh_degree']}")
@@ -643,17 +665,82 @@ def run_pipeline(args):
     brush_params["build_mode"] = get_brush_build_mode()
 
     try:
-        returncode = brush_engine.train(str(dataset_path), str(dataset_path), params=brush_params)
+        returncode = brush_engine.train(str(dataset_path), str(checkpoints_dir), params=brush_params)
     except KeyboardInterrupt:
         print(tr("cli_stopping"))
         brush_engine.stop()
         sys.exit(0)
 
-    if returncode == 0:
-        print(f"\nPipeline terminé. Splat disponible dans : {dataset_path}")
-    else:
+    if returncode != 0:
         print(f"\nBrush a retourné une erreur (code {returncode}).")
         sys.exit(1)
+
+    print(f"\nEntraînement terminé. Splat disponible dans : {checkpoints_dir}")
+
+    # ── Steps 3-4: optional Clean and Export ─────────────────────────────────
+    # `pipeline` used to stop here, so it did not reproduce the GUI chain
+    # (Reconstruction → Training → Cleaning → Export) its name promises.
+    # Both steps are opt-in: --clean and --export.
+    _run_pipeline_post_steps(args, checkpoints_dir, total_steps)
+
+
+def _latest_checkpoint_ply(checkpoints_dir):
+    """Newest checkpoint produced by the training, or None.
+
+    Uses the same rule as the interface (`find_checkpoint_plys`) so both agree
+    on which files belong to the run and which belong to the user.
+    """
+    plys = find_checkpoint_plys(_Path(checkpoints_dir))
+    if not plys:
+        return None
+    return max(plys, key=lambda p: p.stat().st_mtime)
+
+
+def _run_pipeline_post_steps(args, checkpoints_dir, total_steps):
+    """Chain cleaning and export after a successful training."""
+    wants_clean = getattr(args, "clean", None)
+    wants_export = getattr(args, "export", None)
+    if not wants_clean and not wants_export:
+        return
+
+    source_ply = _latest_checkpoint_ply(checkpoints_dir)
+    if source_ply is None:
+        print("\n⚠️  Aucun checkpoint .ply trouvé — nettoyage et export ignorés.")
+        return
+
+    if wants_clean:
+        _sep(f"Étape 3/{total_steps} — Nettoyage")
+        cleaned = source_ply.with_name(f"{source_ply.stem}_cleaned.ply")
+        print(f"  Source   : {source_ply.name}")
+        print(f"  Sévérité : {wants_clean}")
+        try:
+            stats = clean_ply(str(source_ply), str(cleaned), strength=wants_clean, log=print)
+        except (ValueError, FileNotFoundError, MemoryError) as e:
+            print(f"Erreur pendant le nettoyage : {e}")
+            sys.exit(1)
+        print(f"  ✓ {cleaned.name} ({stats.get('kept', '?')} splats conservés)")
+        source_ply = cleaned
+
+    if wants_export:
+        from app.core.export_engine import ExportEngine
+
+        step = 4 if wants_clean else 3
+        _sep(f"Étape {step}/{total_steps} — Export")
+        export_root = _Path(getattr(args, "export_output", None) or source_ply.parent)
+        engine = ExportEngine(logger_callback=print)
+
+        missing = engine.missing_dependency(wants_export)
+        if missing:
+            print(f"Erreur : export {wants_export} indisponible — dépendance manquante : {missing}")
+            sys.exit(1)
+
+        print(f"  Source  : {source_ply.name}")
+        print(f"  Format  : {wants_export}")
+        print(f"  Destin. : {export_root}")
+        if not engine.export(str(source_ply), str(export_root), wants_export):
+            print("Erreur : l'export a échoué.")
+            sys.exit(1)
+        print(f"  ✓ {source_ply.stem}.{wants_export}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

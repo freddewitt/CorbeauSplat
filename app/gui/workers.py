@@ -17,50 +17,9 @@ from app.core.i18n import tr
 from app.core.ply_cleaner import CleaningCancelled, clean_ply
 from app.gui.base_worker import BaseWorker
 
-# Brush names its checkpoints from the `--export-name` default, `export_{iter}.ply`.
-# Two older layouts are still recognised because earlier runs (and other trainers)
-# produced them: `iteration_<n>.ply` at the root, and the nested
-# `point_cloud/iteration_<n>/point_cloud.ply`. Any of these may carry a project
-# prefix added afterwards by _rename_checkpoints_with_project_name().
-_CHECKPOINT_FILE_RE = re.compile(r"^(?:.+_)?(?:export|iteration)_\d+\.ply$")
-_CHECKPOINT_NESTED_DIR_RE = re.compile(r"^iteration_\d+$")
-_CHECKPOINT_BACKUP_DIR_RE = re.compile(r"^checkpoints_backup_\d+$")
-
-
-def is_checkpoint_ply(path: Path, root: Path) -> bool:
-    """True when `path` is a training checkpoint produced under `root`.
-
-    Anything else found in the output folder belongs to the user — a training
-    run must never move, rename or delete it. This guards the case where the
-    output folder is also a working folder holding the user's own .ply files.
-    Files already archived under `checkpoints_backup_*` are excluded too, so a
-    later run cannot re-archive or prune away an earlier backup.
-    """
-    try:
-        rel = path.relative_to(root)
-    except ValueError:
-        return False
-
-    parts = rel.parts
-    if any(_CHECKPOINT_BACKUP_DIR_RE.match(part) for part in parts[:-1]):
-        return False
-
-    if _CHECKPOINT_FILE_RE.match(path.name):
-        return True
-
-    return (
-        len(parts) >= 3
-        and parts[-3] == "point_cloud"
-        and _CHECKPOINT_NESTED_DIR_RE.match(parts[-2]) is not None
-        and path.name.endswith("point_cloud.ply")
-    )
-
-
-def find_checkpoint_plys(root: Path) -> list[Path]:
-    """All checkpoint .ply files under `root`, sorted, user files left out."""
-    if not root.exists():
-        return []
-    return sorted(p for p in root.rglob("*.ply") if p.is_file() and is_checkpoint_ply(p, root))
+# Checkpoint identification lives in chaining_logic (Qt-free) so the CLI can
+# apply the same rule; re-exported here for the existing call sites.
+from app.gui.chaining_logic import find_checkpoint_plys, is_checkpoint_ply
 
 
 class Extractor360Worker(BaseWorker):

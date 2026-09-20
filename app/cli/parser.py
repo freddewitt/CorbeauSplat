@@ -3,6 +3,21 @@
 import argparse
 
 
+def _add_view_graph_flags(p):
+    """Declare the two COLMAP flags that default to on.
+
+    They used to be written as `action="store_true", default=True` plus a
+    hand-rolled `--no-*` twin. The positive form was therefore a no-op — it set
+    True on a value already True — and the pair could drift apart.
+    BooleanOptionalAction generates `--x` and `--no-x` from one declaration, so
+    both directions work and stay in sync.
+    """
+    p.add_argument("--view-graph-calibration", action=argparse.BooleanOptionalAction, default=True,
+                   help="Calibrer le graphe de vues (recommandé pour vidéo IA, défaut: activé)")
+    p.add_argument("--ignore-watermarks", action=argparse.BooleanOptionalAction, default=True,
+                   help="Ignorer les watermarks (recommandé pour vidéo IA, défaut: activé)")
+
+
 def get_parser():
     parser = argparse.ArgumentParser(
         prog="main.py",
@@ -79,10 +94,19 @@ def get_parser():
                    help="Force du filtre flou (défaut: medium)")
     p.add_argument("--robust",       action="store_true", help="Mode robuste pour grandes scènes (anti-crash COLMAP)")
     p.add_argument("--thermal-throttling", action="store_true", help="Activer le throttling thermique")
-    p.add_argument("--view-graph-calibration", action="store_true", default=True, help="Calibrer le graphe de vues (recommandé pour vidéo IA)")
-    p.add_argument("--no-view-graph-calibration", action="store_false", dest="view_graph_calibration", help="Désactiver la calibration du graphe de vues")
-    p.add_argument("--ignore-watermarks", action="store_true", default=True, help="Ignorer les watermarks (recommandé pour vidéo IA)")
-    p.add_argument("--no-ignore-watermarks", action="store_false", dest="ignore_watermarks", help="Désactiver l'ignorance des watermarks")
+    p.add_argument("--sequential_overlap", type=int, default=30,
+                   help="Images voisines comparées par le matcher séquentiel (défaut: 30)")
+    p.add_argument("--guided_matching", action="store_true",
+                   help="Matching guidé par la géométrie épipolaire (plus lent, plus robuste)")
+    _add_view_graph_flags(p)
+    # Steps 3 and 4, opt-in: without them `pipeline` stops after the training.
+    p.add_argument("--clean", nargs="?", const="medium", default=None,
+                   choices=["light", "medium", "strong"],
+                   help="Nettoyer le splat après l'entraînement (défaut si présent: medium)")
+    p.add_argument("--export", default=None, choices=["spz", "glb", "obj", "ply", "xyz"],
+                   help="Exporter le splat après l'entraînement (et après le nettoyage si demandé)")
+    p.add_argument("--export_output", default=None,
+                   help="Dossier de destination de l'export (défaut: à côté du splat)")
 
     # ── colmap ────────────────────────────────────────────────────────────────
     p = subs.add_parser("colmap", help="Pipeline COLMAP (vidéo/images → dataset)")
@@ -116,6 +140,10 @@ def get_parser():
     p.add_argument("--no_cross_check", action="store_true", help="Désactiver le cross-check")
     # Mapper
     p.add_argument("--min_num_matches",   type=int, default=15, help="Nb min de matches (défaut: 15)")
+    p.add_argument("--sequential_overlap", type=int, default=30,
+                   help="Images voisines comparées par le matcher séquentiel (défaut: 30)")
+    p.add_argument("--guided_matching",   action="store_true",
+                   help="Matching guidé par la géométrie épipolaire (plus lent, plus robuste)")
     p.add_argument("--no_refine_focal",   action="store_true",  help="Ne pas affiner la focale")
     p.add_argument("--refine_principal",  action="store_true",  help="Affiner le point principal")
     p.add_argument("--no_refine_extra",   action="store_true",  help="Ne pas affiner les params extra")
@@ -124,10 +152,7 @@ def get_parser():
                    help="Force du filtre flou (défaut: medium)")
     p.add_argument("--robust",       action="store_true", help="Mode robuste pour grandes scènes (anti-crash COLMAP)")
     p.add_argument("--thermal-throttling", action="store_true", help="Activer le throttling thermique")
-    p.add_argument("--view-graph-calibration", action="store_true", default=True, help="Calibrer le graphe de vues (recommandé pour vidéo IA)")
-    p.add_argument("--no-view-graph-calibration", action="store_false", dest="view_graph_calibration", help="Désactiver la calibration du graphe de vues")
-    p.add_argument("--ignore-watermarks", action="store_true", default=True, help="Ignorer les watermarks (recommandé pour vidéo IA)")
-    p.add_argument("--no-ignore-watermarks", action="store_false", dest="ignore_watermarks", help="Désactiver l'ignorance des watermarks")
+    _add_view_graph_flags(p)
 
     # ── brush ─────────────────────────────────────────────────────────────────
     p = subs.add_parser("brush", help="Entraînement Gaussian Splat (Brush)")

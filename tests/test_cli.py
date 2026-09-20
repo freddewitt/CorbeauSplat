@@ -447,7 +447,7 @@ class TestPipelineRun:
     @patch("app.cli.commands.ColmapEngine")
     @patch("app.cli.commands.BrushEngine")
     @patch("app.cli.commands.get_brush_build_mode")
-    def test_pipeline_success(self, mock_get_mode, mock_brush_cls, mock_colmap_cls):
+    def test_pipeline_success(self, mock_get_mode, mock_brush_cls, mock_colmap_cls, tmp_path):
         """Full pipeline succeeded."""
         mock_colmap = MagicMock()
         mock_colmap.run.return_value = (True, "Dataset ready")
@@ -460,7 +460,7 @@ class TestPipelineRun:
 
         args = MagicMock()
         args.input = "/in"
-        args.output = "/out"
+        args.output = str(tmp_path / "out")
         args.project_name = "test"
         args.type = "images"
         args.fps = 5
@@ -481,6 +481,13 @@ class TestPipelineRun:
 
         mock_colmap.run.assert_called_once()
         mock_brush.train.assert_called_once()
+
+        # Brush must write where the GUI would look: <output>/<project>/checkpoints.
+        # The CLI used to hand it the dataset folder instead, so a project moved
+        # between the two interfaces lost track of its checkpoints (audit I9).
+        expected = tmp_path / "out" / "test" / "checkpoints"
+        assert mock_brush.train.call_args[0][1] == str(expected)
+        assert expected.is_dir()
 
 
 class TestRobustMode:
@@ -505,3 +512,196 @@ class TestRobustMode:
         args = get_parser().parse_args(["colmap", "-i", "x", "-o", "y", "--filter_blur", "--blur_strength", "strong"])
         assert args.filter_blur is True
         assert args.blur_strength == "strong"
+
+
+# ---------------------------------------------------------------------------
+# ColmapParams <-> CLI flag parity (audit I10)
+# ---------------------------------------------------------------------------
+
+# Fields whose CLI flag is not named after them. Inverted booleans ("--no_x"
+# for a field defaulting to True) and renames both live here.
+COLMAP_FLAG_ALIASES = {
+    "single_camera": "no_single_camera",
+    "domain_size_pooling": "no_domain_size_pooling",
+    "cross_check": "no_cross_check",
+    "ba_refine_focal_length": "no_refine_focal",
+    "ba_refine_principal_point": "refine_principal",
+    "ba_refine_extra_params": "no_refine_extra",
+    "filter_blurry": "filter_blur",
+    "blur_factor": "blur_strength",
+    "use_view_graph_calibration": "view_graph_calibration",
+    "image_convert_format": "convert",
+    "undistort_images": "undistort",
+}
+
+
+def _colmap_subparser_dests():
+    import dataclasses  # noqa: F401  (kept local, mirrors the test's own imports)
+
+    from app.cli.parser import get_parser
+
+    parser = get_parser()
+    subparsers = parser._subparsers._group_actions[0]
+    return {action.dest for action in subparsers.choices["colmap"]._actions}
+
+
+def test_every_colmap_param_has_a_cli_flag():
+    """Each ColmapParams field must be reachable from `main.py colmap`.
+
+    This is the drift guard the audit asked for. `sequential_overlap` and
+    `guided_matching` had silently fallen out of the CLI: `_build_params` read
+    them with `getattr(args, ..., default)`, so a missing flag produced no
+    error, just a value the user could never change.
+    """
+    import dataclasses
+
+    from app.core.params import ColmapParams
+
+    dests = _colmap_subparser_dests()
+    missing = [
+        field.name
+        for field in dataclasses.fields(ColmapParams)
+        if field.name not in dests and COLMAP_FLAG_ALIASES.get(field.name) not in dests
+    ]
+    assert missing == [], f"ColmapParams fields with no CLI flag: {missing}"
+
+
+def test_flag_aliases_still_point_at_real_flags():
+    """Guard the guard: a stale alias would hide a genuinely missing flag."""
+    dests = _colmap_subparser_dests()
+    stale = [alias for alias in COLMAP_FLAG_ALIASES.values() if alias not in dests]
+    assert stale == [], f"aliases pointing at flags that no longer exist: {stale}"
+
+
+@pytest.mark.parametrize("flag,dest", [
+    ("--no-view-graph-calibration", "view_graph_calibration"),
+    ("--no-ignore-watermarks", "ignore_watermarks"),
+])
+def test_default_on_booleans_can_be_turned_off(flag, dest):
+    """Both flags default to True; the negative form must actually disable them.
+
+    They were declared as `store_true, default=True` with a hand-written twin,
+    so the positive form was a no-op and the pair could drift apart.
+    """
+    from app.cli.parser import get_parser
+
+    parser = get_parser()
+    assert getattr(parser.parse_args(["colmap", "-i", "x", "-o", "y"]), dest) is True
+    assert getattr(parser.parse_args(["colmap", "-i", "x", "-o", "y", flag]), dest) is False
+
+
+def test_guided_matching_reaches_colmap_params():
+    """The GUI exposed it and COLMAP consumes it, but the CLI dropped it."""
+    from app.cli.commands import _build_colmap_params
+    from app.cli.parser import get_parser
+
+    parser = get_parser()
+    off = _build_colmap_params(parser.parse_args(["colmap", "-i", "x", "-o", "y"]))
+    on = _build_colmap_params(parser.parse_args(["colmap", "-i", "x", "-o", "y", "--guided_matching"]))
+    assert off.guided_matching is False
+    assert on.guided_matching is True
+
+
+def test_sequential_overlap_reaches_colmap_params():
+    from app.cli.commands import _build_colmap_params
+    from app.cli.parser import get_parser
+
+    parser = get_parser()
+    params = _build_colmap_params(parser.parse_args(
+        ["colmap", "-i", "x", "-o", "y", "--matcher_type", "sequential", "--sequential_overlap", "50"]
+    ))
+    assert params.sequential_overlap == 50
+
+
+class TestPipelinePostSteps:
+    """`pipeline` chains Cleaning and Export like the GUI does (audit I8)."""
+
+    def _make_checkpoint(self, checkpoints_dir):
+        """Write a PLY named the way Brush names its checkpoints."""
+        import numpy as np
+        from plyfile import PlyData, PlyElement
+
+        checkpoints_dir.mkdir(parents=True, exist_ok=True)
+        ply = checkpoints_dir / "export_30000.ply"
+        names = ("x", "y", "z", "opacity", "scale_0", "scale_1", "scale_2",
+                 "f_dc_0", "f_dc_1", "f_dc_2")
+        verts = np.zeros(40, dtype=[(n, "f4") for n in names])
+        verts["x"] = np.arange(40, dtype="f4")
+        verts["opacity"] = 3.0          # sigmoid(3) ~ 0.95, well above any threshold
+        verts["scale_0"] = verts["scale_1"] = verts["scale_2"] = -5.0
+        PlyData([PlyElement.describe(verts, "vertex")]).write(str(ply))
+        return ply
+
+    def test_no_flags_means_no_extra_steps(self, tmp_path):
+        from app.cli.commands import _run_pipeline_post_steps
+
+        checkpoints = tmp_path / "checkpoints"
+        self._make_checkpoint(checkpoints)
+        args = MagicMock()
+        args.clean = None
+        args.export = None
+
+        _run_pipeline_post_steps(args, checkpoints, 2)
+        assert list(checkpoints.glob("*_cleaned.ply")) == []
+
+    def test_clean_produces_a_cleaned_file(self, tmp_path):
+        from app.cli.commands import _run_pipeline_post_steps
+
+        checkpoints = tmp_path / "checkpoints"
+        self._make_checkpoint(checkpoints)
+        args = MagicMock()
+        args.clean = "light"
+        args.export = None
+
+        _run_pipeline_post_steps(args, checkpoints, 3)
+        assert (checkpoints / "export_30000_cleaned.ply").exists()
+
+    def test_export_runs_on_the_cleaned_file_when_both_asked(self, tmp_path):
+        """Order matters: export must consume the cleaned splat, not the raw one."""
+        from app.cli.commands import _run_pipeline_post_steps
+
+        checkpoints = tmp_path / "checkpoints"
+        self._make_checkpoint(checkpoints)
+        args = MagicMock()
+        args.clean = "light"
+        args.export = "xyz"
+        args.export_output = str(tmp_path / "exported")
+
+        _run_pipeline_post_steps(args, checkpoints, 4)
+        assert (tmp_path / "exported" / "export_30000_cleaned.xyz").exists()
+
+    def test_missing_checkpoint_is_reported_not_crashed(self, tmp_path, capsys):
+        from app.cli.commands import _run_pipeline_post_steps
+
+        empty = tmp_path / "checkpoints"
+        empty.mkdir()
+        args = MagicMock()
+        args.clean = "light"
+        args.export = None
+
+        _run_pipeline_post_steps(args, empty, 3)
+        assert "Aucun checkpoint" in capsys.readouterr().out
+
+    def test_user_ply_is_not_mistaken_for_a_checkpoint(self, tmp_path):
+        """Only files matching Brush's naming are eligible, per find_checkpoint_plys."""
+        from app.cli.commands import _latest_checkpoint_ply
+
+        checkpoints = tmp_path / "checkpoints"
+        checkpoints.mkdir()
+        (checkpoints / "mon_scan_perso.ply").write_text("not a checkpoint")
+        assert _latest_checkpoint_ply(checkpoints) is None
+
+
+def test_manifest_documents_every_subcommand():
+    """manifest.md listed 9 of the 10 dispatch entries; `splattransform` was missing.
+
+    Pinned here so the documentation cannot drift away from DISPATCH again.
+    """
+    from pathlib import Path
+
+    from app.cli.commands import DISPATCH
+
+    section = Path("manifest.md").read_text().split("## CLI Subcommands", 1)[1]
+    section = section.split("##", 1)[0]
+    undocumented = [name for name in DISPATCH if f"`{name}`" not in section]
+    assert undocumented == [], f"subcommands missing from manifest.md: {undocumented}"
