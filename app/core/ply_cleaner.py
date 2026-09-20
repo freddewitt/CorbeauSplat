@@ -43,6 +43,11 @@ def compute_clean_mask(x, y, z, opacity, s0, s1, s2,
     Parameters are 1-D numpy arrays (one entry per splat). `opacity` is the raw
     logit (pre-sigmoid) and `s0..s2` are log scales, following the 3DGS/Brush PLY
     convention. Returns (keep_mask, stats_dict).
+
+    Non-finite values (NaN/Inf) in scales or coordinates never poison the
+    percentiles: they are excluded from the thresholds and dropped from the
+    cloud. A file whose splats are entirely non-finite raises ValueError rather
+    than silently producing an empty cloud.
     """
     x = np.asarray(x, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)
@@ -60,20 +65,27 @@ def compute_clean_mask(x, y, z, opacity, s0, s1, s2,
         np.exp(np.asarray(s1, dtype=np.float64)),
         np.exp(np.asarray(s2, dtype=np.float64)),
     ])
+    sizes_finite = np.isfinite(sizes)
+    if n > 0 and not sizes_finite.any():
+        raise ValueError("PLY invalide : tous les splats ont une échelle non finie (NaN/Inf).")
     if scale_pct >= 100.0 or n == 0:
         m_sc = np.ones(n, dtype=bool)
     else:
-        scale_thr = np.percentile(sizes, scale_pct)
+        scale_thr = np.percentile(sizes[sizes_finite], scale_pct)
         m_sc = sizes <= scale_thr
+    m_sc &= sizes_finite
 
     # 3. Spatial outliers — drop splats far from the cloud's robust centre.
+    finite_xyz = np.isfinite(x) & np.isfinite(y) & np.isfinite(z)
+    if n > 0 and not finite_xyz.any():
+        raise ValueError("PLY invalide : tous les splats ont des coordonnées non finies (NaN/Inf).")
     if outlier_pct >= 100.0 or n == 0:
         m_out = np.ones(n, dtype=bool)
     else:
-        cx, cy, cz = np.median(x), np.median(y), np.median(z)
+        cx, cy, cz = np.median(x[finite_xyz]), np.median(y[finite_xyz]), np.median(z[finite_xyz])
         dist = np.sqrt((x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2)
-        dist_thr = np.percentile(dist, outlier_pct)
-        m_out = dist <= dist_thr
+        m_out = dist <= np.percentile(dist[finite_xyz], outlier_pct)
+    m_out &= finite_xyz
 
     keep = m_op & m_sc & m_out
     stats = {
