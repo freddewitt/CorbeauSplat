@@ -285,10 +285,11 @@ class SharpEngine(BaseEngine):
         vp = Path(video_path)
         out = Path(output_dir)
 
-        frames_dir = out / "temp_frames"
-        frames_dir.mkdir(parents=True, exist_ok=True)
-        for f in frames_dir.glob("*.png"):
-            f.unlink()
+        # A unique temp dir, not a fixed "temp_frames" name: a same-named folder
+        # already present in the user-chosen output dir must never be rmtree'd.
+        # Only the dir actually created here is ever removed.
+        out.mkdir(parents=True, exist_ok=True)
+        frames_dir = Path(tempfile.mkdtemp(prefix="corbeausplat_sharp_", dir=out))
 
         def _abort(message=None):
             if message and log_callback:

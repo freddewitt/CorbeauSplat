@@ -14,6 +14,17 @@ for _mod_name in ["cv2", "send2trash"]:
             sys.modules[_mod_name] = MagicMock()
 
 
+def _ffmpeg_frames_dir(cmd):
+    """Directory ffmpeg writes frames into, read back from the output pattern.
+
+    The extraction directory is now a unique temp dir chosen by the engine, so
+    the fake ffmpeg locates it the same way the real one would: from the last
+    argument of the command it is handed.
+    """
+    pattern = next(arg for arg in cmd if "frame_%04d" in arg)
+    return Path(pattern).parent
+
+
 class TestProcessVideoFrames:
     """Tests for SharpEngine.process_video_frames()."""
 
@@ -31,7 +42,6 @@ class TestProcessVideoFrames:
     def test_successful_frame_processing(self, tmp_path):
         """Successful video run: FFmpeg extraction then Sharp prediction."""
         output_dir = tmp_path / "output"
-        frames_dir = output_dir / "temp_frames"
 
         from app.core.sharp_engine import SharpEngine
 
@@ -40,6 +50,7 @@ class TestProcessVideoFrames:
 
         # Mock FFmpeg success by creating frame files as side effect of start()
         def ffmpeg_side_effect(cmd, env=None, **kwargs):
+            frames_dir = _ffmpeg_frames_dir(cmd)
             frames_dir.mkdir(parents=True, exist_ok=True)
             for i in range(1, 4):
                 (frames_dir / f"frame_{i:04d}.png").write_bytes(b"fake_png")
@@ -112,7 +123,7 @@ class TestProcessVideoFrames:
         engine.runner.readline.return_value = ""  # Immediate EOF
         engine.runner.wait.return_value = 0
 
-        # No frames in the temp_frames dir (let process_video_frames create it empty)
+        # No frames in the extraction dir (let process_video_frames create it empty)
         result = engine.process_video_frames(
             video_path=str(tmp_path / "input.mp4"),
             output_dir=str(tmp_path / "output"),
@@ -124,7 +135,6 @@ class TestProcessVideoFrames:
     def test_cancel_callback_stops_processing(self, tmp_path):
         """Cancel callback → stops after the frame in progress."""
         output_dir = tmp_path / "output"
-        frames_dir = output_dir / "temp_frames"
 
         from app.core.sharp_engine import SharpEngine
 
@@ -133,6 +143,7 @@ class TestProcessVideoFrames:
 
         # Mock FFmpeg success: create 5 frames
         def ffmpeg_side_effect(cmd, env=None, **kwargs):
+            frames_dir = _ffmpeg_frames_dir(cmd)
             frames_dir.mkdir(parents=True, exist_ok=True)
             for i in range(1, 6):
                 (frames_dir / f"frame_{i:04d}.png").write_bytes(b"fake_png")
@@ -257,9 +268,8 @@ class TestVideoRunSafety:
         """SharpEngine whose fake FFmpeg drops `frame_count` images."""
         from app.core.sharp_engine import SharpEngine
 
-        frames_dir = tmp_path / "output" / "temp_frames"
-
         def ffmpeg_side_effect(cmd, env=None, **kwargs):
+            frames_dir = _ffmpeg_frames_dir(cmd)
             frames_dir.mkdir(parents=True, exist_ok=True)
             for i in range(1, frame_count + 1):
                 (frames_dir / f"frame_{i:04d}.png").write_bytes(b"fake_png")
@@ -319,6 +329,72 @@ class TestVideoRunSafety:
         assert user_file.exists()
         assert user_file.read_text() == "do not touch"
 
+    def test_preexisting_user_temp_frames_dir_is_never_deleted(self, tmp_path):
+        """A user folder already named 'temp_frames' in the output dir must survive.
+
+        Regression (audit F-001): the temporary frames dir used a fixed name
+        `output_dir / "temp_frames"` and was rmtree'd on every exit path, so a
+        same-named folder the user had in the chosen output directory was
+        destroyed with its contents, definitively.
+        """
+        output_dir = tmp_path / "output"
+        engine = self._engine_with_frames(tmp_path, frame_count=2)
+
+        # Pre-existing user folder, a name the pipeline used to claim.
+        user_dir = output_dir / "temp_frames"
+        user_dir.mkdir(parents=True)
+        user_file = user_dir / "mes_donnees.txt"
+        user_file.write_text("ne pas supprimer")
+        (user_dir / "frame_0042.png").write_bytes(b"user_png")
+        sub = user_dir / "sous_dossier"
+        sub.mkdir()
+        (sub / "archive.dat").write_text("conserve")
+
+        def predict_side_effect(frame_path, frame_out_dir, params):
+            out = Path(frame_out_dir)
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "result.ply").write_bytes(b"ply_data")
+            return 0
+
+        with patch.object(engine, 'predict', side_effect=predict_side_effect):
+            result = engine.process_video_frames(
+                video_path=str(tmp_path / "input.mp4"),
+                output_dir=str(output_dir),
+                params={},
+                log_callback=print,
+            )
+
+        # The user's folder and everything in it are untouched…
+        assert result == 2
+        assert user_dir.exists()
+        assert user_file.exists() and user_file.read_text() == "ne pas supprimer"
+        assert (user_dir / "frame_0042.png").read_bytes() == b"user_png"
+        assert (sub / "archive.dat").read_text() == "conserve"
+        # …while the pipeline's own temp dir was still cleaned up.
+        assert list(output_dir.glob("corbeausplat_sharp_*")) == []
+
+    def test_user_temp_frames_dir_survives_abort(self, tmp_path):
+        """The same protection holds on the early-exit paths (_abort)."""
+        output_dir = tmp_path / "output"
+        engine = self._engine_with_frames(tmp_path, frame_count=0)
+
+        user_dir = output_dir / "temp_frames"
+        user_dir.mkdir(parents=True)
+        user_file = user_dir / "mes_donnees.txt"
+        user_file.write_text("ne pas supprimer")
+
+        engine.runner.wait.return_value = 1  # ffmpeg fails → _abort()
+
+        result = engine.process_video_frames(
+            video_path=str(tmp_path / "input.mp4"),
+            output_dir=str(output_dir),
+            params={},
+            log_callback=print,
+        )
+
+        assert result == 0
+        assert user_file.exists() and user_file.read_text() == "ne pas supprimer"
+
     def test_long_run_confirmation_aborts_before_any_inference(self, tmp_path):
         """Declining the confirmation stops before any inference and purges the frames."""
         from app.core.sharp_engine import LONG_RUN_CONFIRM_SECONDS, SECONDS_PER_FRAME_ESTIMATE
@@ -339,7 +415,7 @@ class TestVideoRunSafety:
         assert result == 0
         mock_predict.assert_not_called()
         assert asked and asked[0][0] == frame_count
-        assert not (tmp_path / "output" / "temp_frames").exists()
+        assert list((tmp_path / "output").glob("corbeausplat_sharp_*")) == []
 
     def test_short_run_is_not_confirmed(self, tmp_path):
         """Below the threshold, no confirmation is asked."""

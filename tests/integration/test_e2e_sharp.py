@@ -192,7 +192,7 @@ class TestE2ESharpVideo:
 
     def test_temp_frames_cleaned_up(self, sharp_video_run):
         """Temporary frame extraction directory should be cleaned up."""
-        temp_frames_dir = sharp_video_run["out_dir"] / "temp_frames"
-        assert not temp_frames_dir.exists(), (
-            "Temporary frames directory was not cleaned up"
+        leftovers = list(sharp_video_run["out_dir"].glob("corbeausplat_sharp_*"))
+        assert leftovers == [], (
+            f"Temporary frames directory was not cleaned up: {leftovers}"
         )
