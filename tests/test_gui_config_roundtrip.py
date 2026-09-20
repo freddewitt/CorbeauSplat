@@ -15,13 +15,11 @@ The gap is worth closing because ChainConfig.source copies get_state()
 verbatim, so a key missing from either side is silently lost on reload, with
 no failure anywhere to point at it.
 """
-import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
+
+from tests._real_qt import run_for_payload
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -77,25 +75,8 @@ print("RESULTS=" + json.dumps(results))
 
 @pytest.fixture(scope="module")
 def results():
-    """Run every scenario once under real Qt, return the parsed outcome."""
-    env = {
-        "QT_QPA_PLATFORM": "offscreen",
-        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-        "HOME": str(Path.home()),
-    }
-    proc = subprocess.run(
-        [sys.executable, "-c", _SCENARIOS],
-        capture_output=True, text=True, timeout=180,
-        cwd=str(PROJECT_ROOT), env=env,
-    )
-    if proc.returncode != 0:
-        if "No module named 'PySide6'" in proc.stderr:
-            pytest.skip("real PySide6 not importable in this environment")
-        pytest.fail(f"real-Qt subprocess failed:\n{proc.stderr[-2000:]}")
-
-    line = next((ln for ln in proc.stdout.splitlines() if ln.startswith("RESULTS=")), None)
-    assert line, f"no results emitted:\n{proc.stdout[-2000:]}"
-    return json.loads(line.removeprefix("RESULTS="))
+    """Run every scenario once under real Qt; see tests/_real_qt.py."""
+    return run_for_payload(_SCENARIOS, marker="RESULTS=")
 
 
 def test_default_is_png(results):

@@ -93,6 +93,17 @@ ignore = ["SIM117"]
 module = ["PySide6.*", "cv2.*", "numpy.*", "plyfile.*", "trimesh.*", "open3d.*", "PIL.*", "send2trash.*", "objc.*", "AppKit.*", "Foundation.*", "spz.*"]
 ignore_missing_imports = true
 
+# Subprocess tests build real Qt panels (tests/_real_qt.py); without parallel
+# mode their data file would overwrite the parent's, and the panels would keep
+# reading as untested while being exercised.
+[tool.coverage.run]
+source = ["app"]
+parallel = true
+omit = ["*/__pycache__/*"]
+
+[tool.coverage.report]
+skip_empty = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

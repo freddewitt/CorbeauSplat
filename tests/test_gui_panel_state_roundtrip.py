@@ -11,13 +11,11 @@ nothing failing. The AST contracts in test_panel_contracts.py cannot see it,
 and the session-wide PySide6 mock means panels cannot be instantiated for real
 anywhere else — hence the subprocess.
 """
-import json
-import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
+
+from tests._real_qt import run_for_payload
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -96,26 +94,8 @@ with patch("app.core.config_io.resolve_project_root", return_value=tmp):
 
 @pytest.fixture(scope="module")
 def report():
-    env = {
-        "QT_QPA_PLATFORM": "offscreen",
-        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-        "HOME": str(Path.home()),
-        "PYTHONPATH": str(PROJECT_ROOT),
-    }
-    proc = subprocess.run(
-        [sys.executable, "-c", _SCRIPT],
-        capture_output=True, text=True, timeout=180,
-        cwd=str(PROJECT_ROOT), env=env,
-    )
-    line = next((ln for ln in proc.stdout.splitlines() if ln.startswith("REPORT=")), None)
-    if line is None:
-        if "No module named 'PySide6'" in proc.stderr:
-            pytest.skip("real PySide6 not importable in this environment")
-        pytest.fail(f"real-Qt subprocess produced no report:\n{proc.stderr[-2000:]}")
-    # The report is what matters. Qt routinely aborts at interpreter exit with
-    # "QThread: Destroyed while thread is still running" — a teardown artefact
-    # of windows that own workers, long after the measurements are taken.
-    return json.loads(line.removeprefix("REPORT="))
+    """Run every scenario once under real Qt; see tests/_real_qt.py."""
+    return run_for_payload(_SCRIPT, marker="REPORT=")
 
 
 def test_all_serialised_panels_are_covered(report):
