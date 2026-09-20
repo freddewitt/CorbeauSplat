@@ -39,25 +39,29 @@ class Extractor360Worker(BaseWorker):
         super().stop()
 
     def run(self):
-        self.log_signal.emit(tr("status_360_start", "--- Démarrage 360Extractor ---"))
-        if not self.engine.is_installed():
-            self.finished_signal.emit(False, tr("err_360_not_installed", "360Extractor non installé."))
-            return
+        try:
+            self.log_signal.emit(tr("status_360_start", "--- Démarrage 360Extractor ---"))
+            if not self.engine.is_installed():
+                self.finished_signal.emit(False, tr("err_360_not_installed", "360Extractor non installé."))
+                return
 
-        # Use engine to construct/run instead of manual cmd construction
-        success = self.engine.run_extraction(
-            self.input_path,
-            self.output_path,
-            self.params,
-            progress_callback=self.progress_signal.emit,
-            log_callback=self.log_signal.emit,
-            check_cancel_callback=self.isInterruptionRequested
-        )
+            # Use engine to construct/run instead of manual cmd construction
+            success = self.engine.run_extraction(
+                self.input_path,
+                self.output_path,
+                self.params,
+                progress_callback=self.progress_signal.emit,
+                log_callback=self.log_signal.emit,
+                check_cancel_callback=self.isInterruptionRequested
+            )
 
-        if success:
-            self.finished_signal.emit(True, tr("status_360_done", "Extraction terminée avec succès."))
-        else:
-            self.finished_signal.emit(False, tr("err_360_failed", "Erreur lors de l'extraction."))
+            if success:
+                self.finished_signal.emit(True, tr("status_360_done", "Extraction terminée avec succès."))
+            else:
+                self.finished_signal.emit(False, tr("err_360_failed", "Erreur lors de l'extraction."))
+        except Exception as e:
+            self.log_signal.emit(f"EXCEPTION dans Extractor360Worker: {e}\n{traceback.format_exc()}")
+            self.finished_signal.emit(False, str(e))
 
     def parse_line(self, line):
         """Naive extraction of the [XX%] progress marker"""
@@ -93,55 +97,59 @@ class ColmapWorker(BaseWorker):
         super().stop()
 
     def run(self):
-        # 1. Check 360 Extractor
-        if self.extractor_360_params and self.extractor_360_params.get("enabled", False):
-            from app.core.extractor_360_engine import Extractor360Engine
-            self.extractor_engine = Extractor360Engine()
+        try:
+            # 1. Check 360 Extractor
+            if self.extractor_360_params and self.extractor_360_params.get("enabled", False):
+                from app.core.extractor_360_engine import Extractor360Engine
+                self.extractor_engine = Extractor360Engine()
 
-            if not self.extractor_engine.is_installed():
-                self.log_signal.emit(tr("err_360_not_installed_colmap", "ERREUR: 360 Extractor activé mais non installé."))
-                self.finished_signal.emit(False, tr("err_360_missing", "Dépendances 360 manquantes"))
-                return
+                if not self.extractor_engine.is_installed():
+                    self.log_signal.emit(tr("err_360_not_installed_colmap", "ERREUR: 360 Extractor activé mais non installé."))
+                    self.finished_signal.emit(False, tr("err_360_missing", "Dépendances 360 manquantes"))
+                    return
 
-            self.log_signal.emit(tr("status_360_pre", "--- Démarrage 360 Extractor (Pré-traitement) ---"))
+                self.log_signal.emit(tr("status_360_pre", "--- Démarrage 360 Extractor (Pré-traitement) ---"))
 
-            # Output images to project/images
-            images_dir = self.engine.project_path / "images"
-            images_dir.mkdir(parents=True, exist_ok=True)
+                # Output images to project/images
+                images_dir = self.engine.project_path / "images"
+                images_dir.mkdir(parents=True, exist_ok=True)
 
-            # Run extraction
-            success = self.extractor_engine.run_extraction(
-                self.engine.input_path, # Video path
-                images_dir, # Output folder
-                self.extractor_360_params,
-                progress_callback=self.progress_signal.emit,
-                log_callback=self.log_signal.emit,
-                check_cancel_callback=self.isInterruptionRequested
-            )
+                # Run extraction
+                success = self.extractor_engine.run_extraction(
+                    self.engine.input_path, # Video path
+                    images_dir, # Output folder
+                    self.extractor_360_params,
+                    progress_callback=self.progress_signal.emit,
+                    log_callback=self.log_signal.emit,
+                    check_cancel_callback=self.isInterruptionRequested
+                )
 
-            if not success:
-                self.finished_signal.emit(False, tr("err_360_failed", "Echec de l'extraction 360."))
-                return
+                if not success:
+                    self.finished_signal.emit(False, tr("err_360_failed", "Echec de l'extraction 360."))
+                    return
 
-            self.log_signal.emit(tr("status_360_colmap", "Extraction 360 terminée. Passage à COLMAP..."))
+                self.log_signal.emit(tr("status_360_colmap", "Extraction 360 terminée. Passage à COLMAP..."))
 
-            self.engine = ColmapEngine(
-                self.engine.params, images_dir, self.engine.output_path, "images",
-                self.engine.fps, self.engine.project_name,
-                logger_callback=self.log_signal.emit,
-                progress_callback=self.progress_signal.emit,
-                status_callback=self.status_signal.emit,
-                check_cancel_callback=self.isInterruptionRequested
-            )
+                self.engine = ColmapEngine(
+                    self.engine.params, images_dir, self.engine.output_path, "images",
+                    self.engine.fps, self.engine.project_name,
+                    logger_callback=self.log_signal.emit,
+                    progress_callback=self.progress_signal.emit,
+                    status_callback=self.status_signal.emit,
+                    check_cancel_callback=self.isInterruptionRequested
+                )
 
 
-        # 2. Check Upscale
-        if self.upscale_params and self.upscale_params.get("active", False):
-            self.engine.upscale_config = self.upscale_params
-            self.log_signal.emit(tr("status_upscale_colmap", "--- Upscale activé pour COLMAP ---"))
+            # 2. Check Upscale
+            if self.upscale_params and self.upscale_params.get("active", False):
+                self.engine.upscale_config = self.upscale_params
+                self.log_signal.emit(tr("status_upscale_colmap", "--- Upscale activé pour COLMAP ---"))
 
-        success, message = self.engine.run()
-        self.finished_signal.emit(success, message)
+            success, message = self.engine.run()
+            self.finished_signal.emit(success, message)
+        except Exception as e:
+            self.log_signal.emit(f"EXCEPTION dans ColmapWorker: {e}\n{traceback.format_exc()}")
+            self.finished_signal.emit(False, str(e))
 
 class BrushWorker(BaseWorker):
     """Thread worker for running Brush"""
@@ -793,20 +801,24 @@ class SplatTransformWorker(BaseWorker):
         super().stop()
 
     def run(self):
-        self.log_signal.emit("--- SplatTransform ---")
-        if not self.engine.is_available():
-            self.finished_signal.emit(
-                False,
-                tr("st_err_not_installed",
-                   "splat-transform not installed. Run dependency setup.")
-            )
-            return
-        returncode = self.engine.transform(self.input_path, self.output_path, self.params)
-        success = (returncode == 0)
-        if success:
-            self.finished_signal.emit(True, tr("st_done", "SplatTransform completed."))
-        else:
-            self.finished_signal.emit(False, tr("st_err_failed", "splat-transform returned an error (see logs)."))
+        try:
+            self.log_signal.emit("--- SplatTransform ---")
+            if not self.engine.is_available():
+                self.finished_signal.emit(
+                    False,
+                    tr("st_err_not_installed",
+                       "splat-transform not installed. Run dependency setup.")
+                )
+                return
+            returncode = self.engine.transform(self.input_path, self.output_path, self.params)
+            success = (returncode == 0)
+            if success:
+                self.finished_signal.emit(True, tr("st_done", "SplatTransform completed."))
+            else:
+                self.finished_signal.emit(False, tr("st_err_failed", "splat-transform returned an error (see logs)."))
+        except Exception as e:
+            self.log_signal.emit(f"EXCEPTION dans SplatTransformWorker: {e}\n{traceback.format_exc()}")
+            self.finished_signal.emit(False, str(e))
 
 
 # ---------------------------------------------------------------------

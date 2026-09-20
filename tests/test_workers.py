@@ -17,6 +17,7 @@ from app.gui.workers import (
     Extractor360Worker,
     SharpVideoWorker,
     SharpWorker,
+    SplatTransformWorker,
 )
 
 # Patch send2trash and cv2 for the workers that use them indirectly
@@ -127,6 +128,27 @@ class TestColmapWorker:
                         worker.stop()
                         mock_engine.stop.assert_called_once()
                         mock_req.assert_called_once()
+
+    def test_run_engine_exception_emits_finished_false(self):
+        """run() raising from engine.run() must still emit finished_signal(False) [F-007].
+
+        Avant le correctif, l'exception sortait de run() sans émission → UI figée.
+        """
+        engine = MagicMock()
+        engine.run.side_effect = FileNotFoundError("colmap binaire absent")
+        worker = ColmapWorker.__new__(ColmapWorker)
+        with patch.object(worker, 'isInterruptionRequested', return_value=False):
+            with patch.object(worker, 'log_signal', MagicMock()):
+                with patch.object(worker, 'status_signal', MagicMock()):
+                    with patch.object(worker, 'finished_signal', MagicMock()):
+                        worker.engine = engine
+                        worker.upscale_params = None
+                        worker.extractor_360_params = None
+
+                        worker.run()
+                        args, _ = worker.finished_signal.emit.call_args
+                        assert args[0] is False
+                        assert "colmap binaire absent" in args[1]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -582,6 +604,87 @@ class TestExtractor360Worker:
         with patch.object(worker, 'progress_signal', MagicMock()):
             worker.parse_line("Starting extraction...")
             worker.progress_signal.emit.assert_not_called()
+
+    def test_run_engine_exception_emits_finished_false(self):
+        """run() raising from engine.run_extraction must still emit finished_signal(False) [F-007]."""
+        engine = MagicMock()
+        engine.is_installed.return_value = True
+        engine.run_extraction.side_effect = FileNotFoundError("ffmpeg introuvable")
+        worker = Extractor360Worker.__new__(Extractor360Worker)
+        with patch.object(worker, 'isInterruptionRequested', return_value=False):
+            with patch.object(worker, 'log_signal', MagicMock()):
+                with patch.object(worker, 'progress_signal', MagicMock()):
+                    with patch.object(worker, 'finished_signal', MagicMock()):
+                        worker.engine = engine
+                        worker.input_path = "/in.mp4"
+                        worker.output_path = "/out"
+                        worker.params = {}
+
+                        worker.run()
+                        args, _ = worker.finished_signal.emit.call_args
+                        assert args[0] is False
+                        assert "ffmpeg introuvable" in args[1]
+
+    def test_run_success_emits_finished_true(self):
+        """run() nominal → finished_signal(True) (comportement légitime préservé) [F-007]."""
+        engine = MagicMock()
+        engine.is_installed.return_value = True
+        engine.run_extraction.return_value = True
+        worker = Extractor360Worker.__new__(Extractor360Worker)
+        with patch.object(worker, 'isInterruptionRequested', return_value=False):
+            with patch.object(worker, 'log_signal', MagicMock()):
+                with patch.object(worker, 'progress_signal', MagicMock()):
+                    with patch.object(worker, 'finished_signal', MagicMock()):
+                        worker.engine = engine
+                        worker.input_path = "/in.mp4"
+                        worker.output_path = "/out"
+                        worker.params = {}
+
+                        worker.run()
+                        args, _ = worker.finished_signal.emit.call_args
+                        assert args[0] is True
+
+
+class TestSplatTransformWorker:
+    """Tests for SplatTransformWorker."""
+
+    @pytest.fixture
+    def mock_engine(self):
+        """Build a mocked SplatTransformEngine."""
+        engine = MagicMock()
+        engine.is_available.return_value = True
+        engine.transform.return_value = 0
+        return engine
+
+    def test_run_success(self, mock_engine):
+        """run() nominal → finished_signal(True) (comportement légitime préservé) [F-007]."""
+        worker = SplatTransformWorker.__new__(SplatTransformWorker)
+        with patch.object(worker, 'log_signal', MagicMock()):
+            with patch.object(worker, 'finished_signal', MagicMock()):
+                worker.engine = mock_engine
+                worker.input_path = "/in.ply"
+                worker.output_path = "/out"
+                worker.params = {}
+
+                worker.run()
+                args, _ = worker.finished_signal.emit.call_args
+                assert args[0] is True
+
+    def test_run_engine_exception_emits_finished_false(self, mock_engine):
+        """run() raising from engine.transform must still emit finished_signal(False) [F-007]."""
+        mock_engine.transform.side_effect = FileNotFoundError("splat-transform binaire absent")
+        worker = SplatTransformWorker.__new__(SplatTransformWorker)
+        with patch.object(worker, 'log_signal', MagicMock()):
+            with patch.object(worker, 'finished_signal', MagicMock()):
+                worker.engine = mock_engine
+                worker.input_path = "/in.ply"
+                worker.output_path = "/out"
+                worker.params = {}
+
+                worker.run()
+                args, _ = worker.finished_signal.emit.call_args
+                assert args[0] is False
+                assert "splat-transform binaire absent" in args[1]
 
 
 class TestBrushCheckpointProgress:
