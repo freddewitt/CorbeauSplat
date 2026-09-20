@@ -1,4 +1,4 @@
-"""Tests du module de notifications macOS (dégradation propre)."""
+"""Tests for the macOS notifications module (graceful degradation)."""
 
 import builtins
 
@@ -6,7 +6,7 @@ from app.core import notifications
 
 
 def test_notify_returns_false_without_foundation(monkeypatch):
-    """Si Foundation (pyobjc) est absent, notify ne lève pas et retourne False."""
+    """Without Foundation (pyobjc), notify returns False instead of raising."""
     real_import = builtins.__import__
 
     def fake_import(name, *args, **kwargs):
@@ -20,7 +20,7 @@ def test_notify_returns_false_without_foundation(monkeypatch):
 
 
 def test_notify_delivers_when_foundation_present(monkeypatch):
-    """Avec un faux Foundation, notify construit et délivre la notification."""
+    """With a stubbed Foundation, notify builds and delivers the notification."""
     import sys
     import types
 

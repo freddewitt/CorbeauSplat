@@ -1,4 +1,4 @@
-"""Garde-fous i18n : alignement des 9 locales et absence de clés orphelines.
+"""i18n guards: the 9 locales stay aligned and carry no orphan keys.
 
 Ces tests remplacent la vérification manuelle qui laissait passer, avant l'audit
 du 2026-08-07, 375 clés héritées de l'UI à onglets (aucune source ne les
@@ -32,7 +32,7 @@ def test_all_nine_locales_present():
 
 
 def test_locales_share_the_exact_same_keys():
-    """Une clé ajoutée doit l'être dans les 9 fichiers, pas seulement fr/en."""
+    """A new key must land in all 9 files, not just fr/en."""
     reference = set(_load("fr"))
     for name in sorted(EXPECTED_LOCALES):
         keys = set(_load(name))
@@ -41,14 +41,14 @@ def test_locales_share_the_exact_same_keys():
 
 
 def test_no_orphan_locale_keys():
-    """Aucune clé de locale ne doit être absente de tout le code applicatif."""
+    """Every locale key must be referenced somewhere in the application code."""
     sources = _sources()
     orphans = sorted(k for k in _load("fr") if k not in sources)
     assert orphans == [], f"clés de locale jamais référencées : {orphans}"
 
 
 def test_every_tr_literal_has_a_translation():
-    """Toute clé passée en littéral à tr() doit exister dans les 9 locales."""
+    """Every literal key passed to tr() must exist in all 9 locales."""
     used = set(re.findall(r'\btr\(\s*"([^"]+)"', _sources()))
     assert used, "aucun appel tr(\"...\") détecté — le scan est cassé"
     for name in sorted(EXPECTED_LOCALES):

@@ -1,4 +1,4 @@
-"""Tests du chaînage conditionnel du run (pipeline_planner.py)."""
+"""Tests for conditional run chaining (pipeline_planner.py)."""
 
 from app.core.run_state import RunState
 from app.gui.pipeline_planner import plan_pipeline
@@ -34,7 +34,7 @@ def test_extraction360_absent_by_default():
 
 
 def test_extraction360_runs_first_of_the_pre_steps():
-    """L'extraction 360 produit le dossier d'images que l'upscale agrandit et que
+    """360 extraction produces the image folder that upscaling enlarges and that
     COLMAP lit : elle doit précéder les deux."""
     plan = plan_pipeline("gsplat", _rs(source_360=True))
     assert plan == ["source", "extraction360", "reconstruction"]
@@ -60,7 +60,7 @@ def test_upscale_absent_by_default():
 
 
 def test_upscale_runs_before_reconstruction():
-    """L'upscale agrandit les images que COLMAP lira : il doit précéder
+    """Upscaling enlarges the images COLMAP will read, so it must come before
     Reconstruction, sinon il s'appliquerait à des images déjà consommées."""
     plan = plan_pipeline("gsplat", _rs(upscaler_avant=True))
     assert plan == ["source", "upscale", "reconstruction"]
@@ -72,7 +72,7 @@ def test_upscale_applies_to_sharp_mode():
 
 
 def test_upscale_survives_4dgs_truncation():
-    """4DGS tronque *après* Reconstruction, mais la pré-étape reste."""
+    """4DGS truncates *after* Reconstruction, but the pre-step remains."""
     rs = _rs(upscaler_avant=True, entrainement_apres=True, visualiser_apres=True)
     assert plan_pipeline("4dgs", rs) == ["source", "upscale", "reconstruction"]
 

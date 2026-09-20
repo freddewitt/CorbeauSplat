@@ -1,4 +1,4 @@
-"""Tests de la détection de dossier de reprise COLMAP (reconstruction_logic.py)."""
+"""Tests for COLMAP resume-folder detection (reconstruction_logic.py)."""
 
 from app.gui.panels.reconstruction_logic import (
     RESUME_COLMAP_PROJECT,

@@ -1,4 +1,4 @@
-"""Tests d'intégration : validation de chemins + i18n (sans subprocess)."""
+"""Integration tests: path validation and i18n, with no subprocess."""
 import json
 from pathlib import Path
 

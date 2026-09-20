@@ -1,4 +1,4 @@
-"""Test end-to-end RÉEL du pipeline complet, avec les vrais binaires.
+"""REAL end-to-end test of the whole pipeline, against the actual binaries.
 
 Contrairement aux autres tests d'intégration (binaires mockés), celui-ci exécute
 la chaîne complète sur une scène synthétique générée à la volée :
@@ -44,7 +44,7 @@ def _num_registered_images(images_bin: Path) -> int:
 
 @pytest.fixture(scope="module")
 def pipeline(tmp_path_factory) -> dict:
-    """Exécute le pipeline complet réel une seule fois et retourne ses artefacts."""
+    """Run the real full pipeline once and return its artefacts."""
     from app.core.brush_engine import BrushEngine
     from app.core.engine import ColmapEngine
     from app.core.export_engine import ExportEngine
@@ -112,7 +112,7 @@ def pipeline(tmp_path_factory) -> dict:
 
 @requires_real_binaries
 class TestE2EPipeline:
-    """Vérifie chaque étape de la chaîne réelle sur la scène synthétique."""
+    """Check every stage of the real chain against the synthetic scene."""
 
     def test_colmap_reconstruction_succeeds(self, pipeline):
         assert pipeline["colmap_ok"], f"COLMAP a échoué : {pipeline['colmap_msg']}"
@@ -124,14 +124,14 @@ class TestE2EPipeline:
             assert (model0 / f"{stem}.bin").exists(), f"{stem}.bin manquant"
 
     def test_most_images_registered(self, pipeline):
-        """La reconstruction doit enregistrer la grande majorité des vues."""
+        """Reconstruction must register the large majority of the views."""
         n_reg = _num_registered_images(pipeline["model0"] / "images.bin")
         assert n_reg >= int(0.8 * N_VIEWS), (
             f"seulement {n_reg}/{N_VIEWS} images enregistrées"
         )
 
     def test_point_cloud_is_substantial(self, pipeline):
-        """points3D.bin non trivial → vraie reconstruction, pas un fragment."""
+        """A non-trivial points3D.bin means a real reconstruction, not a fragment."""
         size = (pipeline["model0"] / "points3D.bin").stat().st_size
         assert size > 10_000, f"points3D.bin trop petit ({size} octets)"
 

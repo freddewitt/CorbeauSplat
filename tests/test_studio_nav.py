@@ -1,4 +1,4 @@
-"""Tests de la logique de navigation du Studio (studio_nav.py).
+"""Tests for the Studio navigation logic (studio_nav.py).
 
 Logique pure (hors Qt), donc exécutable sous le mock PySide6 de la CI. Couvre le
 câblage rail→page (sélection change la page) et le repli/dépli des sections. Le

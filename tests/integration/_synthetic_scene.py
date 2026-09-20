@@ -1,4 +1,4 @@
-"""Générateur de scène 3D synthétique pour les tests end-to-end réels.
+"""Synthetic 3D scene generator for the real end-to-end tests.
 
 Produit un jeu d'images multi-vues qu'un vrai COLMAP peut reconstruire, sans
 aucune donnée binaire versionnée ni dépendance réseau. La scène est un « coin »
@@ -26,7 +26,7 @@ from PIL import Image
 
 
 def _make_texture(seed: int, size: int = 512) -> np.ndarray:
-    """Texture RGB à bruit multi-octave, contraste étiré sur toute la plage."""
+    """Multi-octave noise RGB texture, contrast stretched across the full range."""
     rng = np.random.default_rng(seed)
     acc = np.zeros((size, size, 3), np.float32)
     weight = 0.0
@@ -72,7 +72,7 @@ def _homography(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
 
 
 def _draw_face(img: np.ndarray, dst_uv: np.ndarray, tex: np.ndarray) -> None:
-    """Plaque une texture sur un quad projeté (échantillonnage inverse)."""
+    """Map a texture onto a projected quad (inverse sampling)."""
     ts = tex.shape[0]
     tex_corners = np.array([[0, 0], [ts - 1, 0], [ts - 1, ts - 1], [0, ts - 1]], float)
     h, w = img.shape[:2]
@@ -102,7 +102,7 @@ def _draw_face(img: np.ndarray, dst_uv: np.ndarray, tex: np.ndarray) -> None:
 
 def generate_scene(out_dir: Path, n_views: int = 24, w: int = 800, h: int = 600,
                    seed: int = 7) -> int:
-    """Génère ``n_views`` images PNG d'un coin de boîte texturé dans ``out_dir``.
+    """Write ``n_views`` PNG images of a textured box corner into ``out_dir``.
 
     Retourne le nombre d'images écrites. Déterministe pour un ``seed`` donné.
     """

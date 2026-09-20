@@ -1,4 +1,4 @@
-"""Tests pour app/core/sharp_engine.py — SharpEngine."""
+"""Tests for app/core/sharp_engine.py — SharpEngine."""
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -167,7 +167,7 @@ class TestProcessVideoFrames:
             assert result >= 1  # at least 1 before cancellation
 
     def test_skip_frames_param(self, tmp_path):
-        """skip_frames modifie la commande FFmpeg."""
+        """skip_frames changes the FFmpeg command."""
         from app.core.sharp_engine import SharpEngine
 
         engine = SharpEngine(logger_callback=print)
@@ -192,10 +192,10 @@ class TestProcessVideoFrames:
 
 
 class TestSharpPredict:
-    """Tests pour SharpEngine.predict()."""
+    """Tests for SharpEngine.predict()."""
 
     def test_predict_command_construction(self, tmp_path):
-        """predict construit la bonne commande."""
+        """predict builds the expected command."""
         from app.core.sharp_engine import SharpEngine
 
         engine = SharpEngine(logger_callback=print)
@@ -215,7 +215,7 @@ class TestSharpPredict:
             assert result == 0
 
     def test_predict_with_checkpoint(self, tmp_path):
-        """predict avec checkpoint ajoute -c."""
+        """predict with a checkpoint appends -c."""
         from app.core.sharp_engine import SharpEngine
 
         engine = SharpEngine(logger_callback=print)

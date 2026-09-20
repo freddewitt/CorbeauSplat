@@ -1,4 +1,4 @@
-"""Tests du binding RunState ↔ case à cocher (source de vérité unique).
+"""Tests for the RunState ↔ checkbox binding (single source of truth).
 
 Utilise un faux widget (duck-typing) pour tester la logique sans Qt, donc
 exécutable sous le mock PySide6.
@@ -21,7 +21,7 @@ class _FakeSignal:
 
 
 class _FakeCheckBox:
-    """Imite QCheckBox : setChecked n'émet toggled que sur changement réel et
+    """Mimics QCheckBox: setChecked only emits toggled on a real change, and
     hors blockSignals."""
 
     def __init__(self):
@@ -64,7 +64,7 @@ def test_widget_toggle_updates_state():
 
 
 def test_two_checkboxes_stay_in_sync():
-    """Deux cases bindées au même drapeau : toggler l'une met l'autre à jour."""
+    """Two checkboxes bound to one flag: toggling either updates the other."""
     rs = RunState()
     a, b = _FakeCheckBox(), _FakeCheckBox()
     bind_flag_checkbox(a, rs, "undistort_images")
@@ -92,5 +92,5 @@ def test_no_infinite_loop_and_no_spurious_state_churn():
     seen = []
     rs.add_observer(seen.append)
     chk.user_click(True)
-    # une seule notification pour ce drapeau (pas de rebond)
+    # a single notification for this flag (no echo back)
     assert seen.count("exporter_apres") == 1

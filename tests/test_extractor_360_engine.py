@@ -1,4 +1,4 @@
-"""Tests pour app/core/extractor_360_engine.py — Extractor360Engine."""
+"""Tests for app/core/extractor_360_engine.py — Extractor360Engine."""
 from __future__ import annotations
 
 import os
@@ -12,7 +12,7 @@ import pytest
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _make_engine(tmp_path, venv_exists=False, script_exists=False):
-    """Crée un Extractor360Engine dont les chemins pointent dans tmp_path."""
+    """Build an Extractor360Engine whose paths point inside tmp_path."""
     venv_python = tmp_path / ".venv_360" / "bin" / "python"
     if venv_exists:
         venv_python.parent.mkdir(parents=True)
@@ -41,7 +41,7 @@ def _create_input_output(tmp_path):
 
 
 def _run_and_capture(engine, input_path, output_dir, params):
-    """Exécute run_extraction en capturant la commande passée à _execute_command."""
+    """Run run_extraction, capturing the command handed to _execute_command."""
     captured = {"cmd": None}
 
     def _fake_execute(cmd, env=None, cwd=None, line_callback=None):
@@ -59,7 +59,7 @@ def _run_and_capture(engine, input_path, output_dir, params):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestExtractor360EnginePaths:
-    """Vérifie la résolution des chemins au démarrage du moteur."""
+    """Path resolution when the engine starts."""
 
     def test_root_dir_resolved(self, tmp_path):
         engine = _make_engine(tmp_path)
@@ -79,7 +79,7 @@ class TestExtractor360EnginePaths:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestExtractor360EngineIsInstalled:
-    """Vérifie is_installed() en fonction des fichiers présents."""
+    """is_installed() reflects which files are actually present."""
 
     def test_is_installed_when_venv_and_script_exist(self, tmp_path):
         engine = _make_engine(tmp_path, venv_exists=True, script_exists=True)
@@ -99,11 +99,11 @@ class TestExtractor360EngineIsInstalled:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestExtractor360EngineRunExtraction:
-    """Vérifie la construction de la ligne de commande."""
+    """Command-line construction."""
 
     @pytest.fixture
     def installed_engine(self, tmp_path):
-        """Moteur installé avec input/output prêts."""
+        """Engine installed, with input and output ready."""
         engine = _make_engine(tmp_path, venv_exists=True, script_exists=True)
         input_path, output_dir = _create_input_output(tmp_path)
         return engine, input_path, output_dir
@@ -120,7 +120,7 @@ class TestExtractor360EngineRunExtraction:
         ],
     )
     def test_run_extraction_maps_param_to_flag(self, installed_engine, params, flag, expected):
-        """Chaque paramètre est mappé sur son drapeau CLI."""
+        """Each parameter maps onto its CLI flag."""
         engine, input_path, output_dir = installed_engine
         _, cmd = _run_and_capture(engine, input_path, output_dir, params)
         assert flag in cmd
@@ -170,7 +170,7 @@ class TestExtractor360EngineRunExtraction:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestExtractor360EngineRunExtractionSecurity:
-    """Vérifie le refus des chemins invalides et du moteur non installé."""
+    """Invalid paths and a missing engine are both refused."""
 
     def _bad_path_side_effect(self, p):
         return None if isinstance(p, str) and "/bad" in p else Path(p).resolve()
@@ -257,7 +257,7 @@ class TestExtractor360EngineRunExtractionEnv:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestExtractor360EngineRunExtractionProgress:
-    """Vérifie le parsing de progression, l'annulation et le code retour."""
+    """Progress parsing, cancellation and the return code."""
 
     def test_run_extraction_line_handler_extracts_percentage(self, tmp_path):
         engine = _make_engine(tmp_path, venv_exists=True, script_exists=True)

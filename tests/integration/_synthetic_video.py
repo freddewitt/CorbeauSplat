@@ -16,7 +16,7 @@ from tests.integration._synthetic_scene import generate_scene
 def generate_multi_cam_videos(out_dir: Path, n_cams: int = 2, n_frames: int = 12,
                               w: int = 800, h: int = 600, fps: int = 5,
                               seed: int = 7) -> list[Path]:
-    """Génère n_cams vidéos MP4 depuis des viewpoints orbitaux distincts.
+    """Write n_cams MP4 videos from distinct orbital viewpoints.
 
     Utilise _synthetic_scene.generate_scene pour produire des PNG texturés
     (coin de boîte 3D), puis les encode en MP4 via ffmpeg.

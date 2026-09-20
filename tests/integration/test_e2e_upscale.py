@@ -1,4 +1,4 @@
-"""Test end-to-end RÉEL de l'upscaling avec le vrai binaire upscayl-bin.
+"""REAL end-to-end upscaling test against the actual upscayl-bin binary.
 
 Contrairement aux tests mockés de upscayl_manager, celui-ci exécute la chaîne
 réelle sur une image synthétique générée à la volée :
@@ -36,7 +36,7 @@ pytestmark = [
 
 @pytest.fixture(scope="module")
 def upscale_run(tmp_path_factory) -> dict:
-    """Exécute l'upscale réel une seule fois et retourne ses artefacts."""
+    """Run the real upscale once and return its artefacts."""
     from app.core.upscale_engine import UpscaleEngine
     from tests.integration._synthetic_image import generate_upscale_target
 
@@ -50,7 +50,7 @@ def upscale_run(tmp_path_factory) -> dict:
 
     out_dir = work / "output"
     out_dir.mkdir(parents=True, exist_ok=True)
-    # upscale_image utilise le parent du chemin passé comme répertoire de sortie.
+    # upscale_image uses the parent of the given path as its output directory.
     result = engine.upscale_image(str(in_img), str(out_dir / "upscaled.png"), upsampler=upsampler)
 
     out_files = sorted(out_dir.glob("*.png"))
@@ -83,8 +83,8 @@ class TestE2EUpscale:
         in_file = upscale_run["in_img"]
         out_file = upscale_run["out_files"][0]
 
-        # Un simple copiage brut est impossible (160×120 ≠ 640×480), mais on
-        # vérifie aussi que le contenu pixel est effectivement transformé.
+        # A plain copy is impossible (160×120 ≠ 640×480), but we also
+        # check that the pixel content really was transformed.
         assert out_file.stat().st_size != in_file.stat().st_size, (
             "le fichier de sortie a la même taille que l'entrée (copie ?)"
         )

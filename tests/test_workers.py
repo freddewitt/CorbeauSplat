@@ -355,7 +355,7 @@ class TestBrushWorker:
         assert not list(tmp_path.glob("checkpoints_backup_*"))
 
     def test_run_leaves_user_plys_alone(self, mock_engine, tmp_path):
-        """Les .ply de l'utilisateur dans le dossier de sortie ne sont pas archivés.
+        """The user's own .ply files in the output folder are left alone.
 
         Régression de l'incident du 2026-09-11 : un output_path pointé sur un
         dossier de travail faisait déplacer les PLY qui s'y trouvaient.
@@ -391,7 +391,7 @@ class TestBrushWorker:
         assert (backups[0] / "export_5000.ply").exists()
 
     def test_prune_spares_user_plys_and_earlier_backups(self, tmp_path):
-        """_prune_to_latest_checkpoint ne supprime que des checkpoints."""
+        """_prune_to_latest_checkpoint only ever deletes checkpoints."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         old_ckpt = output_dir / "export_1000.ply"
@@ -418,7 +418,7 @@ class TestBrushWorker:
         assert archived.exists()
 
     def test_rename_with_project_name_spares_user_plys(self, tmp_path):
-        """Le préfixe projet n'est appliqué qu'aux checkpoints."""
+        """The project prefix is applied to checkpoints only."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         (output_dir / "export_1000.ply").write_bytes(b"data")
@@ -488,7 +488,7 @@ class TestSharpVideoWorker:
     """Tests for SharpVideoWorker."""
 
     def _blank_worker(self):
-        """SharpVideoWorker sans QThread initialisé, avec la mécanique d'attente."""
+        """SharpVideoWorker without an initialised QThread, with the wait machinery."""
         worker = SharpVideoWorker.__new__(SharpVideoWorker)
         worker._answer_mutex = QMutex()
         worker._answer_ready = QWaitCondition()
@@ -497,7 +497,7 @@ class TestSharpVideoWorker:
 
     @pytest.mark.parametrize("accepted", [True, False])
     def test_long_run_confirmation_handshake(self, accepted):
-        """_confirm_long_run pose la question puis attend la réponse du thread GUI."""
+        """_confirm_long_run asks, then waits for the GUI thread to answer."""
         worker = self._blank_worker()
         result = {}
 
@@ -644,3 +644,118 @@ class TestBrushCheckpointProgress:
             finally:
                 stop.set()
         assert emitted and emitted[0] == 99
+
+
+class TestBrushWorkerRefineEnvironment:
+    """The Refine path, now reachable in isolation after run() was split.
+
+    It was ~80 lines buried inside a 153-line run(), so none of its failure
+    branches were covered.
+    """
+
+    def _worker(self, tmp_path, params=None):
+        worker = BrushWorker.__new__(BrushWorker)
+        worker.log_signal = MagicMock()
+        worker.finished_signal = MagicMock()
+        worker.params = params if params is not None else {}
+        worker.output_path = tmp_path / "out"
+        return worker
+
+    def _dataset(self, tmp_path, with_checkpoint=True):
+        root = tmp_path / "scene"
+        (root / "sparse").mkdir(parents=True)
+        (root / "images").mkdir()
+        if with_checkpoint:
+            ckpt = root / "checkpoints"
+            ckpt.mkdir()
+            ply = ckpt / "iteration_12000.ply"
+            ply.write_text("ply")
+        return root
+
+    def test_without_checkpoint_training_continues_normally(self, tmp_path):
+        """No .ply to refine from must not abort the run."""
+        worker = self._worker(tmp_path)
+        root = self._dataset(tmp_path, with_checkpoint=False)
+
+        assert worker._prepare_refine_environment(root) == root
+        worker.finished_signal.emit.assert_not_called()
+
+    def test_refine_folder_is_built_and_training_redirected(self, tmp_path):
+        worker = self._worker(tmp_path)
+        root = self._dataset(tmp_path)
+
+        result = worker._prepare_refine_environment(root)
+
+        assert result == root / "Refine"
+        assert (root / "Refine" / "init.ply").exists()
+        assert (root / "Refine" / "sparse").exists()
+        assert (root / "Refine" / "images").exists()
+        assert worker.output_path == root / "Refine" / "checkpoints"
+        worker.finished_signal.emit.assert_not_called()
+
+    def test_start_iteration_read_from_the_checkpoint_name(self, tmp_path):
+        worker = self._worker(tmp_path, params={"start_iter": 0, "total_steps": 30000})
+        root = self._dataset(tmp_path)
+
+        worker._prepare_refine_environment(root)
+        assert worker.params["start_iter"] == 12000
+
+    def test_explicit_start_iteration_is_not_overwritten(self, tmp_path):
+        worker = self._worker(tmp_path, params={"start_iter": 500})
+        root = self._dataset(tmp_path)
+
+        worker._prepare_refine_environment(root)
+        assert worker.params["start_iter"] == 500
+
+    def test_copy_failure_aborts_and_reports(self, tmp_path):
+        worker = self._worker(tmp_path)
+        root = self._dataset(tmp_path)
+
+        with patch("shutil.copy2", side_effect=OSError("disk full")):
+            assert worker._prepare_refine_environment(root) is None
+
+        ok, message = worker.finished_signal.emit.call_args[0]
+        assert ok is False
+        assert "init.ply" in message
+
+    def test_symlink_failure_falls_back_to_copying(self, tmp_path):
+        worker = self._worker(tmp_path)
+        root = self._dataset(tmp_path)
+        (root / "sparse" / "cameras.bin").write_text("x")
+
+        with patch("os.symlink", side_effect=OSError("not permitted")):
+            result = worker._prepare_refine_environment(root)
+
+        assert result == root / "Refine"
+        assert (root / "Refine" / "sparse" / "cameras.bin").exists()
+
+
+class TestBrushWorkerFinalise:
+    def _worker(self, keep_only_latest=False, project_name=None):
+        worker = BrushWorker.__new__(BrushWorker)
+        worker.log_signal = MagicMock()
+        worker.finished_signal = MagicMock()
+        worker.keep_only_latest = keep_only_latest
+        worker.project_name = project_name
+        worker.handle_ply_rename = MagicMock()
+        worker._rename_checkpoints_with_project_name = MagicMock()
+        worker._prune_to_latest_checkpoint = MagicMock()
+        return worker
+
+    def test_failure_skips_all_post_processing(self):
+        """A failed training must not rename or prune the user's files."""
+        worker = self._worker(keep_only_latest=True, project_name="scene")
+        worker._finalise(False)
+
+        worker.handle_ply_rename.assert_not_called()
+        worker._prune_to_latest_checkpoint.assert_not_called()
+        assert worker.finished_signal.emit.call_args[0][0] is False
+
+    def test_pruning_only_when_requested(self):
+        worker = self._worker(keep_only_latest=False)
+        worker._finalise(True)
+        worker._prune_to_latest_checkpoint.assert_not_called()
+
+        worker = self._worker(keep_only_latest=True)
+        worker._finalise(True)
+        worker._prune_to_latest_checkpoint.assert_called_once()

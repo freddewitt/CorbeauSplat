@@ -60,7 +60,7 @@ class TestFourDGSEngine:
                 assert engine.colmap == "colmap"
 
     def test_check_nerfstudio_installed(self, tmp_path):
-        """check_nerfstudio retourne True si ns-process-data existe."""
+        """check_nerfstudio returns True when ns-process-data exists."""
         from app.core.four_dgs_engine import FourDGSEngine
 
         engine = FourDGSEngine.__new__(FourDGSEngine)
@@ -134,7 +134,7 @@ class TestFourDGSEngine:
                     assert result is True
 
     def test_extract_frames_stop_requested(self, tmp_path):
-        """extract_frames retourne False si stop_requested."""
+        """extract_frames returns False once stop_requested is set."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x

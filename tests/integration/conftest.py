@@ -1,4 +1,4 @@
-"""Fixtures d'intégration pour CorbeauSplat.
+"""Integration fixtures for CorbeauSplat.
 
 Importe le conftest racine (mock PySide6) puis fournit des fixtures
 pour créer des projets COLMAP factices et mocker les binaires externes.
@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-# Importe le conftest parent (mock PySide6 + send2trash)
+# Pull in the parent conftest (PySide6 + send2trash mocks)
 from tests.conftest import _patch_pyqt6
 
 _patch_pyqt6()
@@ -16,7 +16,7 @@ _patch_pyqt6()
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _touch(path: Path):
-    """Crée un fichier vide (ou une arborescence si .bin)."""
+    """Create an empty file (or a tree when .bin)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("", encoding="utf-8")
 
@@ -75,7 +75,7 @@ def _minimal_jpeg(path: Path):
 
 @pytest.fixture
 def fake_project_dir(tmp_path: Path) -> Path:
-    """Crée une arborescence COLMAP factice complète.
+    """Create a complete fake COLMAP tree.
 
     Retourne le chemin du projet (tmp_path / "test_project").
     """
@@ -84,7 +84,7 @@ def fake_project_dir(tmp_path: Path) -> Path:
     sparse_0 = project / "sparse" / "0"
     distorted = project / "distorted"
 
-    # Quelques images factices (nécessaires pour valider l'entrée et passer cv2.imread)
+    # A few fake images: needed to validate the input and get past cv2.imread
     for i in range(3):
         _minimal_jpeg(images_dir / f"frame_{i:04d}.jpg")
 
@@ -98,7 +98,7 @@ def fake_project_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def mock_resolve_binary():
-    """Patch `resolve_binary` pour retourner des chemins factices.
+    """Patch `resolve_binary` so it returns fake paths.
 
     Tous les appels à resolve_binary('colmap'), resolve_binary('glomap'), etc.
     retournent un chemin local sans vérifier l'existence réelle.
@@ -112,7 +112,7 @@ def mock_resolve_binary():
 
 @pytest.fixture
 def mock_subprocess_run():
-    """Patch `BaseEngine._execute_command` pour éviter tout appel système réel.
+    """Patch `BaseEngine._execute_command` to avoid any real system call.
 
     Simule également la création de database.db par COLMAP feature_extractor
     (nécessaire pour l'étape view_graph_calibration qui copie la base).
@@ -148,14 +148,14 @@ def mock_subprocess_run():
 
 @pytest.fixture
 def colmap_params():
-    """Crée un objet ColmapParams avec des valeurs par défaut pour les tests."""
+    """Create a ColmapParams carrying test defaults."""
     from app.core.params import ColmapParams
     return ColmapParams()
 
 
 @pytest.fixture
 def colmap_engine(fake_project_dir, colmap_params, mock_resolve_binary, mock_subprocess_run):
-    """Crée une instance ColmapEngine prête pour les tests d'intégration.
+    """Create a ColmapEngine instance ready for the integration tests.
 
     Tous les binaires sont mockés — aucun appel système réel n'est effectué.
     Le projet factice est pré-initialisé dans fake_project_dir.

@@ -1,4 +1,4 @@
-"""Tests d'intégration bout-en-bout du pipeline COLMAP.
+"""End-to-end integration tests for the COLMAP pipeline.
 
 Tous les binaires externes (colmap, ffmpeg) sont mockés ;
 seule la logique d'orchestration du pipeline est testée.
@@ -6,7 +6,7 @@ seule la logique d'orchestration du pipeline est testée.
 
 
 class TestColmapPipeline:
-    """Intégration : enchaînement du pipeline COLMAP complet."""
+    """Integration: the full COLMAP pipeline, stage by stage."""
 
     def test_run_returns_success(self, colmap_engine):
         """Le pipeline complet retourne (True, message) quand tout réussit."""
@@ -15,10 +15,10 @@ class TestColmapPipeline:
         assert "Dataset cree" in message
 
     def test_subprocess_called_with_feature_extractor(self, colmap_engine, mock_subprocess_run):
-        """Vérifie que feature_extractor est bien invoqué."""
+        """feature_extractor is actually invoked."""
         colmap_engine.run()
 
-        # Récupère tous les appels à SubprocessRunner.start
+        # Collect every call made to SubprocessRunner.start
         all_calls = mock_subprocess_run.call_args_list
         cmd_strings = [" ".join(call[0][0]) for call in all_calls]
 
@@ -27,12 +27,12 @@ class TestColmapPipeline:
         )
 
     def test_pipeline_steps_order(self, colmap_engine, mock_subprocess_run):
-        """Vérifie l'ordre des étapes : extractor → matcher → mapper."""
+        """Stage order: extractor → matcher → mapper."""
         colmap_engine.run()
         all_calls = mock_subprocess_run.call_args_list
         cmd_strings = [" ".join(call[0][0]) for call in all_calls]
 
-        # Extrait les sous-commandes COLMAP
+        # Pull out the COLMAP sub-commands
         steps = []
         for s in cmd_strings:
             for keyword in ("feature_extractor", "exhaustive_matcher",
@@ -52,7 +52,7 @@ class TestColmapPipeline:
         )
 
     def test_run_creates_project_directories(self, colmap_engine, fake_project_dir):
-        """Le pipeline crée les dossiers images/, sparse/, checkpoints/."""
+        """The pipeline creates images/, sparse/ and checkpoints/."""
         colmap_engine.run()
         project = fake_project_dir
         assert (project / "images").exists()
@@ -60,13 +60,13 @@ class TestColmapPipeline:
 
     def test_run_propagates_cancel(self, colmap_engine, mock_subprocess_run):
         """Un pipeline annulé retourne False."""
-        # On force l'annulation dès le début
+        # Force cancellation from the very start
         colmap_engine.check_cancel = lambda: True
         success, message = colmap_engine.run()
         assert success is False
 
     def test_run_propagates_subprocess_error(self, colmap_engine, mock_subprocess_run):
-        """Une erreur subprocess est bien remontée."""
+        """A subprocess error is propagated."""
         # Fait échouer l'appel subprocess
         def _fail(*args, **kwargs):
             raise FileNotFoundError("colmap introuvable")
@@ -78,10 +78,10 @@ class TestColmapPipeline:
 
 
 class TestColmapPipelineConfig:
-    """Test des différentes configurations du pipeline."""
+    """The pipeline under its various configurations."""
 
     def test_sequential_matcher_used(self, colmap_engine, colmap_params, mock_subprocess_run):
-        """Avec matcher_type='sequential', c'est sequential_matcher qui est invoqué."""
+        """With matcher_type='sequential', sequential_matcher is the one invoked."""
         colmap_params.matcher_type = 'sequential'
         colmap_engine.run()
         all_calls = mock_subprocess_run.call_args_list

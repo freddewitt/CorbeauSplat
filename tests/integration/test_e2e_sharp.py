@@ -1,4 +1,4 @@
-"""Test end-to-end RÉEL de Sharp (Apple ML Depth) sur une image synthétique.
+"""REAL end-to-end test of Sharp (Apple ML Depth) on a synthetic image.
 
 Contrairement aux tests mockés de sharp_engine, celui-ci exécute la prédiction
 réelle avec le vrai binaire/module Sharp :
@@ -20,7 +20,7 @@ from app.core.system import is_apple_silicon, resolve_project_root
 
 
 def _sharp_ready() -> tuple[bool, str]:
-    """Vérifie que Sharp est exécutable (venv + binaire/module + Apple Silicon)."""
+    """Sharp is runnable (venv + binary/module + Apple Silicon)."""
     if not is_apple_silicon():
         return False, "Apple Silicon required for Sharp"
 

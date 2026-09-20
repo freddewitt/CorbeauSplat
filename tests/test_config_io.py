@@ -1,4 +1,4 @@
-"""Tests de la sauvegarde/chargement de configurations nommées (config_io.py)."""
+"""Tests for saving and loading named configurations (config_io.py)."""
 
 import pytest
 
@@ -16,12 +16,12 @@ from app.core.config_io import (
 
 @pytest.fixture(autouse=True)
 def tmp_root(tmp_path, monkeypatch):
-    """Redirige le stockage des configs vers un dossier temporaire."""
+    """Redirect config storage to a temporary folder."""
     monkeypatch.setattr(config_io, "resolve_project_root", lambda: tmp_path)
     return tmp_path
 
 
-# ── Sanitisation des noms ────────────────────────────────────────────────────
+# ── Name sanitisation ───────────────────────────────────────────────────────
 @pytest.mark.parametrize("bad", ["", "   ", "..", "a/b", "a\\b", "../evil"])
 def test_unsafe_names_rejected(bad):
     assert not is_safe_config_name(bad)
@@ -84,7 +84,7 @@ def test_load_missing_raises():
         load_config("nexiste_pas")
 
 
-# ── Tolérance aux sections manquantes / versions anciennes ───────────────────
+# ── Tolerating missing sections / older versions ────────────────────────────
 def test_from_dict_tolerates_missing_sections():
     cfg = ChainConfig.from_dict({"source": {"input_path": "/x"}})
     assert cfg.source == {"input_path": "/x"}
@@ -109,7 +109,7 @@ def test_typed_helpers_reload_objects():
 
 
 def test_old_config_missing_keys_reloads_with_defaults():
-    """Une config d'une version antérieure (colmap partiel) se recharge sans casser."""
+    """A config from an older version (partial colmap section) still loads."""
     save_config("old", {"version": 0, "colmap": {"camera_model": "RADIAL"}})
     cfg = load_config("old")
     params = cfg.colmap_params()
@@ -119,7 +119,7 @@ def test_old_config_missing_keys_reloads_with_defaults():
 
 
 def test_delete_config_rejects_unsafe_name():
-    """La suppression passe par un choix dans `list_configs()`, mais le garde-fou
+    """Deletion goes through a pick from `list_configs()`, but the guard
     de nom reste la dernière ligne de défense contre une traversée de chemin."""
     with pytest.raises(ValueError):
         delete_config("../evil")

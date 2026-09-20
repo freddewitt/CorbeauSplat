@@ -1,4 +1,4 @@
-"""Contrats statiques des panneaux GUI (analyse AST, sans Qt ni display).
+"""Static contracts of the GUI panels (AST analysis, no Qt and no display).
 
 Motivation (audit 2026-08-07) : la couche `app/gui/panels/` concentre
 l'orchestration mais n'avait aucun test. La classe de bug récurrente y est
@@ -17,9 +17,9 @@ from app.gui.panels.reconstruction_logic import apply_source_blur_settings
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PANELS_DIR = ROOT / "app" / "gui" / "panels"
 
-# Widgets de saisie : leur valeur doit être lue quelque part, sinon le réglage
+# Input widgets: their value must be read somewhere, otherwise the setting
 # affiché à l'utilisateur n'a aucun effet. Les widgets purement décoratifs
-# (QLabel, QGroupBox…) sont hors périmètre.
+# (QLabel, QGroupBox…) are out of scope.
 INPUT_WIDGETS = {
     "QCheckBox", "QComboBox", "QSpinBox", "QDoubleSpinBox",
     "QLineEdit", "QSlider", "QRadioButton", "QPlainTextEdit",
@@ -81,7 +81,7 @@ def test_every_input_widget_is_read_back(panel_file):
 
 @pytest.mark.parametrize("panel_file", PANEL_FILES, ids=lambda p: p.stem)
 def test_every_combo_is_populated(panel_file):
-    """Tout QComboBox doit être rempli quelque part dans son panneau.
+    """Every QComboBox must be populated somewhere in its own panel.
 
     Complète le test précédent, qui ne voyait que les *lectures* : `combo_model`
     d'UpscalePanel était bien lu par get_params() — mais jamais peuplé, donc
@@ -110,7 +110,7 @@ def test_every_combo_is_populated(panel_file):
 
 
 def test_source_blur_settings_reach_colmap_params():
-    """Régression : la case « images floues » de Source doit atteindre le moteur.
+    """Regression: the Source "blurry images" checkbox must reach the engine.
 
     Avant correction, ReconstructionPanel.get_params() ignorait filter_blurry et
     blur_factor, et rien ne reportait les widgets de SourcePanel — le filtre ne

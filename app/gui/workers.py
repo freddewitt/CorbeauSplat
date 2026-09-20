@@ -177,159 +177,191 @@ class BrushWorker(BaseWorker):
         super().stop()
 
     def run(self):
+        """Orchestrate the training: resolve, prepare, archive, train, finalise.
+
+        This used to be one 153-line body mixing dataset resolution, Refine
+        environment setup, checkpoint archiving, process launch and result
+        handling. Each stage is now a named step; the stages that can fail emit
+        `finished_signal` themselves and return None, so the orchestration below
+        stays a readable sequence of early returns.
+        """
         try:
             self.log_signal.emit("Initialisation BrushWorker...")
             self.log_signal.emit(f"Input: {self.input_path}")
             self.log_signal.emit(f"Output: {self.output_path}")
 
-            # Automatic dataset path resolution
-            resolved_input = self.resolve_dataset_root(Path(self.input_path))
-
-            if str(resolved_input) != str(self.input_path):
-                self.log_signal.emit(f"Chemin ajusté: {self.input_path} -> {resolved_input}")
-
-            if not resolved_input.exists():
-                self.finished_signal.emit(False, f"Le dossier dataset n'existe pas: {resolved_input}")
+            resolved_input = self._resolve_dataset()
+            if resolved_input is None:
                 return
 
-            # Auto Refine handling (takes priority over manual Init PLY)
             refine_mode = self.params.get("refine_mode")
-
             if refine_mode:
-                self.log_signal.emit("Mode Raffinement (Refine) activé...")
-                checkpoints_dir = resolved_input / "checkpoints"
-
-                # 1. Find the latest PLY
-                latest_ply = None
-                last_mtime = 0
-                if checkpoints_dir.exists():
-                    self.log_signal.emit(f"Recherche de checkpoints dans {checkpoints_dir}...")
-                    for ply_path in checkpoints_dir.rglob("*.ply"):
-                        mt = ply_path.stat().st_mtime
-                        if mt > last_mtime:
-                            last_mtime = mt
-                            latest_ply = ply_path
-
-                if latest_ply:
-                    self.log_signal.emit(f"Checkpoint trouvé: {latest_ply.name}")
-
-                    # 2. Create Refine folder
-                    refine_dir = resolved_input / "Refine"
-                    self.log_signal.emit(f"Préparation du dossier de raffinement: {refine_dir}")
-
-                    # Safety check: Ensure refine_dir is inside resolved_input
-                    try:
-                        if refine_dir.exists():
-                            shutil.rmtree(refine_dir)
-                        refine_dir.mkdir(parents=True, exist_ok=True)
-                    except Exception as e:
-                        self.log_signal.emit(f"ERREUR lors de la préparation du dossier Refine: {e}")
-                        self.finished_signal.emit(False, f"Erreur dossier Refine: {e}")
-                        return
-
-                    # 3. Copy init.ply
-                    dest_init = refine_dir / "init.ply"
-                    try:
-                        shutil.copy2(latest_ply, dest_init)
-                        self.log_signal.emit(f"Copié {latest_ply.name} vers {dest_init}")
-                    except Exception as e:
-                        self.log_signal.emit(f"ERREUR lors de la copie de init.ply: {e}")
-                        self.finished_signal.emit(False, f"Erreur copie init.ply: {e}")
-                        return
-
-                    # 4. Symlinks for sparse & images
-                    try:
-                        self.log_signal.emit("Création des liens symboliques pour sparse et images...")
-                        try:
-                            os.symlink(resolved_input / "sparse", refine_dir / "sparse")
-                        except OSError as e:
-                            self.log_signal.emit(f"Symlink sparse échoué ({e}), tentative copie (plus lent)...")
-                            shutil.copytree(resolved_input / "sparse", refine_dir / "sparse")
-                        try:
-                            os.symlink(resolved_input / "images", refine_dir / "images")
-                        except OSError as e:
-                            self.log_signal.emit(f"Symlink images échoué ({e}), tentative copie (plus lent)...")
-                            shutil.copytree(resolved_input / "images", refine_dir / "images")
-
-                        self.log_signal.emit("Liens symboliques/copies terminés.")
-
-                        # 5. Redirect training
-                        resolved_input = refine_dir
-                        self.output_path = refine_dir / "checkpoints"
-                        self.output_path.mkdir(parents=True, exist_ok=True)
-                        self.log_signal.emit(f"Dossier de travail redirigé vers: {refine_dir}")
-
-                    except Exception as e:
-                        self.log_signal.emit(f"Erreur fatale lors de la création de l'environnement Refine: {e}")
-                        self.finished_signal.emit(False, f"Erreur env Refine: {e}")
-                        return
-
-                    if self.params.get("start_iter", 0) == 0:
-                        detected_iter = self.params.get("total_steps", 30000)
-                        match = re.search(r"iteration_(\d+)", latest_ply.name)
-                        if match:
-                            detected_iter = int(match.group(1))
-
-                        self.params["start_iter"] = detected_iter
-                        self.log_signal.emit(f"Refine: Start Iteration réglé sur {detected_iter}")
-                else:
-                    self.log_signal.emit("AVERTISSEMENT: Mode Refine activé mais aucun checkpoint (.ply) trouvé. Lancement mode normal.")
-
-            # End of Init / Refine handling
+                resolved_input = self._prepare_refine_environment(resolved_input)
+                if resolved_input is None:
+                    return
 
             # Rename existing checkpoints before archiving or training
             if self.project_name:
                 self._rename_checkpoints_with_project_name()
 
-            # "new" mode: ensure Brush starts from an empty folder
-            # Brush auto-resumes from existing checkpoints → archive them.
-            # Only checkpoint .ply files are relocated, and only inside
-            # output_dir: a wrong output_path (e.g. standalone Brush pointed at
-            # an unrelated project folder) must not touch the user's own files,
-            # nor create a backup folder outside the folder they picked.
             if not refine_mode:
-                output_dir = Path(self.output_path)
-                existing_plys = find_checkpoint_plys(output_dir)
-                if existing_plys:
-                    backup_name = f"checkpoints_backup_{int(time.time())}"
-                    backup_dir = output_dir / backup_name
-                    for ply_path in existing_plys:
-                        rel = ply_path.relative_to(output_dir)
-                        dest = backup_dir / rel
-                        dest.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.move(str(ply_path), str(dest))
-                        self.log_signal.emit(f"  archivé : {rel}")
-                    self.log_signal.emit(
-                        f"Nouveau training : {len(existing_plys)} checkpoint(s) "
-                        f"archivé(s) dans '{backup_name}'"
-                    )
+                self._archive_existing_checkpoints()
 
-            # Construct CMD
-            self.log_signal.emit("Lancement de la commande Brush...")
-            # Use refactored train method (Template Method)
-            stop_progress = self._start_checkpoint_progress()
-            try:
-                returncode = self.engine.train(resolved_input, self.output_path, self.params)
-            finally:
-                if stop_progress is not None:
-                    stop_progress.set()
-
-            # Delegate handling to Template Method return logic
-            success = (returncode == 0)
-
-            if success:
-                self.handle_ply_rename()
-                if self.project_name:
-                    self._rename_checkpoints_with_project_name()
-                if self.keep_only_latest:
-                    self._prune_to_latest_checkpoint()
-                self.finished_signal.emit(True, "Entrainement Brush terminé avec succès")
-            else:
-                self.finished_signal.emit(False, "Brush a retourné une erreur (voir logs ci-dessus).")
+            returncode = self._train(resolved_input)
+            self._finalise(returncode == 0)
 
         except Exception as e:
             self.log_signal.emit(f"EXCEPTION dans BrushWorker: {e}\n{traceback.format_exc()}")
             self.finished_signal.emit(False, f"Exception: {e}")
+
+    def _resolve_dataset(self):
+        """Resolve the dataset root, or emit the failure and return None."""
+        resolved_input = self.resolve_dataset_root(Path(self.input_path))
+
+        if str(resolved_input) != str(self.input_path):
+            self.log_signal.emit(f"Chemin ajusté: {self.input_path} -> {resolved_input}")
+
+        if not resolved_input.exists():
+            self.finished_signal.emit(False, f"Le dossier dataset n'existe pas: {resolved_input}")
+            return None
+        return resolved_input
+
+    def _find_latest_checkpoint(self, checkpoints_dir):
+        """Most recently written .ply under `checkpoints_dir`, or None."""
+        latest_ply = None
+        last_mtime = 0
+        if checkpoints_dir.exists():
+            self.log_signal.emit(f"Recherche de checkpoints dans {checkpoints_dir}...")
+            for ply_path in checkpoints_dir.rglob("*.ply"):
+                mt = ply_path.stat().st_mtime
+                if mt > last_mtime:
+                    last_mtime = mt
+                    latest_ply = ply_path
+        return latest_ply
+
+    def _prepare_refine_environment(self, resolved_input):
+        """Build the Refine folder and redirect training into it.
+
+        Returns the folder training should run from, or None when a step failed
+        (the failure has already been emitted). With no checkpoint to refine
+        from, returns `resolved_input` unchanged so the run continues normally.
+        """
+        self.log_signal.emit("Mode Raffinement (Refine) activé...")
+        latest_ply = self._find_latest_checkpoint(resolved_input / "checkpoints")
+
+        if not latest_ply:
+            self.log_signal.emit(
+                "AVERTISSEMENT: Mode Refine activé mais aucun checkpoint (.ply) trouvé. "
+                "Lancement mode normal."
+            )
+            return resolved_input
+
+        self.log_signal.emit(f"Checkpoint trouvé: {latest_ply.name}")
+
+        refine_dir = resolved_input / "Refine"
+        self.log_signal.emit(f"Préparation du dossier de raffinement: {refine_dir}")
+        try:
+            if refine_dir.exists():
+                shutil.rmtree(refine_dir)
+            refine_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            self.log_signal.emit(f"ERREUR lors de la préparation du dossier Refine: {e}")
+            self.finished_signal.emit(False, f"Erreur dossier Refine: {e}")
+            return None
+
+        dest_init = refine_dir / "init.ply"
+        try:
+            shutil.copy2(latest_ply, dest_init)
+            self.log_signal.emit(f"Copié {latest_ply.name} vers {dest_init}")
+        except Exception as e:
+            self.log_signal.emit(f"ERREUR lors de la copie de init.ply: {e}")
+            self.finished_signal.emit(False, f"Erreur copie init.ply: {e}")
+            return None
+
+        try:
+            self.log_signal.emit("Création des liens symboliques pour sparse et images...")
+            for name in ("sparse", "images"):
+                try:
+                    os.symlink(resolved_input / name, refine_dir / name)
+                except OSError as e:
+                    self.log_signal.emit(
+                        f"Symlink {name} échoué ({e}), tentative copie (plus lent)..."
+                    )
+                    shutil.copytree(resolved_input / name, refine_dir / name)
+
+            self.log_signal.emit("Liens symboliques/copies terminés.")
+
+            self.output_path = refine_dir / "checkpoints"
+            self.output_path.mkdir(parents=True, exist_ok=True)
+            self.log_signal.emit(f"Dossier de travail redirigé vers: {refine_dir}")
+        except Exception as e:
+            self.log_signal.emit(f"Erreur fatale lors de la création de l'environnement Refine: {e}")
+            self.finished_signal.emit(False, f"Erreur env Refine: {e}")
+            return None
+
+        self._set_refine_start_iteration(latest_ply)
+        return refine_dir
+
+    def _set_refine_start_iteration(self, latest_ply):
+        """Resume numbering from the checkpoint's own iteration when unset."""
+        if self.params.get("start_iter", 0) != 0:
+            return
+        detected_iter = self.params.get("total_steps", 30000)
+        match = re.search(r"iteration_(\d+)", latest_ply.name)
+        if match:
+            detected_iter = int(match.group(1))
+        self.params["start_iter"] = detected_iter
+        self.log_signal.emit(f"Refine: Start Iteration réglé sur {detected_iter}")
+
+    def _archive_existing_checkpoints(self):
+        """Move previous checkpoints aside so Brush starts from an empty folder.
+
+        Brush auto-resumes from existing checkpoints. Only checkpoint .ply files
+        are relocated, and only inside output_dir: a wrong output_path (e.g.
+        standalone Brush pointed at an unrelated project folder) must not touch
+        the user's own files, nor create a backup folder outside the folder they
+        picked.
+        """
+        output_dir = Path(self.output_path)
+        existing_plys = find_checkpoint_plys(output_dir)
+        if not existing_plys:
+            return
+
+        backup_name = f"checkpoints_backup_{int(time.time())}"
+        backup_dir = output_dir / backup_name
+        for ply_path in existing_plys:
+            rel = ply_path.relative_to(output_dir)
+            dest = backup_dir / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(ply_path), str(dest))
+            self.log_signal.emit(f"  archivé : {rel}")
+        self.log_signal.emit(
+            f"Nouveau training : {len(existing_plys)} checkpoint(s) "
+            f"archivé(s) dans '{backup_name}'"
+        )
+
+    def _train(self, resolved_input):
+        """Run the training, keeping the disk-polling progress bounded to it."""
+        self.log_signal.emit("Lancement de la commande Brush...")
+        stop_progress = self._start_checkpoint_progress()
+        try:
+            return self.engine.train(resolved_input, self.output_path, self.params)
+        finally:
+            if stop_progress is not None:
+                stop_progress.set()
+
+    def _finalise(self, success):
+        """Post-training renaming and pruning, then report the outcome."""
+        if not success:
+            self.finished_signal.emit(False, "Brush a retourné une erreur (voir logs ci-dessus).")
+            return
+
+        self.handle_ply_rename()
+        if self.project_name:
+            self._rename_checkpoints_with_project_name()
+        if self.keep_only_latest:
+            self._prune_to_latest_checkpoint()
+        self.finished_signal.emit(True, "Entrainement Brush terminé avec succès")
 
     def _start_checkpoint_progress(self, poll_interval=3.0):
         """Approximate training progress from the checkpoints Brush drops on disk.

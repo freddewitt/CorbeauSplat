@@ -1,4 +1,4 @@
-"""Test end-to-end RÉEL du moteur 4DGS en mode COLMAP dégradé.
+"""REAL end-to-end test of the 4DGS engine in degraded COLMAP mode.
 
 Sans le venv `.venv_4dgs` ce test exécute quand même le tronçon
 vidéos → frames → COLMAP (feature_extractor / matcher / mapper).
@@ -43,7 +43,7 @@ def _num_registered_images(images_bin: Path) -> int:
 
 @requires_fourdgs_colmap
 class TestE2E4DGS:
-    """Vérifie le mode dégradé COLMAP du FourDGSEngine sur données synthétiques."""
+    """FourDGSEngine degraded COLMAP mode, on synthetic data."""
 
     @pytest.fixture(scope="module")
     def fourdgs_run(self, tmp_path_factory):

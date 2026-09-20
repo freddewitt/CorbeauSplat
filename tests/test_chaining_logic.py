@@ -1,4 +1,4 @@
-"""Câblage des champs du panneau Projet vers les étapes chaînées.
+"""Wiring of the Project panel fields into the chained steps.
 
 `checkpoint_dest`, `export_dir` et `export_format` étaient saisissables et
 sérialisés (`SourcePanel.get_state`/`set_state`) mais aucun worker ne les lisait
@@ -35,14 +35,14 @@ def test_checkpoints_dir_default_is_project_subfolder():
 
 
 def test_checkpoints_dir_custom_dest_keeps_1_2_3_semantics():
-    """Sémantique d'origine (CHANGELOG 1.2.3) : `<destination>/<projet>`, sans
+    """Original semantics (CHANGELOG 1.2.3): `<destination>/<project>`, with no
     sous-dossier `checkpoints`."""
     state = _source_state(checkpoint_dest="/ailleurs/ckpt")
     assert resolve_checkpoints_dir(state) == Path("/ailleurs/ckpt/MonProjet")
 
 
 def test_checkpoints_dir_custom_dest_is_resolved():
-    """La destination est une entrée utilisateur libre : elle passe par
+    """The destination is free user input, so it goes through
     `validate_path_standalone`, donc elle ressort résolue."""
     state = _source_state(checkpoint_dest="/ailleurs/./ckpt/../ckpt")
     assert resolve_checkpoints_dir(state) == Path("/ailleurs/ckpt/MonProjet")
@@ -59,7 +59,7 @@ def test_checkpoints_dir_falls_back_to_untitled():
 
 
 def test_checkpoints_dir_tolerates_missing_key():
-    """Les configs enregistrées avant l'ajout du champ n'ont pas la clé."""
+    """Configs saved before the field existed simply lack the key."""
     state = _source_state()
     del state["checkpoint_dest"]
     assert resolve_checkpoints_dir(state) == Path("/out/MonProjet/checkpoints")
@@ -104,7 +104,7 @@ def test_export_format_empty_leaves_panel_in_charge():
 
 
 def test_export_format_values_match_the_export_engine():
-    """Le combo du panneau Projet et celui du panneau Export doivent proposer
+    """The Project panel combo and the Export panel one must offer
     les mêmes formats, sinon `findData` échouerait silencieusement et le réglage
     serait ignoré. Les deux lisent désormais `ExportEngine.SUPPORTED_FORMATS`."""
     from app.core.export_engine import ExportEngine

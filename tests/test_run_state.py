@@ -1,4 +1,4 @@
-"""Tests de l'état partagé du run (run_state.py)."""
+"""Tests for the shared run state (run_state.py)."""
 
 import pytest
 
@@ -34,7 +34,7 @@ def test_no_notification_when_value_unchanged():
 
 
 def test_multiple_observers_stay_synchronized():
-    """Deux widgets reflétant le même flag : une seule source, tous notifiés."""
+    """Two widgets mirroring one flag: a single source, every listener notified."""
     state = RunState()
     widget_a = {"undistort": None}
     widget_b = {"undistort": None}

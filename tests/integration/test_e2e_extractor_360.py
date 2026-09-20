@@ -1,4 +1,4 @@
-"""Test end-to-end RÉEL de 360 Extractor sur une image équirectangulaire synthétique.
+"""REAL end-to-end test of 360 Extractor on a synthetic equirectangular image.
 
 Contrairement aux tests mockés de test_extractor_360_engine.py, celui-ci exécute
 l'extraction réelle avec le vrai binaire 360Extractor :
@@ -16,7 +16,7 @@ from PIL import Image
 
 
 def _extractor_360_ready() -> tuple[bool, str]:
-    """Vérifie que 360Extractor est exécutable (venv + script)."""
+    """360Extractor is runnable (venv + script)."""
     from app.core.extractor_360_engine import Extractor360Engine
 
     engine = Extractor360Engine(logger_callback=lambda _m: None)
@@ -34,7 +34,7 @@ pytestmark = [
 
 
 class TestE2E360ExtractorImage:
-    """Tests e2e réels sur image équirectangulaire synthétique."""
+    """Real e2e tests on a synthetic equirectangular image."""
 
     @pytest.fixture(scope="module")
     def extractor_run(self, tmp_path_factory):

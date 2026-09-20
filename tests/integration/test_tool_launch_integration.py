@@ -1,4 +1,4 @@
-"""Tests d'intégration : chaque module OUTILS déclenche le bon worker via
+"""Integration tests: each TOOLS module triggers the right worker through
 ``StudioWindow._start_tool_worker()`` (point d'orchestration unique, lot 5).
 
 Un test par module (+ cas « COLMAP seulement » de 4DGS) confirmant que le clic
@@ -14,11 +14,11 @@ from tests.conftest import _patch_pyqt6
 
 _patch_pyqt6()
 
-# StudioWindow(QMainWindow) doit rester une vraie classe Python instanciable
-# via __new__ (bypass __init__, comme les workers testés ailleurs) : sous le
-# mock PySide6 de la session, QtWidgets est un MagicMock générique dont les
-# attributs ne sont pas des types utilisables comme classe de base. On ne
-# remplace que QMainWindow (seule base utilisée), avant le premier import de
+# StudioWindow(QMainWindow) must stay a real Python class, instantiable
+# through __new__ (bypassing __init__, like the workers tested elsewhere):
+# under the session-wide PySide6 mock, QtWidgets is a generic MagicMock whose
+# attributes are not types usable as a base class. Only QMainWindow is
+# replaced (the only base in use), before the first import of
 # studio_window.py.
 sys.modules["PySide6.QtWidgets"].QMainWindow = type("QMainWindow", (), {})
 
@@ -36,23 +36,23 @@ class _FakeLineEdit:
 
 
 def _make_window():
-    """StudioWindow sans passer par __init__ (pas de vrais widgets Qt requis)."""
+    """StudioWindow without going through __init__ (no real Qt widgets needed)."""
     window = sw.StudioWindow.__new__(sw.StudioWindow)
     window._active_worker = None
     window.activity_bar = MagicMock()
     window.logs_window = MagicMock()
-    # _start_tool_worker() nomme l'étape courante dans la barre d'activité à
-    # partir de la page affichée (PageRegistry.current).
+    # _start_tool_worker() names the current step in the activity bar from
+    # the page on screen (PageRegistry.current).
     window.nav = MagicMock()
     window.nav.current = "upscale"
-    # SourcePanel (ex-topbar) porte désormais le bouton Lancer/Annuler unique ;
-    # _start_tool_worker() bascule son état via set_running().
+    # SourcePanel (formerly the topbar) now carries the single Launch/Cancel
+    # button; _start_tool_worker() flips its state through set_running().
     window.panels = {"source": MagicMock()}
     return window
 
 
 class TestToolLaunchOrchestration:
-    """Chaque module OUTILS passe par le même chemin : bouton local →
+    """Every TOOLS module takes the same route: local button →
     ``_launch_*`` → ``_start_tool_worker`` (worker.start(), SourcePanel Annuler)."""
 
     def test_cleaner_launch_starts_cleaner_worker(self, monkeypatch):
@@ -143,7 +143,7 @@ class TestToolLaunchOrchestration:
         window.panels["source"].set_running.assert_called_once_with(True)
 
     def test_fourdgs_colmap_only_launch_starts_fourdgs_worker_without_videos(self, monkeypatch):
-        """Case « Reconstruction COLMAP seulement » cochée : ignore le champ
+        """With "COLMAP reconstruction only" ticked, the field is ignored
         Source même rempli, FourDGSWorker reçoit videos_dir=None (mode COLMAP
         seul, cf. ancien FourDGSTab.run_colmap_only)."""
         window = _make_window()
@@ -329,7 +329,7 @@ class TestToolLaunchOrchestration:
 
 
 class TestReconstructionModeRouting:
-    """L'étape « reconstruction » du plan ne désigne pas toujours COLMAP : le
+    """The plan's "reconstruction" step does not always mean COLMAP: the
     mode choisi dans SourcePanel décide du moteur (Gsplat/Sharp/4DGS)."""
 
     @staticmethod
@@ -366,7 +366,7 @@ class TestReconstructionModeRouting:
         args, _ = mock_worker_cls.call_args
         assert args[0] == "/in_dir"
         assert args[1] == "/out_dir"
-        # Le mode vidéo du panneau OUTILS n'a pas de sens dans la chaîne.
+        # The TOOLS panel video mode makes no sense inside the chain.
         assert args[2]["mode"] == "image"
 
     def test_fourdgs_mode_builds_fourdgs_worker(self, monkeypatch):
