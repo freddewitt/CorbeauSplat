@@ -559,6 +559,82 @@ class TestRosettaWarning:
         assert caught == []
 
 
+# ---------------------------------------------------------------------------
+# main_install: an engine failing to install must not abort the others (F-012)
+# ---------------------------------------------------------------------------
+
+class TestMainInstallFailureIsolation:
+    """One engine raising in install() must not stop the following engines.
+
+    Before the fix the two install-mode branches called engine.install()
+    without try/except, so a subprocess failure (or the RuntimeError raised
+    by the upscayl installer) escaped main_install() and the loop stopped.
+    """
+
+    @staticmethod
+    def _fake_engine(name, installed=False, install_raises=None, local="", remote=""):
+        eng = MagicMock()
+        eng.name = name
+        eng.is_enabled_in_config.return_value = True
+        eng.get_remote_version.return_value = remote
+        eng.get_local_version.return_value = local
+        state = {"installed": installed}
+        eng.is_installed.side_effect = lambda: state["installed"]
+        if install_raises is not None:
+            def install():
+                raise install_raises
+        else:
+            def install():
+                state["installed"] = True
+        eng.install.side_effect = install
+        return eng
+
+    @staticmethod
+    def _manager(tmp_path, engines):
+        from app.scripts.installers.base import DependencyManager
+        manager = DependencyManager(tmp_path)
+        manager.engines = engines
+        return manager
+
+    def test_missing_engine_failure_does_not_block_following_engines(self, tmp_path, capsys):
+        first = self._fake_engine("alpha", install_raises=RuntimeError("boom"))
+        second = self._fake_engine("beta")
+        manager = self._manager(tmp_path, {"alpha": first, "beta": second})
+
+        with patch("app.scripts.installers.tools.install_system_dependencies"):
+            manager.main_install()
+
+        out = capsys.readouterr().out
+        assert "boom" in out
+        assert "alpha" in out
+        second.install.assert_called_once()
+
+    def test_update_branch_failure_does_not_block_following_engines(self, tmp_path, capsys):
+        first = self._fake_engine("gamma", installed=True, local="v1", remote="v2", install_raises=RuntimeError("ups"))
+        second = self._fake_engine("delta", installed=True, local="v1", remote="v2")
+        manager = self._manager(tmp_path, {"gamma": first, "delta": second})
+
+        with patch("app.scripts.installers.tools.install_system_dependencies"):
+            manager.main_install()
+
+        out = capsys.readouterr().out
+        assert "ups" in out
+        assert "gamma" in out
+        second.install.assert_called_once()
+
+    def test_nominal_install_treats_all_engines_without_error(self, tmp_path, capsys):
+        first = self._fake_engine("epsilon")
+        second = self._fake_engine("zeta")
+        manager = self._manager(tmp_path, {"epsilon": first, "zeta": second})
+
+        with patch("app.scripts.installers.tools.install_system_dependencies"):
+            manager.main_install()
+
+        first.install.assert_called_once()
+        second.install.assert_called_once()
+        assert "❌" not in capsys.readouterr().out
+
+
 class TestGuiStartupReport:
     """Two tiers, plus Rosetta first (launcher._report_missing_dependencies)."""
 

@@ -216,7 +216,10 @@ class DependencyManager:
                         print(f"❌ Auto-install failed for {name}: {e}")
                 else:
                     print(f">>> Auto-installing missing engine [{name}]...")
-                    engine.install()
+                    try:
+                        engine.install()
+                    except Exception as e:
+                        print(f"❌ Auto-install failed for {name}: {e}")
 
                 # Report status for check/startup
                 if not engine.is_installed():
@@ -261,7 +264,10 @@ class DependencyManager:
                      print(f"  ⚠️  {name.capitalize()}: Update available ({local_clean} -> {remote})")
                 else:
                     print(f">>> Auto-updating {name} ({local_clean} -> {remote})...")
-                    engine.install()
+                    try:
+                        engine.install()
+                    except Exception as e:
+                        print(f"❌ Auto-update failed for {name}: {e}")
             else:
                 if startup:
                     engine.on_startup_ready()
