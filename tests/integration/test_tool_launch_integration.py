@@ -401,3 +401,68 @@ class TestReconstructionModeRouting:
         assert window._build_reconstruction_worker() is None
         mock_worker_cls.assert_not_called()
         window._fail_pipeline_step.assert_called_once()
+
+
+class TestCloseEventWaitsForActiveWorker:
+    """F-006 : fermer la fenêtre pendant un run ne doit pas détruire un QThread
+    encore vivant (SIGABRT). ``closeEvent`` annule le worker puis attend sa fin
+    (``wait``) avant d'accepter la fermeture.
+    """
+
+    class _FakeWorker:
+        """Substitut minimal d'un worker (QThread) actif."""
+
+        def __init__(self, calls):
+            self._calls = calls
+            self.wait_args = None
+
+        def isRunning(self):
+            return True
+
+        def stop(self):
+            self._calls.append("stop")
+
+        def requestInterruption(self):
+            self._calls.append("requestInterruption")
+
+        def wait(self, *args):
+            self.wait_args = args
+            self._calls.append("wait")
+
+    @staticmethod
+    def _window(worker):
+        window = sw.StudioWindow.__new__(sw.StudioWindow)
+        window._active_worker = worker
+        window.session_manager = MagicMock()
+        window.logs_window = MagicMock()
+        # Panels sans ``engine`` : rien à arrêter côté serveur, seul le
+        # comportement du worker est exercé ici.
+        window.panels = {"visualiser": object(), "supersplat": object()}
+        return window
+
+    @staticmethod
+    def _event(calls):
+        event = MagicMock()
+        event.accept.side_effect = lambda: calls.append("accept")
+        return event
+
+    def test_close_event_waits_for_active_worker_before_accepting(self):
+        calls = []
+        worker = self._FakeWorker(calls)
+        window = self._window(worker)
+        event = self._event(calls)
+
+        window.closeEvent(event)
+
+        assert calls == ["stop", "wait", "accept"]
+        assert worker.wait_args == (5000,)
+
+    def test_close_event_without_worker_closes_normally(self):
+        calls = []
+        window = self._window(None)
+        event = self._event(calls)
+
+        window.closeEvent(event)
+
+        assert calls == ["accept"]
+        window.session_manager.save.assert_called_once_with(immediate=True)

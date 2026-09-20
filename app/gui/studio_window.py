@@ -1389,6 +1389,12 @@ class StudioWindow(QMainWindow):
         """
         self.session_manager.save(immediate=True)
         self._cancel_active_worker()
+        # A cancelled worker is stopped but its OS thread may still be running:
+        # wait (bounded) so the QThread is not destroyed while alive (SIGABRT,
+        # cf. _start_tool_worker) and the run is not left mid-write.
+        worker = self._active_worker
+        if worker is not None:
+            worker.wait(5000)
         for key in ("visualiser", "supersplat"):
             engine = getattr(self.panels.get(key), "engine", None)
             if engine is not None:
