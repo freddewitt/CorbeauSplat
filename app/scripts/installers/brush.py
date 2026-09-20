@@ -158,11 +158,21 @@ class BrushEngineDep(EngineDependency):
         system = platform.system()
         machine = platform.machine()
 
+        # CorbeauSplat targets macOS Apple Silicon. Windows would download the
+        # x86_64-pc-windows-msvc.zip but only darwin_brush/linux_brush are pinned
+        # in checksums.json: verifying it against the Linux hash always fails.
+        # Refuse explicitly instead of a misleading SHA256 mismatch.
+        if system == "Windows":
+            print(
+                "⚠️ Unsupported platform: Windows. CorbeauSplat targets macOS "
+                "Apple Silicon — no Windows Brush checksum is pinned, refusing "
+                "the install."
+            )
+            return False
+
         platform_suffix = None
         if system == "Darwin" and machine == "arm64":
             platform_suffix = "aarch64-apple-darwin.tar.xz"
-        elif system == "Windows" and machine == "AMD64":
-            platform_suffix = "x86_64-pc-windows-msvc.zip"
         elif system == "Linux" and machine == "x86_64":
             platform_suffix = "x86_64-unknown-linux-gnu.tar.xz"
 

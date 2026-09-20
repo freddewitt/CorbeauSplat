@@ -8,6 +8,7 @@ tag published upstream — the Brush installation was refused by the fail-closed
 a certain failure. The version is now pinned next to its fingerprint.
 """
 
+import hashlib
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -90,3 +91,58 @@ def test_source_mode_ignores_the_pin(installer):
     )
     with patch.object(BrushEngineDep, "_get_head_commit", return_value="abc123def456"):
         assert installer.get_remote_version() == "abc123def456"
+
+
+# ── _install_from_release: explicit platform guard (F-009) ────────────────────
+def test_windows_refused_explicitly_not_checksum_mismatch(tmp_path, capsys):
+    """Windows must fail with a clear "unsupported platform" message before any
+    download or checksum — never the misleading SHA256 mismatch (the Windows
+    .zip used to be checked against the linux_brush hash)."""
+    dep = BrushEngineDep()
+    dep.engines_dir = tmp_path
+
+    with patch("platform.system", return_value="Windows"), \
+         patch("platform.machine", return_value="AMD64"), \
+         patch("urllib.request.urlopen", side_effect=RuntimeError("no network")):
+        result = dep._install_from_release("v9.9.9")
+
+    assert result is False
+    out = capsys.readouterr().out
+    assert "unsupported platform" in out.lower()
+    assert "SHA256 mismatch" not in out
+
+
+def test_darwin_keeps_verifying_against_darwin_brush(tmp_path):
+    """The supported macOS arm64 path keeps selecting darwin_brush (not the
+    linux key) for the checksum verification."""
+    dep = BrushEngineDep()
+    dep.engines_dir = tmp_path
+    payload = b"fake-brush-archive"
+    expected = hashlib.sha256(payload).hexdigest()
+
+    class FakeResp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            return payload
+
+    seen = {}
+
+    def fake_verify(path, expected_hash):
+        seen["hash"] = expected_hash
+        return expected_hash == expected
+
+    with patch("platform.system", return_value="Darwin"), \
+         patch("platform.machine", return_value="arm64"), \
+         patch("urllib.request.urlopen", return_value=FakeResp()), \
+         patch("app.scripts.installers.brush.load_expected_checksums",
+               return_value={"darwin_brush": expected, "linux_brush": "0" * 64}), \
+         patch("app.scripts.installers.brush.verify_download_strict",
+               side_effect=fake_verify):
+        dep._install_from_release("v9.9.9")
+
+    assert seen.get("hash") == expected
