@@ -206,7 +206,6 @@ class StudioWindow(QMainWindow):
         # chain (driven by the ``upscaler_avant`` flag on the Projet side).
         self.panels["upscale"].btn_run.clicked.connect(self._launch_upscale)
         self.panels["brush"].btn_run.clicked.connect(self._launch_brush)
-        self.panels["entrainement"].btn_run.clicked.connect(self._launch_entrainement)
         self.panels["reconstruction"].btn_run.clicked.connect(self._launch_reconstruction)
         self.panels["source"].btn_delete_dataset.clicked.connect(self._delete_dataset)
         # Single Launch/Cancel button (ex-topbar), now carried by SourcePanel.

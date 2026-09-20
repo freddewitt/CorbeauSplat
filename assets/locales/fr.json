@@ -302,5 +302,8 @@
   "config_delete_confirm": "Supprimer la configuration « {0} » ?",
   "config_deleted": "Configuration supprimée : ",
   "rail_step_extraction360": "Extraction 360°",
-  "chain_360_before": "Source 360°"
+  "chain_360_before": "Source 360°",
+  "deps_missing_title": "Dépendances manquantes",
+  "deps_missing_body": "Ces outils sont requis et introuvables :",
+  "deps_missing_hint": "Relancez l'installateur de dépendances avant de démarrer un traitement."
 }

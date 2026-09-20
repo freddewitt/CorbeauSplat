@@ -302,5 +302,8 @@
   "config_delete_confirm": "Delete the configuration “{0}”?",
   "config_deleted": "Configuration deleted: ",
   "rail_step_extraction360": "360° extraction",
-  "chain_360_before": "360° source"
+  "chain_360_before": "360° source",
+  "deps_missing_title": "Missing dependencies",
+  "deps_missing_body": "These required tools were not found:",
+  "deps_missing_hint": "Run the dependency installer before starting any processing."
 }

@@ -302,5 +302,8 @@
   "config_delete_confirm": "هل تريد حذف الإعداد «{0}»؟",
   "config_deleted": "تم حذف الإعداد: ",
   "rail_step_extraction360": "استخراج 360°",
-  "chain_360_before": "مصدر 360°"
+  "chain_360_before": "مصدر 360°",
+  "deps_missing_title": "تبعيات مفقودة",
+  "deps_missing_body": "لم يتم العثور على الأدوات المطلوبة التالية:",
+  "deps_missing_hint": "شغّل مثبّت التبعيات قبل بدء أي معالجة."
 }

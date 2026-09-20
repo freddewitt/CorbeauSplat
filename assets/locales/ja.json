@@ -302,5 +302,8 @@
   "config_delete_confirm": "設定「{0}」を削除しますか？",
   "config_deleted": "設定を削除しました: ",
   "rail_step_extraction360": "360°抽出",
-  "chain_360_before": "360°ソース"
+  "chain_360_before": "360°ソース",
+  "deps_missing_title": "依存関係が見つかりません",
+  "deps_missing_body": "必要な次のツールが見つかりませんでした:",
+  "deps_missing_hint": "処理を開始する前に依存関係インストーラーを実行してください。"
 }

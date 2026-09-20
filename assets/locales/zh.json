@@ -302,5 +302,8 @@
   "config_delete_confirm": "确定删除配置“{0}”吗？",
   "config_deleted": "配置已删除：",
   "rail_step_extraction360": "360° 提取",
-  "chain_360_before": "360° 源"
+  "chain_360_before": "360° 源",
+  "deps_missing_title": "缺少依赖项",
+  "deps_missing_body": "未找到以下必需工具：",
+  "deps_missing_hint": "开始处理前请运行依赖项安装程序。"
 }

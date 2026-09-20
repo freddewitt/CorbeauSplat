@@ -302,5 +302,8 @@
   "config_delete_confirm": "Konfiguration „{0}“ löschen?",
   "config_deleted": "Konfiguration gelöscht: ",
   "rail_step_extraction360": "360°-Extraktion",
-  "chain_360_before": "360°-Quelle"
+  "chain_360_before": "360°-Quelle",
+  "deps_missing_title": "Fehlende Abhängigkeiten",
+  "deps_missing_body": "Diese erforderlichen Werkzeuge wurden nicht gefunden:",
+  "deps_missing_hint": "Führen Sie das Abhängigkeits-Installationsprogramm aus, bevor Sie eine Verarbeitung starten."
 }

@@ -39,16 +39,22 @@ def _launch_gui():
 
     # The CLI has always warned about missing dependencies; the GUI never ran
     # the check at all, so a user without Brush or ffmpeg only found out when a
-    # run failed. Reported into the run log rather than a startup dialog: most
-    # entries are per-feature and harmless for someone not using that feature.
-    # Deferred to after show() because check_dependencies() probes ffmpeg in a
-    # subprocess — ~90 ms typically, capped at the 5 s timeout it passes.
+    # run failed. Deferred to after show() because check_dependencies() probes
+    # ffmpeg in a subprocess — ~90 ms typically, capped at the 5 s timeout.
     QTimer.singleShot(0, lambda: _report_missing_dependencies(window))
 
     sys.exit(app.exec())
 
 
 def _report_missing_dependencies(window):
+    """Log every missing dependency, and raise a dialog for the core ones.
+
+    Two tiers on purpose. A missing per-feature binary (Glomap, Upscayl) only
+    matters to someone about to use that feature, so it goes to the log. A
+    missing core tool (ffmpeg, COLMAP, send2trash) breaks every pipeline, and
+    silently letting the user reach a failed run is what this check exists to
+    prevent — that one interrupts.
+    """
     from app.core.system import check_dependencies
 
     try:
@@ -58,7 +64,28 @@ def _report_missing_dependencies(window):
     if not missing:
         return
 
-    message = "⚠️ Dépendances manquantes : " + ", ".join(missing)
     logs_window = getattr(window, "logs_window", None)
     if logs_window is not None:
-        logs_window.append_log(message)
+        logs_window.append_log("⚠️ Dépendances manquantes : " + ", ".join(missing))
+
+    # Feature entries carry a "name (feature)" label; core ones are bare.
+    core_missing = [name for name in missing if "(" not in name]
+    if not core_missing:
+        return
+
+    from PySide6.QtWidgets import QMessageBox
+
+    from app.core.i18n import tr
+
+    box = QMessageBox(window)
+    box.setIcon(QMessageBox.Icon.Warning)
+    box.setWindowTitle(tr("deps_missing_title", "Dépendances manquantes"))
+    box.setText(
+        tr("deps_missing_body", "Ces outils sont requis et introuvables :")
+        + "\n\n• " + "\n• ".join(core_missing)
+    )
+    box.setInformativeText(
+        tr("deps_missing_hint",
+           "Relancez l'installateur de dépendances avant de démarrer un traitement.")
+    )
+    box.exec()

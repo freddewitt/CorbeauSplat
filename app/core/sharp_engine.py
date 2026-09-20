@@ -111,7 +111,10 @@ class SharpEngine(BaseEngine):
             staging = Path(tempfile.mkdtemp(prefix="sharp_in_"))
             converted = staging / (safe_input.stem + conversion_suffix("png"))
             if convert_image(safe_input, converted, "png"):
-                self.log(f"Conversion en PNG : {safe_input.name}")
+                self.log(
+                    f"🔄 {safe_input.name} converti en PNG — format non lisible par Sharp. "
+                    f"L'original n'est pas modifié."
+                )
                 safe_input = converted
             else:
                 shutil.rmtree(staging, ignore_errors=True)

@@ -512,6 +512,13 @@ class ColmapEngine(BaseEngine):
                     f"🔄 {converted}/{total_files} images converties en "
                     f"{fmt.upper()} ({exts}) — les originaux ne sont pas modifiés"
                 )
+                # The target format is a setting, but the GUI has no widget for
+                # it yet: naming it here is how a non-CLI user learns it exists
+                # and what it is currently set to.
+                self.log(
+                    f"   Format de conversion : {fmt.upper()} "
+                    f"(réglage « convert » — CLI : --convert png|jpeg|off)"
+                )
                 if converted_exts & {".heic", ".heif"}:
                     # sips is the only HEIC decoder available here and it drops
                     # the Exif sub-IFD, so the focal length prior is lost.

@@ -249,17 +249,23 @@ class EntrainementPanel:
         scroll.setWidget(content)
         outer.addWidget(scroll)
 
-        # Local Launch button: available both in standalone mode (OUTILS
-        # "Brush" module) and in the PIPELINE Training tab, so training can
-        # also be started independently right after a manual Reconstruction
-        # run (cf. StudioWindow._launch_brush). The chain itself is still
-        # driven by the top bar's single Launch/Cancel button.
-        self.btn_run = QPushButton()
-        self.btn_run.setStyleSheet("font-weight: bold;")
-        outer.addWidget(self.btn_run)
+        # Local Launch button: standalone mode only (the OUTILS "Brush"
+        # module), where the user fills the input/output fields by hand.
+        #
+        # Deliberately absent from the PIPELINE Training tab. It existed there
+        # briefly and was removed on request: that tab has no manual paths, so
+        # the button had to infer them, and an early version inferred them
+        # wrongly and moved a user's project folder through the checkpoint
+        # archiving logic. Training inside the chain is started by the single
+        # Launch button in Source, or automatically after Reconstruction when
+        # "Lancer Brush" is ticked (StudioWindow._on_reconstruction_standalone_finished).
+        if self.standalone:
+            self.btn_run = QPushButton()
+            self.btn_run.setStyleSheet("font-weight: bold;")
+            outer.addWidget(self.btn_run)
 
-        self.btn_cancel = CancelButton()
-        outer.addWidget(self.btn_cancel)
+            self.btn_cancel = CancelButton()
+            outer.addWidget(self.btn_cancel)
         return w
 
     def _build_right(self):
@@ -405,7 +411,8 @@ class EntrainementPanel:
         self.lbl_export.setText(tr("brush_lbl_output", "Dossier export"))
         self.lbl_ply.setText(tr("brush_lbl_ply", "Nom du fichier PLY (optionnel)"))
         self.chk_visualiser.setText(tr("chain_view_after", "Lancer dans SuperSplat"))
-        self.btn_run.setText(tr("btn_run", "Lancer"))
+        if self.standalone:
+            self.btn_run.setText(tr("btn_run", "Lancer"))
         self.lbl_preset.setText(tr("brush_lbl_preset", "Preset"))
         self.btn_save_preset.setToolTip(tr("brush_save_preset", "Enregistrer la config comme preset"))
         self.btn_delete_preset.setToolTip(tr("brush_delete_preset", "Supprimer le preset"))
