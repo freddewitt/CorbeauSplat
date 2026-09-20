@@ -126,12 +126,11 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 - **Vérifier le câblage conversion d'images avec l'Upscale quand l'étape est demandée** — la conversion (HEIC/TIFF/BMP/WebP… → PNG) a été validée hors GUI : ingestion COLMAP, `run_upscale_job` en x4 et en x1 sur un dossier mixte (jpg/tif/bmp/webp/heic), 5/5 images produites. Reste à contrôler le parcours réel depuis l'interface, drapeau `upscaler_avant` coché, source non standard : chaîne Source → Upscale → Reconstruction, et le bouton Lancer local du panneau Upscale.
 - **Fenêtre de sélection vidéo (point in / point out)** — à concevoir : quand la source est une vidéo, proposer un aperçu avec deux marqueurs pour ne traiter que le segment choisi, au lieu d'extraire toute la vidéo. Points à trancher : lecture de l'aperçu (Qt Multimedia vs vignettes FFmpeg), où vit la plage retenue (`SourcePanel.get_state` → `ChainConfig`, donc sérialisée dans les configs nommées), comment elle est passée à l'extraction (`-ss`/`-to` FFmpeg dans `ColmapEngine.extract_frames_from_video`, et l'équivalent 4DGS/Sharp vidéo), et le comportement quand la source est un dossier de plusieurs vidéos.
 
-### ⚠️ Décision en attente — bouton Lancer local onglet Entraînement (2026-09-11)
-- Ajouté puis corrigé en session : `EntrainementPanel` (onglet Training, `app/gui/panels/entrainement_panel.py`) a maintenant un bouton Lancer/Annuler local, câblé sur `StudioWindow._launch_entrainement()` qui réutilise `_build_brush_worker()` (même calcul de chemin que la chaîne pipeline — PAS les champs manuels `input_path`/`output_path` du mode standalone OUTILS→Brush).
-- **Contexte** : le premier câblage (incorrect, lisait les champs manuels jamais renseignés pour cet onglet) a fait déplacer par erreur le dossier racine complet d'un projet utilisateur via la logique d'archivage checkpoints de `BrushWorker` (`shutil.move` vers un dossier frère `checkpoints_backup_<timestamp>`, contenu retrouvé intact, rien supprimé). Corrigé, tests 463 pass inchangés.
-- Utilisateur a marqué une pause suite à la frayeur ; **à trancher avant de continuer** : garder le bouton (corrigé) ou le retirer.
-- Fichiers modifiés non commités : `app/gui/panels/entrainement_panel.py`, `app/gui/studio_window.py`.
-- `graphify update .` refusé 2x cette session (garde-fou node count 2676/2678 vs graph.json existant 2678, bâti sur commit 898e100) — graph legèrement désynchronisé des fichiers ci-dessus. À investiguer/forcer si jugé sûr.
+### ✅ Tranché — bouton Lancer local onglet Entraînement (2026-09-20)
+- **Décision : retiré.** `EntrainementPanel` sert à deux endroits ; le bouton n'existe plus que dans l'instance `standalone=True` (module OUTILS « Brush »), où l'utilisateur saisit lui-même les chemins d'entrée et de sortie.
+- **Pourquoi** : l'onglet Entraînement n'a pas de chemins manuels, le bouton devait donc les déduire. Une première version les a mal déduits et a déplacé le dossier racine d'un projet utilisateur via la logique d'archivage de checkpoints (`shutil.move` vers `checkpoints_backup_<timestamp>` ; contenu retrouvé intact).
+- L'entraînement dans la chaîne reste lancé par le bouton unique de Source, ou automatiquement après la Reconstruction si « Lancer Brush » est coché (`_on_reconstruction_standalone_finished`).
+- Risque résiduel nul depuis le Lot 3 récupéré : `is_checkpoint_ply()` ne reconnaît que les checkpoints, les fichiers de l'utilisateur ne sont jamais déplacés.
 
 ### Autres tâches
 
