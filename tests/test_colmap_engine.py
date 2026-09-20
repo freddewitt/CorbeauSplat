@@ -597,6 +597,111 @@ class TestColmapUtils:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# _run_upscale resume after a partial failure (F-003)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestRunUpscaleResume:
+    """F-003: an upscale that failed after the originals were moved to images_src
+    must be relaunched on the next run, not silently skipped because images_src
+    already exists. A completed upscale (sentinel present) must stay skipped."""
+
+    def _make_engine(self, tmp_path):
+        from app.core.engine import ColmapEngine
+        engine = ColmapEngine(
+            MagicMock(), str(tmp_path / "input"), str(tmp_path / "output"),
+            "images", 5, project_name="proj", logger_callback=print
+        )
+        engine.upscale_config = {
+            "active": True, "model_id": "realesrgan-x4plus", "scale": 4,
+            "format": "png", "tile": 0, "tta": False, "compression": 0,
+        }
+        return engine
+
+    @patch("app.core.engine.resolve_binary")
+    @patch("app.core.engine.is_apple_silicon")
+    def test_run_upscale_relaunches_after_partial_failure(self, mock_silicon, mock_resolve_binary, tmp_path):
+        """images_src present without the completion sentinel → upscale is relaunched.
+
+        Reproduces the F-003 flow: the first run moved the originals to images_src
+        and failed; the user re-runs, _prepare_images refills images_dir with
+        original-resolution files, and _run_upscale must re-upscale them instead
+        of returning True silently."""
+        mock_silicon.return_value = False
+        mock_resolve_binary.side_effect = lambda x: x
+
+        engine = self._make_engine(tmp_path)
+        project_dir = tmp_path / "output" / "proj"
+        images_dir = project_dir / "images"
+        images_dir.mkdir(parents=True)
+        (images_dir / "img_0001.png").write_bytes(b"original")
+        # Left over from the failed first run: originals moved, no sentinel.
+        images_src = project_dir / "images_src"
+        images_src.mkdir(parents=True)
+        (images_src / "img_0001.png").write_bytes(b"original")
+
+        with patch("app.core.upscale_engine.UpscaleEngine.is_installed", return_value=True):
+            with patch("app.core.upscale_engine.UpscaleEngine.upscale_folder",
+                       return_value=(True, "ok")) as mock_upscale:
+                result = engine._run_upscale(project_dir, images_dir)
+
+        assert result is True
+        mock_upscale.assert_called_once()
+        assert (images_src / ".upscale_complete").exists()
+
+    @patch("app.core.engine.resolve_binary")
+    @patch("app.core.engine.is_apple_silicon")
+    def test_run_upscale_reports_failure_instead_of_silent_skip(self, mock_silicon, mock_resolve_binary, tmp_path):
+        """images_src present without the sentinel and a failing upscaler → the
+        failure is signalled, not swallowed by the resume branch."""
+        mock_silicon.return_value = False
+        mock_resolve_binary.side_effect = lambda x: x
+
+        engine = self._make_engine(tmp_path)
+        project_dir = tmp_path / "output" / "proj"
+        images_dir = project_dir / "images"
+        images_dir.mkdir(parents=True)
+        (images_dir / "img_0001.png").write_bytes(b"original")
+        images_src = project_dir / "images_src"
+        images_src.mkdir(parents=True)
+        (images_src / "img_0001.png").write_bytes(b"original")
+
+        with patch("app.core.upscale_engine.UpscaleEngine.is_installed", return_value=True):
+            with patch("app.core.upscale_engine.UpscaleEngine.upscale_folder",
+                       return_value=(False, "boom")) as mock_upscale:
+                result = engine._run_upscale(project_dir, images_dir)
+
+        assert result is False
+        mock_upscale.assert_called_once()
+        assert not (images_src / ".upscale_complete").exists()
+
+    @patch("app.core.engine.resolve_binary")
+    @patch("app.core.engine.is_apple_silicon")
+    def test_run_upscale_skips_when_completed(self, mock_silicon, mock_resolve_binary, tmp_path):
+        """Legitimate resume: images_src present with the sentinel and images_dir
+        holding the upscaled outputs → upscale is NOT relaunched."""
+        mock_silicon.return_value = False
+        mock_resolve_binary.side_effect = lambda x: x
+
+        engine = self._make_engine(tmp_path)
+        project_dir = tmp_path / "output" / "proj"
+        images_dir = project_dir / "images"
+        images_dir.mkdir(parents=True)
+        (images_dir / "img_0001.png").write_bytes(b"upscaled")
+        images_src = project_dir / "images_src"
+        images_src.mkdir(parents=True)
+        (images_src / "img_0001.png").write_bytes(b"original")
+        (images_src / ".upscale_complete").write_text("ok", encoding="utf-8")
+
+        with patch("app.core.upscale_engine.UpscaleEngine.is_installed", return_value=True):
+            with patch("app.core.upscale_engine.UpscaleEngine.upscale_folder",
+                       return_value=(True, "ok")) as mock_upscale:
+                result = engine._run_upscale(project_dir, images_dir)
+
+        assert result is True
+        mock_upscale.assert_not_called()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Blur filtering selection logic
 # ─────────────────────────────────────────────────────────────────────────────
 

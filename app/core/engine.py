@@ -548,38 +548,46 @@ class ColmapEngine(BaseEngine):
                 return True
 
             images_sources_dir = project_dir / "images_src"
+            done_marker = images_sources_dir / ".upscale_complete"
+
+            if images_sources_dir.exists() and done_marker.exists():
+                self.log("'images_src' already exists — upscale already done.")
+                return True
 
             if not images_sources_dir.exists():
                 self.log(f"Moving originals to {images_sources_dir}...")
                 shutil.move(str(images_dir), str(images_sources_dir))
                 images_dir.mkdir(parents=True, exist_ok=True)
-
-                upscale_conf = getattr(self, 'upscale_config', {}) or {}
-                model_id    = upscale_conf.get("model_id") or _first_available_model()
-                scale       = upscale_conf.get("scale", 4)
-                out_format  = upscale_conf.get("format", "png")
-                tile        = upscale_conf.get("tile", 0)
-                tta         = upscale_conf.get("tta", False)
-                compression = upscale_conf.get("compression", 0)
-
-                self.log(f"Upscaling x{scale} with model '{model_id}'...")
-                success, msg = upscaler.upscale_folder(
-                    input_dir=str(images_sources_dir),
-                    output_dir=str(images_dir),
-                    model_id=model_id,
-                    scale=scale,
-                    output_format=out_format,
-                    tile=tile,
-                    tta=tta,
-                    compression=compression,
-                    cancel_check=self.is_cancelled,
-                )
-                if not success:
-                    self.log(f"Upscale failed: {msg}")
-                    return False
-                self.log("Upscale complete.")
             else:
-                self.log("'images_src' already exists — upscale already done.")
+                # F-003: images_src exists but the previous upscale never
+                # completed (no sentinel) — relaunch instead of silently skipping.
+                self.log("'images_src' exists but upscale never completed — relaunching...")
+
+            upscale_conf = getattr(self, 'upscale_config', {}) or {}
+            model_id    = upscale_conf.get("model_id") or _first_available_model()
+            scale       = upscale_conf.get("scale", 4)
+            out_format  = upscale_conf.get("format", "png")
+            tile        = upscale_conf.get("tile", 0)
+            tta         = upscale_conf.get("tta", False)
+            compression = upscale_conf.get("compression", 0)
+
+            self.log(f"Upscaling x{scale} with model '{model_id}'...")
+            success, msg = upscaler.upscale_folder(
+                input_dir=str(images_sources_dir),
+                output_dir=str(images_dir),
+                model_id=model_id,
+                scale=scale,
+                output_format=out_format,
+                tile=tile,
+                tta=tta,
+                compression=compression,
+                cancel_check=self.is_cancelled,
+            )
+            if not success:
+                self.log(f"Upscale failed: {msg}")
+                return False
+            done_marker.write_text("ok", encoding="utf-8")
+            self.log("Upscale complete.")
 
             return True
 

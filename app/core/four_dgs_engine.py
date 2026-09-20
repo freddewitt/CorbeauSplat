@@ -201,7 +201,10 @@ class FourDGSEngine(BaseEngine):
             return True
 
         images_root = Path(output_dir) / "images"
-        cam_dirs = sorted(d for d in images_root.iterdir() if d.is_dir()) if images_root.is_dir() else []
+        cam_dirs = sorted(
+            d for d in images_root.iterdir()
+            if d.is_dir() and not d.name.endswith("_src")
+        ) if images_root.is_dir() else []
         if not cam_dirs:
             return True
 
@@ -216,13 +219,20 @@ class FourDGSEngine(BaseEngine):
             if self.stop_requested:
                 return False
             src_dir = cam_dir.parent / f"{cam_dir.name}_src"
-            if src_dir.exists():
+            done_marker = src_dir / ".upscale_complete"
+            if src_dir.exists() and done_marker.exists():
                 self.log(f"'{src_dir.name}' already exists — {cam_dir.name} already upscaled.")
                 continue
+            if not src_dir.exists():
+                self.log(f"Moving originals of {cam_dir.name} to {src_dir.name}...")
+                shutil.move(str(cam_dir), str(src_dir))
+                cam_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                # F-003: src exists but the previous upscale never completed
+                # (no sentinel) — relaunch instead of silently skipping.
+                self.log(f"'{src_dir.name}' exists but {cam_dir.name} never fully upscaled — relaunching...")
 
             self.log(f"Upscaling {cam_dir.name} x{scale} with model '{model_id}'...")
-            shutil.move(str(cam_dir), str(src_dir))
-            cam_dir.mkdir(parents=True, exist_ok=True)
             success, msg = upscaler.upscale_folder(
                 input_dir=str(src_dir),
                 output_dir=str(cam_dir),
@@ -237,6 +247,7 @@ class FourDGSEngine(BaseEngine):
             if not success:
                 self.log(f"Upscale failed for {cam_dir.name}: {msg}")
                 return False
+            done_marker.write_text("ok", encoding="utf-8")
 
         self.log("Upscale complete.")
         return True

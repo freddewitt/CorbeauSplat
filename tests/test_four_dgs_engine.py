@@ -396,3 +396,41 @@ class TestFourDGSEngine:
                         assert mock_upscale.call_count == 2
                         assert (images_root / "cam_00_src").is_dir()
                         assert (images_root / "cam_01_src").is_dir()
+
+    def test_upscale_dataset_images_relaunches_after_partial_failure(self, tmp_path):
+        """F-003: a cam_XX_src folder without the completion sentinel is upscaled
+        again on the next run instead of being skipped as 'already upscaled', and
+        the completed cam_01 (sentinel present) stays skipped."""
+        with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
+            with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
+                mock_resolve.side_effect = lambda x: x
+
+                from app.core.four_dgs_engine import FourDGSEngine
+
+                engine = FourDGSEngine(logger_callback=print)
+                engine.upscale_config = {"active": True, "model_id": "realesrgan-x4plus", "scale": 4}
+
+                output_dir = tmp_path / "output"
+                images_root = output_dir / "images"
+                # cam_00: failed first run left cam_00_src without a sentinel.
+                (images_root / "cam_00").mkdir(parents=True)
+                (images_root / "cam_00").joinpath("frame_0000.png").write_bytes(b"original")
+                (images_root / "cam_00_src").mkdir(parents=True)
+                (images_root / "cam_00_src").joinpath("frame_0000.png").write_bytes(b"original")
+                # cam_01: completed with sentinel → must stay skipped.
+                (images_root / "cam_01").mkdir(parents=True)
+                (images_root / "cam_01").joinpath("frame_0000.png").write_bytes(b"upscaled")
+                (images_root / "cam_01_src").mkdir(parents=True)
+                (images_root / "cam_01_src").joinpath("frame_0000.png").write_bytes(b"original")
+                (images_root / "cam_01_src" / ".upscale_complete").write_text("ok", encoding="utf-8")
+
+                with patch("app.core.upscale_engine.UpscaleEngine.is_installed", return_value=True):
+                    with patch("app.core.upscale_engine.UpscaleEngine.upscale_folder",
+                               return_value=(True, "ok")) as mock_upscale:
+                        result = engine.upscale_dataset_images(str(output_dir))
+
+                assert result is True
+                assert mock_upscale.call_count == 1
+                assert mock_upscale.call_args.kwargs["input_dir"].endswith("cam_00_src")
+                assert mock_upscale.call_args.kwargs["output_dir"].endswith("cam_00")
+                assert (images_root / "cam_00_src" / ".upscale_complete").exists()
