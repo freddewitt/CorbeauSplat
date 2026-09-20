@@ -77,18 +77,29 @@ class TestValidatePath:
         assert result is not None
 
 
-class TestIsSafePath:
-    def test_existing_file_inside_root(self, engine, tmp_path):
+class TestPathExists:
+    def test_existing_file(self, engine, tmp_path):
         target = tmp_path / "ok.txt"
         target.touch()
-        assert engine.is_safe_path(str(target)) is True
+        assert engine.path_exists(str(target)) is True
 
     def test_nonexistent_file(self, engine, tmp_path):
         target = tmp_path / "nope.txt"
-        assert engine.is_safe_path(str(target)) is False
+        assert engine.path_exists(str(target)) is False
 
-    def test_path_outside_root_not_existing(self, engine):
-        assert engine.is_safe_path("/tmp/corbeausplat_fake") is False
+    def test_nonexistent_path_outside_project(self, engine):
+        assert engine.path_exists("/tmp/corbeausplat_fake") is False
+
+    def test_existing_path_outside_project_is_accepted(self, engine, tmp_path):
+        """Existence is the whole contract: being outside the project is not a rejection.
+
+        This is what the old `is_safe_path` name hid. The user routinely picks
+        sources on the Desktop or an external volume, so a containment check
+        here would reject legitimate input.
+        """
+        outside = tmp_path / "outside.txt"
+        outside.touch()
+        assert engine.path_exists(str(outside)) is True
 
     def test_empty_string(self, engine):
-        assert engine.is_safe_path("") is False
+        assert engine.path_exists("") is False

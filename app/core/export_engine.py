@@ -1,3 +1,4 @@
+import importlib.util
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -44,9 +45,40 @@ class ExportEngine(BaseEngine):
     def __init__(self, logger_callback: Callable | None = None) -> None:
         super().__init__("Export", logger_callback)
 
-    def is_available(self) -> bool:
-        """Check if export tools are available."""
-        return True
+    @staticmethod
+    def missing_dependency(output_format: str) -> str | None:
+        """Name the dependency blocking `output_format`, or None when it can run.
+
+        `is_available()` used to return a hardcoded True, so a missing GLB or
+        SPZ backend only surfaced as a failed export after the user had waited
+        through it. Each format is probed for what it actually imports.
+        """
+        fmt = (output_format or "").lower()
+
+        if fmt in ("ply", "xyz", "obj"):
+            # plyfile is a hard requirement of the app, not an optional backend.
+            return None if importlib.util.find_spec("plyfile") else "plyfile"
+
+        if fmt == "spz":
+            # Built and installed into the venv by its own installer, never by pip.
+            return None if importlib.util.find_spec("spz") else "spz"
+
+        if fmt == "glb":
+            # Any one of the three backends is enough; _export_glb tries them in turn.
+            for module in ("trimesh", "open3d"):
+                if importlib.util.find_spec(module):
+                    return None
+            if shutil.which("assimp"):
+                return None
+            return "trimesh, open3d or assimp"
+
+        return f"unknown format '{output_format}'"
+
+    def is_available(self, output_format: str | None = None) -> bool:
+        """Report whether an export can run — for one format, or for any of them."""
+        if output_format is not None:
+            return self.missing_dependency(output_format) is None
+        return any(self.missing_dependency(f) is None for f in self.SUPPORTED_FORMATS)
 
     def export(
         self,
@@ -88,6 +120,13 @@ class ExportEngine(BaseEngine):
 
         if not input_file.exists():
             self.log(f"Erreur: fichier introuvable {input_file}")
+            return False
+
+        # Fail before doing any work, so a missing backend is reported up front
+        # rather than after the conversion has run.
+        missing = self.missing_dependency(output_format)
+        if missing:
+            self.log(f"Erreur: export {output_format} indisponible — dépendance manquante : {missing}")
             return False
 
         output_dir.mkdir(parents=True, exist_ok=True)

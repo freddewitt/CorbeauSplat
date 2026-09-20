@@ -33,51 +33,50 @@ class SharpEngine(BaseEngine):
         self.process = None
 
     def _get_sharp_cmd(self):
-        # 1. Look for .venv_sharp dedicated environment
+        """Return the argv able to run Sharp, or None when it is not installed.
+
+        There used to be a final `[sys.executable, "-m", "sharp.cli"]` fallback.
+        That is the *main* venv's Python (3.13), while Sharp requires 3.11 in
+        .venv_sharp, so it could only ever raise a bare ModuleNotFoundError in
+        the middle of a run. Returning None lets the caller say "Sharp is not
+        installed" instead.
+        """
+        # 1. Dedicated .venv_sharp environment
         root_dir = resolve_project_root()
         sharp_venv_bin = root_dir / ".venv_sharp" / "bin"
 
-        # Check binary in venv_sharp
         sharp_bin = sharp_venv_bin / "sharp"
         if sharp_bin.exists() and os.access(sharp_bin, os.X_OK):
             return [str(sharp_bin)]
 
-        # Check python in venv_sharp -> run module
+        # The venv's own interpreter can run the module even without the wrapper.
         sharp_python = sharp_venv_bin / "python3"
-        if sharp_python.exists():
-             return [str(sharp_python), "-m", "sharp.cli"]
+        if sharp_python.exists() and os.access(sharp_python, os.X_OK):
+            return [str(sharp_python), "-m", "sharp.cli"]
 
-        # 2. Try to find 'sharp' in the same bin dir as python executable (venv main)
-        # Fallback if dedicated venv failed
+        # 2. A 'sharp' wrapper next to the running interpreter (main venv)
         venv_bin = Path(sys.executable).parent
         sharp_bin = venv_bin / "sharp"
         if sharp_bin.exists() and os.access(sharp_bin, os.X_OK):
             return [str(sharp_bin)]
 
-        # 3. Check global PATH
+        # 3. Anything named 'sharp' on PATH
         from shutil import which
-        if which("sharp"):
-            return ["sharp"]
+        found = which("sharp")
+        if found:
+            return [found]
 
-        # 4. Fallback: Run module
-        return [sys.executable, "-m", "sharp.cli"]
+        return None
+
     def is_installed(self):
-        """Check whether Sharp is available (venv_sharp or local)"""
-        # Check venv_sharp binary
-        root_dir = resolve_project_root()
-        sharp_venv_bin = root_dir / ".venv_sharp" / "bin" / "sharp"
-        if sharp_venv_bin.exists():
-            return True
+        """Report whether Sharp can actually be launched.
 
-        import importlib.util
-        from shutil import which
-
-        # 1. Check binary
-        if which("sharp"):
-            return True
-
-        # 2. Check module
-        return importlib.util.find_spec("sharp") is not None
+        Defined as "`_get_sharp_cmd()` found a runnable command" so the two can
+        no longer disagree. The previous version accepted a `.venv_sharp/bin/sharp`
+        that existed without being executable, and accepted an importable `sharp`
+        module in the main venv that `_get_sharp_cmd` would never have used.
+        """
+        return self._get_sharp_cmd() is not None
 
     def predict(self, input_path, output_path, params=None):
         """
@@ -86,6 +85,9 @@ class SharpEngine(BaseEngine):
         """
         params = params or {}
         cmd = self._get_sharp_cmd()
+        if cmd is None:
+            self.log("Sharp n'est pas installé (.venv_sharp introuvable).")
+            return -1
 
         cmd.extend(["predict"])
         # Validate and resolve paths

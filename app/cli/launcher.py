@@ -36,4 +36,29 @@ def _launch_gui():
 
     window = StudioWindow()
     window.show()
+
+    # The CLI has always warned about missing dependencies; the GUI never ran
+    # the check at all, so a user without Brush or ffmpeg only found out when a
+    # run failed. Reported into the run log rather than a startup dialog: most
+    # entries are per-feature and harmless for someone not using that feature.
+    # Deferred to after show() because check_dependencies() probes ffmpeg in a
+    # subprocess — ~90 ms typically, capped at the 5 s timeout it passes.
+    QTimer.singleShot(0, lambda: _report_missing_dependencies(window))
+
     sys.exit(app.exec())
+
+
+def _report_missing_dependencies(window):
+    from app.core.system import check_dependencies
+
+    try:
+        missing = check_dependencies()
+    except Exception:
+        return
+    if not missing:
+        return
+
+    message = "⚠️ Dépendances manquantes : " + ", ".join(missing)
+    logs_window = getattr(window, "logs_window", None)
+    if logs_window is not None:
+        logs_window.append_log(message)

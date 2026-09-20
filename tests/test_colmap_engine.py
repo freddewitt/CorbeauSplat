@@ -118,6 +118,33 @@ class TestDeleteProjectContent:
             assert result is False
             assert "n'existe pas" in msg
 
+    def test_existing_path_outside_both_roots_is_deleted(self, tmp_path):
+        """An existing folder outside project_root *and* $HOME is deleted, not refused.
+
+        This pins the real contract against the docstring that used to claim a
+        whitelist ("only if contained within project_root or user home"). The
+        guard is a blacklist, and projects on external volumes must stay
+        deletable, so acceptance here is the intended behaviour — not a gap.
+        """
+        from app.core.engine import ColmapEngine
+
+        outside = tmp_path / "volume" / "scene"
+        outside.mkdir(parents=True)
+        junk = outside / "sparse"
+        junk.mkdir()
+
+        fake_root = tmp_path / "elsewhere" / "app"
+        fake_root.mkdir(parents=True)
+
+        with patch("app.core.system.resolve_project_root", return_value=fake_root):
+            with patch("app.core.engine.Path.home", return_value=tmp_path / "elsewhere" / "home"):
+                with patch("app.core.engine.send2trash.send2trash") as mock_trash:
+                    result, msg = ColmapEngine.delete_project_content(outside)
+
+        assert result is True
+        assert "bloquée" not in msg
+        mock_trash.assert_called_once_with(str(junk))
+
     def test_images_skipped(self, tmp_path):
         """The 'images' folder is skipped (not sent to the trash)."""
         from app.core.engine import ColmapEngine

@@ -321,8 +321,17 @@ class BaseEngine:
             self.log(f"Path resolution failed: {path} ({e})")
             return None
 
-    def is_safe_path(self, path):
-        """Checks if a path is within allowed boundaries and accessible"""
+    def path_exists(self, path):
+        """Resolve `path` and report whether it exists on disk.
+
+        Renamed from `is_safe_path()`, which promised a containment check it
+        never performed: callers reading the old name could believe they were
+        filtering directory traversal while only existence was tested. This
+        app deliberately has no containment to enforce — the user picks input
+        and output folders anywhere (Desktop, Documents, external volumes) —
+        so the honest contract is the one stated here. Deletion is the only
+        operation that needs a guard; see `ColmapEngine.delete_project_content`.
+        """
         p = self.validate_path(path)
         return p is not None and p.exists()
 
@@ -335,8 +344,14 @@ class BaseEngine:
                     Path(f).unlink()
 
 
-def validate_path_standalone(path, project_root=None):
-    """Resolve a path without containment checks."""
+def validate_path_standalone(path):
+    """Resolve a path without containment checks.
+
+    The former `project_root` parameter was never read by the body; it is
+    dropped rather than kept as a decorative argument that suggests a
+    confinement this function does not perform. Ruff would not have caught it,
+    since the ARG rules are disabled for this codebase.
+    """
     if not path:
         return None
     try:

@@ -146,6 +146,35 @@ class TestCheckDependencies:
             assert "colmap" in missing
             assert "send2trash" not in missing
 
+    @patch("app.core.system.resolve_binary")
+    def test_feature_binaries_are_checked_and_labelled(self, mock_resolve_binary):
+        """brush/glomap/upscayl-bin/npx are reported, each naming what it blocks.
+
+        Until the 2026-09-15 audit none of the four was checked at all, so a
+        missing Brush only surfaced once a training had been launched.
+        """
+        mock_resolve_binary.side_effect = lambda name: None
+        import importlib.util
+        with patch.object(importlib.util, 'find_spec', return_value=True):
+            from app.core.system import check_dependencies
+            missing = check_dependencies()
+
+        assert "brush (entraînement)" in missing
+        assert "glomap (mapper Glomap)" in missing
+        assert "upscayl-bin (upscale)" in missing
+        assert "npx (visualisation SuperSplat)" in missing
+
+    @patch("app.core.system.resolve_binary")
+    def test_feature_binaries_absent_from_list_when_present(self, mock_resolve_binary):
+        """A tool that resolves is not reported, labelled or otherwise."""
+        mock_resolve_binary.side_effect = lambda name: f"/usr/local/bin/{name}"
+        import importlib.util
+        with patch.object(importlib.util, 'find_spec', return_value=True):
+            from app.core.system import check_dependencies
+            missing = check_dependencies()
+
+        assert missing == []
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tests for setup_dependencies utility functions

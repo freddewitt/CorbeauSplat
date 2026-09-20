@@ -940,10 +940,23 @@ class ColmapEngine(BaseEngine):
 
     @staticmethod
     def delete_project_content(target_path: Path) -> tuple[bool, str]:
-        """Delete the contents of a project folder safely.
+        """Send the contents of a project folder to the trash, except `images/`.
 
-        Only allows deletion if target_path is contained within project_root
-        or user home directory.
+        The guard is a **blacklist, not a containment check**: it refuses the
+        filesystem root, `$HOME` itself, the application folder, and any
+        ancestor of those. Everything else is accepted, including paths outside
+        both the project root and the home directory — `/Volumes/Disk/scene`
+        is deliberately deletable, because users keep projects on external
+        drives.
+
+        The docstring previously claimed deletion was allowed "only if
+        target_path is contained within project_root or user home directory",
+        which described a whitelist the body never implemented. A caller
+        trusting that sentence would have assumed a confinement that is not
+        there.
+
+        Items go to the trash via send2trash rather than being unlinked, so a
+        mistake stays recoverable.
         """
         from .base_engine import validate_path_standalone
         from .system import resolve_project_root

@@ -33,27 +33,39 @@ class TestPathValidation:
         assert isinstance(result, Path)
         assert result.exists()
 
-    def test_validate_path_outside_project(self, engine):
-        """A path clearly outside project root should fail is_safe_path check."""
-        # is_safe_path returns bool — True only if path exists
-        # Use a non-existent path so the check fails
-        result = engine.is_safe_path("/nonexistent/outside/file.txt")
-        assert result is False
+    def test_path_exists_rejects_missing_path(self, engine):
+        """A path that is not on disk is rejected, wherever it points."""
+        assert engine.path_exists("/nonexistent/outside/file.txt") is False
 
-    def test_validate_path_traversal_attempt(self, engine, tmp_path):
-        """Path with ../ outside project should fail is_safe_path check."""
+    def test_traversal_is_normalised_not_rejected(self, engine, tmp_path):
+        """`..` segments are resolved away; they are not treated as an attack.
+
+        The previous version of this test asserted False and passed only
+        because the target did not exist, which read as a traversal defence
+        that does not exist. Here the resolved target *does* exist, so the
+        real behaviour is visible: the path is normalised and accepted.
+        """
         engine.project_root = tmp_path
-        # Use a path that resolves outside but doesn't exist
-        result = engine.is_safe_path(str(tmp_path / ".." / ".." / "nonexistent" / "file.txt"))
-        assert result is False
+        nested = tmp_path / "a" / "b"
+        nested.mkdir(parents=True)
+        target = tmp_path / "a" / "target.txt"
+        target.write_text("test")
 
-    def test_validate_path_gui_trusted(self, engine, tmp_path):
-        """GUI trusted paths should still resolve via validate_path."""
-        # validate_path simply resolves the path — returns Path or None
-        result = engine.validate_path(str(tmp_path / "outside_file.txt"))
-        # May be None if the string is invalid, may be a Path otherwise
-        # (validate_path doesn't check existence or containment)
-        assert result is None or isinstance(result, Path)
+        traversed = nested / ".." / "target.txt"
+        assert engine.validate_path(str(traversed)) == target.resolve()
+        assert engine.path_exists(str(traversed)) is True
+
+    def test_validate_path_resolves_without_requiring_existence(self, engine, tmp_path):
+        """validate_path resolves and returns a Path; it does not test existence."""
+        missing = tmp_path / "outside_file.txt"
+        result = engine.validate_path(str(missing))
+        assert result == missing.resolve()
+        assert not result.exists()
+
+    def test_validate_path_returns_none_on_empty_input(self, engine):
+        """The only None case is falsy input or an unresolvable string."""
+        assert engine.validate_path("") is None
+        assert engine.validate_path(None) is None
 
 
 class TestI18n:

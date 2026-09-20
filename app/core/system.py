@@ -356,19 +356,29 @@ def check_dependencies():
     # FFmpeg VideoToolbox check
     check_ffmpeg_videotoolbox()
 
+    import importlib.util
+
     missing = []
 
-    # Check ffmpeg
+    # Core: nothing meaningful runs without these.
     if resolve_binary('ffmpeg') is None:
         missing.append('ffmpeg')
-
-    # Check colmap
     if resolve_binary('colmap') is None:
         missing.append('colmap')
-
-    # Check send2trash
-    import importlib.util
     if importlib.util.find_spec("send2trash") is None:
         missing.append('send2trash')
+
+    # Per-feature binaries. Each is named with what it blocks, because a user
+    # who never trains or never upscales does not need to act on its absence.
+    # These went unchecked entirely until the 2026-09-15 audit, so a missing
+    # Brush only surfaced once the training had been launched.
+    for binary, feature in (
+        ('brush', 'entraînement'),
+        ('glomap', 'mapper Glomap'),
+        ('upscayl-bin', 'upscale'),
+        ('npx', 'visualisation SuperSplat'),
+    ):
+        if resolve_binary(binary) is None:
+            missing.append(f'{binary} ({feature})')
 
     return missing

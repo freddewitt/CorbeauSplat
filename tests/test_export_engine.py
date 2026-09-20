@@ -389,3 +389,49 @@ class TestAssimpTimeout:
 
         assert engine._convert_obj_to_glb(tmp_path / "in.obj", tmp_path / "out.glb") is False
         assert any("n'a pas répondu" in m for m in messages)
+
+
+class TestExportAvailability:
+    """is_available() used to be a hardcoded True, so its two guards were inert."""
+
+    def test_core_formats_available_when_plyfile_present(self, engine):
+        # plyfile is a hard dependency of the app, so these always resolve.
+        for fmt in ("ply", "xyz", "obj"):
+            assert engine.missing_dependency(fmt) is None
+            assert engine.is_available(fmt) is True
+
+    def test_missing_backend_is_named(self, engine, monkeypatch):
+        from app.core import export_engine as ee
+
+        monkeypatch.setattr(ee.importlib.util, "find_spec", lambda name: None)
+        monkeypatch.setattr(ee.shutil, "which", lambda name: None)
+
+        assert engine.missing_dependency("spz") == "spz"
+        assert engine.missing_dependency("glb") == "trimesh, open3d or assimp"
+        assert engine.is_available("glb") is False
+
+    def test_glb_accepts_any_one_backend(self, engine, monkeypatch):
+        from app.core import export_engine as ee
+
+        monkeypatch.setattr(ee.importlib.util, "find_spec", lambda name: None)
+        monkeypatch.setattr(ee.shutil, "which", lambda name: "/usr/bin/assimp" if name == "assimp" else None)
+
+        assert engine.missing_dependency("glb") is None
+
+    def test_unknown_format_is_reported(self, engine):
+        assert "unknown format" in engine.missing_dependency("dae")
+
+    def test_export_refuses_before_doing_work(self, engine, tmp_path, monkeypatch):
+        """The failure is announced up front instead of after a conversion runs."""
+        from app.core import export_engine as ee
+
+        src = tmp_path / "in.ply"
+        make_ply_ascii(src, [(0.0, 0.0, 0.0, 255, 255, 255)])
+        monkeypatch.setattr(ee.importlib.util, "find_spec", lambda name: None)
+        monkeypatch.setattr(ee.shutil, "which", lambda name: None)
+
+        messages = []
+        engine.logger_callback = messages.append
+
+        assert engine.export(str(src), str(tmp_path / "out"), "spz") is False
+        assert any("dépendance manquante" in m for m in messages)

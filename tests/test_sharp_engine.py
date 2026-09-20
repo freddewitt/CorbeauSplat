@@ -354,3 +354,58 @@ class TestVideoRunSafety:
             )
 
         assert asked == []
+
+
+class TestSharpAvailability:
+    """is_installed() and _get_sharp_cmd() must agree on what 'installed' means."""
+
+    def _engine(self):
+        from app.core.sharp_engine import SharpEngine
+        return SharpEngine()
+
+    def test_no_command_when_nothing_installed(self, tmp_path):
+        """The old code fell back to the main venv's Python, which cannot run Sharp.
+
+        Sharp needs 3.11 in .venv_sharp while sys.executable is the main 3.13
+        venv, so that fallback could only raise a bare ModuleNotFoundError
+        mid-run. None lets the caller report a missing install instead.
+        """
+        engine = self._engine()
+        with patch("app.core.sharp_engine.resolve_project_root", return_value=tmp_path):
+            with patch("shutil.which", return_value=None):
+                with patch("os.access", return_value=False):
+                    assert engine._get_sharp_cmd() is None
+                    assert engine.is_installed() is False
+
+    def test_non_executable_binary_is_not_installed(self, tmp_path):
+        """A sharp file that exists but is not executable used to pass is_installed()."""
+        engine = self._engine()
+        venv_bin = tmp_path / ".venv_sharp" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "sharp").touch(mode=0o644)
+
+        with patch("app.core.sharp_engine.resolve_project_root", return_value=tmp_path):
+            with patch("shutil.which", return_value=None):
+                assert engine._get_sharp_cmd() is None
+                assert engine.is_installed() is False
+
+    def test_executable_venv_binary_is_used(self, tmp_path):
+        engine = self._engine()
+        venv_bin = tmp_path / ".venv_sharp" / "bin"
+        venv_bin.mkdir(parents=True)
+        sharp = venv_bin / "sharp"
+        sharp.touch(mode=0o755)
+
+        with patch("app.core.sharp_engine.resolve_project_root", return_value=tmp_path):
+            assert engine._get_sharp_cmd() == [str(sharp)]
+            assert engine.is_installed() is True
+
+    def test_predict_reports_missing_install(self, tmp_path):
+        """predict() returns the -1 error code instead of crashing on None."""
+        engine = self._engine()
+        messages = []
+        engine.logger_callback = messages.append
+
+        with patch.object(engine, "_get_sharp_cmd", return_value=None):
+            assert engine.predict(str(tmp_path / "in.png"), str(tmp_path / "out")) == -1
+        assert any("pas installé" in m for m in messages)
