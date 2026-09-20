@@ -99,6 +99,20 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 (`--export_output` to redirect). Checkpoints land in
 `<output>/<project>/checkpoints`, the same place the interface uses.
 
+## Journal — corruption historique réparée (2026-09-20)
+
+Six enregistrements de `journal.jsonl` étaient structurellement invalides. **Cause trouvée** : le commit de ré-import massif `8e7af63` « Import CorbeauSplat v2 (Studio) » du 2026-08-08 — la version du 2026-07-19 (`cc95e9b`) est saine, celle d'après compte déjà les 6. Ce n'est donc pas le code d'écriture du journal qui est en cause, et la panne ne peut pas se reproduire d'elle-même.
+
+**Dégât** : chaque ligne avait perdu une clé de tableau et son crochet ouvrant, laissant les éléments en chaînes nues dans l'objet. Rien ne plantait, le fichier étant lu ligne à ligne — d'où six semaines sans que personne le voie.
+
+**Réparation** (contenu préservé au caractère près, vérifié par comparaison des multi-ensembles de chaînes avant/après) :
+- L29 → `fichiers_modifies` — **certifiée** : la version pré-corruption contient le même enregistrement avec cette clé.
+- L31 → `decisions` — **certifiée** : ordre des clés d'origine retrouvé dans `cc95e9b`.
+- L26, L32, L35 → `decisions` — déduites de la position (entre `tests` et `graphify_rebuild`) et du contenu (phrases, pas des chemins).
+- L30 → `features` — **et non `decisions`** : cette ligne portait déjà une clé `decisions` plus loin, et un doublon aurait été silencieusement écrasé par `json.loads`, perdant exactement le contenu récupéré. Sa valeur `session` avait en outre absorbé le libellé `lot` (`"10 UI 8 StudioWindow…"`) ; séparée en `session:"10"` + `lot:"UI 8 StudioWindow…"`, la concaténation redonnant la valeur fusionnée à l'identique.
+
+**Garde-fou** : `tests/test_journal_integrity.py` — JSON valide ligne à ligne, absence de clés dupliquées, champs identifiants présents, dates ISO et ordre chronologique. Validé par réintroduction de la corruption d'origine : 3 des 4 tests tombent.
+
 ## RESTE À FAIRE (priorisé)
 
 ### 🔴 Audit complet 2026-09-15 — `audit-report.md`
