@@ -75,3 +75,11 @@ models/upscayl/*.param
 .coverage.*
 htmlcov/
 coverage.xml
+
+# Not published: audit tooling, CI, archived docs, test suite (kept locally)
+code-audit-skills/
+code-audit-skills.zip
+audit/
+.github/
+docs/archive/
+tests/
