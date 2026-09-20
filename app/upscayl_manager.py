@@ -19,7 +19,7 @@ from pathlib import Path
 from app.core.system import resolve_project_root
 from app.scripts.checksum_verifier import load_expected_checksums, verify_download_strict
 
-GITHUB_API = "https://api.github.com/repos/upscayl/upscayl-ncnn/releases/latest"
+GITHUB_REPO = "https://api.github.com/repos/upscayl/upscayl-ncnn"
 
 
 def get_bin_dir() -> Path:
@@ -80,8 +80,15 @@ def find_binary() -> Path | None:
     return None
 
 
-def _fetch_release() -> dict:
-    req = urllib.request.Request(GITHUB_API, headers={"User-Agent": "CorbeauSplat"})
+def _fetch_release(tag: str) -> dict:
+    """Fetch the GitHub release for a specific tag (never 'latest').
+
+    The installed binary is always the one pinned in ``checksums.json``
+    (``upscayl_release``): 'latest' is only consulted to signal that a newer pin
+    exists, never to choose what gets downloaded.
+    """
+    url = f"{GITHUB_REPO}/releases/tags/{tag}"
+    req = urllib.request.Request(url, headers={"User-Agent": "CorbeauSplat"})
     with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 - literal https URL (GitHub releases API)
         return json.loads(resp.read())
 
@@ -103,7 +110,7 @@ def _find_macos_asset(assets: list) -> dict | None:
 
 def download_binary(log_callback=None) -> Path:
     """
-    Downloads the latest upscayl-bin release for macOS arm64.
+    Downloads the upscayl-bin release pinned in checksums.json for macOS arm64.
     Extracts binary to ./bin/ and bundled models to ./models/upscayl/.
     Returns the installed binary path.
     Raises RuntimeError on failure.
@@ -113,8 +120,15 @@ def download_binary(log_callback=None) -> Path:
             log_callback(msg)
         print(msg)
 
-    log("Fetching latest upscayl-ncnn release info...")
-    release = _fetch_release()
+    pinned = load_expected_checksums().get("upscayl_release", "")
+    if not pinned:
+        raise RuntimeError(
+            "Aucune version upscayl épinglée (clé 'upscayl_release' de checksums.json) "
+            "— téléchargement refusé pour éviter d'installer une release non vérifiée."
+        )
+
+    log(f"Fetching upscayl-ncnn release {pinned} info...")
+    release = _fetch_release(pinned)
     asset = _find_macos_asset(release.get("assets", []))
     if not asset:
         raise RuntimeError("No macOS release asset found on GitHub.")

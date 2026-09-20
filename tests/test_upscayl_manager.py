@@ -356,7 +356,10 @@ class TestDownloadBinary:
             ]
         }
         mock_verify.return_value = True
-        mock_load_checksums.return_value = {"darwin_upscayl": "aa" * 32}
+        mock_load_checksums.return_value = {
+            "darwin_upscayl": "aa" * 32,
+            "upscayl_release": "20251207-174704",
+        }
 
         # Mock HTTP download with context manager
         mock_resp = MagicMock()
@@ -374,6 +377,7 @@ class TestDownloadBinary:
 
         assert result == bin_dir / "upscayl-bin"
         mock_chmod.assert_called_once_with(bin_dir / "upscayl-bin", 0o755)
+        mock_fetch_release.assert_called_once_with("20251207-174704")
         assert mock_urlopen.call_count >= 1
 
     @patch("app.upscayl_manager._fetch_release")
@@ -387,6 +391,29 @@ class TestDownloadBinary:
 
         with pytest.raises(RuntimeError, match="No macOS release asset"):
             download_binary()
+
+    @patch("app.upscayl_manager.get_bin_dir")
+    @patch("app.upscayl_manager._fetch_release")
+    @patch("app.upscayl_manager.load_expected_checksums")
+    def test_download_refused_without_pinned_release(
+        self, mock_load_checksums, mock_fetch_release, mock_get_bin_dir, tmp_path
+    ):
+        """Fail closed: no 'upscayl_release' pin means no download at all (F-008).
+
+        Before the pin, download_binary() followed GitHub's 'latest', which was
+        guaranteed to diverge from the frozen fingerprint on the next upstream
+        release. Without a pin there is nothing we know how to verify.
+        """
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir(parents=True)
+        mock_get_bin_dir.return_value = bin_dir
+        mock_load_checksums.return_value = {"darwin_upscayl": "aa" * 32}
+
+        from app.upscayl_manager import download_binary
+
+        with pytest.raises(RuntimeError, match="upscayl_release"):
+            download_binary()
+        mock_fetch_release.assert_not_called()
 
     @patch("app.upscayl_manager._fetch_release")
     @patch("app.upscayl_manager.get_bin_dir")
