@@ -5,7 +5,7 @@ while the imports stay from app.scripts.setup_dependencies (re-exports).
 import json
 import subprocess
 import sys
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -523,3 +523,83 @@ class TestRepoPinning:
 
         commands = [c.args[0] for c in mock_call.call_args_list]
         assert any("pull" in cmd for cmd in commands)
+
+
+# ---------------------------------------------------------------------------
+# Rosetta 2 reporting (audit I11 remainder)
+# ---------------------------------------------------------------------------
+
+class TestRosettaWarning:
+    """The warning used to go to stderr, invisible on an icon launch."""
+
+    @patch("app.core.system.is_running_under_rosetta", return_value=False)
+    def test_silent_when_native(self, _mock):
+        from app.core.system import rosetta_warning
+        assert rosetta_warning() is None
+
+    @patch("app.core.system.is_running_under_rosetta", return_value=True)
+    def test_message_names_the_cost_and_the_fix(self, _mock):
+        from app.core.system import rosetta_warning
+
+        message = rosetta_warning()
+        assert message is not None
+        assert "Rosetta 2" in message
+        assert "ARM64" in message
+
+    @patch("app.core.system.is_running_under_rosetta", return_value=True)
+    def test_returned_not_raised(self, _mock):
+        """A returned string lets each front end place it where users look."""
+        import warnings
+
+        from app.core.system import rosetta_warning
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            rosetta_warning()
+        assert caught == []
+
+
+class TestGuiStartupReport:
+    """Two tiers, plus Rosetta first (launcher._report_missing_dependencies)."""
+
+    def _window(self):
+        window = MagicMock()
+        window.logged = []
+        window.logs_window.append_log = window.logged.append
+        return window
+
+    def test_rosetta_is_logged_before_dependencies(self):
+        from app.cli import launcher
+
+        window = self._window()
+        with patch("app.core.system.rosetta_warning", return_value="⚠️ Rosetta 2"):
+            with patch("app.core.system.check_dependencies", return_value=["ffmpeg"]):
+                with patch("PySide6.QtWidgets.QMessageBox"):
+                    launcher._report_missing_dependencies(window)
+
+        assert window.logged[0] == "⚠️ Rosetta 2"
+        assert "ffmpeg" in window.logged[1]
+
+    def test_rosetta_alone_still_reaches_the_log(self):
+        from app.cli import launcher
+
+        window = self._window()
+        with patch("app.core.system.rosetta_warning", return_value="⚠️ Rosetta 2"):
+            with patch("app.core.system.check_dependencies", return_value=[]):
+                launcher._report_missing_dependencies(window)
+
+        assert window.logged == ["⚠️ Rosetta 2"]
+
+    def test_feature_binaries_do_not_raise_a_dialog(self):
+        """Only core tools interrupt; per-feature ones stay in the log."""
+        from app.cli import launcher
+
+        window = self._window()
+        with patch("app.core.system.rosetta_warning", return_value=None):
+            with patch("app.core.system.check_dependencies",
+                       return_value=["glomap (mapper Glomap)"]):
+                with patch("PySide6.QtWidgets.QMessageBox") as box:
+                    launcher._report_missing_dependencies(window)
+
+        assert box.called is False
+        assert len(window.logged) == 1

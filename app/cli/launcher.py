@@ -55,7 +55,19 @@ def _report_missing_dependencies(window):
     silently letting the user reach a failed run is what this check exists to
     prevent — that one interrupts.
     """
-    from app.core.system import check_dependencies
+    from app.core.system import check_dependencies, rosetta_warning
+
+    logs_window = getattr(window, "logs_window", None)
+
+    # First line in the log, before anything else: under Rosetta every later
+    # timing in this log is 20-40% worse than the machine can do, so it frames
+    # everything that follows. Not a dialog — the app works, it is just slower.
+    try:
+        rosetta = rosetta_warning()
+    except Exception:
+        rosetta = None
+    if rosetta and logs_window is not None:
+        logs_window.append_log(rosetta)
 
     try:
         missing = check_dependencies()
@@ -64,7 +76,6 @@ def _report_missing_dependencies(window):
     if not missing:
         return
 
-    logs_window = getattr(window, "logs_window", None)
     if logs_window is not None:
         logs_window.append_log("⚠️ Dépendances manquantes : " + ", ".join(missing))
 

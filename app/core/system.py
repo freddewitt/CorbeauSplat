@@ -377,24 +377,38 @@ def check_ffmpeg_videotoolbox() -> bool:
     return False
 
 
+def rosetta_warning() -> str | None:
+    """Return the Rosetta 2 warning to display, or None when running natively.
+
+    Returns the text rather than printing or warning, so each front end can
+    place it where its users will actually see it: the CLI prints it, the GUI
+    puts it at the top of the run log. A performance penalty does not warrant
+    a blocking dialog — the app works, it is simply slower — but it does need
+    to be visible, which stderr is not for a windowed launch.
+    """
+    if not is_running_under_rosetta():
+        return None
+    return (
+        "⚠️ Python s'exécute sous Rosetta 2 (traduction x86_64). "
+        "Les performances seront dégradées de 20 à 40 % sur COLMAP, Brush et "
+        "upscayl. Utilisez un interpréteur Python ARM64 natif — "
+        "conseil : python3.13 depuis Homebrew."
+    )
+
+
 def check_dependencies():
     """Check whether the required dependencies are installed
 
     Returns:
         list[str]: Missing dependencies (empty if all good).
     """
-    import warnings
-
-    # Warn if running under Rosetta 2 (x86_64 translation on Apple Silicon)
-    if is_running_under_rosetta():
-        warnings.warn(
-            "Python s'exécute sous Rosetta 2 (traduction x86_64). "
-            "Les performances seront dégradées de 20 à 40% sur les tâches "
-            "COLMAP, Brush et upscayl. Utilisez un interpréteur Python "
-            "ARM64 natif. Conseil : python3.13 (native) depuis homebrew.",
-            RuntimeWarning,
-            stacklevel=1
-        )
+    # Rosetta is reported by rosetta_warning(), which each front end surfaces
+    # its own way. It used to go through warnings.warn(RuntimeWarning), which
+    # writes to stderr: invisible when the app is launched from its icon, so
+    # the one person it is meant to reach never saw it.
+    message = rosetta_warning()
+    if message:
+        print(message)
 
     # NumPy Accelerate check (macOS ARM64)
     log_numpy_backend()
