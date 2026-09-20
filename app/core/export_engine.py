@@ -5,6 +5,36 @@ from pathlib import Path
 
 from .base_engine import BaseEngine
 
+# Degree-0 spherical harmonics coefficient. Brush/3DGS PLY files store colour as
+# SH rather than red/green/blue, and rgb = 0.5 + SH_C0 * f_dc is the standard
+# reconstruction used by every 3DGS viewer.
+SH_C0 = 0.28209479177387814
+
+# Assimp runs on a temporary OBJ we just wrote; anything beyond this means it is
+# stuck, and without a bound the export could never be cancelled.
+ASSIMP_TIMEOUT_SECONDS = 300
+
+
+def _extract_colors(vertex):
+    """Return an (N, 3) uint8 array of RGB colours, or None when there are none.
+
+    Two layouts are handled: classic point clouds carrying red/green/blue, and
+    Gaussian Splat files carrying f_dc_0..2. Without the second branch every
+    export from a Brush result came out monochrome.
+    """
+    import numpy as np
+
+    names = vertex.data.dtype.names or ()
+    if 'red' in names:
+        rgb = np.column_stack([vertex['red'], vertex['green'], vertex['blue']])
+        return np.clip(rgb, 0, 255).astype(np.uint8)
+    if 'f_dc_0' in names:
+        rgb = 0.5 + SH_C0 * np.column_stack(
+            [vertex['f_dc_0'], vertex['f_dc_1'], vertex['f_dc_2']]
+        )
+        return (np.clip(rgb, 0.0, 1.0) * 255).astype(np.uint8)
+    return None
+
 
 class ExportEngine(BaseEngine):
     """Engine for exporting PLY files to various formats."""
@@ -93,6 +123,12 @@ class ExportEngine(BaseEngine):
                 self.log(f"Compressé: {output_file}")
                 return True
             else:
+                if input_file.resolve() == output_file.resolve():
+                    self.log(
+                        f"Export PLY ignoré : la source et la destination sont le même "
+                        f"fichier ({output_file}). Choisissez un autre dossier de sortie."
+                    )
+                    return False
                 shutil.copy2(input_file, output_file)
                 self.log(f"Copié: {output_file}")
                 return True
@@ -106,7 +142,10 @@ class ExportEngine(BaseEngine):
             try:
                 from plyfile import PlyData
                 ply = PlyData.read(str(input_file))
-                ply.write(str(output_file), text=True)
+                # `text` is a constructor argument, not a write() one: the
+                # previous ply.write(..., text=True) raised TypeError every
+                # single time, swallowed by the except below.
+                PlyData(ply.elements, text=True).write(str(output_file))
                 self.log(f"Exporté PLY ASCII: {output_file}")
                 return True
             except ImportError:
@@ -127,15 +166,17 @@ class ExportEngine(BaseEngine):
             from plyfile import PlyData
             ply = PlyData.read(str(input_file))
             vertex = ply['vertex']
-            has_colors = 'red' in vertex.data.dtype.names
+            colors = _extract_colors(vertex) if include_colors else None
+            if include_colors and colors is None:
+                self.log("Avertissement: aucune couleur dans ce PLY, export XYZ en géométrie seule.")
 
-            # Accès par colonne + écriture en une passe : itérer avec vertex[i]
-            # coûte plusieurs ordres de grandeur sur un splat de plusieurs
-            # millions de points. float64 pour reproduire le repr de float().
+            # Column access plus a single write pass: going through vertex[i]
+            # costs orders of magnitude more on a splat of several million
+            # points. float64 to reproduce float()'s repr.
             cols = [vertex[axis].astype(np.float64) for axis in ('x', 'y', 'z')]
             fmt = ['%s', '%s', '%s']
-            if include_colors and has_colors:
-                cols += [vertex[c].astype(np.float64) for c in ('red', 'green', 'blue')]
+            if colors is not None:
+                cols += [colors[:, i].astype(np.float64) for i in range(3)]
                 fmt += ['%d', '%d', '%d']
 
             with open(output_file, 'w') as fout:
@@ -159,7 +200,9 @@ class ExportEngine(BaseEngine):
             from plyfile import PlyData
             ply = PlyData.read(str(input_file))
             vertex = ply['vertex']
-            has_colors = 'red' in vertex.data.dtype.names
+            colors = _extract_colors(vertex) if include_colors else None
+            if include_colors and colors is None:
+                self.log("Avertissement: aucune couleur dans ce PLY, export OBJ en géométrie seule.")
 
             if include_mtl:
                 mtl_file = output_dir / f"{input_file.stem}.mtl"
@@ -179,11 +222,11 @@ class ExportEngine(BaseEngine):
                     fout.write(f"mtllib {input_file.stem}.mtl\n\n")
                 fout.write("o PointCloud\n\n")
 
-                # Écriture vectorisée : voir _export_xyz pour la raison.
+                # Vectorised write: see _export_xyz for the reason.
                 cols = [vertex[axis].astype(np.float64) * scale for axis in ('x', 'y', 'z')]
                 row_fmt = "v %.6f %.6f %.6f"
-                if include_colors and has_colors:
-                    cols += [vertex[c].astype(np.float64) / 255 for c in ('red', 'green', 'blue')]
+                if colors is not None:
+                    cols += [colors[:, i].astype(np.float64) / 255 for i in range(3)]
                     row_fmt += " %.3f %.3f %.3f"
 
                 np.savetxt(fout, np.column_stack(cols), fmt=row_fmt)
@@ -199,7 +242,8 @@ class ExportEngine(BaseEngine):
         """Export PLY to GLB using available tools."""
         output_file = output_dir / f"{input_file.stem}.glb"
         method = opts.get('method', 'auto')  # auto, trimesh, open3d, assimp
-        opts.get('point_size', 0.01)
+        # No point_size here: GLB point clouds carry no such attribute, and the
+        # line that read opts['point_size'] assigned it to nothing.
 
         if method == 'auto':
             if self._try_export_glb_trimesh(input_file, output_file, opts):
@@ -235,11 +279,9 @@ class ExportEngine(BaseEngine):
                 vertex['x'], vertex['y'], vertex['z']
             ])
 
-            colors = None
-            if 'red' in vertex.data.dtype.names:
-                colors = np.column_stack([
-                    vertex['red'], vertex['green'], vertex['blue']
-                ])
+            colors = _extract_colors(vertex)
+            if colors is None:
+                self.log("Avertissement: aucune couleur dans ce PLY, export GLB en géométrie seule.")
 
             # Create point cloud
             cloud = trimesh.PointCloud(vertices=points, colors=colors)
@@ -301,11 +343,12 @@ class ExportEngine(BaseEngine):
                 f.write(f"mtllib {temp_mtl.name}\n")
                 f.write("o PointCloud\n\n")
 
-                # Écriture vectorisée : voir _export_xyz pour la raison.
+                # Vectorised write: see _export_xyz for the reason.
                 cols = [vertex[axis].astype(np.float64) for axis in ('x', 'y', 'z')]
                 row_fmt = "v %s %s %s"
-                if 'red' in vertex.data.dtype.names:
-                    cols += [vertex[c].astype(np.float64) / 255 for c in ('red', 'green', 'blue')]
+                colors = _extract_colors(vertex)
+                if colors is not None:
+                    cols += [colors[:, i].astype(np.float64) / 255 for i in range(3)]
                     row_fmt += " %.3f %.3f %.3f"
 
                 np.savetxt(f, np.column_stack(cols), fmt=row_fmt)
@@ -378,9 +421,13 @@ class ExportEngine(BaseEngine):
             try:
                 subprocess.run(
                     [assimp, "export", str(obj_file), str(glb_file)],
-                    capture_output=True, check=True
+                    capture_output=True, check=True, timeout=ASSIMP_TIMEOUT_SECONDS
                 )
                 return True
+            except subprocess.TimeoutExpired:
+                self.log(
+                    f"Assimp n'a pas répondu en {ASSIMP_TIMEOUT_SECONDS} s, conversion abandonnée."
+                )
             except Exception as e:
                 self.log(f"Assimp export failed: {e}")
 

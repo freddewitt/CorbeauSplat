@@ -84,7 +84,7 @@ class ReconstructionPanel:
         self.info_label.setVisible(is_apple_silicon())
         layout.addWidget(self.info_label)
 
-        # Reprise de COLMAP (dossier existant OU dossier externe → nouveau projet)
+        # COLMAP resume (existing folder OR external folder → new project)
         self.lbl_resume = QLabel()
         self.lbl_resume.setWordWrap(True)
         layout.addWidget(self.lbl_resume)

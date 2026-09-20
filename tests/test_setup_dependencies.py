@@ -1,6 +1,7 @@
-"""Tests pour app.scripts.setup_dependencies.py et app/core/system.py.
-Les patches ciblent maintenant app.scripts.installers.* où les fonctions sont définies,
-tandis que les imports restent depuis app.scripts.setup_dependencies (réexportations)."""
+"""Tests for app.scripts.setup_dependencies.py and app/core/system.py.
+The patches now target app.scripts.installers.* where the functions are defined,
+while the imports stay from app.scripts.setup_dependencies (re-exports).
+"""
 import json
 import subprocess
 import sys
@@ -13,10 +14,10 @@ import pytest
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestChecksumVerifier:
-    """Tests pour les fonctions de vérification de checksum."""
+    """Tests for the checksum verification functions."""
 
     def test_load_expected_checksums_success(self, tmp_path):
-        """load_expected_checksums retourne le dict JSON."""
+        """load_expected_checksums returns the JSON dict."""
         # Patch the CHECKSUMS_PATH to point to a temp file
         checksums_file = tmp_path / "checksums.json"
         checksums_file.write_text(json.dumps({"darwin_brush": "abc123"}))
@@ -28,7 +29,7 @@ class TestChecksumVerifier:
 
     @patch("app.scripts.checksum_verifier.CHECKSUMS_PATH")
     def test_load_expected_checksums_not_found(self, mock_path):
-        """load_expected_checksums sans fichier → dict vide."""
+        """load_expected_checksums without a file → empty dict."""
         mock_path.exists.return_value = False
 
         from app.scripts.checksum_verifier import load_expected_checksums
@@ -36,7 +37,7 @@ class TestChecksumVerifier:
         assert result == {}
 
     def test_load_expected_checksums_invalid_json(self, tmp_path):
-        """load_expected_checksums avec JSON invalide → dict vide."""
+        """load_expected_checksums with invalid JSON → empty dict."""
         checksums_file = tmp_path / "checksums.json"
         checksums_file.write_text("not json")
 
@@ -51,11 +52,11 @@ class TestChecksumVerifier:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestGetBrushBuildMode:
-    """Tests pour system.get_brush_build_mode()."""
+    """Tests for system.get_brush_build_mode()."""
 
     @patch("app.core.system.resolve_project_root")
     def test_source_mode_detected(self, mock_root, tmp_path):
-        """Version file avec 'source' → retourne 'source'."""
+        """Version file with 'source' → returns 'source'."""
         engines_dir = tmp_path / "engines"
         engines_dir.mkdir(parents=True)
         version_file = engines_dir / "brush.version"
@@ -67,7 +68,7 @@ class TestGetBrushBuildMode:
 
     @patch("app.core.system.resolve_project_root")
     def test_release_mode_detected(self, mock_root, tmp_path):
-        """Version file sans 'source' → retourne 'release'."""
+        """Version file without 'source' → returns 'release'."""
         engines_dir = tmp_path / "engines"
         engines_dir.mkdir(parents=True)
         version_file = engines_dir / "brush.version"
@@ -79,7 +80,7 @@ class TestGetBrushBuildMode:
 
     @patch("app.core.system.resolve_project_root")
     def test_no_version_file(self, mock_root, tmp_path):
-        """Pas de version file → retourne 'release' (défaut)."""
+        """No version file → returns 'release' (default)."""
         mock_root.return_value = tmp_path
 
         from app.core.system import get_brush_build_mode
@@ -87,7 +88,7 @@ class TestGetBrushBuildMode:
 
     @patch("app.core.system.resolve_project_root")
     def test_empty_version_file(self, mock_root, tmp_path):
-        """Version file vide → retourne 'release'."""
+        """Empty version file → returns 'release'."""
         engines_dir = tmp_path / "engines"
         engines_dir.mkdir(parents=True)
         version_file = engines_dir / "brush.version"
@@ -103,11 +104,11 @@ class TestGetBrushBuildMode:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestCheckDependencies:
-    """Tests pour system.check_dependencies()."""
+    """Tests for system.check_dependencies()."""
 
     @patch("app.core.system.resolve_binary")
     def test_all_dependencies_present(self, mock_resolve_binary):
-        """Toutes les dépendances présentes → liste vide."""
+        """Every dependency present → empty list."""
         mock_resolve_binary.side_effect = lambda x: x  # found
         # send2trash is already in sys.modules (possibly mocked), patch find_spec
         import importlib.util
@@ -118,7 +119,7 @@ class TestCheckDependencies:
 
     @patch("app.core.system.resolve_binary")
     def test_some_missing(self, mock_resolve_binary):
-        """Dépendances manquantes → liste non vide."""
+        """Missing dependencies → non-empty list."""
         mock_resolve_binary.side_effect = lambda x: None  # nothing found
         import importlib.util
         with patch.object(importlib.util, 'find_spec', return_value=None):
@@ -130,7 +131,7 @@ class TestCheckDependencies:
 
     @patch("app.core.system.resolve_binary")
     def test_partial_missing(self, mock_resolve_binary):
-        """Certaines dépendances manquantes."""
+        """Some dependencies missing."""
         def resolve_side_effect(name):
             if name == "ffmpeg":
                 return "/usr/local/bin/ffmpeg"
@@ -151,10 +152,10 @@ class TestCheckDependencies:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestSetupDependenciesUtils:
-    """Tests pour les fonctions utilitaires de setup_dependencies.py."""
+    """Tests for the utility functions of setup_dependencies.py."""
 
     def test_relax_requirements(self, tmp_path):
-        """relax_requirements change torch== en torch>=."""
+        """relax_requirements turns torch== into torch>=."""
         from app.scripts.setup_dependencies import relax_requirements
 
         src = tmp_path / "requirements.txt"
@@ -169,35 +170,35 @@ class TestSetupDependenciesUtils:
         assert "numpy>=1.26" in content
 
     def test_check_cargo(self):
-        """check_cargo vérifie la présence de cargo."""
+        """check_cargo checks that cargo is present."""
         with patch("app.scripts.installers.tools.shutil.which") as mock_which:
             mock_which.return_value = "/usr/local/bin/cargo"
             from app.scripts.installers.tools import check_cargo
             assert check_cargo() is True
 
     def test_check_cargo_not_found(self):
-        """check_cargo retourne False si cargo absent."""
+        """check_cargo returns False when cargo is missing."""
         with patch("app.scripts.installers.tools.shutil.which") as mock_which:
             mock_which.return_value = None
             from app.scripts.installers.tools import check_cargo
             assert check_cargo() is False
 
     def test_check_brew(self):
-        """check_brew vérifie la présence de brew."""
+        """check_brew checks that brew is present."""
         with patch("app.scripts.installers.tools.shutil.which") as mock_which:
             mock_which.return_value = "/opt/homebrew/bin/brew"
             from app.scripts.installers.tools import check_brew
             assert check_brew() is True
 
     def test_check_node(self):
-        """check_node vérifie node et npm."""
+        """check_node checks node and npm."""
         with patch("app.scripts.installers.tools.shutil.which") as mock_which:
             mock_which.side_effect = lambda x: f"/usr/local/bin/{x}" if x in ("node", "npm") else None
             from app.scripts.installers.tools import check_node
             assert check_node() is True
 
     def test_check_node_missing_npm(self):
-        """check_node retourne False si npm absent."""
+        """check_node returns False when npm is missing."""
         with patch("app.scripts.installers.tools.shutil.which") as mock_which:
             def which_side_effect(name):
                 if name == "node":
@@ -208,14 +209,14 @@ class TestSetupDependenciesUtils:
             assert check_node() is False
 
     def test_check_cmake_ninja(self):
-        """check_cmake_ninja vérifie cmake et ninja."""
+        """check_cmake_ninja checks cmake and ninja."""
         with patch("app.scripts.installers.tools.shutil.which") as mock_which:
             mock_which.side_effect = lambda x: f"/usr/local/bin/{x}"
             from app.scripts.installers.tools import check_cmake_ninja
             assert check_cmake_ninja() is True
 
     def test_check_xcode_tools_present(self):
-        """check_xcode_tools retourne True si xcode-select -p réussit."""
+        """check_xcode_tools returns True when xcode-select -p succeeds."""
         import sys as _sys
         if _sys.platform != "darwin":
             pytest.skip("xcode-select test only relevant on macOS")
@@ -229,7 +230,7 @@ class TestSetupDependenciesUtils:
             )
 
     def test_check_xcode_tools_missing(self):
-        """check_xcode_tools retourne False si xcode-select échoue."""
+        """check_xcode_tools returns False when xcode-select fails."""
         import sys as _sys
         if _sys.platform != "darwin":
             pytest.skip("xcode-select test only relevant on macOS")
@@ -239,7 +240,7 @@ class TestSetupDependenciesUtils:
             assert check_xcode_tools() is False
 
     def test_get_remote_version(self):
-        """get_remote_version utilise git ls-remote."""
+        """get_remote_version uses git ls-remote."""
         with patch("app.scripts.installers.tools.subprocess.check_output") as mock_check:
             mock_check.return_value = "abc123def\tHEAD\n"
             from app.scripts.installers.tools import get_remote_version
@@ -247,7 +248,7 @@ class TestSetupDependenciesUtils:
             assert result == "abc123def"
 
     def test_get_remote_version_failure(self):
-        """get_remote_version retourne None en cas d'erreur."""
+        """get_remote_version returns None on error."""
         with patch("app.scripts.installers.tools.subprocess.check_output") as mock_check:
             mock_check.side_effect = Exception("git error")
             from app.scripts.installers.tools import get_remote_version
@@ -260,10 +261,10 @@ class TestSetupDependenciesUtils:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestEngineDependency:
-    """Tests pour la classe EngineDependency."""
+    """Tests for the EngineDependency class."""
 
     def test_is_installed(self, tmp_path):
-        """is_installed vérifie l'existence du binaire."""
+        """is_installed checks that the binary exists."""
         from app.scripts.installers.base import EngineDependency
 
         with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):
@@ -274,7 +275,7 @@ class TestEngineDependency:
             assert dep.is_installed() is True
 
     def test_is_not_installed(self, tmp_path):
-        """is_installed retourne False si binaire absent."""
+        """is_installed returns False when the binary is missing."""
         from app.scripts.installers.base import EngineDependency
 
         with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):
@@ -282,7 +283,7 @@ class TestEngineDependency:
             assert dep.is_installed() is False
 
     def test_save_and_get_local_version(self, tmp_path):
-        """save_local_version puis get_local_version."""
+        """save_local_version then get_local_version."""
         from app.scripts.installers.base import EngineDependency
 
         with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):
@@ -291,7 +292,7 @@ class TestEngineDependency:
             assert dep.get_local_version() == "v1.0.0"
 
     def test_get_local_version_missing(self, tmp_path):
-        """get_local_version sans fichier → chaîne vide."""
+        """get_local_version without a file → empty string."""
         from app.scripts.installers.base import EngineDependency
 
         with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):
@@ -299,7 +300,7 @@ class TestEngineDependency:
             assert dep.get_local_version() == ""
 
     def test_is_enabled_in_config(self, tmp_path):
-        """is_enabled_in_config utilise la config."""
+        """is_enabled_in_config uses the config."""
         from app.scripts.installers.base import EngineDependency
 
         dep = EngineDependency("test_engine", bin_name="test_bin")
@@ -307,7 +308,7 @@ class TestEngineDependency:
         assert dep.is_enabled_in_config(config) is True
 
     def test_is_enabled_in_config_default(self, tmp_path):
-        """is_enabled_in_config retourne True par défaut."""
+        """is_enabled_in_config returns True by default."""
         from app.scripts.installers.base import EngineDependency
 
         dep = EngineDependency("test_engine", bin_name="test_bin")
@@ -315,7 +316,7 @@ class TestEngineDependency:
         assert dep.is_enabled_in_config(config) is True
 
     def test_uninstall(self, tmp_path):
-        """uninstall supprime target_dir et version_file."""
+        """uninstall removes target_dir and version_file."""
         from app.scripts.installers.base import EngineDependency
 
         with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):
@@ -340,10 +341,10 @@ class TestEngineDependency:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestPipEngine:
-    """Tests pour la classe PipEngine."""
+    """Tests for the PipEngine class."""
 
     def test_venv_path_construction(self, tmp_path):
-        """PipEngine construit les bons chemins de venv."""
+        """PipEngine builds the right venv paths."""
         from app.scripts.installers.base import PipEngine
 
         with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):
@@ -354,7 +355,7 @@ class TestPipEngine:
                 assert engine.bin_path == engine.python_bin
 
     def test_venv_path_windows(self, tmp_path):
-        """PipEngine construit les chemins Windows."""
+        """PipEngine builds the Windows paths."""
         from app.scripts.installers.base import PipEngine
 
         with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):
@@ -363,7 +364,7 @@ class TestPipEngine:
                 assert engine.python_bin == tmp_path / ".venv_test" / "Scripts" / "python.exe"
 
     def test_is_installed_venv(self, tmp_path):
-        """is_installed vérifie la présence du python du venv."""
+        """is_installed checks that the venv python is present."""
         from app.scripts.installers.base import PipEngine
 
         with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):
@@ -374,10 +375,10 @@ class TestPipEngine:
 
 
 class TestFourDGSEngineDep:
-    """Tests pour FourDGSEngineDep (nerfstudio, isolé dans .venv_4dgs)."""
+    """Tests for FourDGSEngineDep (nerfstudio, isolated in .venv_4dgs)."""
 
     def test_venv_matches_four_dgs_engine_path(self, tmp_path):
-        """Le venv déclaré doit matcher .venv_4dgs, attendu par FourDGSEngine."""
+        """The declared venv must match .venv_4dgs, as expected by FourDGSEngine."""
         from app.scripts.installers.four_dgs import FourDGSEngineDep
 
         with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):
@@ -385,7 +386,7 @@ class TestFourDGSEngineDep:
             assert dep.venv_dir == tmp_path / ".venv_4dgs"
 
     def test_disabled_by_default(self, tmp_path):
-        """Pas d'installation automatique tant que four_dgs_enabled n'est pas actif."""
+        """No automatic installation while four_dgs_enabled is off."""
         from app.scripts.installers.four_dgs import FourDGSEngineDep
 
         with patch("app.scripts.installers.base.resolve_project_root", return_value=tmp_path):

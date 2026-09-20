@@ -1,14 +1,13 @@
-"""Applique l'icône CorbeauSplat au fichier lanceur ``.command`` dans le Finder.
+"""Apply the CorbeauSplat icon to the ``.command`` launcher file in the Finder.
 
-Utilise ``NSWorkspace`` via ``pyobjc-framework-Cocoa`` (déjà une dépendance du
-projet — même pattern que ``_set_macos_dock_icon`` dans ``app/cli/launcher.py``,
-mais ciblant un fichier du Finder plutôt que l'icône du Dock de l'application).
+Uses ``NSWorkspace`` through ``pyobjc-framework-Cocoa`` (already a project
+dependency — same pattern as ``_set_macos_dock_icon`` in ``app/cli/launcher.py``,
+but targeting a Finder file rather than the application's Dock icon).
 
-L'icône Finder d'un fichier est stockée dans ses métadonnées (resource fork /
-xattr), pas trackée par git : ce module doit donc s'exécuter à chaque lancement
-de ``run.command`` pour fonctionner aussi après un nouveau ``git clone``.
-Idempotent : si l'icône actuelle du fichier correspond déjà à l'icône cible,
-aucune écriture n'est effectuée.
+The Finder icon of a file is stored in its metadata (resource fork / xattr), not
+tracked by git: this module must therefore run on every launch of
+``run.command`` so it also works after a fresh ``git clone``. Idempotent: when
+the file's current icon already matches the target icon, nothing is written.
 """
 from pathlib import Path
 
@@ -20,11 +19,11 @@ except ImportError:
 
 
 def set_launcher_icon(launcher_path: Path, icon_path: Path) -> bool:
-    """Applique ``icon_path`` comme icône Finder de ``launcher_path``.
+    """Apply ``icon_path`` as the Finder icon of ``launcher_path``.
 
-    Retourne True si l'icône est (déjà) correctement appliquée, False si
-    pyobjc/NSWorkspace est indisponible, si un des fichiers est manquant, ou
-    en cas d'échec (défensif : n'appelle jamais raise).
+    Returns True when the icon is (already) correctly applied, False when
+    pyobjc/NSWorkspace is unavailable, when one of the files is missing, or on
+    failure (defensive: never raises).
     """
     if not launcher_path.exists() or not icon_path.exists():
         return False

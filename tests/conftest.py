@@ -7,7 +7,7 @@ import os
 import sys
 from unittest.mock import MagicMock
 
-# pytest-qt : force le binding PySide6
+# pytest-qt: force the PySide6 binding
 os.environ.setdefault("PYTEST_QT_API", "pyside6")
 
 

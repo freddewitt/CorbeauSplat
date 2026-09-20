@@ -1,10 +1,10 @@
-"""Construction des commandes CLI COLMAP à partir de ColmapParams.
+"""Building the COLMAP CLI commands from ColmapParams.
 
-Responsabilité isolée hors de ColmapEngine : traduire les paramètres en
-argv COLMAP (flags SIFT/ALIKED, sequential/exhaustive/vocab_tree, etc.).
-Fonctions pures — aucune exécution de processus, aucun état moteur.
-L'orchestration du pipeline (enchaînement des étapes, décision de repli
-global_mapper → mapper incrémental) reste dans ColmapEngine.
+A responsibility kept out of ColmapEngine: translating the parameters into
+COLMAP argv (SIFT/ALIKED flags, sequential/exhaustive/vocab_tree, etc.).
+Pure functions — no process execution, no engine state. Pipeline orchestration
+(step chaining, the global_mapper → incremental mapper fallback decision) stays
+in ColmapEngine.
 """
 from pathlib import Path
 from typing import Any
@@ -18,7 +18,7 @@ def build_feature_extraction_command(
     num_threads: int,
     image_list_path: Path | None = None,
 ) -> tuple[list, str]:
-    """Commande d'extraction des features (SIFT ou ALIKED)."""
+    """Feature extraction command (SIFT or ALIKED)."""
     feat_type = getattr(params, 'feature_type', 'SIFT')
     cmd = [
         colmap_bin, 'feature_extractor',
@@ -51,8 +51,9 @@ def build_feature_matching_command(
     params: Any,
     num_threads: int,
 ) -> tuple[list, str]:
-    """Commande de matching des features (sequential/vocab_tree/exhaustive,
-    bruteforce ou LightGlue selon le type de features)."""
+    """Feature matching command (sequential/vocab_tree/exhaustive, bruteforce
+    or LightGlue depending on the feature type).
+    """
     match_type = getattr(params, 'matching_type', 'SIFT_BRUTEFORCE')
     feat_type = getattr(params, 'feature_type', 'SIFT')
 
@@ -66,17 +67,17 @@ def build_feature_matching_command(
             '--SequentialMatching.overlap', str(params.sequential_overlap),
             '--SequentialMatching.quadratic_overlap', '1',
         ]
-        # Loop detection ferme les boucles quand la caméra repasse sur une zone déjà
-        # filmée (tour d'objet, pièce en boucle) — évite dérive et fantômes. COLMAP
-        # télécharge et met en cache l'arbre de vocabulaire au 1er usage. L'arbre est
-        # basé SIFT : on ne l'active que pour les features SIFT (incompatible ALIKED).
+        # Loop detection closes loops when the camera passes over an area already
+        # filmed (object turntable, looping room) — avoids drift and ghosts. COLMAP
+        # downloads and caches the vocabulary tree on first use. That tree is
+        # SIFT-based: only enable it for SIFT features (incompatible with ALIKED).
         if feat_type == 'SIFT':
             cmd.extend(['--SequentialMatching.loop_detection', '1'])
         description = f"Matching Sequentiel ({match_type})"
     elif params.matcher_type == 'vocab_tree':
-        # Vocab tree : matching par similarité visuelle, adapté aux grandes collections
-        # de photos non ordonnées (bien plus rapide qu'exhaustif au-delà de ~500 images).
-        # COLMAP télécharge/met en cache l'arbre de vocabulaire (SIFT) au 1er usage.
+        # Vocab tree: matching by visual similarity, suited to large unordered
+        # photo collections (far faster than exhaustive beyond ~500 images).
+        # COLMAP downloads/caches the (SIFT) vocabulary tree on first use.
         cmd = [
             colmap_bin, 'vocab_tree_matcher',
             '--database_path', database_path,
@@ -119,7 +120,7 @@ def build_global_mapper_command(
     params: Any,
     num_threads: int,
 ) -> list:
-    """Commande de reconstruction 3D via le mapper global (GLOMAP, COLMAP 4.0+)."""
+    """3D reconstruction command through the global mapper (GLOMAP, COLMAP 4.0+)."""
     return [
         colmap_bin, 'global_mapper',
         '--database_path', database_path,
@@ -142,8 +143,9 @@ def build_incremental_mapper_command(
     params: Any,
     num_threads: int,
 ) -> list:
-    """Commande de reconstruction 3D via le mapper incrémental (repli si le
-    mapper global ne produit pas de modèle exploitable)."""
+    """3D reconstruction command through the incremental mapper (fallback when
+    the global mapper produces no usable model).
+    """
     return [
         colmap_bin, 'mapper',
         '--database_path', database_path,
@@ -165,7 +167,7 @@ def build_image_undistorter_command(
     output_dir: str,
     params: Any,
 ) -> tuple[list, str]:
-    """Commande d'undistortion des images à partir du modèle sparse."""
+    """Image undistortion command, from the sparse model."""
     input_path = Path(sparse_dir) / "0"
     cmd = [
         colmap_bin, 'image_undistorter',

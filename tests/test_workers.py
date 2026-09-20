@@ -1,4 +1,5 @@
-"""Tests pour app/gui/workers.py — BaseWorker et workers spécialisés."""
+"""Tests for app/gui/workers.py — BaseWorker and the specialised workers.
+"""
 import os
 import sys
 import time
@@ -16,7 +17,7 @@ from app.gui.workers import (
     SharpWorker,
 )
 
-# Patch send2trash et cv2 pour les workers qui les utilisent indirectement
+# Patch send2trash and cv2 for the workers that use them indirectly
 for _mod_name in ["send2trash", "cv2"]:
     if _mod_name not in sys.modules:
         try:
@@ -30,10 +31,10 @@ for _mod_name in ["send2trash", "cv2"]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestBaseWorker:
-    """Tests pour BaseWorker — signaux et cycle de vie."""
+    """Tests for BaseWorker — signals and lifecycle."""
 
     def test_base_worker_signals(self):
-        """BaseWorker expose les signaux standard."""
+        """BaseWorker exposes the standard signals."""
         # Check the class has the expected signal attributes
         assert hasattr(BaseWorker, 'log_signal')
         assert hasattr(BaseWorker, 'progress_signal')
@@ -41,7 +42,7 @@ class TestBaseWorker:
         assert hasattr(BaseWorker, 'finished_signal')
 
     def test_base_worker_init(self):
-        """Vérifie que les signaux sont des Signal."""
+        """Check that the signals are Signal instances."""
         # Signals should be Signal instances (class-level descriptors)
         import PySide6.QtCore
         assert isinstance(BaseWorker.log_signal, PySide6.QtCore.Signal)
@@ -67,17 +68,17 @@ class TestBaseWorker:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestColmapWorker:
-    """Tests pour ColmapWorker avec IProcessRunner mocké."""
+    """Tests for ColmapWorker with a mocked IProcessRunner."""
 
     @pytest.fixture
     def mock_engine(self):
-        """Crée un ColmapEngine mocké."""
+        """Build a mocked ColmapEngine."""
         engine = MagicMock()
         engine.run.return_value = (True, "Success")
         return engine
 
     def test_run_success(self, mock_engine):
-        """ColmapWorker.run() avec moteur mocké → finished_signal avec True."""
+        """ColmapWorker.run() with a mocked engine → finished_signal with True."""
         worker = ColmapWorker.__new__(ColmapWorker)
         with patch.object(worker, 'isInterruptionRequested', return_value=False):
             with patch.object(worker, 'log_signal', MagicMock()):
@@ -93,7 +94,7 @@ class TestColmapWorker:
                             worker.finished_signal.emit.assert_called_once_with(True, "Success")
 
     def test_run_failure(self, mock_engine):
-        """ColmapWorker.run() en échec → finished_signal avec False."""
+        """ColmapWorker.run() on failure → finished_signal with False."""
         mock_engine.run.return_value = (False, "Error: feature extraction failed")
         worker = ColmapWorker.__new__(ColmapWorker)
         with patch.object(worker, 'isInterruptionRequested', return_value=False):
@@ -131,17 +132,17 @@ class TestColmapWorker:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestBrushWorker:
-    """Tests pour BrushWorker."""
+    """Tests for BrushWorker."""
 
     @pytest.fixture
     def mock_engine(self):
-        """Crée un BrushEngine mocké."""
+        """Build a mocked BrushEngine."""
         engine = MagicMock()
         engine.train.return_value = 0
         return engine
 
     def test_resolve_dataset_root_sparse_0(self):
-        """resolve_dataset_root avec sparse/0 → remonte de 2 niveaux."""
+        """resolve_dataset_root with sparse/0 → goes up 2 levels."""
         worker = BrushWorker.__new__(BrushWorker)
         with patch.object(worker, 'log_signal', MagicMock()):
             with patch.object(worker, 'finished_signal', MagicMock()):
@@ -150,7 +151,7 @@ class TestBrushWorker:
                 assert resolved == Path("/project/scene")
 
     def test_resolve_dataset_root_sparse(self):
-        """resolve_dataset_root avec sparse → remonte de 1 niveau."""
+        """resolve_dataset_root with sparse → goes up 1 level."""
         worker = BrushWorker.__new__(BrushWorker)
         with patch.object(worker, 'log_signal', MagicMock()):
             with patch.object(worker, 'finished_signal', MagicMock()):
@@ -159,7 +160,7 @@ class TestBrushWorker:
                 assert resolved == Path("/project/scene")
 
     def test_resolve_dataset_root_normal(self):
-        """resolve_dataset_root avec chemin normal → inchangé."""
+        """resolve_dataset_root with a normal path → unchanged."""
         worker = BrushWorker.__new__(BrushWorker)
         with patch.object(worker, 'log_signal', MagicMock()):
             with patch.object(worker, 'finished_signal', MagicMock()):
@@ -168,7 +169,7 @@ class TestBrushWorker:
                 assert resolved == path
 
     def test_run_missing_dataset(self, mock_engine):
-        """run() avec dataset inexistant → finished_signal(False)."""
+        """run() with a non-existent dataset → finished_signal(False)."""
         worker = BrushWorker.__new__(BrushWorker)
         with patch.object(worker, 'log_signal', MagicMock()):
             with patch.object(worker, 'status_signal', MagicMock()):
@@ -186,7 +187,7 @@ class TestBrushWorker:
                         assert "n'existe pas" in args[1]
 
     def test_run_success(self, mock_engine, tmp_path):
-        """run() avec dataset valide → finished_signal(True)."""
+        """run() with a valid dataset → finished_signal(True)."""
         dataset_dir = tmp_path / "dataset"
         dataset_dir.mkdir()
 
@@ -207,7 +208,7 @@ class TestBrushWorker:
                         worker.finished_signal.emit.assert_called_once_with(True, ANY)
 
     def test_handle_ply_rename(self, mock_engine, tmp_path):
-        """handle_ply_rename renomme le fichier PLY."""
+        """handle_ply_rename renames the PLY file."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         (output_dir / "iteration_30000.ply").write_bytes(b"ply_data")
@@ -223,14 +224,14 @@ class TestBrushWorker:
                 assert not (output_dir / "iteration_30000.ply").exists()
 
     def test_handle_ply_rename_no_name(self, mock_engine):
-        """handle_ply_rename sans ply_name → ne fait rien."""
+        """handle_ply_rename without ply_name → does nothing."""
         worker = BrushWorker.__new__(BrushWorker)
         with patch.object(worker, 'log_signal', MagicMock()):
             worker.params = {}
             worker.handle_ply_rename()
 
     def test_rename_checkpoints_with_project_name(self, tmp_path):
-        """_rename_checkpoints_with_project_name préfixe les PLY."""
+        """_rename_checkpoints_with_project_name prefixes the PLY files."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         (output_dir / "iteration_1000.ply").write_bytes(b"data")
@@ -246,7 +247,7 @@ class TestBrushWorker:
             assert (output_dir / "test_scene_iteration_2000.ply").exists()
 
     def test_prune_to_latest_checkpoint(self, tmp_path):
-        """_prune_to_latest_checkpoint ne garde que le PLY le plus récent et purge les dossiers vides."""
+        """_prune_to_latest_checkpoint keeps only the most recent PLY and purges the empty folders."""
         output_dir = tmp_path / "output"
         (output_dir / "point_cloud" / "iteration_1000").mkdir(parents=True)
         (output_dir / "point_cloud" / "iteration_2000").mkdir(parents=True)
@@ -254,7 +255,7 @@ class TestBrushWorker:
         new = output_dir / "point_cloud" / "iteration_2000" / "point_cloud.ply"
         old.write_bytes(b"old")
         new.write_bytes(b"new")
-        # Force un mtime plus récent pour `new`
+        # Force a more recent mtime for `new`
         os.utime(old, (1000, 1000))
         os.utime(new, (2000, 2000))
 
@@ -265,11 +266,11 @@ class TestBrushWorker:
             worker._prune_to_latest_checkpoint()
             assert new.exists()
             assert not old.exists()
-            # Le dossier vide de l'ancien checkpoint est supprimé
+            # The empty folder of the old checkpoint is removed
             assert not (output_dir / "point_cloud" / "iteration_1000").exists()
 
     def test_prune_to_latest_checkpoint_single(self, tmp_path):
-        """_prune_to_latest_checkpoint avec un seul PLY → ne supprime rien."""
+        """_prune_to_latest_checkpoint with a single PLY → removes nothing."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         only = output_dir / "iteration_1000.ply"
@@ -283,11 +284,12 @@ class TestBrushWorker:
             assert only.exists()
 
     def test_run_archives_only_checkpoint_plys_not_whole_directory(self, mock_engine, tmp_path):
-        """run() en mode "new" n'archive que les .ply, jamais le dossier
-        output_path lui-même. Régression: un mauvais output_path (ex. module
-        OUTILS Brush pointé sur un dossier de projet contenant d'autres
-        sous-dossiers) faisait déplacer tout l'arbre via shutil.move sur le
-        dossier entier, au lieu des seuls checkpoints."""
+        """run() in "new" mode only archives the .ply files, never the
+        output_path folder itself. Regression: a wrong output_path (e.g. the
+        OUTILS Brush module pointed at a project folder holding other
+        sub-folders) made the whole tree move through shutil.move on the entire
+        folder, instead of the checkpoints alone.
+        """
         output_dir = tmp_path / "output"
         old_ckpt = output_dir / "point_cloud" / "iteration_1000" / "point_cloud.ply"
         old_ckpt.parent.mkdir(parents=True)
@@ -327,7 +329,7 @@ class TestBrushWorker:
         assert (backups[0] / "point_cloud" / "iteration_1000" / "point_cloud.ply").exists()
 
     def test_run_no_archive_when_no_existing_checkpoints(self, mock_engine, tmp_path):
-        """run() en mode "new" sans checkpoint existant → pas de backup créé."""
+        """run() in "new" mode with no existing checkpoint → no backup created."""
         output_dir = tmp_path / "output"
         dataset_dir = tmp_path / "dataset"
         dataset_dir.mkdir()
@@ -354,10 +356,10 @@ class TestBrushWorker:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestSharpWorker:
-    """Tests pour SharpWorker."""
+    """Tests for SharpWorker."""
 
     def test_run_success(self):
-        """SharpWorker.run() avec moteur mocké."""
+        """SharpWorker.run() with a mocked engine."""
         engine = MagicMock()
         engine.predict.return_value = 0
 
@@ -375,7 +377,7 @@ class TestSharpWorker:
                         engine.predict.assert_called_once()
 
     def test_run_failure(self):
-        """SharpWorker.run() en échec."""
+        """SharpWorker.run() on failure."""
         engine = MagicMock()
         engine.predict.return_value = 1
 
@@ -399,10 +401,10 @@ class TestSharpWorker:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestSharpVideoWorker:
-    """Tests pour SharpVideoWorker."""
+    """Tests for SharpVideoWorker."""
 
     def test_run_success(self):
-        """SharpVideoWorker.run() avec moteur mocké."""
+        """SharpVideoWorker.run() with a mocked engine."""
         engine = MagicMock()
         engine.process_video_frames.return_value = 5
 
@@ -423,7 +425,7 @@ class TestSharpVideoWorker:
                             assert args[0] is True
 
     def test_run_no_frames(self):
-        """SharpVideoWorker.run() sans frames traitées."""
+        """SharpVideoWorker.run() with no processed frame."""
         engine = MagicMock()
         engine.process_video_frames.return_value = 0
 
@@ -449,17 +451,17 @@ class TestSharpVideoWorker:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestExtractor360Worker:
-    """Tests pour Extractor360Worker."""
+    """Tests for Extractor360Worker."""
 
     def test_parse_line_percentage(self):
-        """parse_line extrait le pourcentage [XX%]."""
+        """parse_line extracts the [XX%] percentage."""
         worker = Extractor360Worker.__new__(Extractor360Worker)
         with patch.object(worker, 'progress_signal', MagicMock()):
             worker.parse_line("[42%] Processing frame 42")
             worker.progress_signal.emit.assert_called_once_with(42)
 
     def test_parse_line_no_percentage(self):
-        """parse_line sans pourcentage → pas d'appel."""
+        """parse_line without a percentage → no call."""
         worker = Extractor360Worker.__new__(Extractor360Worker)
         with patch.object(worker, 'progress_signal', MagicMock()):
             worker.parse_line("Starting extraction...")

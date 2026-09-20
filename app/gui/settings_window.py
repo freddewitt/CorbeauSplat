@@ -22,7 +22,7 @@ Restart/Quit are no longer here: they are global actions of the main window
 buried in this dialog.
 """
 
-from PySide6.QtCore import QUrl, Qt, Signal
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,

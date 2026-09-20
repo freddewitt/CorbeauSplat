@@ -82,7 +82,7 @@ def find_binary() -> Path | None:
 
 def _fetch_release() -> dict:
     req = urllib.request.Request(GITHUB_API, headers={"User-Agent": "CorbeauSplat"})
-    with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 - URL https littérale (API GitHub releases)
+    with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 - literal https URL (GitHub releases API)
         return json.loads(resp.read())
 
 
@@ -127,7 +127,7 @@ def download_binary(log_callback=None) -> Path:
     archive_path = bin_dir / asset["name"]
 
     req = urllib.request.Request(asset["browser_download_url"])
-    with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as f:  # nosec B310 - URL https littérale fournie par l'asset GitHub
+    with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as f:  # nosec B310 - literal https URL supplied by the GitHub asset
         f.write(resp.read())
 
     checksums = load_expected_checksums()
@@ -150,7 +150,7 @@ def download_binary(log_callback=None) -> Path:
     if not dest.exists():
         raise RuntimeError("upscayl-bin not found after extraction.")
 
-    os.chmod(dest, 0o755)  # nosec B103 - binaire upscayl : doit être exécutable, hash vérifié en amont
+    os.chmod(dest, 0o755)  # nosec B103 - upscayl binary: must be executable, hash verified beforehand
     log(f"✅ upscayl-bin installed: {dest}")
     return dest
 
@@ -377,7 +377,7 @@ def download_model_files(url_bin: str, url_param: str,
         try:
             log(f"Downloading {model_id}{ext}...")
             req = urllib.request.Request(url, headers={"User-Agent": "CorbeauSplat"})
-            with urllib.request.urlopen(req, timeout=120) as resp:  # nosec B310 - URL https littérale du catalogue de modèles
+            with urllib.request.urlopen(req, timeout=120) as resp:  # nosec B310 - literal https URL of the model catalogue
                 data = resp.read()
 
             if len(data) < 512:

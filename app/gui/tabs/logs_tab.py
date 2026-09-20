@@ -53,7 +53,7 @@ class LogsTab(QWidget):
         self.log_text.setFont(QFont("Monaco", 10))
         layout.addWidget(self.log_text)
 
-        # Suivi du scroll pour verrouiller l'auto-scroll
+        # Scroll tracking, to lock auto-scroll
         scrollbar = self.log_text.verticalScrollBar()
         scrollbar.valueChanged.connect(self._on_scroll_changed)
 

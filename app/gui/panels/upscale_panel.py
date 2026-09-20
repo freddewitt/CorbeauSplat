@@ -76,8 +76,8 @@ class UpscalePanel:
         out_row.addWidget(self.btn_browse_output)
         layout.addLayout(out_row)
 
-        # \u2500\u2500 Migr\u00e9 depuis _build_right : mod\u00e8le, \u00e9chelle, format, tuiles, TTA,
-        # compression (m\u00eame convention \u00ab tout au centre \u00bb que les autres \u00e9tapes Param\u00e8tres) \u2500\u2500
+        # ── Moved out of _build_right: model, scale, format, tiles, TTA,
+        # compression (same "everything in the centre" convention as the other Paramètres steps) ──
         form = QFormLayout()
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # \u00e9vite d\u00e9bordement horizontal (libell\u00e9s longs)
 
@@ -215,9 +215,10 @@ class UpscalePanel:
         self.refresh_models()
 
     def _browse_input(self):
-        """Input accepts a single image OR a folder of images (cf. ``run_upscale_job``
-        docstring: "dossier ou fichier unique") — ask which one to browse for,
-        since Qt has no native picker that lets the user pick either."""
+        """Input accepts a single image OR a folder of images (cf. the
+        ``run_upscale_job`` docstring: "folder or single file") — ask which one
+        to browse for, since Qt has no native picker that lets the user pick
+        either."""
         box = QMessageBox(self.center)
         box.setWindowTitle(tr("btn_browse", "Parcourir"))
         box.setText(tr("up_browse_kind", "Sélectionner une image ou un dossier ?"))

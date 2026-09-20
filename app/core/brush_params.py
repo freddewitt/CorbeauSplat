@@ -1,23 +1,23 @@
-"""Surface structurée des paramètres Brush, au-dessus de l'allowlist du moteur.
+"""Structured surface of the Brush parameters, on top of the engine allowlist.
 
-But : offrir à l'UI (étape Entraînement, module Brush) et à la sauvegarde de
-presets des champs structurés (Max Splats, groupe Densification, groupe
-Checkpoints) plutôt qu'une chaîne ``custom_args`` en texte libre.
+Goal: give the UI (Entraînement step, Brush module) and preset saving structured
+fields (Max Splats, Densification group, Checkpoints group) rather than a
+free-text ``custom_args`` string.
 
-**Contrat de sécurité inchangé** : ce module ne fait que produire le *dict plat*
-que ``BrushEngine.build_command()`` consomme déjà. Il ne touche ni à
-``ALLOWED_FLAGS`` ni à ``build_command`` : les tokens générés restent strictement
-identiques à ceux de l'existant pour les mêmes valeurs. Les flags non gérés
-nativement par ``build_command`` (``--save-iterations``, ``--eval-every``,
-``--refine-pose``) sont repliés dans ``custom_args``, où l'allowlist les filtre
-comme aujourd'hui.
+**Security contract unchanged**: this module only produces the *flat dict* that
+``BrushEngine.build_command()`` already consumes. It touches neither
+``ALLOWED_FLAGS`` nor ``build_command``: for the same values, the generated
+tokens stay strictly identical to the existing ones. Flags not handled natively
+by ``build_command`` (``--save-iterations``, ``--eval-every``, ``--refine-pose``)
+are folded into ``custom_args``, where the allowlist filters them as it does
+today.
 """
 
 from dataclasses import asdict, dataclass, fields
 
-# Flags promus en champs structurés mais NON gérés nativement par build_command :
-# on les replie dans custom_args (l'allowlist du moteur les filtre). Ordre fixe
-# pour un rendu de tokens déterministe.
+# Flags promoted to structured fields but NOT handled natively by build_command:
+# we fold them into custom_args (the engine allowlist filters them). Fixed order
+# for deterministic token output.
 _CUSTOM_ARG_FLAGS = (
     ("save_iterations", "--save-iterations"),
     ("eval_every", "--eval-every"),
@@ -27,59 +27,61 @@ _CUSTOM_ARG_FLAGS = (
 
 @dataclass
 class BrushParams:
-    """Paramètres d'entraînement Brush structurés.
+    """Structured Brush training parameters.
 
-    Les valeurs ``None`` signifient « non défini » → le flag correspondant est
-    omis, exactement comme un dict plat sans la clé.
+    ``None`` values mean "unset" → the matching flag is omitted, exactly like a
+    flat dict without the key.
     """
 
-    # ── Essentiels ────────────────────────────────────────────────────────────
+    # ── Essentials ────────────────────────────────────────────────────────────
     total_steps: int | None = None
     sh_degree: int | None = None
     max_splats: int | None = None
     device: str | None = None
 
-    # ── Avancé ────────────────────────────────────────────────────────────────
+    # ── Advanced ──────────────────────────────────────────────────────────────
     max_resolution: int | None = None
     with_viewer: bool = False
     build_mode: str | None = None
     custom_args: str = ""
 
-    # ── Densification (déjà géré nativement par build_command) ────────────────
+    # ── Densification (already handled natively by build_command) ─────────────
     start_iter: int | None = None
     refine_every: int | None = None
     growth_grad_threshold: float | None = None
     growth_select_fraction: float | None = None
     growth_stop_iter: int | None = None
-    refine_pose: str | None = None  # replié dans custom_args
+    refine_pose: str | None = None  # folded into custom_args
 
     # ── Checkpoints ───────────────────────────────────────────────────────────
-    # checkpoint_interval défaut 7000 : reproduit le défaut de build_command
-    # (qui émet toujours --export-every 7000 sauf si mis à 0).
+    # checkpoint_interval defaults to 7000: reproduces build_command's default
+    # (which always emits --export-every 7000 unless set to 0).
     checkpoint_interval: int = 7000
-    save_iterations: str | None = None  # replié dans custom_args
-    eval_every: str | None = None       # replié dans custom_args
+    save_iterations: str | None = None  # folded into custom_args
+    eval_every: str | None = None       # folded into custom_args
 
     # ── Mode ──────────────────────────────────────────────────────────────────
-    refine_mode: bool = False  # True = reprend un entraînement existant
+    refine_mode: bool = False  # True = resume an existing training run
 
     def to_dict(self) -> dict:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict) -> "BrushParams":
-        """Construit depuis un dict, en ignorant les clés inconnues (presets
-        anciens / configs sauvegardées d'une version antérieure)."""
+        """Build from a dict, ignoring unknown keys (old presets / configs saved
+        by an earlier version).
+        """
         if not isinstance(data, dict):
             return cls()
         valid = {f.name for f in fields(cls)}
         return cls(**{k: v for k, v in data.items() if k in valid})
 
     def to_engine_params(self) -> dict:
-        """Produit le dict plat consommé par ``BrushEngine.build_command()``.
+        """Produce the flat dict consumed by ``BrushEngine.build_command()``.
 
-        Les champs non gérés nativement sont ajoutés à ``custom_args`` (filtrés
-        par l'allowlist côté moteur). Aucun flag hors allowlist n'est introduit.
+        Fields not handled natively are appended to ``custom_args`` (filtered by
+        the allowlist on the engine side). No flag outside the allowlist is
+        introduced.
         """
         native_keys = (
             "total_steps", "sh_degree", "max_splats", "device",

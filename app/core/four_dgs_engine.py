@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 from .base_engine import BaseEngine
+from .media import is_video_file, without_hwaccel
 from .system import get_optimal_threads, is_apple_silicon, resolve_binary, resolve_project_root
 
 # Path to the dedicated nerfstudio venv
@@ -25,8 +26,8 @@ def _get_ns_process_data_path():
 
 class FourDGSEngine(BaseEngine):
     """
-    Moteur pour la préparation de datasets 4DGS (Video -> COLMAP -> Nerfstudio).
-    Nerfstudio est isolé dans un venv dédié (.venv_4dgs).
+    Engine for preparing 4DGS datasets (Video -> COLMAP -> Nerfstudio).
+    Nerfstudio is isolated in a dedicated venv (.venv_4dgs).
     """
     def __init__(self, logger_callback=None, status_callback=None):
         super().__init__("4DGS", logger_callback)
@@ -41,12 +42,12 @@ class FourDGSEngine(BaseEngine):
         self.upscale_config = None
 
     def check_nerfstudio(self):
-        """Vérifie si ns-process-data est disponible dans le venv dédié"""
+        """Check whether ns-process-data is available in the dedicated venv"""
         ns_path = _get_ns_process_data_path()
         return ns_path.exists()
 
     def extract_frames(self, video_path, output_dir, fps=5):
-        """Extrait les frames d'une vidéo avec ffmpeg"""
+        """Extract the frames of a video with ffmpeg"""
         if self.stop_requested:
             return False
 
@@ -61,13 +62,19 @@ class FourDGSEngine(BaseEngine):
         cmd.extend([
             "-i", str(video_path),
             "-vf", f"fps={fps}",
-            "-q:v", "2", # Haute qualité jpeg
+            "-q:v", "2", # High jpeg quality
             str(out_p / "%05d.jpg")
         ])
 
-        # Template Method : Délégation à _execute_command centralisé
-        # Grosses vidéos / disques externes lents : même palier que Brush (4h).
-        return self._execute_command(cmd, timeout=14400) == 0
+        # Template Method: delegation to the centralised _execute_command
+        # Big videos / slow external drives: same ceiling as Brush (4h).
+        returncode = self._execute_command(cmd, timeout=14400)
+        if returncode != 0 and "-hwaccel" in cmd and not self.stop_requested:
+            # VideoToolbox refuses some streams (ProRes, 10-bit HEVC in a .mov):
+            # retry in software rather than reject the container.
+            self.log("Décodage matériel refusé — nouvelle tentative en logiciel")
+            returncode = self._execute_command(without_hwaccel(cmd), timeout=14400)
+        return returncode == 0
 
     def _build_static_reference_set(self, images_path, staging_path):
         """Stage a single reference frame per camera for static-scene SfM.
@@ -104,18 +111,18 @@ class FourDGSEngine(BaseEngine):
 
     def run_colmap(self, dataset_root, camera_model="OPENCV", single_camera=True,
                    matcher_type="exhaustive", sequential_overlap=10):
-        """Lance le pipeline COLMAP : Feature Extractor -> Matcher -> Mapper.
+        """Run the COLMAP pipeline: Feature Extractor -> Matcher -> Mapper.
 
-        SfM tourne sur un jeu de référence statique — une frame par caméra,
-        cf. ``_build_static_reference_set`` — pas sur l'ensemble des frames
-        de toutes les caméras à tous les instants.
+        SfM runs on a static reference set — one frame per camera, cf.
+        ``_build_static_reference_set`` — not on every frame of every camera at
+        every instant.
 
-        ``camera_model``/``single_camera`` : à ajuster pour un rig multi-caméras
-        composé de modèles hétérogènes (le défaut suppose un même modèle pour
-        toutes les vues). ``matcher_type="sequential"`` accélère le matching sur
-        de longues séquences de frames au prix de l'exhaustivité des paires
-        testées ; ``sequential_overlap`` règle le nombre de frames voisines
-        comparées dans ce mode."""
+        ``camera_model``/``single_camera``: to adjust for a multi-camera rig
+        made of heterogeneous models (the default assumes the same model for
+        all views). ``matcher_type="sequential"`` speeds up matching on long
+        frame sequences at the cost of pair exhaustiveness;
+        ``sequential_overlap`` sets how many neighbouring frames are compared
+        in that mode."""
         if self.stop_requested:
             return False
 
@@ -244,11 +251,10 @@ class FourDGSEngine(BaseEngine):
             self.log(f"SECURITY: Invalid output directory: {output_dir}")
             return False
         self.log(f"Scan du dossier : {videos_dir}")
-        supported_ext = (".mp4", ".mov", ".avi", ".mkv")
         videos_path = Path(videos_dir)
         videos = sorted([
             f for f in videos_path.iterdir()
-            if f.suffix.lower() in supported_ext and not f.name.startswith("._")
+            if is_video_file(f) and not f.name.startswith("._")
         ])
 
         if not videos:

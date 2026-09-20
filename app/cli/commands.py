@@ -57,7 +57,7 @@ BRUSH_PRESETS = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _apply_robust(params: ColmapParams) -> ColmapParams:
-    """Applique les paramètres du mode robuste (anti-crash sur grandes scènes)."""
+    """Apply the robust mode parameters (anti-crash on large scenes)."""
     params.camera_model = "PINHOLE"
     params.ba_refine_extra_params = False
     params.ba_refine_principal_point = False
@@ -66,19 +66,19 @@ def _apply_robust(params: ColmapParams) -> ColmapParams:
 
 
 def _resolve_matching_type(feature_type: str, matching_type: str | None) -> str:
-    """Retourne le matching type : explicite ou défaut selon le feature type."""
+    """Return the matching type: explicit, or default according to the feature type."""
     if matching_type:
         return matching_type
     return FEATURE_TO_DEFAULT_MATCHING.get(feature_type, 'SIFT_BRUTEFORCE')
 
 
 def _build_colmap_params(args) -> ColmapParams:
-    """Construit un ColmapParams complet depuis les arguments CLI.
+    """Build a complete ColmapParams from the CLI arguments.
 
-    Fonction partagée par ``run_colmap`` et ``run_pipeline`` pour garantir
-    que les deux sous-commandes produisent des reconstructions identiques à
-    options équivalentes. Les paramètres optionnels absents de ``args``
-    prennent les défauts de ``ColmapParams``.
+    Shared by ``run_colmap`` and ``run_pipeline`` to guarantee that both
+    sub-commands produce identical reconstructions for equivalent options.
+    Optional parameters missing from ``args`` take the ``ColmapParams``
+    defaults.
     """
     feat_type = getattr(args, 'feature_type', 'SIFT')
     match_type = _resolve_matching_type(feat_type, getattr(args, 'matching_type', None))
@@ -106,6 +106,7 @@ def _build_colmap_params(args) -> ColmapParams:
         use_view_graph_calibration=getattr(args, 'view_graph_calibration', True),
         ignore_watermarks=getattr(args, 'ignore_watermarks', True),
         thermal_throttling=getattr(args, 'thermal_throttling', False),
+        image_convert_format=getattr(args, 'convert', 'png'),
     )
     if getattr(args, 'robust', False):
         params = _apply_robust(params)
@@ -381,7 +382,7 @@ def run_4dgs(args):
 
 
 def run_clean(args):
-    """Nettoie un fichier .ply ou tous les .ply d'un dossier."""
+    """Clean one .ply file, or every .ply of a folder."""
     overrides = {}
     if args.opacity_min is not None:
         overrides["opacity_min"] = args.opacity_min
@@ -393,7 +394,7 @@ def run_clean(args):
     input_path = _Path(args.input)
     output_path = _Path(args.output)
 
-    # Mode dossier : input et output sont des dossiers
+    # Folder mode: input and output are folders
     if input_path.is_dir():
         print(f"Nettoyage par lots : {input_path} → {output_path}")
         print(f"  Sévérité : {args.strength}")
@@ -421,7 +422,7 @@ def run_clean(args):
             print(f"Erreur : {e}")
             sys.exit(1)
     else:
-        # Mode fichier unique (comportement existant)
+        # Single file mode (existing behaviour)
         print(f"Nettoyage PLY : {args.input} → {args.output}")
         print(f"  Sévérité : {args.strength}")
         if overrides:
@@ -437,14 +438,14 @@ def run_clean(args):
             print(f"Erreur : {e}")
             sys.exit(1)
 
-    # ── Chaînage optionnel : Clean → Export ──────────────────────────────
+    # ── Optional chaining: Clean → Export ────────────────────────────────
     if getattr(args, "then_export", None):
         from app.core.export_engine import ExportEngine
 
         then_format = args.then_export
         export_output = args.export_output
 
-        # Déterminer les fichiers à exporter
+        # Determine the files to export
         if input_path.is_dir():
             export_sources = sorted(_Path(args.output).glob("*.ply"))
             export_root = _Path(export_output) if export_output else _Path(args.output)
@@ -579,7 +580,7 @@ def run_pipeline(args):
     def _sep(title):
         return print(f"\n{'─' * 50}\n  {title}\n{'─' * 50}")
 
-    # ── Étape 1 : COLMAP ──────────────────────────────────────────────────────
+    # ── Step 1: COLMAP ────────────────────────────────────────────────────────
     _sep("Étape 1/2 — Reconstruction COLMAP")
     print(f"  Input       : {args.input}")
     print(f"  Output      : {args.output}")
@@ -611,7 +612,7 @@ def run_pipeline(args):
     dataset_path = _Path(args.output) / args.project_name
     print(f"\nDataset prêt : {dataset_path}")
 
-    # ── Étape 2 : Brush ───────────────────────────────────────────────────────
+    # ── Step 2: Brush ─────────────────────────────────────────────────────────
     _sep("Étape 2/2 — Entraînement Brush")
 
     brush_params = dict(BRUSH_DEFAULTS)

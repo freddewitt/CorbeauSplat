@@ -1,13 +1,13 @@
-"""Notifications système macOS de fin d'exécution.
+"""macOS system notifications on run completion.
 
-Utilise ``NSUserNotificationCenter`` via ``pyobjc-framework-Cocoa`` (déjà une
-dépendance du projet — aucune nouvelle dépendance). API historique dépréciée par
-Apple mais fonctionnelle sans exécutable signé (contrairement à
-``UNUserNotificationCenter``), ce qui convient à une distribution via
-``CorbeauSplat.command``/Homebrew.
+Uses ``NSUserNotificationCenter`` through ``pyobjc-framework-Cocoa`` (already a
+project dependency — no new one). A historical API, deprecated by Apple but
+working without a signed executable (unlike ``UNUserNotificationCenter``), which
+suits a distribution through ``CorbeauSplat.command``/Homebrew.
 
-Défensif : si pyobjc est absent (CI, autre OS) ou l'API indisponible, ``notify``
-retourne ``False`` sans lever — la notification est simplement ignorée.
+Defensive: when pyobjc is missing (CI, another OS) or the API is unavailable,
+``notify`` returns ``False`` without raising — the notification is simply
+skipped.
 """
 
 import logging
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def is_available() -> bool:
-    """True si l'API de notification macOS est joignable."""
+    """True when the macOS notification API is reachable."""
     try:
         from Foundation import NSUserNotificationCenter
     except Exception:
@@ -28,7 +28,7 @@ def is_available() -> bool:
 
 
 def notify(title: str, message: str) -> bool:
-    """Envoie une notification macOS. Retourne True si délivrée, False sinon."""
+    """Send a macOS notification. Returns True when delivered, False otherwise."""
     try:
         from Foundation import NSUserNotification, NSUserNotificationCenter
     except Exception:

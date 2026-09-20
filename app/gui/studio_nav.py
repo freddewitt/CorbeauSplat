@@ -1,16 +1,16 @@
-"""Logique de navigation du Studio, isolée de Qt pour être testable.
+"""Studio navigation logic, kept out of Qt so it stays testable.
 
-Les classes qui héritent d'un widget Qt ne sont pas instanciables sous le mock
-PySide6 des tests (elles deviennent des MagicMock). On extrait donc ici la
-logique pure — mapping des pages, sélection courante, état de repli — que le
-rail et la fenêtre Studio délèguent. Ces objets sont testables en CI ;
-le rendu Qt reste validé manuellement sur Apple Silicon.
+Classes inheriting from a Qt widget cannot be instantiated under the tests'
+PySide6 mock (they become MagicMocks). So the pure logic — page mapping, current
+selection, collapsed state — is extracted here, and the rail and the Studio
+window delegate to it. These objects are testable in CI; the Qt rendering stays
+validated manually on Apple Silicon.
 """
 
 
 class PageRegistry:
-    """Associe chaque clé d'item du rail à un index de page (centre/droite) et
-    mémorise la sélection courante."""
+    """Map each rail item key to a page index (centre/right) and remember the
+    current selection."""
 
     def __init__(self, keys):
         keys = list(keys)
@@ -18,12 +18,12 @@ class PageRegistry:
         self.current = keys[0] if keys else None
 
     def index_of(self, key):
-        """Index de la page, ou None si la clé est inconnue."""
+        """Index of the page, or None when the key is unknown."""
         return self._index.get(key)
 
     def select(self, key):
-        """Sélectionne une page. Retourne son index, ou None (sélection
-        inchangée) si la clé est inconnue."""
+        """Select a page. Returns its index, or None (selection unchanged) when
+        the key is unknown."""
         index = self._index.get(key)
         if index is None:
             return None

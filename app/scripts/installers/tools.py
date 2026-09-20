@@ -128,7 +128,7 @@ def install_rust_toolchain():
     try:
         rustup_path = Path(tempfile.mkstemp(suffix=".sh")[1])
         req = urllib.request.Request("https://sh.rustup.rs")
-        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310 - URL https littérale (sh.rustup.rs)
+        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310 - literal https URL (sh.rustup.rs)
             rustup_path.write_bytes(resp.read())
 
         checksums = load_expected_checksums()

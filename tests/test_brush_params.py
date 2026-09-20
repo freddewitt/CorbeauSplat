@@ -1,8 +1,8 @@
-"""Tests de la surface structurée BrushParams + non-régression des tokens.
+"""Tests of the structured BrushParams surface + token non-regression.
 
-Garantie critique : passer ``BrushParams.to_engine_params()`` à
-``BrushEngine.build_command()`` doit produire exactement les mêmes tokens que
-l'appel direct avec le dict équivalent (l'allowlist du moteur reste seule juge).
+Critical guarantee: passing ``BrushParams.to_engine_params()`` to
+``BrushEngine.build_command()`` must produce exactly the same tokens as the
+direct call with the equivalent dict (the engine allowlist stays the only judge).
 """
 
 import pytest
@@ -10,8 +10,8 @@ import pytest
 from app.core.brush_engine import BrushEngine
 from app.core.brush_params import BrushParams
 
-# Presets intégrés (dupliqués ici en constante de test pour ne pas dépendre de
-# la couche CLI ; miroir de BRUSH_PRESETS de app/cli/commands.py).
+# Built-in presets (duplicated here as a test constant so as not to depend on
+# the CLI layer; mirror of BRUSH_PRESETS in app/cli/commands.py).
 BUILTIN_PRESETS = {
     "fast": {
         "total_steps": 7000, "refine_every": 100,
@@ -34,7 +34,7 @@ BUILTIN_PRESETS = {
 @pytest.fixture
 def engine():
     eng = BrushEngine()
-    eng.brush_bin = "/fake/brush"  # déterministe, indépendant de l'install réelle
+    eng.brush_bin = "/fake/brush"  # deterministic, independent of the real install
     return eng
 
 
@@ -43,7 +43,7 @@ def _cmd(engine, params):
     return cmd
 
 
-# ── Sérialisation ────────────────────────────────────────────────────────────
+# ── Serialisation ────────────────────────────────────────────────────────────
 def test_to_dict_from_dict_roundtrip():
     p = BrushParams(total_steps=30000, sh_degree=3, max_splats=2_000_000, device="mps")
     restored = BrushParams.from_dict(p.to_dict())
@@ -64,7 +64,7 @@ def test_none_fields_omitted():
     params = BrushParams().to_engine_params()
     assert "max_splats" not in params
     assert "total_steps" not in params
-    # checkpoint_interval a un défaut explicite (reproduit build_command)
+    # checkpoint_interval has an explicit default (reproduces build_command)
     assert params["checkpoint_interval"] == 7000
 
 
@@ -97,7 +97,7 @@ def test_promoted_flags_survive_allowlist_in_build_command(engine):
     assert "--eval-every" in cmd and "1000" in cmd
 
 
-# ── Non-régression stricte des tokens ────────────────────────────────────────
+# ── Strict token non-regression ──────────────────────────────────────────────
 @pytest.mark.parametrize("preset_name", ["fast", "std", "dense"])
 def test_tokens_identical_to_direct_dict_for_presets(engine, preset_name):
     preset = BUILTIN_PRESETS[preset_name]
@@ -107,8 +107,8 @@ def test_tokens_identical_to_direct_dict_for_presets(engine, preset_name):
 
 
 def test_empty_params_still_emit_default_export_every(engine):
-    """build_command émet toujours --export-every 7000 par défaut ; BrushParams
-    doit reproduire ce comportement."""
+    """build_command always emits --export-every 7000 by default; BrushParams
+    must reproduce that behaviour."""
     cmd = _cmd(engine, BrushParams().to_engine_params())
     assert "--export-every" in cmd
     idx = cmd.index("--export-every")

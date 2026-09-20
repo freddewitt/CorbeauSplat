@@ -1,4 +1,5 @@
-"""Tests pour upscayl_manager.py."""
+"""Tests for upscayl_manager.py.
+"""
 import hashlib
 import io
 import sys
@@ -24,45 +25,45 @@ from app.scripts.checksum_verifier import compute_file_sha256, verify_download, 
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestVerifyDownload:
-    """Tests pour verify_download() et verify_download_strict()."""
+    """Tests for verify_download() and verify_download_strict()."""
 
     def test_valid_checksum(self, tmp_path):
-        """SHA256 valide → True."""
+        """Valid SHA256 → True."""
         f = tmp_path / "test.bin"
         f.write_bytes(b"hello world")
         expected = hashlib.sha256(b"hello world").hexdigest()
         assert verify_download(f, expected) is True
 
     def test_invalid_checksum(self, tmp_path):
-        """SHA256 invalide → False."""
+        """Invalid SHA256 → False."""
         f = tmp_path / "test.bin"
         f.write_bytes(b"hello world")
         assert verify_download(f, "0000000000000000000000000000000000000000000000000000000000000000") is False
 
     def test_empty_hash_returns_true(self, tmp_path):
-        """Empreinte vide → True (non-strict mode, compatibilité descendante)."""
+        """Empty fingerprint → True (non-strict mode, backward compatibility)."""
         f = tmp_path / "test.bin"
         f.write_bytes(b"some data")
         assert verify_download(f, "") is True
 
     def test_nonexistent_file(self, tmp_path):
-        """Fichier inexistant → False."""
+        """Non-existent file → False."""
         f = tmp_path / "nonexistent.bin"
         assert verify_download(f, "aa" * 32) is False
 
     def test_empty_hash_nonexistent_file(self, tmp_path):
-        """Hash vide + fichier inexistant → True (le hash vide court-circuite)."""
+        """Empty hash + non-existent file → True (the empty hash short-circuits)."""
         f = tmp_path / "nonexistent.bin"
         assert verify_download(f, "") is True
 
     def test_strict_empty_hash_returns_false(self, tmp_path):
-        """verify_download_strict avec hash vide → False."""
+        """verify_download_strict with an empty hash → False."""
         f = tmp_path / "test.bin"
         f.write_bytes(b"data")
         assert verify_download_strict(f, "") is False
 
     def test_compute_file_sha256(self, tmp_path):
-        """compute_file_sha256 retourne le bon hash."""
+        """compute_file_sha256 returns the right hash."""
         f = tmp_path / "data.bin"
         f.write_bytes(b"test data" * 1000)
         expected = hashlib.sha256(b"test data" * 1000).hexdigest()
@@ -74,12 +75,12 @@ class TestVerifyDownload:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestDownloadModelFiles:
-    """Tests pour download_model_files()."""
+    """Tests for download_model_files()."""
 
     @patch("app.upscayl_manager.get_models_dir")
     @patch("app.upscayl_manager.urllib.request.urlopen")
     def test_download_success(self, mock_urlopen, mock_get_models_dir, tmp_path):
-        """Téléchargement réussi des fichiers .bin et .param."""
+        """Successful download of the .bin and .param files."""
         models_dir = tmp_path / "models" / "upscayl"
         models_dir.mkdir(parents=True)
         # We need the models_dir to exist (get_models_dir creates it internally)
@@ -113,7 +114,7 @@ class TestDownloadModelFiles:
     @patch("app.upscayl_manager.get_models_dir")
     @patch("app.upscayl_manager.urllib.request.urlopen")
     def test_download_too_small(self, mock_urlopen, mock_get_models_dir, tmp_path):
-        """Fichier trop petit (moins de 512 octets) → False."""
+        """File too small (under 512 bytes) → False."""
         models_dir = tmp_path / "models" / "upscayl"
         models_dir.mkdir(parents=True)
         mock_get_models_dir.return_value = models_dir
@@ -137,7 +138,7 @@ class TestDownloadModelFiles:
     @patch("app.upscayl_manager.get_models_dir")
     @patch("app.upscayl_manager.urllib.request.urlopen")
     def test_download_http_error(self, mock_urlopen, mock_get_models_dir, tmp_path):
-        """Erreur HTTP → False."""
+        """HTTP error → False."""
         models_dir = tmp_path / "models" / "upscayl"
         models_dir.mkdir(parents=True)
         mock_get_models_dir.return_value = models_dir
@@ -155,7 +156,7 @@ class TestDownloadModelFiles:
 
     @patch("app.upscayl_manager.get_models_dir")
     def test_already_downloaded(self, mock_get_models_dir, tmp_path):
-        """Fichier déjà présent avec taille > 1024 → skip download."""
+        """File already present with size > 1024 → download skipped."""
         models_dir = tmp_path / "models" / "upscayl"
         models_dir.mkdir(parents=True)
         (models_dir / "test-model.bin").write_bytes(b"x" * 2048)
@@ -173,12 +174,12 @@ class TestDownloadModelFiles:
 
 
 class TestExtractArchive:
-    """Tests pour _extract_archive() — protection Zip Slip."""
+    """Tests for _extract_archive() — Zip Slip protection."""
 
     @patch("app.upscayl_manager.get_bin_dir")
     @patch("app.upscayl_manager.get_models_dir")
     def test_zip_zip_slip_blocked(self, mock_get_models_dir, mock_get_bin_dir, tmp_path):
-        """Zip contenant un chemin avec ../ — seuls les fichiers autorisés sont extraits par basename."""
+        """Zip holding a path with ../ — only the allowed files are extracted by basename."""
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir(parents=True)
         models_dir = tmp_path / "models" / "upscayl"
@@ -211,7 +212,7 @@ class TestExtractArchive:
     @patch("app.upscayl_manager.get_bin_dir")
     @patch("app.upscayl_manager.get_models_dir")
     def test_tar_zip_slip_blocked(self, mock_get_models_dir, mock_get_bin_dir, tmp_path):
-        """Archive tar.gz contenant un chemin avec ../ — extrait par basename."""
+        """tar.gz archive holding a path with ../ — extracted by basename."""
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir(parents=True)
         models_dir = tmp_path / "models" / "upscayl"
@@ -248,7 +249,7 @@ class TestExtractArchive:
     @patch("app.upscayl_manager.get_bin_dir")
     @patch("app.upscayl_manager.get_models_dir")
     def test_unknown_format(self, mock_get_models_dir, mock_get_bin_dir, tmp_path):
-        """Format d'archive inconnu → log et pas d'erreur."""
+        """Unknown archive format → logged, no error."""
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir(parents=True)
         models_dir = tmp_path / "models" / "upscayl"
@@ -269,7 +270,7 @@ class TestExtractArchive:
 
 
 class TestDownloadBinary:
-    """Tests pour download_binary()."""
+    """Tests for download_binary()."""
 
     @patch("app.upscayl_manager._fetch_release")
     @patch("app.upscayl_manager.get_bin_dir")
@@ -291,7 +292,7 @@ class TestDownloadBinary:
         mock_fetch_release,
         tmp_path,
     ):
-        """Téléchargement réussi du binaire upscayl."""
+        """Successful download of the upscayl binary."""
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir(parents=True)
         mock_get_bin_dir.return_value = bin_dir
@@ -328,7 +329,7 @@ class TestDownloadBinary:
 
     @patch("app.upscayl_manager._fetch_release")
     def test_no_macos_asset(self, mock_fetch_release):
-        """Aucun asset macOS → RuntimeError."""
+        """No macOS asset → RuntimeError."""
         mock_fetch_release.return_value = {
             "assets": [{"name": "upscayl-linux-x86_64.tar.gz"}]
         }
@@ -344,7 +345,7 @@ class TestDownloadBinary:
     def test_download_http_error(
         self, mock_urlopen, mock_get_bin_dir, mock_fetch_release, tmp_path
     ):
-        """Erreur HTTP → RuntimeError."""
+        """HTTP error → RuntimeError."""
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir(parents=True)
         mock_get_bin_dir.return_value = bin_dir
@@ -366,13 +367,13 @@ class TestDownloadBinary:
 
 
 class TestUpscaylRun:
-    """Tests pour run_upscayl()."""
+    """Tests for run_upscayl()."""
 
     @patch("app.upscayl_manager.find_binary")
     @patch("app.upscayl_manager.subprocess.Popen")
     @patch("app.upscayl_manager.os.access")
     def test_run_basic(self, mock_access, mock_popen, mock_find_binary, tmp_path):
-        """Exécution de base de upscayl-bin."""
+        """Basic run of upscayl-bin."""
         mock_find_binary.return_value = Path("/usr/local/bin/upscayl-bin")
         mock_access.return_value = True  # binary appears executable
 
@@ -400,7 +401,7 @@ class TestUpscaylRun:
 
     @patch("app.upscayl_manager.find_binary")
     def test_no_binary(self, mock_find_binary):
-        """Aucun binaire trouvé → done_callback(False)."""
+        """No binary found → done_callback(False)."""
         mock_find_binary.return_value = None
 
         from app.upscayl_manager import run_upscayl
@@ -413,7 +414,7 @@ class TestUpscaylRun:
 
     @patch("app.upscayl_manager.find_binary")
     def test_no_model(self, mock_find_binary):
-        """Aucun model_id → done_callback(False)."""
+        """No model_id → done_callback(False)."""
         mock_find_binary.return_value = Path("/usr/local/bin/upscayl-bin")
 
         from app.upscayl_manager import run_upscayl
@@ -426,10 +427,10 @@ class TestUpscaylRun:
 
 
 class TestUpscaylHelpers:
-    """Tests pour les fonctions helper du module upscayl_manager."""
+    """Tests for the helper functions of the upscayl_manager module."""
 
     def test_find_macos_asset(self):
-        """_find_macos_asset trouve le bon asset."""
+        """_find_macos_asset finds the right asset."""
         from app.upscayl_manager import _find_macos_asset
 
         assets = [
@@ -442,7 +443,7 @@ class TestUpscaylHelpers:
         assert "macos" in result["name"]
 
     def test_find_macos_asset_fallback(self):
-        """_find_macos_asset utilise le fallback 'mac' si arm64 manquant."""
+        """_find_macos_asset falls back on 'mac' when arm64 is missing."""
         from app.upscayl_manager import _find_macos_asset
 
         assets = [
@@ -452,7 +453,7 @@ class TestUpscaylHelpers:
         assert result is not None
 
     def test_find_macos_asset_none(self):
-        """_find_macos_asset retourne None si aucun asset macOS."""
+        """_find_macos_asset returns None when there is no macOS asset."""
         from app.upscayl_manager import _find_macos_asset
 
         assets = [
@@ -463,13 +464,13 @@ class TestUpscaylHelpers:
         assert result is None
 
     def test_get_bin_dir(self, tmp_path):
-        """get_bin_dir retourne le chemin attendu."""
+        """get_bin_dir returns the expected path."""
         with patch("app.upscayl_manager.resolve_project_root", return_value=tmp_path):
             from app.upscayl_manager import get_bin_dir
             assert get_bin_dir() == tmp_path / "bin"
 
     def test_get_models_dir(self, tmp_path):
-        """get_models_dir crée le dossier et retourne le chemin."""
+        """get_models_dir creates the folder and returns the path."""
         with patch("app.upscayl_manager.resolve_project_root", return_value=tmp_path):
             from app.upscayl_manager import get_models_dir
             result = get_models_dir()
@@ -479,9 +480,10 @@ class TestUpscaylHelpers:
 
 
 class TestModelSizeOnDisk:
-    """``size_on_disk_mb`` alimente les cartes de la galerie Upscale : sans
-    poids affiché, l'utilisateur ne peut ni arbitrer un téléchargement ni
-    décider ce qu'il supprime."""
+    """``size_on_disk_mb`` feeds the cards of the Upscale gallery: without a
+    displayed weight, the user can neither weigh up a download nor decide what
+    to delete.
+    """
 
     @staticmethod
     def _model():
@@ -498,8 +500,9 @@ class TestModelSizeOnDisk:
         assert model.size_on_disk_mb(tmp_path) == 4
 
     def test_partial_install_still_measures_what_exists(self, tmp_path):
-        """Un .bin sans .param n'est pas « installé » mais occupe le disque :
-        la carte doit pouvoir le signaler plutôt que d'échouer."""
+        """A .bin without its .param is not "installed" but still takes disk
+        space: the card must be able to report it rather than fail.
+        """
         model = self._model()
         (tmp_path / f"{model.id}.bin").write_bytes(b"\0" * (2 * 1024 * 1024))
         assert not model.is_downloaded(tmp_path)

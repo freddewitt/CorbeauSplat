@@ -23,20 +23,21 @@ class BrushEngineDep(EngineDependency):
         return config.get("brush_params", {}).get("enabled", False) or config.get("brush_enabled", False)
 
     def get_remote_version(self) -> str:
-        """Version cible : HEAD en mode source, version **épinglée** en mode release.
+        """Target version: HEAD in source mode, **pinned** version in release mode.
 
-        En mode release, on ne suit délibérément pas la dernière release amont.
-        L'archive est vérifiée contre une empreinte figée dans ce dépôt
-        (``darwin_brush``/``linux_brush``) : suivre « latest » garantissait qu'au
-        premier tag publié en amont, l'empreinte ne corresponde plus et que
-        l'installation soit refusée — la panne constatée le 2026-08-07. Pire,
-        ``base.py`` comparant cette valeur à la version locale, il aurait proposé
-        la mise à jour à *chaque* démarrage, vers un échec certain.
+        In release mode we deliberately do not follow the latest upstream
+        release. The archive is checked against a fingerprint frozen in this
+        repository (``darwin_brush``/``linux_brush``): following "latest"
+        guaranteed that, on the first tag published upstream, the fingerprint
+        would no longer match and the installation would be refused — the
+        breakage seen on 2026-08-07. Worse, since ``base.py`` compares this
+        value to the local version, it would have offered the update at *every*
+        start-up, towards a certain failure.
 
-        Version et empreinte vivent donc côte à côte dans ``checksums.json`` et
-        se bumpent ensemble, en une seule modification relue. Adopter une
-        nouvelle release reste un geste délibéré, pas un effet de bord du
-        calendrier de publication d'un tiers.
+        Version and fingerprint therefore live side by side in
+        ``checksums.json`` and are bumped together, in a single reviewed change.
+        Adopting a new release stays a deliberate act, not a side effect of a
+        third party's release calendar.
         """
         config = {}
         with contextlib.suppress(OSError, json.JSONDecodeError):
@@ -63,10 +64,11 @@ class BrushEngineDep(EngineDependency):
         return pinned
 
     def _fetch_latest_release_tag(self) -> str:
-        """Dernier tag publié en amont — purement informatif.
+        """Latest tag published upstream — purely informative.
 
-        Ne sert **pas** à choisir ce qui est installé (cf. ``get_remote_version``) :
-        uniquement à signaler qu'un bump de l'épinglage est possible.
+        It is **not** used to choose what gets installed (cf.
+        ``get_remote_version``): only to signal that bumping the pin is
+        possible.
         """
         import json as _json
         import urllib.request
@@ -75,7 +77,7 @@ class BrushEngineDep(EngineDependency):
                 "https://api.github.com/repos/ArthurBrussee/brush/releases/latest",
                 headers={"Accept": "application/vnd.github+json", "User-Agent": "CorbeauSplat"}
             )
-            with urllib.request.urlopen(req, timeout=8) as resp:  # nosec B310 - URL https littérale (API GitHub releases), pas de schéma file:
+            with urllib.request.urlopen(req, timeout=8) as resp:  # nosec B310 - literal https URL (GitHub releases API), no file: scheme
                 return _json.loads(resp.read()).get("tag_name", "")
         except Exception as e:
             print(f"⚠️ Could not fetch latest Brush version: {e}")
@@ -103,9 +105,9 @@ class BrushEngineDep(EngineDependency):
             remote_ref = self._get_head_commit()
             release_version = None
         else:
-            # Pas de repli en dur ici : ce serait un troisième endroit où la
-            # version vivrait, donc une troisième occasion de diverger de
-            # l'empreinte. checksums.json est la seule source.
+            # No hardcoded fallback here: it would be a third place where the
+            # version lives, hence a third chance to diverge from the
+            # fingerprint. checksums.json is the single source.
             remote_ref = self.get_remote_version()
             if not remote_ref:
                 print("❌ Version Brush épinglée introuvable — installation annulée.")
@@ -174,7 +176,7 @@ class BrushEngineDep(EngineDependency):
         archive_path = self.engines_dir / f"brush-app-{platform_suffix}"
         try:
             req = urllib.request.Request(release_url)
-            with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as out_f:  # nosec B310 - URL https littérale construite depuis le tag de release
+            with urllib.request.urlopen(req, timeout=120) as resp, open(str(archive_path), "wb") as out_f:  # nosec B310 - literal https URL built from the release tag
                 out_f.write(resp.read())
         except Exception as e:
             print(f"⚠️ Download failed: {e}")
@@ -257,7 +259,7 @@ class BrushEngineDep(EngineDependency):
         shutil.rmtree(str(extract_dir), ignore_errors=True)
 
         if system != "Windows":
-            os.chmod(str(dest), 0o755)  # nosec B103 - binaire moteur : doit être exécutable, hash vérifié en amont
+            os.chmod(str(dest), 0o755)  # nosec B103 - engine binary: must be executable, hash verified beforehand
 
         self.save_local_version(version)
         print(f"✅ Brush {version} installed successfully from release binary.")

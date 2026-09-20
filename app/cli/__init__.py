@@ -42,7 +42,7 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
-    # No subcommand + no --gui → GUI par défaut
+    # No subcommand + no --gui → GUI by default
     if not args.command and not args.gui:
         _launch_gui()
         return

@@ -51,6 +51,8 @@ def get_parser():
                    choices=["SIMPLE_PINHOLE","PINHOLE","SIMPLE_RADIAL","RADIAL","OPENCV","OPENCV_FISHEYE"],
                    help="Modèle de caméra COLMAP (défaut: SIMPLE_RADIAL)")
     p.add_argument("--undistort",  action="store_true", help="Undistortion après reconstruction")
+    p.add_argument("--convert", choices=["png", "jpeg", "off"], default="png",
+                   help="Conversion des images hors JPEG/PNG (HEIC, TIFF, BMP, WebP…) avant traitement (défaut: png)")
     p.add_argument("--feature_type", choices=["SIFT","ALIKED_N16ROT","ALIKED_N32"], default="SIFT",
                    help="Extracteur de features (défaut: SIFT). ALIKED requiert ONNX (intégré dans brew colmap)")
     p.add_argument("--matching_type", choices=["SIFT_BRUTEFORCE","ALIKED_BRUTEFORCE","SIFT_LIGHTGLUE","ALIKED_LIGHTGLUE"], default=None,
@@ -94,6 +96,8 @@ def get_parser():
                    choices=["SIMPLE_PINHOLE","PINHOLE","SIMPLE_RADIAL","RADIAL","OPENCV","OPENCV_FISHEYE"],
                    help="Modèle de caméra COLMAP (défaut: SIMPLE_RADIAL)")
     p.add_argument("--undistort",  action="store_true", help="Undistortion après reconstruction")
+    p.add_argument("--convert", choices=["png", "jpeg", "off"], default="png",
+                   help="Conversion des images hors JPEG/PNG (HEIC, TIFF, BMP, WebP…) avant traitement (défaut: png)")
     # Feature extraction
     p.add_argument("--no_single_camera",  action="store_true", help="Désactiver le mode caméra unique")
     p.add_argument("--feature_type",  choices=["SIFT","ALIKED_N16ROT","ALIKED_N32"], default="SIFT",
@@ -141,7 +145,7 @@ def get_parser():
     p.add_argument("--with_viewer", action="store_true", help="Ouvrir le viewer interactif")
     p.add_argument("--ply_name",   default=None,      help="Nom du fichier PLY de sortie")
     p.add_argument("--custom_args", default=None,     help="Arguments supplémentaires passés à brush")
-    # Paramètres avancés (None = utilise la valeur du preset ou du défaut)
+    # Advanced parameters (None uses the preset value or the default)
     p.add_argument("--start_iter",              type=int,   default=None, help="Itération de départ (défaut: 0)")
     p.add_argument("--refine_every",            type=int,   default=None, help="Densification toutes les N iters (défaut: 200)")
     p.add_argument("--growth_grad_threshold",   type=float, default=None, help="Seuil gradient densification (défaut: 0.003)")

@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.i18n import add_language_observer, tr
+from app.core.media import IMAGE_EXTENSIONS, convert_image
 from app.upscayl_models import get_model
 
 
@@ -183,11 +184,11 @@ def run_upscale_job(input_path, output_dir, params, log_callback, cancel_check):
     # and so never silently overwrite — an existing file, including the
     # original itself when input and output folders happen to be the same.
     suffix = f"_{model_id}_x{req_scale}"
-    if src.is_dir():
-        image_exts = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"}
-        sources = [f for f in src.iterdir() if f.is_file() and f.suffix.lower() in image_exts]
-    else:
-        sources = [src]
+    sources = (
+        [f for f in src.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS]
+        if src.is_dir()
+        else [src]
+    )
 
     with _tempfile.TemporaryDirectory(prefix="upscayl_in_") as tmp_in:
         tmp_in_path = Path(tmp_in)
@@ -197,7 +198,9 @@ def run_upscale_job(input_path, output_dir, params, log_callback, cancel_check):
             _copy_as_supported_image(f, tmp_in_path / staged_name)
             if x1_mode:
                 from PIL import Image as _PIL
-                with _PIL.open(f) as im:
+                # Read back the staged copy: the original may be a format
+                # Pillow cannot open (HEIC), the staged one never is.
+                with _PIL.open(tmp_in_path / staged_name) as im:
                     orig_sizes[staged_name] = im.size
 
         success = [False]
@@ -226,6 +229,10 @@ def _copy_as_supported_image(src: Path, dest: Path) -> None:
             has_alpha = im.mode in ("RGBA", "LA", "PA") or "transparency" in im.info
             im.convert("RGBA" if has_alpha else "RGB").save(dest)
     except Exception:
+        # HEIC and friends: Pillow has no decoder here, macOS sips does.
+        fmt = "jpeg" if dest.suffix.lower() in (".jpg", ".jpeg") else "png"
+        if convert_image(src, dest, fmt):
+            return
         import shutil as _shutil
         _shutil.copy2(src, dest)
 

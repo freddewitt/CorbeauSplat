@@ -1,13 +1,13 @@
-"""Presets Brush personnalisés, persistés et nommés par l'utilisateur.
+"""Custom Brush presets, persisted and named by the user.
 
-Complète les presets intégrés (``BRUSH_PRESETS``, Strategy pattern existant côté
-CLI) sans les dupliquer ni les déplacer : ce module ne gère que les presets
-*utilisateur*. Le code appelant fusionne les deux via :func:`merge_presets` en
-passant les presets intégrés en argument, ce qui évite une dépendance
-``core → cli`` (couche inversée).
+Complements the built-in presets (``BRUSH_PRESETS``, the existing Strategy
+pattern on the CLI side) without duplicating or moving them: this module only
+handles *user* presets. The calling code merges both through
+:func:`merge_presets`, passing the built-in presets as an argument, which avoids
+a ``core → cli`` dependency (an inverted layer).
 
-Stockage : fichier JSON dédié ``brush_presets.json`` à la racine, voisin de
-``config.json`` géré par ``SessionManager``.
+Storage: a dedicated ``brush_presets.json`` file at the root, next to the
+``config.json`` managed by ``SessionManager``.
 """
 
 import json
@@ -24,8 +24,8 @@ def _store_path():
 
 
 def load_user_presets() -> dict:
-    """Retourne le dict ``{nom: params}`` des presets utilisateur (vide si aucun
-    ou fichier illisible)."""
+    """Return the ``{name: params}`` dict of the user presets (empty when there
+    is none, or when the file is unreadable)."""
     path = _store_path()
     if not path.exists():
         return {}
@@ -44,7 +44,7 @@ def _write(presets: dict) -> None:
 
 
 def save_user_preset(name: str, params: dict) -> None:
-    """Enregistre (ou écrase) un preset utilisateur nommé."""
+    """Save (or overwrite) a named user preset."""
     if not is_safe_config_name(name):
         raise ValueError(f"Nom de preset invalide: {name!r}")
     presets = load_user_presets()
@@ -53,7 +53,7 @@ def save_user_preset(name: str, params: dict) -> None:
 
 
 def delete_user_preset(name: str) -> bool:
-    """Supprime un preset utilisateur. Retourne True si retiré."""
+    """Delete a user preset. Returns True when removed."""
     presets = load_user_presets()
     if name in presets:
         del presets[name]
@@ -63,21 +63,21 @@ def delete_user_preset(name: str) -> bool:
 
 
 def is_deletable(name) -> bool:
-    """Un preset n'est supprimable que s'il est *utilisateur*.
+    """A preset is only deletable when it is a *user* one.
 
-    Les presets intégrés sont livrés avec l'app : les retirer du dropdown
-    n'aurait aucun effet persistant (``merge_presets`` les réinjecterait au
-    rechargement suivant). Un preset utilisateur qui masque un intégré homonyme
-    reste supprimable — l'intégré réapparaît alors, ce qui est le comportement
-    attendu de :func:`merge_presets`.
+    The built-in presets ship with the app: removing them from the dropdown
+    would have no lasting effect (``merge_presets`` would re-inject them on the
+    next reload). A user preset masking a built-in one of the same name stays
+    deletable — the built-in then reappears, which is the expected behaviour of
+    :func:`merge_presets`.
     """
     return bool(name) and name in load_user_presets()
 
 
 def merge_presets(builtins: dict) -> dict:
-    """Fusionne presets intégrés + utilisateur (l'utilisateur l'emporte en cas de
-    collision de nom). ``builtins`` est passé par l'appelant (ex. ``BRUSH_PRESETS``)
-    pour ne pas inverser la dépendance core→cli."""
+    """Merge built-in + user presets (the user one wins on a name collision).
+    ``builtins`` is passed in by the caller (e.g. ``BRUSH_PRESETS``) so as not to
+    invert the core→cli dependency."""
     merged = dict(builtins or {})
     merged.update(load_user_presets())
     return merged

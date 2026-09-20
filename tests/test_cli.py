@@ -1,13 +1,14 @@
-"""Tests pour app.cli — CLI dispatch et parsing argparse."""
+"""Tests for app.cli — CLI dispatch and argparse parsing.
+"""
 import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Patching de modules manquants AVANT tout import de code projet
-# app.cli.commands importe send2trash via engine.py et PySide6 via main_window.py.
-# On patche sys.modules au niveau module pour éviter les ImportError.
+# Patching the missing modules BEFORE any project code import.
+# app.cli.commands imports send2trash through engine.py and PySide6 through main_window.py.
+# We patch sys.modules at module level to avoid ImportError.
 # ─────────────────────────────────────────────────────────────────────────────
 _missing_modules = {}
 for _mod_name in ["send2trash", "PySide6", "PySide6.QtWidgets", "PySide6.QtGui",
@@ -36,10 +37,10 @@ for _mod, _mock in _missing_modules.items():
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestCLIParser:
-    """Tests unitaires du parsing argparse."""
+    """Unit tests of the argparse parsing."""
 
     def test_no_args_returns_none_command(self):
-        """Aucun argument → command=None, gui=False."""
+        """No argument → command=None, gui=False."""
         from app.cli.parser import get_parser
         parser = get_parser()
         args = parser.parse_args([])
@@ -54,7 +55,7 @@ class TestCLIParser:
         assert args.gui is True
 
     def test_pipeline_command(self):
-        """Sous-commande pipeline avec arguments obligatoires."""
+        """pipeline sub-command with the mandatory arguments."""
         from app.cli.parser import get_parser
         parser = get_parser()
         args = parser.parse_args([
@@ -69,7 +70,7 @@ class TestCLIParser:
         assert args.fps == 5  # default
 
     def test_pipeline_with_all_options(self):
-        """Pipeline avec toutes les options explicites."""
+        """Pipeline with every option spelled out."""
         from app.cli.parser import get_parser
         parser = get_parser()
         args = parser.parse_args([
@@ -104,7 +105,7 @@ class TestCLIParser:
         assert args.ply_name == "result.ply"
 
     def test_colmap_mandatory_args(self):
-        """Sous-commande colmap require input et output."""
+        """colmap sub-command requires input and output."""
         from app.cli.parser import get_parser
         parser = get_parser()
         args = parser.parse_args(["colmap", "-i", "/in", "-o", "/out"])
@@ -113,21 +114,21 @@ class TestCLIParser:
         assert args.output == "/out"
 
     def test_colmap_missing_input(self):
-        """colmap sans --input → erreur SystemExit."""
+        """colmap without --input → SystemExit error."""
         from app.cli.parser import get_parser
         parser = get_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(["colmap", "-o", "/out"])
 
     def test_colmap_missing_output(self):
-        """colmap sans --output → erreur SystemExit."""
+        """colmap without --output → SystemExit error."""
         from app.cli.parser import get_parser
         parser = get_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(["colmap", "-i", "/in"])
 
     def test_brush_command(self):
-        """Sous-commande brush avec arguments obligatoires."""
+        """brush sub-command with the mandatory arguments."""
         from app.cli.parser import get_parser
         parser = get_parser()
         args = parser.parse_args([
@@ -144,7 +145,7 @@ class TestCLIParser:
         assert args.device == "mps"
 
     def test_sharp_command(self):
-        """Sous-commande sharp avec mode image (défaut)."""
+        """sharp sub-command in image mode (default)."""
         from app.cli.parser import get_parser
         parser = get_parser()
         args = parser.parse_args([
@@ -156,7 +157,7 @@ class TestCLIParser:
         assert args.mode == "image"
 
     def test_sharp_video_command(self):
-        """Sous-commande sharp en mode vidéo."""
+        """sharp sub-command in video mode."""
         from app.cli.parser import get_parser
         parser = get_parser()
         args = parser.parse_args([
@@ -171,7 +172,7 @@ class TestCLIParser:
         assert args.skip_frames == 3
 
     def test_upscale_command(self):
-        """Sous-commande upscale."""
+        """upscale sub-command."""
         from app.cli.parser import get_parser
         parser = get_parser()
         args = parser.parse_args([
@@ -188,7 +189,7 @@ class TestCLIParser:
         assert args.format == "png"
 
     def test_4dgs_command(self):
-        """Sous-commande 4dgs."""
+        """4dgs sub-command."""
         from app.cli.parser import get_parser
         parser = get_parser()
         args = parser.parse_args([
@@ -201,7 +202,7 @@ class TestCLIParser:
         assert args.fps == 10
 
     def test_view_command(self):
-        """Sous-commande view."""
+        """view sub-command."""
         from app.cli.parser import get_parser
         parser = get_parser()
         args = parser.parse_args([
@@ -213,7 +214,7 @@ class TestCLIParser:
         assert args.port == 8080
 
     def test_extract360_command(self):
-        """Sous-commande extract360."""
+        """extract360 sub-command."""
         from app.cli.parser import get_parser
         parser = get_parser()
         args = parser.parse_args([
@@ -226,7 +227,7 @@ class TestCLIParser:
         assert args.camera_count == 8
 
     def test_help_shows_all_subcommands(self):
-        """--help affiche les sous-commandes (vérifié via SystemExit)."""
+        """--help shows the sub-commands (checked through SystemExit)."""
         from app.cli.parser import get_parser
         parser = get_parser()
         with pytest.raises(SystemExit) as exc_info:
@@ -239,10 +240,10 @@ class TestCLIParser:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestCLIDispatch:
-    """Tests du dispatch main() avec mock des handlers."""
+    """Tests of the main() dispatch with mocked handlers."""
 
     def test_main_no_args_launches_gui(self):
-        """main() sans argument → _launch_gui() est appelé."""
+        """main() without argument → _launch_gui() is called."""
         with patch("app.cli._launch_gui") as mock_gui, patch("app.cli.check_dependencies", return_value=[]):
             with patch.object(sys, "argv", ["main.py"]):
                 from app.cli import main
@@ -250,7 +251,7 @@ class TestCLIDispatch:
                 mock_gui.assert_called_once()
 
     def test_main_gui_flag(self):
-        """main() avec --gui → _launch_gui() est appelé."""
+        """main() with --gui → _launch_gui() is called."""
         with patch("app.cli._launch_gui") as mock_gui, patch("app.cli.check_dependencies", return_value=[]):
             with patch.object(sys, "argv", ["main.py", "--gui"]):
                 from app.cli import main
@@ -258,7 +259,7 @@ class TestCLIDispatch:
                 mock_gui.assert_called_once()
 
     def test_main_pipeline_dispatch(self):
-        """main() avec pipeline → run_pipeline est appelé."""
+        """main() with pipeline → run_pipeline is called."""
         with patch("app.cli.DISPATCH", new_callable=dict) as mock_dispatch:
             handler = MagicMock()
             mock_dispatch["pipeline"] = handler
@@ -270,7 +271,7 @@ class TestCLIDispatch:
                     handler.assert_called_once()
 
     def test_main_colmap_dispatch(self):
-        """main() avec colmap → run_colmap est appelé."""
+        """main() with colmap → run_colmap is called."""
         with patch("app.cli.DISPATCH", new_callable=dict) as mock_dispatch:
             handler = MagicMock()
             mock_dispatch["colmap"] = handler
@@ -282,7 +283,7 @@ class TestCLIDispatch:
                     handler.assert_called_once()
 
     def test_main_unknown_command_shows_help(self):
-        """Commande inconnue → print_help() est appelé."""
+        """Unknown command → print_help() is called."""
         with patch("app.cli.get_parser") as mock_get_parser, patch("app.cli.DISPATCH", new_callable=dict):
             mock_parser = MagicMock()
             mock_get_parser.return_value = mock_parser
@@ -297,7 +298,7 @@ class TestCLIDispatch:
                 mock_parser.print_help.assert_called_once()
 
     def test_main_sharp_dispatch(self):
-        """main() avec sharp → run_sharp est appelé."""
+        """main() with sharp → run_sharp is called."""
         with patch("app.cli.DISPATCH", new_callable=dict) as mock_dispatch:
             handler = MagicMock()
             mock_dispatch["sharp"] = handler
@@ -309,7 +310,7 @@ class TestCLIDispatch:
                     handler.assert_called_once()
 
     def test_main_dependencies_missing(self):
-        """Dépendances manquantes → message affiché (avec sous-commande)."""
+        """Missing dependencies → message printed (with a sub-command)."""
         with patch("app.cli.DISPATCH", new_callable=dict) as mock_dispatch:
             handler = MagicMock()
             mock_dispatch["pipeline"] = handler
@@ -326,12 +327,12 @@ class TestCLIDispatch:
 
 
 class TestRunFunctions:
-    """Tests unitaires des fonctions run_* avec mocks."""
+    """Unit tests of the run_* functions with mocks."""
 
     @patch("app.cli.commands.ColmapEngine")
     @patch("app.cli.commands.ColmapParams")
     def test_run_colmap(self, mock_params_cls, mock_engine_cls):
-        """run_colmap exécute le moteur COLMAP."""
+        """run_colmap runs the COLMAP engine."""
         mock_engine = MagicMock()
         mock_engine.run.return_value = (True, "Success")
         mock_engine_cls.return_value = mock_engine
@@ -367,7 +368,7 @@ class TestRunFunctions:
     @patch("app.cli.commands.BrushEngine")
     @patch("app.cli.commands.get_brush_build_mode")
     def test_run_brush(self, mock_get_mode, mock_engine_cls):
-        """run_brush exécute l'entraînement Brush."""
+        """run_brush runs the Brush training."""
         mock_engine = MagicMock()
         mock_engine.train.return_value = 0
         mock_engine_cls.return_value = mock_engine
@@ -400,7 +401,7 @@ class TestRunFunctions:
 
     @patch("app.cli.commands.SharpEngine")
     def test_run_sharp_image(self, mock_engine_cls):
-        """run_sharp en mode image exécute predict()."""
+        """run_sharp in image mode runs predict()."""
         mock_engine = MagicMock()
         mock_engine.predict.return_value = 0
         mock_engine_cls.return_value = mock_engine
@@ -420,7 +421,7 @@ class TestRunFunctions:
 
     @patch("app.cli.commands.SharpEngine")
     def test_run_sharp_video(self, mock_engine_cls):
-        """run_sharp en mode vidéo exécute process_video_frames()."""
+        """run_sharp in video mode runs process_video_frames()."""
         mock_engine = MagicMock()
         mock_engine.process_video_frames.return_value = 10
         mock_engine_cls.return_value = mock_engine
@@ -441,13 +442,13 @@ class TestRunFunctions:
 
 
 class TestPipelineRun:
-    """Tests pour run_pipeline (pipeline complet COLMAP → Brush)."""
+    """Tests for run_pipeline (full COLMAP → Brush pipeline)."""
 
     @patch("app.cli.commands.ColmapEngine")
     @patch("app.cli.commands.BrushEngine")
     @patch("app.cli.commands.get_brush_build_mode")
     def test_pipeline_success(self, mock_get_mode, mock_brush_cls, mock_colmap_cls):
-        """Pipeline complet réussi."""
+        """Full pipeline succeeded."""
         mock_colmap = MagicMock()
         mock_colmap.run.return_value = (True, "Dataset ready")
         mock_colmap_cls.return_value = mock_colmap
@@ -483,7 +484,7 @@ class TestPipelineRun:
 
 
 class TestRobustMode:
-    """Tests pour le mode robuste (anti-crash COLMAP)."""
+    """Tests for the robust mode (COLMAP anti-crash)."""
 
     def test_apply_robust_sets_stable_params(self):
         from app.cli.commands import _apply_robust

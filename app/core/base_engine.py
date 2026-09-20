@@ -14,7 +14,7 @@ from .system import get_device, resolve_project_root
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 class IProcessRunner:
-    """Interface abstraite pour l'exécution d'un processus systéme (DIP & Testabilité)"""
+    """Abstract interface for running a system process (DIP & testability)"""
     def start(self, cmd: list, env: dict | None = None, **kwargs):
         raise NotImplementedError()
 
@@ -42,7 +42,7 @@ class IProcessRunner:
         raise NotImplementedError()
 
 class SubprocessRunner(IProcessRunner):
-    """Implémentation concrète de l'OS via subprocess"""
+    """Concrete OS implementation through subprocess"""
     def __init__(self):
         self._process = None
 
@@ -54,11 +54,11 @@ class SubprocessRunner(IProcessRunner):
         }
         base_kwargs.update(kwargs)
 
-        # Sécurisation du process group + nice value pour tâches compute
-        # os.nice(10) sur macOS donne une priorité "background" au sous-processus :
-        #   - Le scheduler préfère les E-cores aux P-cores
-        #   - Le throttling thermique est plus agressif
-        #   - L'UI reste réactive même pendant COLMAP/Brush/Sharp
+        # Securing the process group + nice value for compute tasks
+        # os.nice(10) on macOS gives the subprocess a "background" priority:
+        #   - The scheduler prefers E-cores over P-cores
+        #   - Thermal throttling is more aggressive
+        #   - The UI stays responsive even during COLMAP/Brush/Sharp
         if sys.platform != "win32":
             def _preexec_with_nice():
                 """Setup child process: new session group + background priority."""
@@ -140,9 +140,9 @@ class BaseEngine:
 
         self.logger = logging.getLogger(self.name)
 
-        # SOLID-DIP : Injection abstraite pour tests (mockable)
+        # SOLID-DIP: abstract injection for tests (mockable)
         self.runner = process_runner or SubprocessRunner()
-        self.process = None # Retro-compatibilité temporaire
+        self.process = None # Temporary backward compatibility
 
     def _check_initial_thermal(self):
         """Log a warning if thermal state is already degraded at startup."""
@@ -209,11 +209,12 @@ class BaseEngine:
     def _execute_command(self, cmd: list, env: dict | None = None, line_callback=None,
                          timeout: float = 3600, inactivity_timeout: float = 0, **kwargs) -> int:
         """
-        GoF-Template Method : Exécution générique centralisée de processus
-        Délègue à l'IProcessRunner injecté, gère la boucle standard et l'annulation.
-        Utilise ``readline`` avec timeout select-based pour éviter le blocage
-        indéfini si le processus externe gèle sans fermer stdout.
-        Retourne le returncode (0 si succès, -1 si annulé ou erreur).
+        GoF Template Method: centralised generic process execution.
+        Delegates to the injected IProcessRunner, handles the standard loop and
+        cancellation. Uses ``readline`` with a select-based timeout to avoid
+        blocking forever when the external process freezes without closing
+        stdout. Returns the returncode (0 on success, -1 when cancelled or on
+        error).
 
         Parameters
         ----------
@@ -223,8 +224,8 @@ class BaseEngine:
             Max seconds without any stdout line before the process is considered
             frozen and terminated.  0 (default) disables inactivity detection.
 
-        Inclut un watchdog thermique qui interrompt la tâche si l'état
-        thermique Apple Silicon passe à "critical".
+        Includes a thermal watchdog that interrupts the task when the Apple
+        Silicon thermal state turns "critical".
         """
         import time as _time
 
@@ -298,7 +299,7 @@ class BaseEngine:
 
     def _kill_process(self, process):
         """Terminate a subprocess gracefully, using process group kill on Unix."""
-        # Maintenu pour la retro-compatibilité directe de certains Worker
+        # Kept for the direct backward compatibility of some Workers
         if process is None or process.poll() is not None:
             return
         if sys.platform != "win32":

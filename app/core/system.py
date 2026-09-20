@@ -18,7 +18,7 @@ def resolve_project_root() -> Path:
 
 @functools.cache
 def is_apple_silicon():
-    """Détecte si on est sur Apple Silicon (résultat mis en cache)"""
+    """Detect whether we run on Apple Silicon (result cached)"""
     return platform.system() == 'Darwin' and platform.machine() == 'arm64'
 
 def is_running_under_rosetta() -> bool:
@@ -46,7 +46,7 @@ def is_running_under_rosetta() -> bool:
 
 
 def get_optimal_threads():
-    """Retourne le nombre optimal de threads pour Apple Silicon (P-cores) ou autres plateformes"""
+    """Return the optimal thread count for Apple Silicon (P-cores) or other platforms"""
     if is_apple_silicon():
         # Apple Silicon has heterogeneous P-cores (performance) + E-cores (efficiency).
         # For compute-heavy tasks (COLMAP, ffmpeg), we prefer P-cores only.
@@ -81,10 +81,10 @@ def get_optimal_threads():
 
 def resolve_binary(name):
     """
-    Résoud le chemin d'un binaire en priorisant le dossier 'engines' local.
-    Retourne le chemin absolu ou le nom si trouvé dans le PATH, sinon None.
+    Resolve the path of a binary, giving priority to the local 'engines' folder.
+    Returns the absolute path, or the name when found in the PATH, otherwise None.
     """
-    # 1. Chercher dans le dossier engines à la racine du projet
+    # 1. Look inside the engines folder at the project root
     engines_dir = resolve_project_root() / "engines"
 
     local_path = engines_dir / name
@@ -93,13 +93,13 @@ def resolve_binary(name):
     if local_path.exists() and os.access(local_path, os.X_OK):
         return str(local_path)
 
-    # Cas macOS .app bundle pour COLMAP
+    # macOS .app bundle case for COLMAP
     if name == "colmap":
         colmap_app = engines_dir / "COLMAP.app" / "Contents" / "MacOS" / "colmap"
         if colmap_app.exists() and os.access(colmap_app, os.X_OK):
             return str(colmap_app)
 
-    # 2. Chercher dans le PATH système
+    # 2. Look in the system PATH
     return shutil.which(name)
 
 def get_device() -> str:
@@ -332,7 +332,7 @@ def check_ffmpeg_videotoolbox() -> bool:
 
 
 def check_dependencies():
-    """Vérifie si les dépendances nécessaires sont installées
+    """Check whether the required dependencies are installed
 
     Returns:
         list[str]: Missing dependencies (empty if all good).
@@ -350,10 +350,10 @@ def check_dependencies():
             stacklevel=1
         )
 
-    # Vérification NumPy Accelerate (macOS ARM64)
+    # NumPy Accelerate check (macOS ARM64)
     log_numpy_backend()
 
-    # Vérification FFmpeg VideoToolbox
+    # FFmpeg VideoToolbox check
     check_ffmpeg_videotoolbox()
 
     missing = []

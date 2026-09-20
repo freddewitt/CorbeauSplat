@@ -1,13 +1,13 @@
-"""Bouton d'arrêt, placé sous le bouton Lancer de chaque panneau.
+"""Stop button, placed under the Launch button of every panel.
 
-L'arrêt vivait dans la barre du bas — héritage de l'architecture précédente, où
-la barre de logs portait l'action. Il est désormais au contact du bouton qui a
-déclenché le travail : c'est là qu'on le cherche.
+Stopping used to live in the bottom bar — a leftover of the previous
+architecture, where the log bar carried the action. It now sits next to the
+button that started the work: that is where people look for it.
 
-Le bouton se retraduit lui-même. Neuf panneaux en portent un ; autant éviter neuf
-lignes identiques dans neuf ``retranslate_ui()``, qui auraient fini par diverger
-(``splat_transform_panel`` avait justement oublié celle de son ``btn_run``, d'où
-un bouton sans texte).
+The button retranslates itself. Nine panels carry one; better that than nine
+identical lines in nine ``retranslate_ui()``, which would have ended up drifting
+apart (``splat_transform_panel`` had precisely forgotten the one for its
+``btn_run``, hence a button with no text).
 """
 
 from PySide6.QtWidgets import QPushButton
@@ -16,7 +16,7 @@ from app.core.i18n import add_language_observer, tr
 
 
 class CancelButton(QPushButton):
-    """Désactivé tant qu'aucun worker ne tourne — ``StudioWindow`` l'active."""
+    """Disabled while no worker runs — ``StudioWindow`` enables it."""
 
     def __init__(self, parent=None):
         super().__init__(parent)

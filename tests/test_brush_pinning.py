@@ -1,11 +1,11 @@
-"""Épinglage de la release Brush : la version et son empreinte ne doivent jamais diverger.
+"""Pinning of the Brush release: the version and its fingerprint must never diverge.
 
-Contexte (2026-08-07) : l'installeur résolvait la *dernière* release amont via
-`get_remote_version()` tout en vérifiant l'archive contre une empreinte figée
-dans `checksums.json`. Les deux étaient donc condamnés à diverger au premier tag
-publié en amont — l'installation de Brush était refusée par la garde fail-closed
-`verify_download_strict()`, et `base.py` proposait en boucle une mise à jour vers
-un échec certain. La version est désormais épinglée à côté de son empreinte.
+Context (2026-08-07): the installer resolved the *latest* upstream release
+through `get_remote_version()` while checking the archive against a fingerprint
+frozen in `checksums.json`. Both were therefore doomed to diverge on the first
+tag published upstream — the Brush installation was refused by the fail-closed
+`verify_download_strict()` guard, and `base.py` kept offering an update towards
+a certain failure. The version is now pinned next to its fingerprint.
 """
 
 import json
@@ -18,9 +18,9 @@ from app.scripts.checksum_verifier import CHECKSUMS_PATH, load_expected_checksum
 from app.scripts.installers.brush import BrushEngineDep
 
 
-# ── Cohérence du fichier d'épinglage (aurait attrapé la dérive d'origine) ─────
+# ── Consistency of the pinning file (would have caught the original drift) ────
 def test_pinned_release_and_hash_are_both_present():
-    """Bumper l'un sans l'autre remet exactement la panne d'origine en place."""
+    """Bumping one without the other puts the original breakage right back."""
     checksums = json.loads(Path(CHECKSUMS_PATH).read_text())
     assert checksums.get("brush_release"), "brush_release manquant de checksums.json"
     assert checksums.get("darwin_brush"), "darwin_brush manquant de checksums.json"
@@ -38,17 +38,17 @@ def test_pinned_hash_is_a_sha256():
     assert all(c in "0123456789abcdef" for c in digest)
 
 
-# ── get_remote_version : la version épinglée, pas « latest » ──────────────────
+# ── get_remote_version: the pinned version, not "latest" ──────────────────────
 @pytest.fixture
 def installer(tmp_path):
     inst = BrushEngineDep()
-    inst.root = tmp_path  # pas de config.json → build_mode "release" par défaut
+    inst.root = tmp_path  # no config.json → build_mode "release" by default
     return inst
 
 
 def test_release_mode_returns_the_pinned_version_not_latest(installer):
-    """Le cœur du correctif : même si l'amont a publié plus récent, on installe
-    ce que l'on sait vérifier."""
+    """The heart of the fix: even when upstream published something newer, we
+    install what we know how to verify."""
     with patch.object(BrushEngineDep, "_fetch_latest_release_tag", return_value="v9.9.9"):
         assert installer.get_remote_version() == load_expected_checksums()["brush_release"]
 
@@ -69,22 +69,22 @@ def test_no_notice_when_upstream_matches_the_pin(installer, capsys):
 
 
 def test_offline_still_returns_the_pin(installer):
-    """Sans réseau, l'installation reste possible : le tag amont n'est
-    qu'informatif, il ne conditionne rien."""
+    """Without a network, installing stays possible: the upstream tag is only
+    informative, it conditions nothing."""
     with patch.object(BrushEngineDep, "_fetch_latest_release_tag", return_value=""):
         assert installer.get_remote_version() == load_expected_checksums()["brush_release"]
 
 
 def test_missing_pin_returns_empty_rather_than_guessing(installer):
-    """Sans épinglage, on ne devine pas une version : l'appelant annule."""
+    """Without a pin we do not guess a version: the caller cancels."""
     with patch("app.scripts.installers.brush.load_expected_checksums", return_value={}), \
          patch.object(BrushEngineDep, "_fetch_latest_release_tag", return_value="v9.9.9"):
         assert installer.get_remote_version() == ""
 
 
 def test_source_mode_ignores_the_pin(installer):
-    """Le mode source suit HEAD : l'épinglage ne concerne que les binaires
-    téléchargés, qui sont les seuls à être vérifiés par empreinte."""
+    """Source mode follows HEAD: the pinning only concerns downloaded
+    binaries, the only ones checked against a fingerprint."""
     (installer.root / "config.json").write_text(
         json.dumps({"brush_params": {"build_mode": "source"}})
     )

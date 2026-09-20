@@ -1,4 +1,5 @@
-"""Tests pour app/gui/managers.py — AppLifecycle et SessionManager."""
+"""Tests for app/gui/managers.py — AppLifecycle and SessionManager.
+"""
 import contextlib
 import json
 import sys
@@ -15,13 +16,13 @@ import pytest
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestAppLifecycleResetFactory:
-    """Tests pour AppLifecycle.reset_factory()."""
+    """Tests for AppLifecycle.reset_factory()."""
 
     @patch("app.gui.managers.subprocess.Popen")
     @patch("shutil.rmtree")
     @patch("app.gui.managers.resolve_project_root")
     def test_reset_factory_light(self, mock_root, mock_rmtree, mock_popen, tmp_path):
-        """reset_factory(deep=False) supprime .venv, .venv_sharp, .venv_360."""
+        """reset_factory(deep=False) removes .venv, .venv_sharp, .venv_360."""
         mock_root.return_value = tmp_path
 
         # Create the venv dirs
@@ -48,7 +49,7 @@ class TestAppLifecycleResetFactory:
     @patch("shutil.rmtree")
     @patch("app.gui.managers.resolve_project_root")
     def test_reset_factory_deep(self, mock_root, mock_rmtree, mock_popen, tmp_path):
-        """reset_factory(deep=True) supprime aussi engines/ et config.json."""
+        """reset_factory(deep=True) also removes engines/ and config.json."""
         mock_root.return_value = tmp_path
 
         # Create dirs
@@ -71,7 +72,7 @@ class TestAppLifecycleResetFactory:
     @patch("shutil.rmtree")
     @patch("app.gui.managers.resolve_project_root")
     def test_reset_factory_path_outside_root_blocked(self, mock_root, mock_rmtree, mock_popen, tmp_path):
-        """reset_factory bloque les chemins en dehors de project_root."""
+        """reset_factory blocks paths outside project_root."""
         mock_root.return_value = tmp_path
 
         # Create a symlink that points outside (simulate)
@@ -90,7 +91,7 @@ class TestAppLifecycleResetFactory:
     @patch("shutil.rmtree")
     @patch("app.gui.managers.resolve_project_root")
     def test_reset_factory_nonexistent_targets_skipped(self, mock_root, mock_rmtree, mock_popen, tmp_path):
-        """reset_factory ignore les cibles qui n'existent pas."""
+        """reset_factory skips targets that do not exist."""
         mock_root.return_value = tmp_path
         # Don't create any dirs — all targets don't exist
 
@@ -105,7 +106,7 @@ class TestAppLifecycleResetFactory:
     @patch("shutil.rmtree", side_effect=PermissionError("Access denied"))
     @patch("app.gui.managers.resolve_project_root")
     def test_reset_factory_rmtree_error_handled(self, mock_root, mock_rmtree, mock_popen, tmp_path):
-        """reset_factory gère les erreurs de suppression sans planter."""
+        """reset_factory handles deletion errors without crashing."""
         mock_root.return_value = tmp_path
         (tmp_path / ".venv").mkdir()
 
@@ -120,7 +121,7 @@ class TestAppLifecycleResetFactory:
     @patch("shutil.rmtree")
     @patch("app.gui.managers.resolve_project_root")
     def test_reset_factory_relaunch_via_run_command(self, mock_root, mock_rmtree, mock_popen, tmp_path):
-        """reset_factory relance via CorbeauSplat.command."""
+        """reset_factory relaunches through CorbeauSplat.command."""
         mock_root.return_value = tmp_path
         run_cmd = tmp_path / "CorbeauSplat.command"
         run_cmd.write_text("#!/bin/bash")
@@ -138,7 +139,7 @@ class TestAppLifecycleResetFactory:
     @patch("shutil.rmtree")
     @patch("app.gui.managers.resolve_project_root")
     def test_reset_factory_no_run_command_fallback(self, mock_root, mock_rmtree, mock_popen, tmp_path):
-        """reset_factory sans launcher → relance via main.py --gui."""
+        """reset_factory without a launcher → relaunches through main.py --gui."""
         mock_root.return_value = tmp_path
         # Don't create the launcher file
 
@@ -153,14 +154,14 @@ class TestAppLifecycleResetFactory:
 
 
 class TestAppLifecycleRestart:
-    """Tests pour AppLifecycle.restart()."""
+    """Tests for AppLifecycle.restart()."""
 
     @patch("app.gui.managers.subprocess.Popen")
     @patch("app.gui.managers.os.execv")
     @patch("app.gui.managers.resolve_project_root")
     @patch("app.gui.managers.QApplication.quit")
     def test_restart_normal(self, mock_quit, mock_root, mock_execv, mock_popen, tmp_path):
-        """restart normal utilise execv."""
+        """A normal restart uses execv."""
         mock_root.return_value = tmp_path
 
         # Create engines/brush so needs_setup=False
@@ -184,7 +185,7 @@ class TestAppLifecycleRestart:
     @patch("app.gui.managers.resolve_project_root")
     @patch("app.gui.managers.QApplication.quit")
     def test_restart_with_save_callback(self, mock_quit, mock_root, mock_execv, mock_popen, tmp_path):
-        """restart appelle save_callback si fourni."""
+        """restart calls save_callback when one is supplied."""
         mock_root.return_value = tmp_path
 
         engines_dir = tmp_path / "engines"
@@ -208,8 +209,9 @@ class TestAppLifecycleRestart:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestSessionManager:
-    """Tests pour SessionManager — persistance du dernier projet (panneau
-    Source) sous la clé ``"last_project"`` de ``config.json``."""
+    """Tests for SessionManager — persistence of the last project (Source
+    panel) under the ``"last_project"`` key of ``config.json``.
+    """
 
     _PROJECT_STATE = {
         "project_name": "MonProjet",
@@ -227,8 +229,9 @@ class TestSessionManager:
 
     @pytest.fixture
     def session_manager(self, request, tmp_path):
-        """Crée un SessionManager avec un StudioWindow minimal mocké (un seul
-        panneau Source, comme le reste de la fenêtre) + patch actif."""
+        """Build a SessionManager with a minimal mocked StudioWindow (a single
+        Source panel, like the rest of the window) + active patch.
+        """
         patcher = patch("app.gui.managers.resolve_project_root", return_value=tmp_path)
         patcher.start()
         request.addfinalizer(patcher.stop)
@@ -243,7 +246,7 @@ class TestSessionManager:
         return SessionManager(main_window)
 
     def test_save_creates_config_file(self, session_manager, tmp_path):
-        """save(immediate=True) crée config.json avec la clé last_project."""
+        """save(immediate=True) creates config.json with the last_project key."""
         session_manager.save(immediate=True)
         config_file = tmp_path / "config.json"
         assert config_file.exists()
@@ -251,8 +254,9 @@ class TestSessionManager:
         assert data["last_project"] == self._PROJECT_STATE
 
     def test_save_preserves_other_keys(self, session_manager, tmp_path):
-        """save fusionne avec config.json existant : ne détruit pas 'language'
-        (géré par LanguageManager) ni toute autre clé déjà présente."""
+        """save merges with an existing config.json: it destroys neither
+        'language' (managed by LanguageManager) nor any other key already there.
+        """
         config_file = tmp_path / "config.json"
         config_file.write_text(json.dumps({"language": "fr", "other_key": 42}))
 
@@ -264,7 +268,7 @@ class TestSessionManager:
         assert data["last_project"] == self._PROJECT_STATE
 
     def test_save_and_load_roundtrip(self, session_manager, tmp_path):
-        """save puis load restaure l'état sur le panneau Source (set_state)."""
+        """save then load restores the state onto the Source panel (set_state)."""
         session_manager.save(immediate=True)
         config_file = tmp_path / "config.json"
         assert config_file.exists()
@@ -275,7 +279,7 @@ class TestSessionManager:
         source_panel.set_state.assert_called_once_with(self._PROJECT_STATE)
 
     def test_load_no_session_file(self, session_manager, tmp_path):
-        """load sans fichier ne fait rien (pas d'appel à set_state)."""
+        """load without a file does nothing (no set_state call)."""
         config_file = tmp_path / "config.json"
         assert not config_file.exists()
 
@@ -284,8 +288,9 @@ class TestSessionManager:
         session_manager.mw.panels["source"].set_state.assert_not_called()
 
     def test_load_no_last_project_key(self, session_manager, tmp_path):
-        """load avec config.json existant mais sans last_project ne fait rien
-        (ex. fichier écrit uniquement par LanguageManager)."""
+        """load with an existing config.json but no last_project does nothing
+        (e.g. a file written by LanguageManager only).
+        """
         config_file = tmp_path / "config.json"
         config_file.write_text(json.dumps({"language": "en"}))
 
@@ -294,7 +299,7 @@ class TestSessionManager:
         session_manager.mw.panels["source"].set_state.assert_not_called()
 
     def test_load_corrupted_json(self, session_manager, tmp_path):
-        """Fichier JSON corrompu → pas d'erreur."""
+        """Corrupted JSON file → no error."""
         config_file = tmp_path / "config.json"
         config_file.write_text("{invalide json")
 
@@ -302,7 +307,7 @@ class TestSessionManager:
         session_manager.load()
 
     def test_save_no_source_panel(self, tmp_path):
-        """save sans panneau Source (main_window minimal) ne plante pas."""
+        """save without a Source panel (minimal main_window) does not crash."""
         with patch("app.gui.managers.resolve_project_root", return_value=tmp_path):
             main_window = MagicMock()
             main_window.panels = {}
@@ -312,13 +317,13 @@ class TestSessionManager:
             assert not (tmp_path / "config.json").exists()
 
     def test_debounce_timer(self, session_manager):
-        """save sans immediate démarre le timer."""
+        """save without immediate starts the timer."""
         session_manager._save_timer = MagicMock()
         session_manager.save(immediate=False)
         session_manager._save_timer.start.assert_called_once_with(1500)
 
     def test_get_session_file(self, tmp_path):
-        """get_session_file retourne config.json dans project_root."""
+        """get_session_file returns config.json inside project_root."""
         with patch("app.gui.managers.resolve_project_root", return_value=tmp_path):
             main_window = MagicMock()
             from app.gui.managers import SessionManager

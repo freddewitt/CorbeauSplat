@@ -1,26 +1,27 @@
-"""Liaison bidirectionnelle entre un drapeau/champ de ``RunState`` et un widget.
+"""Two-way binding between a ``RunState`` flag/field and a widget.
 
-Cœur du principe « source de vérité unique » : plusieurs widgets (Source,
-Reconstruction, Entraînement, modules, top bar) peuvent refléter le même
-drapeau ou champ. Chacun est bindé au **même** ``RunState`` — jamais un état
-interne indépendant. Quand l'un change, ``RunState`` notifie et tous les
-autres se mettent à jour.
+Core of the "single source of truth" principle: several widgets (Source,
+Reconstruction, Entraînement, modules, top bar) can mirror the same flag or
+field. Each is bound to the **same** ``RunState`` — never to an independent
+internal state. When one changes, ``RunState`` notifies and all the others
+update.
 
-Anti-boucle : la mise à jour depuis l'état utilise ``blockSignals`` pour ne pas
-re-déclencher ``toggled``/``textChanged`` ; et ``RunState.set_flag``/
-``set_field`` ne notifient que sur changement réel.
+Loop guard: updating from the state uses ``blockSignals`` so as not to
+re-trigger ``toggled``/``textChanged``; and ``RunState.set_flag``/``set_field``
+only notify on a real change.
 
-``bind_flag_checkbox`` accepte tout objet ayant ``isChecked``/``setChecked``/
-``blockSignals`` et un signal ``toggled`` avec ``connect``. ``bind_text_field``
-accepte tout objet ayant ``text``/``setText``/``blockSignals`` et un signal
-``textChanged`` avec ``connect`` — donc testables avec un faux widget, sans Qt.
+``bind_flag_checkbox`` accepts any object with ``isChecked``/``setChecked``/
+``blockSignals`` and a ``toggled`` signal with ``connect``. ``bind_text_field``
+accepts any object with ``text``/``setText``/``blockSignals`` and a
+``textChanged`` signal with ``connect`` — hence testable with a fake widget,
+without Qt.
 """
 
 
 def bind_flag_checkbox(checkbox, run_state, flag):
-    """Lie ``checkbox`` au drapeau ``flag`` de ``run_state`` dans les deux sens.
+    """Bind ``checkbox`` to the ``flag`` of ``run_state``, both ways.
 
-    Retourne l'observateur enregistré (utile pour le détacher au besoin)."""
+    Returns the registered observer (useful to detach it when needed)."""
     checkbox.setChecked(run_state.get_flag(flag))
 
     def _on_toggled(checked):
@@ -40,11 +41,11 @@ def bind_flag_checkbox(checkbox, run_state, flag):
 
 
 def bind_text_field(line_edit, run_state, field):
-    """Lie ``line_edit`` au champ texte ``field`` de ``run_state`` dans les deux
-    sens (même idiome que ``bind_flag_checkbox``, pour un ``QLineEdit`` ou
-    équivalent testable — ``text``/``setText``/``blockSignals``/``textChanged``).
+    """Bind ``line_edit`` to the ``field`` text field of ``run_state``, both
+    ways (same idiom as ``bind_flag_checkbox``, for a ``QLineEdit`` or a
+    testable equivalent — ``text``/``setText``/``blockSignals``/``textChanged``).
 
-    Retourne l'observateur enregistré (utile pour le détacher au besoin)."""
+    Returns the registered observer (useful to detach it when needed)."""
     line_edit.setText(run_state.get_field(field))
 
     def _on_text_changed(text):

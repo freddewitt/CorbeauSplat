@@ -1,4 +1,5 @@
-"""Tests des presets Brush personnalisés (brush_presets.py)."""
+"""Tests of the custom Brush presets (brush_presets.py).
+"""
 
 import pytest
 
@@ -73,13 +74,13 @@ def test_corrupt_store_returns_empty(tmp_root):
 
 # ── Garde-fou de suppression (bouton 🗑 d'EntrainementPanel) ──────────────────
 def test_builtin_preset_is_not_deletable():
-    """Un preset intégré ne doit pas être supprimable : le retirer du dropdown
-    n'aurait aucun effet persistant, `merge_presets` le réinjecterait."""
+    """A built-in preset must not be deletable: removing it from the dropdown
+    would have no lasting effect, `merge_presets` would re-inject it."""
     assert is_deletable("fast") is False
 
 
 def test_default_entry_is_not_deletable():
-    """L'entrée « Défaut » du dropdown porte `None` comme data."""
+    """The "Défaut" entry of the dropdown carries `None` as data."""
     assert is_deletable(None) is False
     assert is_deletable("") is False
 
@@ -90,8 +91,8 @@ def test_user_preset_is_deletable():
 
 
 def test_user_preset_shadowing_a_builtin_is_deletable_and_restores_it():
-    """Supprimer un preset utilisateur homonyme d'un intégré fait réapparaître
-    l'intégré — comportement attendu de `merge_presets`."""
+    """Deleting a user preset that shadows a built-in one makes the built-in
+    reappear — expected behaviour of `merge_presets`."""
     save_user_preset("fast", {"total_steps": 999})
     assert is_deletable("fast") is True
     assert merge_presets(BUILTINS)["fast"]["total_steps"] == 999

@@ -20,9 +20,19 @@ from .colmap_commands import (
     build_incremental_mapper_command,
 )
 from .i18n import tr
+from .media import (
+    IMAGE_EXTENSIONS,
+    conversion_suffix,
+    convert_image,
+    is_video_file,
+    needs_image_conversion,
+    without_hwaccel,
+)
 from .system import get_optimal_threads, is_apple_silicon, resolve_binary
 
-_IMAGE_EXTS = {'.jpg', '.jpeg', '.png'}
+# Single shared list (app/core/media.py). Anything not natively readable by
+# every downstream tool is converted on ingest, cf. _prepare_images_from_files.
+_IMAGE_EXTS = IMAGE_EXTENSIONS
 
 
 def _is_valid_image_path(p: Path) -> bool:
@@ -79,14 +89,14 @@ def _apfs_copy(src: Path, dst: Path) -> None:
 
 
 def select_blurry_files(scores: dict, factor: float, max_remove_frac: float = 0.5):
-    """Sélectionne les fichiers à rejeter comme trop flous.
+    """Select the files to reject as too blurry.
 
-    Un fichier est considéré flou si son score de netteté (variance du Laplacien)
-    est inférieur à ``factor x median(scores)``. Pour éviter de vider le dataset,
-    on ne supprime jamais plus de ``max_remove_frac`` des fichiers (on garde
-    les plus nets des candidats si la limite est dépassée).
+    A file counts as blurry when its sharpness score (Laplacian variance) is
+    below ``factor x median(scores)``. To avoid emptying the dataset, never
+    more than ``max_remove_frac`` of the files are removed (the sharpest
+    candidates are kept when the limit is exceeded).
 
-    Retourne (rejected_files: list, threshold: float).
+    Returns (rejected_files: list, threshold: float).
     """
     import statistics
     if not scores or factor <= 0:
@@ -110,7 +120,7 @@ def _first_available_model() -> str:
         return ""
 
 class ColmapEngine(BaseEngine):
-    """Moteur d'exécution COLMAP indépendant de l'interface graphique"""
+    """COLMAP execution engine, independent of the graphical interface"""
 
     def __init__(
         self, params: Any, input_path: str, output_path: str, input_type: str, fps: int,
@@ -120,7 +130,7 @@ class ColmapEngine(BaseEngine):
         status_callback: Callable | None = None,
         check_cancel_callback: Callable | None = None,
     ):
-        """Initialise le moteur COLMAP avec les paramètres de configuration."""
+        """Initialise the COLMAP engine with the configuration parameters."""
         super().__init__("COLMAP", logger_callback, thermal_throttling=params.thermal_throttling)
         self.params = params
         self.input_path = Path(input_path)
@@ -130,7 +140,7 @@ class ColmapEngine(BaseEngine):
         self.project_name = project_name
         self.is_silicon = is_apple_silicon()
         self.num_threads = get_optimal_threads()
-        # Reprise COLMAP : réutilise les images déjà extraites (saute extraction/upscale)
+        # COLMAP resume: reuse the already extracted images (skips extraction/upscale)
         self.resume_colmap = False
         self.progress = progress_callback if progress_callback else lambda x: None
         self.status = status_callback if status_callback else lambda x: None
@@ -154,15 +164,15 @@ class ColmapEngine(BaseEngine):
 
     @property
     def project_path(self) -> Path:
-        """Alias pour le chemin de sortie utilisé par les Workers et l'UI."""
+        """Alias for the output path used by the Workers and the UI."""
         return self.output_path
 
     def is_cancelled(self) -> bool:
-        """Vérifie si l'utilisateur a demandé l'annulation."""
+        """Check whether the user asked for cancellation."""
         return self.check_cancel()
 
     def run(self) -> tuple[bool, str]:
-        """Exécute le pipeline complet de reconstruction."""
+        """Run the full reconstruction pipeline."""
         try:
             setup_result = self._validate_and_setup_paths()
             if not setup_result:
@@ -170,7 +180,7 @@ class ColmapEngine(BaseEngine):
             project_dir, images_dir, checkpoints_dir = setup_result
 
             if self.resume_colmap:
-                # Reprise : réutilise les images déjà extraites, saute extraction + upscale
+                # Resume: reuse the already extracted images, skip extraction + upscale
                 if not images_dir.exists() or not any(
                     _is_valid_image_path(p) for p in images_dir.iterdir()
                 ):
@@ -195,7 +205,7 @@ class ColmapEngine(BaseEngine):
             return False, "Une erreur est survenue lors du traitement."
 
     def _validate_and_setup_paths(self) -> tuple[Path, Path, Path] | None:
-        """Valide les chemins d'entrée/sortie et prépare la structure des dossiers."""
+        """Validate the input/output paths and prepare the folder structure."""
         safe_output = self.validate_path(str(self.output_path))
         if not safe_output:
             self.log("Chemin de sortie non sécurisé")
@@ -239,7 +249,7 @@ class ColmapEngine(BaseEngine):
         return project_dir, images_dir, checkpoints_dir
 
     def _process_input(self, project_dir: Path, images_dir: Path) -> bool:
-        """Prépare les images sources (extraction vidéo ou copie)."""
+        """Prepare the source images (video extraction or copy)."""
         self.status(tr("status_prep_images", "Préparation des visuels..."))
         if not self._prepare_images(images_dir):
             return False
@@ -302,7 +312,7 @@ class ColmapEngine(BaseEngine):
         )
 
     def _run_reconstruction_pipeline(self, project_dir: Path, images_dir: Path) -> tuple[bool, str]:
-        """Exécute les étapes de reconstruction COLMAP."""
+        """Run the COLMAP reconstruction steps."""
         database_path = project_dir / "database.db"
         sparse_dir = project_dir / "sparse"
         if sparse_dir.exists():
@@ -383,23 +393,22 @@ class ColmapEngine(BaseEngine):
         return False, "Arrete par l'utilisateur"
 
     def _prepare_images(self, images_dir: Path) -> bool:
-        """Gère l'extraction vidéo ou la copie d'images."""
+        """Handle video extraction or image copying."""
         if self.input_type == "video":
             return self._prepare_images_from_video(images_dir)
         return self._prepare_images_from_files(images_dir)
 
     def _collect_video_paths(self) -> list[Path]:
-        """Vidéos à traiter : contenu d'un dossier, ou liste séparée par des « | »."""
+        """Videos to process: contents of a folder, or a "|"-separated list."""
         if self.input_path.is_dir():
-            supported_exts = {'.mp4', '.mov', '.avi', '.mkv'}
             return sorted(
                 f for f in self.input_path.rglob('*')
-                if f.is_file() and f.suffix.lower() in supported_exts
+                if f.is_file() and is_video_file(f)
             )
         return [Path(p.strip()) for p in str(self.input_path).split("|") if p.strip()]
 
     def _prepare_images_from_video(self, images_dir: Path) -> bool:
-        """Extrait les frames de chaque vidéo source vers ``images_dir``."""
+        """Extract the frames of every source video into ``images_dir``."""
         if self.is_cancelled():
             return False
 
@@ -428,10 +437,10 @@ class ColmapEngine(BaseEngine):
         return True
 
     def _collect_source_images(self, images_dir: Path) -> list[Path] | None:
-        """Images sources à copier, ou ``None`` si la copie est inutile.
+        """Source images to copy, or ``None`` when copying is pointless.
 
-        Trois formes d'entrée : liste « a|b|c », fichier unique, dossier.
-        Les masques ``*.mask.png`` sont toujours exclus.
+        Three input shapes: an "a|b|c" list, a single file, a folder.
+        ``*.mask.png`` masks are always excluded.
         """
         raw_input = str(self.input_path)
 
@@ -451,7 +460,7 @@ class ColmapEngine(BaseEngine):
 
     @staticmethod
     def _unique_target_path(images_dir: Path, file_path: Path) -> Path:
-        """Chemin de destination libre, en préfixant par le dossier parent au besoin."""
+        """Free destination path, prefixed with the parent folder when needed."""
         target_path = images_dir / file_path.name
         counter = 1
         while target_path.exists():
@@ -460,7 +469,7 @@ class ColmapEngine(BaseEngine):
         return target_path
 
     def _prepare_images_from_files(self, images_dir: Path) -> bool:
-        """Copie les images sources vers ``images_dir`` (copie APFS si possible)."""
+        """Copy the source images into ``images_dir`` (APFS copy when possible)."""
         self.log("Copie des images sources vers le dossier de travail...")
         try:
             src_files = self._collect_source_images(images_dir)
@@ -472,9 +481,23 @@ class ColmapEngine(BaseEngine):
             if total_files == 0:
                 return True
 
+            fmt = getattr(self.params, "image_convert_format", "png")
+            converted = 0
+            converted_exts: set[str] = set()
+
             for i, file_path in enumerate(src_files):
                 if self.is_cancelled():
                     return False
+
+                if fmt != "off" and needs_image_conversion(file_path):
+                    target = self._unique_target_path(
+                        images_dir, file_path.with_suffix(conversion_suffix(fmt))
+                    )
+                    if convert_image(file_path, target, fmt):
+                        converted += 1
+                        converted_exts.add(file_path.suffix.lower())
+                        continue
+                    self.log(f"⚠️ Conversion impossible : {file_path.name} — copié tel quel")
 
                 _apfs_copy(file_path, self._unique_target_path(images_dir, file_path))
 
@@ -483,6 +506,19 @@ class ColmapEngine(BaseEngine):
                     self.progress(pct)
                     self.status(f"Copie des images : {i+1} / {total_files}")
 
+            if converted:
+                exts = ", ".join(sorted(converted_exts))
+                self.log(
+                    f"🔄 {converted}/{total_files} images converties en "
+                    f"{fmt.upper()} ({exts}) — les originaux ne sont pas modifiés"
+                )
+                if converted_exts & {".heic", ".heif"}:
+                    # sips is the only HEIC decoder available here and it drops
+                    # the Exif sub-IFD, so the focal length prior is lost.
+                    self.log(
+                        "ℹ️ HEIC : la focale EXIF n'est pas conservée par la conversion "
+                        "macOS — COLMAP l'estimera (≈ 1.2 × le plus grand côté)"
+                    )
             self.log(f"✅ {total_files} images copiées vers {images_dir}")
             return True
         except Exception as e:
@@ -490,7 +526,7 @@ class ColmapEngine(BaseEngine):
             return False
 
     def _run_upscale(self, project_dir: Path, images_dir: Path) -> bool:
-        """Gère l'upscaling via upscayl-bin."""
+        """Handle upscaling through upscayl-bin."""
         self.log(f"\n{'='*60}\nUpscaling (upscayl-ncnn)\n{'='*60}")
         if self.is_cancelled():
             return False
@@ -544,7 +580,7 @@ class ColmapEngine(BaseEngine):
             return False
 
     def _check_and_normalize_resolution(self, images_dir: Path) -> bool:
-        """Vérifie et normalise la résolution des images."""
+        """Check and normalise the image resolution."""
         self.log(f"\n{'='*60}\nVérification résolution images\n{'='*60}")
 
         if not getattr(self, '_cv2_loaded', False):
@@ -608,7 +644,7 @@ class ColmapEngine(BaseEngine):
         return True
 
     def extract_frames_from_video(self, video_path: str, images_dir: Path, prefix: str | None = None) -> bool | None:
-        """Extrait les frames d'une vidéo via FFmpeg."""
+        """Extract the frames of a video through FFmpeg."""
         base_name = Path(video_path).stem
         self.log(f"\n{'='*60}\nExtraction frames: {Path(video_path).name}\n{'='*60}")
         images_dir.mkdir(parents=True, exist_ok=True)
@@ -637,10 +673,20 @@ class ColmapEngine(BaseEngine):
                         self.logger.debug("Failed to parse frame number: %s", e)
 
         try:
-            # Grosses vidéos / disques externes lents : même palier que Brush (4h).
+            # Big videos / slow external drives: same ceiling as Brush (4h).
             returncode = self._execute_command(cmd, line_callback=_ffmpeg_parser, timeout=14400)
             if self.is_cancelled():
                 return None
+
+            if returncode != 0 and "-hwaccel" in cmd:
+                # VideoToolbox refuses some streams (ProRes, 10-bit HEVC in a
+                # .mov): retry in software rather than reject the container.
+                self.log("Décodage matériel refusé — nouvelle tentative en logiciel")
+                returncode = self._execute_command(
+                    without_hwaccel(cmd), line_callback=_ffmpeg_parser, timeout=14400
+                )
+                if self.is_cancelled():
+                    return None
 
             if returncode == 0:
                 num_frames = len([f for f in images_dir.iterdir() if f.suffix == '.jpg'])
@@ -654,7 +700,7 @@ class ColmapEngine(BaseEngine):
             return False
 
     def run_command(self, cmd: list, description: str, status_prefix: str | None = None) -> bool:
-        """Exécute une commande système avec logging et callback de statut."""
+        """Run a system command with logging and a status callback."""
         self.log(f"\n{'='*60}\n{description}\n{'='*60}")
 
         env = os.environ.copy()
@@ -687,7 +733,7 @@ class ColmapEngine(BaseEngine):
                         self.status(f"{status_prefix} : image {parts[1].strip()}")
 
         try:
-            # Grandes scènes : matching/mapper peuvent dépasser 1h — aligné sur Brush (4h).
+            # Large scenes: matching/mapper can exceed 1h — aligned on Brush (4h).
             returncode = self._execute_command(cmd, env=env, line_callback=_colmap_parser, timeout=14400)
             if self.is_cancelled():
                 return False
@@ -704,7 +750,7 @@ class ColmapEngine(BaseEngine):
             return False
 
     def feature_extraction(self, database_path: str, images_dir: str) -> bool:
-        """Exécute l'extraction des features (SIFT ou ALIKED)."""
+        """Run feature extraction (SIFT or ALIKED)."""
         image_list_path = self._write_sorted_image_list(images_dir)
         cmd, description = build_feature_extraction_command(
             self.colmap_bin, database_path, images_dir, self.params, self.num_threads, image_list_path
@@ -784,10 +830,10 @@ class ColmapEngine(BaseEngine):
                         continue
                     if column not in table_columns.get(table, set()):
                         continue
-                    # nosec B608 - `table` et `column` ne viennent pas d'une entrée
-                    # utilisateur : ce sont des littéraux de la liste ci-dessus,
-                    # re-filtrés par ALLOWED_COLUMNS puis par PRAGMA table_info.
-                    # Les valeurs, elles, passent par des paramètres liés « ? ».
+                    # nosec B608 - `table` and `column` do not come from user input:
+                    # they are literals from the list above, filtered again by
+                    # ALLOWED_COLUMNS then by PRAGMA table_info.
+                    # The values themselves go through bound "?" parameters.
                     shift_sql = (
                         f"UPDATE {table} SET {column} = "  # nosec B608
                         f"(SELECT new_id + ? FROM image_id_map WHERE old_id = {table}.{column}) "
@@ -812,17 +858,19 @@ class ColmapEngine(BaseEngine):
             self.log(f"Avertissement: tri de la base COLMAP echoue: {e}")
 
     def feature_matching(self, database_path: str) -> bool:
-        """Exécute le matching des features (bruteforce ou LightGlue)."""
+        """Run feature matching (bruteforce or LightGlue)."""
         cmd, description = build_feature_matching_command(self.colmap_bin, database_path, self.params, self.num_threads)
         return self.run_command(cmd, description, status_prefix="Comparaison")
 
     def mapper(self, database_path: str, images_dir: str, sparse_dir: Path) -> bool:
-        """Reconstruction 3D : global_mapper (GLOMAP, COLMAP 4.0+) avec repli automatique
-        sur le mapper incrémental si le mapper global ne produit rien d'exploitable.
+        """3D reconstruction: global_mapper (GLOMAP, COLMAP 4.0+) with an automatic
+        fallback on the incremental mapper when the global one produces nothing
+        usable.
 
-        GLOMAP est rapide et bon sur les scènes bien texturées, mais moins robuste sur les
-        scènes petites, symétriques ou à motifs répétitifs — cas où le mapper incrémental
-        reste plus fiable. Le repli garantit qu'on ne rend jamais une reconstruction vide.
+        GLOMAP is fast and good on well-textured scenes, but less robust on
+        small, symmetrical or repetitive-pattern scenes — where the incremental
+        mapper stays more reliable. The fallback guarantees we never return an
+        empty reconstruction.
         """
         sparse_dir = Path(sparse_dir)
         global_cmd = build_global_mapper_command(self.colmap_bin, database_path, images_dir, sparse_dir, self.params, self.num_threads)
@@ -836,8 +884,8 @@ class ColmapEngine(BaseEngine):
         self.log("global_mapper n'a produit aucune reconstruction exploitable — "
                  "repli sur le mapper incrémental (colmap mapper).")
         self.status("Reconstruction 3D (repli incrémental)...")
-        # Repart d'un dossier sparse propre pour éviter que le mapper incrémental
-        # reprenne un modèle partiel/cassé laissé par global_mapper.
+        # Start from a clean sparse folder so the incremental mapper does not
+        # pick up a partial/broken model left behind by global_mapper.
         if sparse_dir.exists():
             shutil.rmtree(sparse_dir)
         sparse_dir.mkdir(parents=True, exist_ok=True)
@@ -847,8 +895,8 @@ class ColmapEngine(BaseEngine):
         return ok and self._has_valid_sparse_model(sparse_dir)
 
     def _has_valid_sparse_model(self, sparse_dir: Path) -> bool:
-        """Vérifie qu'au moins un sous-modèle sparse (dossier 0/) contient une
-        reconstruction complète (cameras + images + points3D, format .bin ou .txt)."""
+        """Check that at least one sparse sub-model (folder 0/) holds a complete
+        reconstruction (cameras + images + points3D, .bin or .txt format)."""
         model_dir = Path(sparse_dir) / "0"
         if not model_dir.is_dir():
             return False
@@ -858,12 +906,12 @@ class ColmapEngine(BaseEngine):
         )
 
     def image_undistorter(self, images_dir: str, sparse_dir: str, output_dir: str) -> bool:
-        """Exécute l'undistortion des images."""
+        """Run image undistortion."""
         cmd, description = build_image_undistorter_command(self.colmap_bin, images_dir, sparse_dir, output_dir, self.params)
         return self.run_command(cmd, description, status_prefix="Correction optique")
 
     def create_brush_config(self, output_dir: Path, images_dir: Path, sparse_dir: Path):
-        """Génère le fichier de configuration pour Brush."""
+        """Generate the configuration file for Brush."""
         if self.params.undistort_images:
             final_images_path = output_dir / "dense" / "images"
             final_sparse_path = output_dir / "dense" / "sparse"
@@ -887,12 +935,12 @@ class ColmapEngine(BaseEngine):
         self.log(f"Configuration Brush créée: {config_path}")
 
     def stop(self):
-        """Arrête le processus en cours."""
+        """Stop the running process."""
         super().stop()
 
     @staticmethod
     def delete_project_content(target_path: Path) -> tuple[bool, str]:
-        """Supprime le contenu d'un dossier de projet de manière sécurisée.
+        """Delete the contents of a project folder safely.
 
         Only allows deletion if target_path is contained within project_root
         or user home directory.
@@ -906,11 +954,11 @@ class ColmapEngine(BaseEngine):
         project_root = resolve_project_root().resolve()
         home = Path.home().resolve()
 
-        # Garde minimale : on bloque uniquement les chemins catastrophiques —
-        # la racine du système de fichiers ("/"), $HOME lui-même, le dossier de
-        # l'application, et tout ancêtre de ceux-ci (ex. "/Users"). Les projets
-        # de l'utilisateur (Desktop, Documents, dossiers divers) restent supprimables.
-        if (safe_path == safe_path.parent  # racine du système de fichiers ("/")
+        # Minimal guard: we only block catastrophic paths — the filesystem
+        # root ("/"), $HOME itself, the application folder, and any ancestor
+        # of those (e.g. "/Users"). The user's own projects (Desktop,
+        # Documents, assorted folders) stay deletable.
+        if (safe_path == safe_path.parent  # filesystem root ("/")
                 or home == safe_path or home.is_relative_to(safe_path)
                 or project_root == safe_path or project_root.is_relative_to(safe_path)):
             return False, "Tentative de suppression critique bloquée par sécurité."

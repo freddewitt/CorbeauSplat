@@ -10,7 +10,7 @@ from app.scripts.installers.base import EngineDependency
 
 
 class ColmapBrewDep(EngineDependency):
-    """COLMAP géré via Homebrew — vérifie la version et met à jour si nécessaire"""
+    """COLMAP managed through Homebrew — checks the version and updates when needed"""
     ask_before_update = True
 
     def __init__(self):

@@ -1,6 +1,6 @@
-"""Module OUTILS 360 Extractor (équirectangulaire → images planaires).
+"""OUTILS module 360 Extractor (equirectangular → planar images).
 
-Sortie en images → pas de chaînage Nettoyer/Exporter/Visualiser.
+Image output → no Nettoyer/Exporter/Visualiser chaining.
 """
 
 from PySide6.QtCore import Qt
@@ -71,7 +71,7 @@ class Extractor360Panel:
         out_row.addWidget(self.btn_browse_output)
         layout.addLayout(out_row)
 
-        # \u2500\u2500 Migr\u00e9 depuis _build_right : \u00e9chantillonnage, disposition, qualit\u00e9, IA \u2500\u2500
+        # ── Moved out of _build_right: sampling, layout, quality, AI ──
         form = QFormLayout()
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # \u00e9vite d\u00e9bordement horizontal (libell\u00e9s longs)
         self.spin_interval = QDoubleSpinBox()
@@ -86,8 +86,8 @@ class Extractor360Panel:
         self.lbl_res = QLabel()
         form.addRow(self.lbl_res, self.spin_res)
         self.combo_layout = QComboBox()
-        # Valeurs impos\u00e9es par l'extracteur : --layout choices=['ring','cube','fibonacci']
-        # (engines/extractor_360/src/main.py). Le libell\u00e9 est traduit, la donn\u00e9e non.
+        # Values imposed by the extractor: --layout choices=['ring','cube','fibonacci']
+        # (engines/extractor_360/src/main.py). The label is translated, the data is not.
         for key, value in (("360_layout_ring", "ring"),
                            ("360_layout_cube", "cube"),
                            ("360_layout_fib", "fibonacci")):
@@ -153,8 +153,8 @@ class Extractor360Panel:
             self.output_path.setText(path)
 
     def get_params(self):
-        """Retourne les paramètres d'extraction 360 sous forme de dict (clés
-        alignées sur ``Extractor360Engine.run_extraction``)."""
+        """Return the 360 extraction parameters as a dict (keys aligned on
+        ``Extractor360Engine.run_extraction``)."""
         return {
             "interval": self.spin_interval.value(),
             "resolution": self.spin_res.value(),
@@ -169,7 +169,7 @@ class Extractor360Panel:
         }
 
     def get_state(self):
-        """État sérialisable dans une configuration nommée (ChainConfig.extraction360)."""
+        """State serialisable into a named configuration (ChainConfig.extraction360)."""
         return {
             "input_path": self.input_path.text(),
             "output_path": self.output_path.text(),

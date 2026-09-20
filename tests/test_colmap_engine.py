@@ -1,4 +1,5 @@
-"""Tests pour app/core/engine.py — ColmapEngine."""
+"""Tests for app/core/engine.py — ColmapEngine.
+"""
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -20,10 +21,10 @@ for _mod_name in ["send2trash", "cv2"]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestDeleteProjectContent:
-    """Tests pour ColmapEngine.delete_project_content() — sécurité des chemins."""
+    """Tests for ColmapEngine.delete_project_content() — path safety."""
 
     def test_path_inside_project_root(self, tmp_path):
-        """Chemin dans project_root → succès."""
+        """Path inside project_root → success."""
         from app.core.engine import ColmapEngine
 
         project_dir = tmp_path / "project"
@@ -38,8 +39,9 @@ class TestDeleteProjectContent:
                 assert "corbeille" in msg
 
     def test_path_inside_home_allowed(self):
-        """Garde minimale : un sous-dossier ordinaire de $HOME (non critique) est
-        autorisé — c'est le cas normal d'un projet utilisateur."""
+        """Minimal guard: an ordinary (non-critical) sub-folder of $HOME is
+        allowed — the normal case of a user project.
+        """
         from app.core.engine import ColmapEngine
 
         home_subdir = Path.home() / ".corbeausplat_test_delete"
@@ -56,7 +58,7 @@ class TestDeleteProjectContent:
                 home_subdir.rmdir()
 
     def test_path_is_project_root_blocked(self, tmp_path):
-        """Chemin === project_root → bloqué."""
+        """Path === project_root → blocked."""
         from app.core.engine import ColmapEngine
 
         with patch("app.core.system.resolve_project_root", return_value=tmp_path):
@@ -65,7 +67,7 @@ class TestDeleteProjectContent:
             assert "bloquée" in msg
 
     def test_path_is_home_blocked(self):
-        """Chemin === Path.home() → bloqué."""
+        """Path === Path.home() → blocked."""
         from app.core.engine import ColmapEngine
 
         with patch("app.core.system.resolve_project_root", return_value=Path("/tmp/fake_project")):
@@ -74,8 +76,10 @@ class TestDeleteProjectContent:
             assert "bloquée" in msg
 
     def test_path_outside_home_not_security_blocked(self):
-        """Garde minimale : un chemin non critique hors $HOME n'est PAS bloqué pour
-        raison de sécurité. Ici il n'existe pas → message « n'existe pas », pas « bloquée »."""
+        """Minimal guard: a non-critical path outside $HOME is NOT blocked for
+        security reasons. Here it does not exist → "does not exist" message, not
+        "blocked".
+        """
         from app.core.engine import ColmapEngine
 
         with patch("app.core.system.resolve_project_root", return_value=Path("/tmp/fake_project")):
@@ -85,17 +89,17 @@ class TestDeleteProjectContent:
             assert "n'existe pas" in msg
 
     def test_path_ancestor_of_home_blocked(self):
-        """Un ancêtre de $HOME (ex. /Users) est catastrophique → bloqué."""
+        """An ancestor of $HOME (e.g. /Users) is catastrophic → blocked."""
         from app.core.engine import ColmapEngine
 
-        ancestor = Path.home().resolve().parent  # ex. /Users
+        ancestor = Path.home().resolve().parent  # e.g. /Users
         with patch("app.core.system.resolve_project_root", return_value=Path("/tmp/fake_project")):
             result, msg = ColmapEngine.delete_project_content(ancestor)
             assert result is False
             assert "bloquée" in msg
 
     def test_path_is_root_blocked(self):
-        """Chemin = / → bloqué."""
+        """Path = / → blocked."""
         from app.core.engine import ColmapEngine
 
         with patch("app.core.system.resolve_project_root", return_value=Path("/tmp/fake_project")):
@@ -104,7 +108,7 @@ class TestDeleteProjectContent:
             assert "bloquée" in msg
 
     def test_nonexistent_path(self, tmp_path):
-        """Chemin inexistant → False avec message approprié."""
+        """Non-existent path → False with an appropriate message."""
         from app.core.engine import ColmapEngine
 
         nonexistent = tmp_path / "does_not_exist"
@@ -115,7 +119,7 @@ class TestDeleteProjectContent:
             assert "n'existe pas" in msg
 
     def test_images_skipped(self, tmp_path):
-        """Le dossier 'images' est ignoré (pas envoyé à la corbeille)."""
+        """The 'images' folder is skipped (not sent to the trash)."""
         from app.core.engine import ColmapEngine
 
         project = tmp_path / "project"
@@ -138,12 +142,12 @@ class TestDeleteProjectContent:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestBuildCommand:
-    """Tests pour la construction des commandes COLMAP."""
+    """Tests for the construction of the COLMAP commands."""
 
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_feature_extraction_command(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """feature_extraction construit la bonne commande COLMAP."""
+        """feature_extraction builds the right COLMAP command."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x  # return name as-is
 
@@ -181,7 +185,7 @@ class TestBuildCommand:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_sequential_matcher_command(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """sequential_matcher est utilisé quand matcher_type='sequential'."""
+        """sequential_matcher is used when matcher_type='sequential'."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -212,7 +216,7 @@ class TestBuildCommand:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_exhaustive_matcher_command(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """exhaustive_matcher est utilisé quand matcher_type='exhaustive'."""
+        """exhaustive_matcher is used when matcher_type='exhaustive'."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -241,7 +245,7 @@ class TestBuildCommand:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_mapper_colmap_command(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """Mapper utilise global_mapper (COLMAP 4.0+)."""
+        """Mapper uses global_mapper (COLMAP 4.0+)."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -260,14 +264,14 @@ class TestBuildCommand:
 
         with patch.object(engine, 'run_command', return_value=True) as mock_run:
             engine.mapper(str(tmp_path / "database.db"), str(tmp_path / "images"), tmp_path / "sparse")
-            # 1er appel : mapper global (GLOMAP)
+            # 1st call: global mapper (GLOMAP)
             global_cmd = mock_run.call_args_list[0][0][0]
             assert "colmap" in global_cmd
             assert "global_mapper" in global_cmd
             assert "--GlobalMapper.num_threads" in global_cmd
             assert "glomap" not in global_cmd
-            # run_command mocké renvoie True mais aucun modèle sparse/0 valide n'est
-            # produit → repli automatique sur le mapper incrémental.
+            # mocked run_command returns True but no valid sparse/0 model is
+            # produced → automatic fallback on the incremental mapper.
             fallback_cmd = mock_run.call_args_list[1][0][0]
             assert "mapper" in fallback_cmd
             assert "--Mapper.num_threads" in fallback_cmd
@@ -275,7 +279,7 @@ class TestBuildCommand:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_image_undistorter_command(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """image_undistorter construit la bonne commande."""
+        """image_undistorter builds the right command."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -298,7 +302,7 @@ class TestBuildCommand:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_feature_extraction_hwaccel_apple_silicon(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """Test que Apple Silicon active l'accélération matérielle via videotoolbox dans extract_frames."""
+        """Test that Apple Silicon enables hardware acceleration through videotoolbox in extract_frames."""
         mock_silicon.return_value = True
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -327,12 +331,12 @@ class TestBuildCommand:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestCheckAndNormalizeResolution:
-    """Tests pour _check_and_normalize_resolution()."""
+    """Tests for _check_and_normalize_resolution()."""
 
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_cv2_not_loaded_returns_true(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """cv2 non chargé → retourne True immédiatement."""
+        """cv2 not loaded → returns True immediately."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -351,7 +355,7 @@ class TestCheckAndNormalizeResolution:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_uniform_resolution(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """Toutes les images ont la même résolution → True."""
+        """Every image has the same resolution → True."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -381,7 +385,7 @@ class TestCheckAndNormalizeResolution:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_fewer_than_2_images_returns_true(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """Moins de 2 images → True (pas besoin de normaliser)."""
+        """Fewer than 2 images → True (no normalisation needed)."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -407,12 +411,12 @@ class TestCheckAndNormalizeResolution:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestColmapUtils:
-    """Tests pour les méthodes utilitaires de ColmapEngine."""
+    """Tests for the utility methods of ColmapEngine."""
 
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_project_path_property(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """project_path retourne le output_path."""
+        """project_path returns the output_path."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -428,7 +432,7 @@ class TestColmapUtils:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_validate_and_setup_paths_success(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """_validate_and_setup_paths crée la structure de dossiers."""
+        """_validate_and_setup_paths creates the folder structure."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -457,7 +461,7 @@ class TestColmapUtils:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_resume_colmap_skips_process_input(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """resume_colmap=True → saute _process_input et réutilise les images existantes."""
+        """resume_colmap=True → skips _process_input and reuses the existing images."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
         from app.core.engine import ColmapEngine
@@ -485,14 +489,14 @@ class TestColmapUtils:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_resume_colmap_no_images_fails(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """resume_colmap=True sans image → échec explicite, pipeline non lancé."""
+        """resume_colmap=True with no image → explicit failure, pipeline not started."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
         from app.core.engine import ColmapEngine
 
         output = tmp_path / "output"
         images_dir = output / "proj" / "images"
-        images_dir.mkdir(parents=True)  # vide
+        images_dir.mkdir(parents=True)  # empty
 
         engine = ColmapEngine(
             MagicMock(), str(images_dir), str(output),
@@ -510,7 +514,7 @@ class TestColmapUtils:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_validate_project_name_with_dots_blocked(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """Nom de projet avec '..' → None."""
+        """Project name with '..' → None."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -532,7 +536,7 @@ class TestColmapUtils:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_create_brush_config(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """create_brush_config génère le fichier JSON."""
+        """create_brush_config generates the JSON file."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -570,7 +574,7 @@ class TestColmapUtils:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestSelectBlurryFiles:
-    """Tests pour engine.select_blurry_files()."""
+    """Tests for engine.select_blurry_files()."""
 
     def test_discards_below_factor_of_median(self):
         from app.core.engine import select_blurry_files
@@ -605,12 +609,12 @@ class TestSelectBlurryFiles:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestAlikedLightGlue:
-    """Tests pour les features ALIKED et le matching LightGlue."""
+    """Tests for the ALIKED features and LightGlue matching."""
 
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_feature_extraction_aliked(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """ALIKED feature_extraction utilise --FeatureExtraction.type et --AlikedExtraction.*."""
+        """ALIKED feature_extraction uses --FeatureExtraction.type and --AlikedExtraction.*."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -648,7 +652,7 @@ class TestAlikedLightGlue:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_feature_extraction_sift_preserved(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """SIFT reste par défaut et utilise les flags SiftExtraction.*."""
+        """SIFT stays the default and uses the SiftExtraction.* flags."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -687,7 +691,7 @@ class TestAlikedLightGlue:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_matching_aliked_lightglue(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """ALIKED + LightGlue match combiné."""
+        """ALIKED + LightGlue combined match."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -713,7 +717,7 @@ class TestAlikedLightGlue:
             cmd = mock_run.call_args[0][0]
             assert "--FeatureMatching.type" in cmd
             assert "ALIKED_LIGHTGLUE" in cmd
-            # LightGlue ne prend pas les flags SiftMatching.*
+            # LightGlue does not take the SiftMatching.* flags
             assert "--SiftMatching.max_ratio" not in cmd
 
     @patch("app.core.engine.resolve_binary")
@@ -749,7 +753,7 @@ class TestAlikedLightGlue:
     @patch("app.core.engine.resolve_binary")
     @patch("app.core.engine.is_apple_silicon")
     def test_matching_sift_lightglue(self, mock_silicon, mock_resolve_binary, tmp_path):
-        """SIFT + LightGlue est supporté."""
+        """SIFT + LightGlue is supported."""
         mock_silicon.return_value = False
         mock_resolve_binary.side_effect = lambda x: x
 
@@ -776,16 +780,16 @@ class TestAlikedLightGlue:
             assert "sequential_matcher" in cmd
             assert "--FeatureMatching.type" in cmd
             assert "SIFT_LIGHTGLUE" in cmd
-            # SIFT + LightGlue: pas de flags SiftMatching.*
+            # SIFT + LightGlue: no SiftMatching.* flags
             assert "--SiftMatching.max_ratio" not in cmd
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Tests pour app/cli/commands.py — _resolve_matching_type
+# Tests for app/cli/commands.py — _resolve_matching_type
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestResolveMatchingType:
-    """Tests pour _resolve_matching_type()."""
+    """Tests for _resolve_matching_type()."""
 
     def test_explicit_match_type_is_returned(self):
         from app.cli.commands import _resolve_matching_type
@@ -797,7 +801,7 @@ class TestResolveMatchingType:
         assert _resolve_matching_type("SIFT", None) == "SIFT_BRUTEFORCE"
 
     def test_default_for_aliked(self):
-        # ALIKED features default to LightGlue matching (intégration ALIKED/LightGlue)
+        # ALIKED features default to LightGlue matching (ALIKED/LightGlue integration)
         from app.cli.commands import _resolve_matching_type
         assert _resolve_matching_type("ALIKED_N16ROT", None) == "ALIKED_LIGHTGLUE"
         assert _resolve_matching_type("ALIKED_N32", None) == "ALIKED_LIGHTGLUE"

@@ -1,15 +1,14 @@
-"""Sauvegarde/chargement de configurations *nommées et réutilisables* de la
-chaîne complète (icônes Charger/Sauvegarder du top bar).
+"""Saving/loading *named, reusable* configurations of the whole chain
+(Load/Save icons of the top bar).
 
-Distinct de ``SessionManager`` (qui persiste l'unique session GUI courante dans
-``config.json``) : ici plusieurs configurations nommées, réutilisables, chacune
-dans son fichier sous ``configs/``.
+Distinct from ``SessionManager`` (which persists the single current GUI session
+in ``config.json``): here several named, reusable configurations live, each in
+its own file under ``configs/``.
 
-La sérialisation par section réutilise le contrat ``to_dict``/``from_dict`` déjà
-en place (``ColmapParams``, ``BrushParams``, ``RunState``) plutôt que de
-dupliquer une logique parallèle. ``from_dict`` étant tolérant aux clés
-manquantes/inconnues, une config sauvegardée par une version antérieure se
-recharge sans casser.
+Per-section serialisation reuses the ``to_dict``/``from_dict`` contract already
+in place (``ColmapParams``, ``BrushParams``, ``RunState``) rather than
+duplicating a parallel logic. Since ``from_dict`` tolerates missing/unknown
+keys, a config saved by an earlier version reloads without breaking.
 """
 
 import json
@@ -26,15 +25,16 @@ CONFIG_VERSION = 1
 
 
 def configs_dir():
-    """Dossier des configurations nommées (créé à la demande)."""
+    """Folder of the named configurations (created on demand)."""
     d = resolve_project_root() / "configs"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def is_safe_config_name(name: str) -> bool:
-    """Même règle que la sanitisation du nom de projet (``engine.py``) : pas de
-    ``..``, ``/`` ni ``\\``, et non vide."""
+    """Same rule as the project name sanitisation (``engine.py``): no ``..``,
+    ``/`` or ``\\``, and not empty.
+    """
     if not name or not name.strip():
         return False
     return ".." not in name and "/" not in name and "\\" not in name
@@ -42,16 +42,16 @@ def is_safe_config_name(name: str) -> bool:
 
 @dataclass
 class ChainConfig:
-    """Configuration complète de la chaîne, sérialisable vers un fichier nommé."""
+    """Full chain configuration, serialisable to a named file."""
 
     version: int = CONFIG_VERSION
     source: dict = field(default_factory=dict)     # input_path, output_path, project_name, fps…
-    extraction360: dict = field(default_factory=dict)  # échantillonnage, disposition, qualité, IA
-    upscale: dict = field(default_factory=dict)    # modèle, échelle, format, tuiles, TTA, compression
+    extraction360: dict = field(default_factory=dict)  # sampling, layout, quality, AI
+    upscale: dict = field(default_factory=dict)    # model, scale, format, tiles, TTA, compression
     colmap: dict = field(default_factory=dict)     # ColmapParams.to_dict()
     brush: dict = field(default_factory=dict)      # BrushParams.to_dict()
-    cleaning: dict = field(default_factory=dict)   # intensité, opacity_min, scale_pct, outlier_pct
-    export: dict = field(default_factory=dict)     # format cible, scale…
+    cleaning: dict = field(default_factory=dict)   # strength, opacity_min, scale_pct, outlier_pct
+    export: dict = field(default_factory=dict)     # target format, scale…
     flags: dict = field(default_factory=dict)      # RunState.to_dict()
 
     def to_dict(self) -> dict:
@@ -59,16 +59,17 @@ class ChainConfig:
 
     @classmethod
     def from_dict(cls, data: dict) -> "ChainConfig":
-        """Reconstruit une config depuis un dict, tolérant aux sections
-        manquantes et aux versions antérieures."""
+        """Rebuild a config from a dict, tolerant of missing sections and of
+        earlier versions.
+        """
         if not isinstance(data, dict):
             return cls()
         data = _migrate(dict(data))
         known = {f for f in cls.__dataclass_fields__}
         return cls(**{k: v for k, v in data.items() if k in known})
 
-    # Helpers typés : rechargent des objets à partir des sections, en s'appuyant
-    # sur la tolérance de leurs from_dict respectifs.
+    # Typed helpers: reload objects from the sections, leaning on the
+    # tolerance of their respective from_dict.
     def colmap_params(self) -> ColmapParams:
         return ColmapParams.from_dict(self.colmap or {})
 
@@ -77,13 +78,14 @@ class ChainConfig:
 
 
 def _migrate(data: dict) -> dict:
-    """Point d'extension pour les migrations de schéma futures. Aujourd'hui
-    identité (version 1). Les versions inconnues sont chargées au mieux."""
+    """Extension point for future schema migrations. Identity for now
+    (version 1). Unknown versions are loaded on a best-effort basis.
+    """
     return data
 
 
 def save_config(name: str, config: ChainConfig | dict) -> "object":
-    """Écrit une configuration nommée. Retourne le chemin du fichier."""
+    """Write a named configuration. Returns the file path."""
     if not is_safe_config_name(name):
         raise ValueError(f"Nom de configuration invalide: {name!r}")
     data = config.to_dict() if isinstance(config, ChainConfig) else dict(config)
@@ -95,7 +97,7 @@ def save_config(name: str, config: ChainConfig | dict) -> "object":
 
 
 def load_config(name: str) -> ChainConfig:
-    """Charge une configuration nommée. Lève ``FileNotFoundError`` si absente."""
+    """Load a named configuration. Raises ``FileNotFoundError`` when missing."""
     if not is_safe_config_name(name):
         raise ValueError(f"Nom de configuration invalide: {name!r}")
     path = configs_dir() / f"{name}.json"
@@ -104,7 +106,7 @@ def load_config(name: str) -> ChainConfig:
 
 
 def list_configs() -> list:
-    """Noms des configurations disponibles (triés)."""
+    """Names of the available configurations (sorted)."""
     try:
         return sorted(p.stem for p in configs_dir().glob("*.json"))
     except OSError as e:
@@ -113,7 +115,7 @@ def list_configs() -> list:
 
 
 def delete_config(name: str) -> bool:
-    """Supprime une configuration nommée. Retourne True si un fichier a été retiré."""
+    """Delete a named configuration. Returns True when a file was removed."""
     if not is_safe_config_name(name):
         raise ValueError(f"Nom de configuration invalide: {name!r}")
     path = configs_dir() / f"{name}.json"

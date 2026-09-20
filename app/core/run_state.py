@@ -1,17 +1,16 @@
-"""État partagé du run pipeline — source de vérité unique des flags dupliqués.
+"""Shared state of the pipeline run — single source of truth for duplicated flags.
 
-Plusieurs endroits de l'interface (Source, Reconstruction, Entraînement, modules
-OUTILS) affichent et modifient les mêmes drapeaux de chaînage automatique
-(« Entraînement après », « Nettoyer après », etc.) ainsi que ``undistort_images``.
-Pour éviter la dérive qui a produit l'éclatement historique de
-``undistort_images``/``filter_blurry``/``blur_factor`` entre onglets, chaque
-drapeau vit ici **une seule fois** : les widgets s'y abonnent et le reflètent.
-Même principe pour le nom de projet (champ texte affiché dans le panneau
-Source et dans la top bar).
+Several places in the interface (Source, Reconstruction, Entraînement, OUTILS
+modules) show and change the same auto-chaining flags ("Entraînement après",
+"Nettoyer après", etc.) as well as ``undistort_images``. To avoid the drift that
+historically scattered ``undistort_images``/``filter_blurry``/``blur_factor``
+across tabs, every flag lives here **once**: the widgets subscribe to it and
+mirror it. Same principle for the project name (a text field shown both in the
+Source panel and in the top bar).
 
-Le mécanisme d'observation reprend volontairement le même idiome que
-``LanguageManager`` (``add_observer``/notification best-effort avec log) plutôt
-que d'en inventer un second.
+The observation mechanism deliberately reuses the same idiom as
+``LanguageManager`` (``add_observer`` / best-effort notification with logging)
+rather than inventing a second one.
 """
 
 import logging
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class StepStatus(str, Enum):
-    """État d'exécution d'une étape du rail (pilote coche / spinner / icône rouge)."""
+    """Run status of a rail step (drives the tick / spinner / red icon)."""
 
     IDLE = "idle"
     RUNNING = "running"
@@ -29,8 +28,8 @@ class StepStatus(str, Enum):
     ERROR = "error"
 
 
-# Étapes PIPELINE, dans l'ordre du rail. 4DGS tronque à source+reconstruction,
-# Sharp saute l'entraînement — géré côté UI, pas ici (ce module reste agnostique).
+# PIPELINE steps, in rail order. 4DGS stops at source+reconstruction,
+# Sharp skips training — handled on the UI side, not here (this module stays agnostic).
 PIPELINE_STEPS = (
     "source",
     "extraction360",
@@ -42,8 +41,8 @@ PIPELINE_STEPS = (
     "visualiser",
 )
 
-# Drapeaux de chaînage + undistort, chacun une propriété unique reflétée par
-# plusieurs widgets. Valeurs par défaut alignées sur le comportement actuel.
+# Chaining flags + undistort, each a single property mirrored by several
+# widgets. Defaults aligned on the current behaviour.
 _FLAG_DEFAULTS = {
     "source_360": False,
     "upscaler_avant": False,
@@ -54,21 +53,21 @@ _FLAG_DEFAULTS = {
     "undistort_images": False,
 }
 
-# Champs texte partagés (même principe que les drapeaux, mais valeur str).
-# Le nom de projet est affiché à deux endroits (panneau Source + top bar) :
-# il vit ici une seule fois pour rester synchronisé en temps réel.
+# Shared text fields (same principle as the flags, but with a str value).
+# The project name is shown in two places (Source panel + top bar):
+# it lives here once so it stays in sync in real time.
 _FIELD_DEFAULTS = {
     "project_name": "",
 }
 
 
 class RunState:
-    """Objet d'état partagé observable.
+    """Observable shared state object.
 
-    - Un drapeau ne notifie que s'il change réellement de valeur (évite les
-      boucles de rétroaction quand un widget observateur se ré-écrit lui-même).
-    - Les observateurs sont appelés avec la clé modifiée (nom du drapeau ou de
-      l'étape), permettant à chaque widget de ne réagir qu'à ce qui le concerne.
+    - A flag only notifies when its value actually changes (avoids feedback
+      loops when an observing widget rewrites itself).
+    - Observers are called with the changed key (flag or step name), so each
+      widget can react only to what concerns it.
     """
 
     def __init__(self) -> None:
@@ -79,7 +78,7 @@ class RunState:
 
     # ── Observation ──────────────────────────────────────────────────────────
     def add_observer(self, callback) -> None:
-        """Enregistre un callback ``callback(key: str)`` notifié à chaque changement."""
+        """Register a ``callback(key: str)`` notified on every change."""
         if callback not in self._observers:
             self._observers.append(callback)
 
@@ -94,7 +93,7 @@ class RunState:
             except Exception:
                 logger.exception("Error notifying run-state observer: %s", cb)
 
-    # ── Drapeaux ─────────────────────────────────────────────────────────────
+    # ── Flags ────────────────────────────────────────────────────────────────
     def get_flag(self, name: str) -> bool:
         return self._flags[name]
 
@@ -106,7 +105,7 @@ class RunState:
             self._flags[name] = value
             self._notify(name)
 
-    # ── Champs texte ─────────────────────────────────────────────────────────
+    # ── Text fields ──────────────────────────────────────────────────────────
     def get_field(self, name: str) -> str:
         return self._fields[name]
 
@@ -182,7 +181,7 @@ class RunState:
     def undistort_images(self, value: bool) -> None:
         self.set_flag("undistort_images", value)
 
-    # ── Statut des étapes (pilote le rail) ───────────────────────────────────
+    # ── Step status (drives the rail) ────────────────────────────────────────
     def get_status(self, step: str) -> StepStatus:
         return self._status[step]
 
@@ -195,17 +194,18 @@ class RunState:
             self._notify(step)
 
     def reset_status(self) -> None:
-        """Remet toutes les étapes à IDLE (nouveau run). Notifie chaque changement."""
+        """Reset every step to IDLE (new run). Notifies each change."""
         for step in PIPELINE_STEPS:
             self.set_status(step, StepStatus.IDLE)
 
-    # ── Sérialisation (drapeaux uniquement — le statut est transitoire) ───────
+    # ── Serialisation (flags only — the status is transient) ──────────────────
     def to_dict(self) -> dict:
         return dict(self._flags)
 
     def load_dict(self, data: dict) -> None:
-        """Applique les drapeaux d'un dict (clés inconnues ignorées, absentes
-        laissées à leur défaut). Notifie chaque drapeau réellement modifié."""
+        """Apply the flags of a dict (unknown keys ignored, missing ones left at
+        their default). Notifies every flag actually changed.
+        """
         if not isinstance(data, dict):
             return
         for name in _FLAG_DEFAULTS:

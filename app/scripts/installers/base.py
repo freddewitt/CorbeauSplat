@@ -33,7 +33,7 @@ class EngineDependency:
         return resolve_project_root()
 
     def is_enabled_in_config(self, config: dict) -> bool:
-        """SOLID-OCP : Permet au moteur de decider s'il est actif"""
+        """SOLID-OCP: lets the engine decide whether it is active"""
         return config.get(f"{self.name}_enabled", True)
 
     def is_installed(self) -> bool:
@@ -161,7 +161,7 @@ class DependencyManager:
         missing_engines_startup = False
 
         for name, engine in self.engines.items():
-            # OCP : Le moteur decide s'il est active
+            # OCP: the engine decides whether it is active
             enabled = engine.is_enabled_in_config(config)
 
             # During --check or --startup, we audit everything. During install, we respect enablement.
@@ -180,11 +180,11 @@ class DependencyManager:
                     print(f">>> Auto-installing {name.capitalize()} on startup...")
                     try:
                         engine.install()
-                        # install() signale ses échecs par un retour, pas par une
-                        # exception (cf. BrushInstaller._install_from_release, qui
-                        # imprime son erreur et renvoie False). Sans revérifier
-                        # ici, un échec affichait quand même « installed
-                        # automatically », juste avant le « ❌ Missing » du bilan.
+                        # install() reports its failures through a return value, not
+                        # an exception (cf. BrushInstaller._install_from_release, which
+                        # prints its error and returns False). Without checking again
+                        # here, a failure still printed "installed automatically",
+                        # right before the "❌ Missing" of the summary.
                         if engine.is_installed():
                             print(f"✅ {name.capitalize()} installed automatically.")
                             engine.on_startup_ready()

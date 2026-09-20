@@ -13,14 +13,14 @@ from app.core.system import resolve_project_root
 logger = logging.getLogger(__name__)
 
 class SessionManager:
-    """SOLID-SRP : persiste le dernier projet (état du panneau Source — chemins
-    source/sortie, nom de projet, options associées) dans ``config.json``, sous
-    la clé ``"last_project"``.
+    """SOLID-SRP: persists the last project (state of the Source panel —
+    source/output paths, project name, associated options) in ``config.json``,
+    under the ``"last_project"`` key.
 
-    ``config.json`` est partagé avec ``LanguageManager`` (clé ``"language"``,
-    cf. ``app/core/i18n.py``) : toute écriture ici lit d'abord le fichier
-    existant, ne modifie que sa propre clé, puis réécrit l'ensemble — jamais de
-    remplacement complet du fichier, pour ne pas écraser les autres clés.
+    ``config.json`` is shared with ``LanguageManager`` (``"language"`` key, cf.
+    ``app/core/i18n.py``): every write here first reads the existing file,
+    changes only its own key, then rewrites the whole — never a full
+    replacement of the file, so the other keys are not lost.
     """
 
     CONFIG_KEY = "last_project"
@@ -35,7 +35,7 @@ class SessionManager:
         return resolve_project_root() / "config.json"
 
     def save(self, immediate=False):
-        """Optimisation Perf-IO : Debounce de la sauvegarde JSON pour ne pas geler l'UI"""
+        """Perf-IO optimisation: debounce the JSON save so the UI does not freeze"""
         if immediate:
             self._save_timer.stop()
             self._do_save()
@@ -52,8 +52,8 @@ class SessionManager:
         self._write_merged(panel.get_state())
 
     def _write_merged(self, project_state):
-        """Lit ``config.json`` existant, met à jour uniquement ``CONFIG_KEY``,
-        réécrit — même principe de fusion que ``LanguageManager.save_config``."""
+        """Read the existing ``config.json``, update only ``CONFIG_KEY``, rewrite
+        — same merge principle as ``LanguageManager.save_config``."""
         session_file = self.get_session_file()
         config = {}
         if session_file.exists():
@@ -96,7 +96,7 @@ class SessionManager:
 
 
 class AppLifecycle:
-    """SOLID-SRP : Responsable du redemarrage OS et processus externes"""
+    """SOLID-SRP: responsible for restarting the OS process and external ones"""
     @staticmethod
     def restart(save_callback=None):
         if save_callback:

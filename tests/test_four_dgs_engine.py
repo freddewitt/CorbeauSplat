@@ -1,4 +1,5 @@
-"""Tests pour app/core/four_dgs_engine.py — FourDGSEngine."""
+"""Tests for app/core/four_dgs_engine.py — FourDGSEngine.
+"""
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -7,31 +8,31 @@ from unittest.mock import MagicMock, patch
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestModuleFunctions:
-    """Tests pour les fonctions module-level de four_dgs_engine.py."""
+    """Tests for the module-level functions of four_dgs_engine.py."""
 
     def test_get_venv_4dgs_python(self):
-        """get_venv_4dgs_python retourne un chemin finissant par .venv_4dgs/bin/python."""
+        """get_venv_4dgs_python returns a path ending with .venv_4dgs/bin/python."""
         from app.core.four_dgs_engine import get_venv_4dgs_python
         with patch.object(sys, "platform", "darwin"):
             result = get_venv_4dgs_python()
             assert str(result).endswith(".venv_4dgs/bin/python")
 
     def test_get_venv_4dgs_python_windows(self):
-        """get_venv_4dgs_python sur Windows retourne .venv_4dgs/Scripts/python.exe."""
+        """get_venv_4dgs_python on Windows returns .venv_4dgs/Scripts/python.exe."""
         from app.core.four_dgs_engine import get_venv_4dgs_python
         with patch.object(sys, "platform", "win32"):
             result = get_venv_4dgs_python()
             assert str(result).endswith(".venv_4dgs\\Scripts\\python.exe") or str(result).endswith(".venv_4dgs/Scripts/python.exe")
 
     def test_get_ns_process_data_path(self):
-        """_get_ns_process_data_path retourne un chemin finissant par .venv_4dgs/bin/ns-process-data."""
+        """_get_ns_process_data_path returns a path ending with .venv_4dgs/bin/ns-process-data."""
         from app.core.four_dgs_engine import _get_ns_process_data_path
         with patch.object(sys, "platform", "darwin"):
             result = _get_ns_process_data_path()
             assert str(result).endswith(".venv_4dgs/bin/ns-process-data")
 
     def test_get_ns_process_data_path_windows(self):
-        """_get_ns_process_data_path sur Windows."""
+        """_get_ns_process_data_path on Windows."""
         from app.core.four_dgs_engine import _get_ns_process_data_path
         with patch.object(sys, "platform", "win32"):
             result = _get_ns_process_data_path()
@@ -43,10 +44,10 @@ class TestModuleFunctions:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestFourDGSEngine:
-    """Tests pour la classe FourDGSEngine."""
+    """Tests for the FourDGSEngine class."""
 
     def test_init(self, tmp_path):
-        """Initialisation du moteur 4DGS."""
+        """Initialisation of the 4DGS engine."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
@@ -75,7 +76,7 @@ class TestFourDGSEngine:
             assert result is True
 
     def test_check_nerfstudio_not_installed(self, tmp_path):
-        """check_nerfstudio retourne False si ns-process-data n'existe pas."""
+        """check_nerfstudio returns False when ns-process-data does not exist."""
         from app.core.four_dgs_engine import FourDGSEngine
 
         engine = FourDGSEngine.__new__(FourDGSEngine)
@@ -87,7 +88,7 @@ class TestFourDGSEngine:
             assert result is False
 
     def test_extract_frames(self, tmp_path):
-        """extract_frames exécute FFmpeg via _execute_command."""
+        """extract_frames runs FFmpeg through _execute_command."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
@@ -98,7 +99,7 @@ class TestFourDGSEngine:
                 engine.runner = MagicMock()
                 engine.runner.start.return_value = None
                 engine.runner.stdout_iter.return_value = iter([])
-                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
+                engine.runner.readline.return_value = ""  # Immediate EOF: _execute_command loops on readline()
                 engine.runner.wait.return_value = 0
 
                 video_path = tmp_path / "video.mp4"
@@ -110,7 +111,7 @@ class TestFourDGSEngine:
                 assert output_dir.exists()
 
     def test_extract_frames_apple_silicon(self, tmp_path):
-        """extract_frames ajoute -hwaccel videotoolbox sur Apple Silicon."""
+        """extract_frames adds -hwaccel videotoolbox on Apple Silicon."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
@@ -122,7 +123,7 @@ class TestFourDGSEngine:
                     engine.runner = MagicMock()
                     engine.runner.start.return_value = None
                     engine.runner.stdout_iter.return_value = iter([])
-                    engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
+                    engine.runner.readline.return_value = ""  # Immediate EOF: _execute_command loops on readline()
                     engine.runner.wait.return_value = 0
 
                     video_path = tmp_path / "video.mp4"
@@ -147,7 +148,7 @@ class TestFourDGSEngine:
                 assert result is False
 
     def test_run_colmap(self, tmp_path):
-        """run_colmap exécute le pipeline COLMAP."""
+        """run_colmap runs the COLMAP pipeline."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
@@ -158,7 +159,7 @@ class TestFourDGSEngine:
                 engine.runner = MagicMock()
                 engine.runner.start.return_value = None
                 engine.runner.stdout_iter.return_value = iter([])
-                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
+                engine.runner.readline.return_value = ""  # Immediate EOF: _execute_command loops on readline()
                 engine.runner.wait.return_value = 0
 
                 dataset_root = tmp_path / "dataset"
@@ -169,7 +170,7 @@ class TestFourDGSEngine:
                 assert result is True
 
     def test_run_colmap_failure(self, tmp_path):
-        """run_colmap en échec."""
+        """run_colmap on failure."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
@@ -180,7 +181,7 @@ class TestFourDGSEngine:
                 engine.runner = MagicMock()
                 engine.runner.start.return_value = None
                 engine.runner.stdout_iter.return_value = iter([])
-                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
+                engine.runner.readline.return_value = ""  # Immediate EOF: _execute_command loops on readline()
                 engine.runner.wait.return_value = 1  # non-zero return code
 
                 dataset_root = tmp_path / "dataset"
@@ -191,8 +192,9 @@ class TestFourDGSEngine:
                 assert result is False
 
     def test_run_colmap_uses_single_reference_frame_per_camera(self, tmp_path):
-        """run_colmap doit lancer COLMAP sur 1 frame/caméra, pas sur toutes les frames
-        de tous les timesteps (COLMAP suppose une scène statique)."""
+        """run_colmap must run COLMAP on 1 frame/camera, not on every frame of
+        every timestep (COLMAP assumes a static scene).
+        """
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
@@ -230,8 +232,9 @@ class TestFourDGSEngine:
                 assert str(staging_dir) in mapper_cmd
 
     def test_run_colmap_flat_images_no_camera_subfolders(self, tmp_path):
-        """Sans sous-dossiers cam_XX (dataset mono-caméra à plat) : pas de mise en scène,
-        COLMAP tourne directement sur images/."""
+        """Without cam_XX sub-folders (flat single-camera dataset): no staging,
+        COLMAP runs directly on images/.
+        """
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
@@ -258,7 +261,7 @@ class TestFourDGSEngine:
                 assert str(images_root) in extract_cmd
 
     def test_process_dataset_no_videos(self, tmp_path):
-        """process_dataset sans vidéos → False."""
+        """process_dataset without videos → False."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
@@ -275,7 +278,7 @@ class TestFourDGSEngine:
                 assert result is False
 
     def test_process_dataset_with_videos(self, tmp_path):
-        """process_dataset avec vidéos et nerfstudio."""
+        """process_dataset with videos and nerfstudio."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
@@ -286,7 +289,7 @@ class TestFourDGSEngine:
                 engine.runner = MagicMock()
                 engine.runner.start.return_value = None
                 engine.runner.stdout_iter.return_value = iter([])
-                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
+                engine.runner.readline.return_value = ""  # Immediate EOF: _execute_command loops on readline()
                 engine.runner.wait.return_value = 0
 
                 # Create video files
@@ -302,7 +305,7 @@ class TestFourDGSEngine:
                     assert result is True
 
     def test_process_dataset_no_nerfstudio(self, tmp_path):
-        """process_dataset sans nerfstudio → mode dégradé COLMAP."""
+        """process_dataset without nerfstudio → degraded COLMAP mode."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
@@ -313,7 +316,7 @@ class TestFourDGSEngine:
                 engine.runner = MagicMock()
                 engine.runner.start.return_value = None
                 engine.runner.stdout_iter.return_value = iter([])
-                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
+                engine.runner.readline.return_value = ""  # Immediate EOF: _execute_command loops on readline()
                 engine.runner.wait.return_value = 0
 
                 videos_dir = tmp_path / "videos"
@@ -340,7 +343,7 @@ class TestFourDGSEngine:
                 engine.runner = MagicMock()
                 engine.runner.start.return_value = None
                 engine.runner.stdout_iter.return_value = iter([])
-                engine.runner.readline.return_value = ""  # EOF immédiat: _execute_command boucle sur readline()
+                engine.runner.readline.return_value = ""  # Immediate EOF: _execute_command loops on readline()
                 engine.runner.wait.return_value = 0
 
                 videos_dir = tmp_path / "videos"
@@ -359,7 +362,7 @@ class TestFourDGSEngine:
                             assert called_video_path.name == "cam01.mp4"
 
     def test_upscale_dataset_images_inactive_is_noop(self, tmp_path):
-        """upscale_config absent/inactif → aucune tentative d'upscale."""
+        """upscale_config missing/inactive → no upscale attempt."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x
@@ -370,7 +373,7 @@ class TestFourDGSEngine:
                 assert engine.upscale_dataset_images(str(tmp_path)) is True
 
     def test_upscale_dataset_images_upscales_each_camera_folder(self, tmp_path):
-        """upscale_config actif → chaque sous-dossier cam_XX est upscalé via UpscaleEngine."""
+        """upscale_config active → every cam_XX sub-folder is upscaled through UpscaleEngine."""
         with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
             with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
                 mock_resolve.side_effect = lambda x: x

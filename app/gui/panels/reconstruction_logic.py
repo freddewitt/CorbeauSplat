@@ -10,14 +10,15 @@ handled by the same field (spec §3 Reconstruction):
 from pathlib import Path
 from typing import Literal
 
+from app.core.media import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 from app.core.params import blur_factor_from_strength
 
-# Same extensions as ColmapEngine (app/core/engine.py).
-_IMAGE_EXTS = {".jpg", ".jpeg", ".png"}
-# Same video extensions as ColmapEngine._collect_video_paths (app/core/engine.py)
-# and studio_window._VIDEO_EXTS (app/gui/studio_window.py) — all three call
-# sites must agree on what counts as a video.
-_VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv"}
+# Same shared lists as ColmapEngine (app/core/media.py): anything beyond
+# JPEG/PNG is accepted here and converted on ingest.
+_IMAGE_EXTS = IMAGE_EXTENSIONS
+# Single shared list (app/core/media.py): the panel, ColmapEngine and
+# FourDGSEngine must agree on what counts as a video.
+_VIDEO_EXTS = VIDEO_EXTENSIONS
 
 RESUME_COLMAP_PROJECT = "colmap_project"
 RESUME_EXTERNAL_IMAGES = "external_images"
