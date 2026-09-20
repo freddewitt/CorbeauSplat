@@ -113,6 +113,14 @@ Six enregistrements de `journal.jsonl` étaient structurellement invalides. **Ca
 
 **Garde-fou** : `tests/test_journal_integrity.py` — JSON valide ligne à ligne, absence de clés dupliquées, champs identifiants présents, dates ISO et ordre chronologique. Validé par réintroduction de la corruption d'origine : 3 des 4 tests tombent.
 
+## Effet de bord constaté — charger une configuration peut lancer un téléchargement (2026-09-20)
+
+Découvert en écrivant `tests/test_gui_panel_state_roundtrip.py` : `UpscalePanel._on_model_changed()` est branché sur `currentIndexChanged` du combo de modèles et **démarre immédiatement un `ModelDownloadWorker`** si le modèle choisi n'est pas installé. Or `set_state()` passe par le même chemin — donc **recharger une configuration nommée qui référence un modèle absent déclenche un transfert réseau**, sans que l'utilisateur l'ait demandé ni en soit averti autrement qu'un libellé de statut.
+
+Non corrigé : c'est peut-être le comportement voulu (récupérer automatiquement ce qui est sélectionné). À trancher — si c'est involontaire, le remède est de ne déclencher le téléchargement que sur une interaction utilisateur, pas depuis `set_state()`.
+
+Le test contourne le combo concerné et documente pourquoi, plutôt que de masquer le constat.
+
 ## RESTE À FAIRE (priorisé)
 
 ### 🔴 Audit complet 2026-09-15 — `audit-report.md`

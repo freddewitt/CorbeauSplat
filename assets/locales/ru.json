@@ -310,5 +310,14 @@
   "source_convert_tooltip": "Изображения, которые конвейер не может прочитать (HEIC, TIFF, BMP, WebP…), преобразуются в этот формат при импорте. Оригиналы не изменяются. «off» копирует их как есть — COLMAP их отклонит.",
   "source_convert_png": "PNG",
   "source_convert_jpeg": "JPEG",
-  "source_convert_off": "Нет"
+  "source_convert_off": "Нет",
+  "err_supersplat_not_found": "Движок SuperSplat не найден",
+  "err_supersplat_not_built": "SuperSplat не собран (отсутствует папка «dist») — запустите установщик зависимостей повторно.",
+  "err_npx_missing": "npx не найден — для просмотра требуется Node.js.",
+  "err_data_dir_missing": "Папка данных не найдена",
+  "msg_supersplat_started": "SuperSplat запущен на {0}",
+  "msg_supersplat_stopped": "SuperSplat остановлен",
+  "msg_data_server_started": "Сервер данных запущен на {0}",
+  "msg_data_server_stopped": "Сервер данных остановлен",
+  "err_data_server_bind": "Не удалось привязать порт: {0}"
 }

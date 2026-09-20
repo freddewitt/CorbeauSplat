@@ -310,5 +310,14 @@
   "source_convert_tooltip": "Bilder, die die Verarbeitungskette nicht lesen kann (HEIC, TIFF, BMP, WebP…), werden beim Einlesen in dieses Format konvertiert. Originale bleiben unverändert. „off“ kopiert sie unverändert — COLMAP lehnt sie dann ab.",
   "source_convert_png": "PNG",
   "source_convert_jpeg": "JPEG",
-  "source_convert_off": "Keine"
+  "source_convert_off": "Keine",
+  "err_supersplat_not_found": "SuperSplat-Engine nicht gefunden",
+  "err_supersplat_not_built": "SuperSplat ist nicht gebaut (Ordner „dist“ fehlt) — führen Sie den Abhängigkeits-Installer erneut aus.",
+  "err_npx_missing": "npx nicht gefunden — Node.js wird für die Visualisierung benötigt.",
+  "err_data_dir_missing": "Datenordner nicht gefunden",
+  "msg_supersplat_started": "SuperSplat gestartet auf {0}",
+  "msg_supersplat_stopped": "SuperSplat gestoppt",
+  "msg_data_server_started": "Datenserver gestartet auf {0}",
+  "msg_data_server_stopped": "Datenserver gestoppt",
+  "err_data_server_bind": "Bind fehlgeschlagen: {0}"
 }

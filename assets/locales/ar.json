@@ -310,5 +310,14 @@
   "source_convert_tooltip": "الصور التي لا يمكن للسلسلة قراءتها (HEIC، TIFF، BMP، WebP…) يتم تحويلها إلى هذا التنسيق عند الاستيراد. لا يتم تعديل الملفات الأصلية أبدًا. «off» ينسخها كما هي — وعندئذ سيرفضها COLMAP.",
   "source_convert_png": "PNG",
   "source_convert_jpeg": "JPEG",
-  "source_convert_off": "بدون"
+  "source_convert_off": "بدون",
+  "err_supersplat_not_found": "لم يتم العثور على محرك SuperSplat",
+  "err_supersplat_not_built": "لم يتم بناء SuperSplat (مجلد «dist» مفقود) — أعد تشغيل مثبّت التبعيات.",
+  "err_npx_missing": "لم يتم العثور على npx — يلزم Node.js للعرض.",
+  "err_data_dir_missing": "لم يتم العثور على مجلد البيانات",
+  "msg_supersplat_started": "تم تشغيل SuperSplat على {0}",
+  "msg_supersplat_stopped": "تم إيقاف SuperSplat",
+  "msg_data_server_started": "تم تشغيل خادم البيانات على {0}",
+  "msg_data_server_stopped": "تم إيقاف خادم البيانات",
+  "err_data_server_bind": "فشل الربط: {0}"
 }

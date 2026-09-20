@@ -310,5 +310,14 @@
   "source_convert_tooltip": "处理链无法读取的图像（HEIC、TIFF、BMP、WebP 等）会在导入时转换为此格式。原始文件不会被修改。“off”按原样复制，COLMAP 将拒绝这些文件。",
   "source_convert_png": "PNG",
   "source_convert_jpeg": "JPEG",
-  "source_convert_off": "不转换"
+  "source_convert_off": "不转换",
+  "err_supersplat_not_found": "未找到 SuperSplat 引擎",
+  "err_supersplat_not_built": "SuperSplat 尚未构建（缺少 dist 文件夹）——请重新运行依赖项安装程序。",
+  "err_npx_missing": "未找到 npx——可视化需要 Node.js。",
+  "err_data_dir_missing": "未找到数据文件夹",
+  "msg_supersplat_started": "SuperSplat 已在 {0} 启动",
+  "msg_supersplat_stopped": "SuperSplat 已停止",
+  "msg_data_server_started": "数据服务器已在 {0} 启动",
+  "msg_data_server_stopped": "数据服务器已停止",
+  "err_data_server_bind": "端口绑定失败：{0}"
 }

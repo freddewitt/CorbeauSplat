@@ -310,5 +310,14 @@
   "source_convert_tooltip": "処理チェーンが読み込めない画像（HEIC、TIFF、BMP、WebP など）は、取り込み時にこの形式へ変換されます。元のファイルは変更されません。「off」はそのままコピーするため、COLMAP が拒否します。",
   "source_convert_png": "PNG",
   "source_convert_jpeg": "JPEG",
-  "source_convert_off": "なし"
+  "source_convert_off": "なし",
+  "err_supersplat_not_found": "SuperSplat エンジンが見つかりません",
+  "err_supersplat_not_built": "SuperSplat がビルドされていません（dist フォルダーがありません）。依存関係インストーラーを再実行してください。",
+  "err_npx_missing": "npx が見つかりません。表示には Node.js が必要です。",
+  "err_data_dir_missing": "データフォルダーが見つかりません",
+  "msg_supersplat_started": "SuperSplat を {0} で起動しました",
+  "msg_supersplat_stopped": "SuperSplat を停止しました",
+  "msg_data_server_started": "データサーバーを {0} で起動しました",
+  "msg_data_server_stopped": "データサーバーを停止しました",
+  "err_data_server_bind": "バインドに失敗しました: {0}"
 }

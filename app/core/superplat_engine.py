@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .base_engine import BaseEngine
+from .i18n import tr
 from .system import resolve_project_root
 
 # Default port of the viewer itself, distinct from the data server's.
@@ -60,15 +61,18 @@ class SuperSplatEngine(BaseEngine):
         """
         splat_path = self.get_supersplat_path()
         if not splat_path.exists():
-            return False, "Moteur SuperSplat non trouvé"
+            return False, tr("err_supersplat_not_found", "Moteur SuperSplat non trouvé")
 
         # Preconditions checked before spawning: `npx serve dist` otherwise fails
         # with a node-level message that says nothing about what is missing.
         if not (splat_path / "dist").is_dir():
-            return False, ("SuperSplat n'est pas construit (dossier 'dist' absent) — "
-                           "relancez l'installateur de dépendances.")
+            return False, tr(
+                "err_supersplat_not_built",
+                "SuperSplat n'est pas construit (dossier 'dist' absent) — "
+                "relancez l'installateur de dépendances.",
+            )
         if shutil.which("npx") is None:
-            return False, "npx introuvable — Node.js est requis pour la visualisation."
+            return False, tr("err_npx_missing", "npx introuvable — Node.js est requis pour la visualisation.")
 
         # Ensure any previous instance is stopped before starting a new one.
         self.stop_supersplat()
@@ -84,8 +88,9 @@ class SuperSplatEngine(BaseEngine):
                         self.log(stripped)
 
             threading.Thread(target=_consume_stdout, daemon=True).start()
-            self.log(f"SuperSplat démarré sur http://localhost:{port}")
-            return True, f"SuperSplat démarré sur http://localhost:{port}"
+            started = tr("msg_supersplat_started", f"http://localhost:{port}")
+            self.log(started)
+            return True, started
         except Exception as e:
             self.log(f"Erreur lors du démarrage de SuperSplat : {e}", level=logging.ERROR)
             return False, str(e)
@@ -93,7 +98,7 @@ class SuperSplatEngine(BaseEngine):
     def stop_supersplat(self) -> None:
         """Terminate the SuperSplat viewer process if it is running."""
         self.runner.terminate()
-        self.log("SuperSplat arrêté")
+        self.log(tr("msg_supersplat_stopped", "SuperSplat arrêté"))
 
     # ---------------------------------------------------------------------
     # Data server (CORS‑enabled) management
@@ -111,7 +116,7 @@ class SuperSplatEngine(BaseEngine):
 
         dir_path = Path(directory).expanduser().resolve()
         if not dir_path.is_dir():
-            return False, "Dossier de données introuvable"
+            return False, tr("err_data_dir_missing", "Dossier de données introuvable")
 
         allowed_origin = f"http://localhost:{viewer_port}"
 
@@ -143,7 +148,7 @@ class SuperSplatEngine(BaseEngine):
             self.httpd = _ReuseAddrTCPServer(("127.0.0.1", port), handler)
         except OSError as e:
             self.log(f"Erreur bind Data Server: {e}", level=logging.ERROR)
-            return False, f"Échec du bind: {e}"
+            return False, tr("err_data_server_bind", str(e))
 
         def run_server():  # pragma: no cover - runs in a background thread
             try:
@@ -154,8 +159,9 @@ class SuperSplatEngine(BaseEngine):
         self.data_server_thread = threading.Thread(target=run_server, daemon=True)
         self.data_server_thread.start()
 
-        self.log(f"Serveur de données démarré sur http://localhost:{port}")
-        return True, f"Serveur de données démarré sur http://localhost:{port}"
+        started = tr("msg_data_server_started", f"http://localhost:{port}")
+        self.log(started)
+        return True, started
 
     def stop_data_server(self) -> None:
         """Shut down the data server and clean up its thread."""
@@ -163,7 +169,7 @@ class SuperSplatEngine(BaseEngine):
             self.httpd.shutdown()
             self.httpd.server_close()
             self.httpd = None
-            self.log("Data server arrêté")
+            self.log(tr("msg_data_server_stopped", "Serveur de données arrêté"))
         if self.data_server_thread:
             self.data_server_thread.join(timeout=1)
             self.data_server_thread = None

@@ -310,5 +310,14 @@
   "source_convert_tooltip": "Le immagini che la catena non riesce a leggere (HEIC, TIFF, BMP, WebP…) vengono convertite in questo formato all'importazione. Gli originali non vengono mai modificati. «off» le copia così come sono: COLMAP le rifiuterà.",
   "source_convert_png": "PNG",
   "source_convert_jpeg": "JPEG",
-  "source_convert_off": "Nessuna"
+  "source_convert_off": "Nessuna",
+  "err_supersplat_not_found": "Motore SuperSplat non trovato",
+  "err_supersplat_not_built": "SuperSplat non è compilato (cartella «dist» assente): rilancia l'installatore delle dipendenze.",
+  "err_npx_missing": "npx non trovato: Node.js è necessario per la visualizzazione.",
+  "err_data_dir_missing": "Cartella dei dati non trovata",
+  "msg_supersplat_started": "SuperSplat avviato su {0}",
+  "msg_supersplat_stopped": "SuperSplat arrestato",
+  "msg_data_server_started": "Server dati avviato su {0}",
+  "msg_data_server_stopped": "Server dati arrestato",
+  "err_data_server_bind": "Bind non riuscito: {0}"
 }

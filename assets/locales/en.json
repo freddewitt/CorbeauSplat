@@ -310,5 +310,14 @@
   "source_convert_tooltip": "Images the chain cannot read (HEIC, TIFF, BMP, WebP…) are converted to this format on ingest. Originals are never modified. \"off\" copies them as-is — COLMAP will then refuse them.",
   "source_convert_png": "PNG",
   "source_convert_jpeg": "JPEG",
-  "source_convert_off": "None"
+  "source_convert_off": "None",
+  "err_supersplat_not_found": "SuperSplat engine not found",
+  "err_supersplat_not_built": "SuperSplat is not built ('dist' folder missing) — run the dependency installer again.",
+  "err_npx_missing": "npx not found — Node.js is required for viewing.",
+  "err_data_dir_missing": "Data folder not found",
+  "msg_supersplat_started": "SuperSplat started on {0}",
+  "msg_supersplat_stopped": "SuperSplat stopped",
+  "msg_data_server_started": "Data server started on {0}",
+  "msg_data_server_stopped": "Data server stopped",
+  "err_data_server_bind": "Bind failed: {0}"
 }

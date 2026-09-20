@@ -1,6 +1,7 @@
 """Tests for app/core/superplat_engine.py — preconditions and the data server."""
 from unittest.mock import MagicMock, patch
 
+from app.core.i18n import tr
 from app.core.superplat_engine import SuperSplatEngine
 
 
@@ -16,7 +17,9 @@ class TestStartPreconditions:
     def test_missing_engine_is_reported(self, tmp_path):
         ok, msg = _engine(tmp_path).start_supersplat()
         assert ok is False
-        assert "non trouvé" in msg
+        # Compared against tr(), not a French fragment: these messages are
+        # translated now, and the active language depends on the environment.
+        assert msg == tr("err_supersplat_not_found", "Moteur SuperSplat non trouvé")
 
     def test_unbuilt_engine_is_reported(self, tmp_path):
         (tmp_path / "supersplat").mkdir()
@@ -36,7 +39,7 @@ class TestDataServer:
     def test_missing_directory_is_reported(self, tmp_path):
         ok, msg = _engine(tmp_path).start_data_server(str(tmp_path / "nope"))
         assert ok is False
-        assert "introuvable" in msg
+        assert msg == tr("err_data_dir_missing", "Dossier de données introuvable")
 
     def test_httpd_is_bound_before_start_returns(self, tmp_path):
         """stop_data_server() used to race the worker thread assigning self.httpd.
@@ -65,7 +68,7 @@ class TestDataServer:
                    side_effect=OSError("address in use")):
             ok, msg = engine.start_data_server(str(served), port=9)
         assert ok is False
-        assert "bind" in msg.lower()
+        assert msg == tr("err_data_server_bind", "address in use")
 
     def test_cors_fallback_names_the_viewer_port(self, tmp_path):
         """The allowed origin must be the viewer's port, not the data server's.
