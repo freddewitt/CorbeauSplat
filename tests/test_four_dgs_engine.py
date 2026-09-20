@@ -3,6 +3,8 @@
 import sys
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Tests for module-level functions
 # ─────────────────────────────────────────────────────────────────────────────
@@ -191,6 +193,38 @@ class TestFourDGSEngine:
                 result = engine.run_colmap(str(dataset_root))
                 assert result is False
 
+    def test_run_colmap_refuses_unsigned_existing_dir(self, tmp_path):
+        """F-011: run_colmap returns False (and destroys nothing) when the
+        output holds a pre-existing unsigned colmap_reference_frames dir.
+        """
+        with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
+            with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
+                mock_resolve.side_effect = lambda x: x
+
+                from app.core.four_dgs_engine import FourDGSEngine
+
+                engine = FourDGSEngine(logger_callback=print)
+                engine.runner = MagicMock()
+                engine.runner.start.return_value = None
+                engine.runner.stdout_iter.return_value = iter([])
+                engine.runner.readline.return_value = ""
+                engine.runner.wait.return_value = 0
+
+                dataset_root = tmp_path / "dataset"
+                images_root = dataset_root / "images"
+                cam_dir = images_root / "cam_00"
+                cam_dir.mkdir(parents=True)
+                (cam_dir / "00000.jpg").write_bytes(b"fake")
+
+                staging = dataset_root / "colmap_reference_frames"
+                staging.mkdir()
+                user_file = staging / "mes_photos.txt"
+                user_file.write_text("données utilisateur précieuses", encoding="utf-8")
+
+                result = engine.run_colmap(str(dataset_root))
+                assert result is False
+                assert user_file.exists()
+
     def test_run_colmap_uses_single_reference_frame_per_camera(self, tmp_path):
         """run_colmap must run COLMAP on 1 frame/camera, not on every frame of
         every timestep (COLMAP assumes a static scene).
@@ -259,6 +293,122 @@ class TestFourDGSEngine:
 
                 extract_cmd = engine.runner.start.call_args_list[0][0][0]
                 assert str(images_root) in extract_cmd
+
+    def test_build_static_reference_set_preserves_unsigned_existing_dir(self, tmp_path):
+        """F-011: a pre-existing unsigned colmap_reference_frames dir (user data)
+        must not be deleted by _build_static_reference_set — the run must fail
+        with a clear error instead of silently destroying it.
+        """
+        with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
+            with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
+                mock_resolve.side_effect = lambda x: x
+
+                from app.core.four_dgs_engine import FourDGSEngine
+
+                engine = FourDGSEngine(logger_callback=print)
+
+                images_root = tmp_path / "images"
+                cam_dir = images_root / "cam_00"
+                cam_dir.mkdir(parents=True)
+                (cam_dir / "00000.jpg").write_bytes(b"fake")
+
+                staging = tmp_path / "colmap_reference_frames"
+                staging.mkdir()
+                user_file = staging / "mes_photos.txt"
+                user_file.write_text("données utilisateur précieuses", encoding="utf-8")
+
+                with pytest.raises(RuntimeError):
+                    engine._build_static_reference_set(images_root, staging)
+
+                assert user_file.exists()
+                assert (staging / "mes_photos.txt").read_text(encoding="utf-8") == "données utilisateur précieuses"
+
+    def test_build_static_reference_set_refuses_unsigned_empty_dir(self, tmp_path):
+        """F-011: even an empty pre-existing colmap_reference_frames dir without
+        the ownership marker is preserved, not destroyed.
+        """
+        with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
+            with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
+                mock_resolve.side_effect = lambda x: x
+
+                from app.core.four_dgs_engine import FourDGSEngine
+
+                engine = FourDGSEngine(logger_callback=print)
+
+                images_root = tmp_path / "images"
+                cam_dir = images_root / "cam_00"
+                cam_dir.mkdir(parents=True)
+                (cam_dir / "00000.jpg").write_bytes(b"fake")
+
+                staging = tmp_path / "colmap_reference_frames"
+                staging.mkdir()
+
+                with pytest.raises(RuntimeError):
+                    engine._build_static_reference_set(images_root, staging)
+
+                assert staging.exists()
+                assert not (staging / "cam_00.jpg").exists()
+
+    def test_build_static_reference_set_refuses_symlink_dir(self, tmp_path):
+        """F-011: a colmap_reference_frames symlink (even with a forged sibling
+        marker) is never rmtree'd — the app never creates symlinks there, so any
+        symlink is user data.
+        """
+        with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
+            with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
+                mock_resolve.side_effect = lambda x: x
+
+                from app.core.four_dgs_engine import FourDGSEngine
+
+                engine = FourDGSEngine(logger_callback=print)
+
+                images_root = tmp_path / "images"
+                cam_dir = images_root / "cam_00"
+                cam_dir.mkdir(parents=True)
+                (cam_dir / "00000.jpg").write_bytes(b"fake")
+
+                user_data = tmp_path / "user_data"
+                user_data.mkdir()
+                user_file = user_data / "important.txt"
+                user_file.write_text("secret", encoding="utf-8")
+                staging = tmp_path / "colmap_reference_frames"
+                staging.symlink_to(user_data, target_is_directory=True)
+                (tmp_path / "colmap_reference_frames.corbeausplat_owned").write_text("owned-by-corbeausplat")
+
+                with pytest.raises(RuntimeError):
+                    engine._build_static_reference_set(images_root, staging)
+
+                assert user_file.exists()
+
+    def test_build_static_reference_set_reuses_owned_dir(self, tmp_path):
+        """F-011: a colmap_reference_frames dir created by a previous app run
+        (ownership marker present) is replaced without error on the next run.
+        """
+        with patch("app.core.four_dgs_engine.resolve_project_root", return_value=tmp_path):
+            with patch("app.core.four_dgs_engine.resolve_binary") as mock_resolve:
+                mock_resolve.side_effect = lambda x: x
+
+                from app.core.four_dgs_engine import FourDGSEngine
+
+                engine = FourDGSEngine(logger_callback=print)
+
+                images_root = tmp_path / "images"
+                cam_dir = images_root / "cam_00"
+                cam_dir.mkdir(parents=True)
+                (cam_dir / "00000.jpg").write_bytes(b"fake")
+
+                staging = tmp_path / "colmap_reference_frames"
+
+                result = engine._build_static_reference_set(images_root, staging)
+                assert result == staging
+                marker = staging.parent / (staging.name + ".corbeausplat_owned")
+                assert marker.exists()
+
+                # Second run: the app-created dir is signed → replaced, no error.
+                result2 = engine._build_static_reference_set(images_root, staging)
+                assert result2 == staging
+                assert (staging / "cam_00.jpg").exists()
+                assert marker.exists()
 
     def test_process_dataset_no_videos(self, tmp_path):
         """process_dataset without videos → False."""

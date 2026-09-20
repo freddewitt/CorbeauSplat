@@ -95,9 +95,22 @@ class FourDGSEngine(BaseEngine):
         if not cam_dirs:
             return images_path
 
-        if staging_path.exists():
+        # Ownership signature (F-011): the staging folder may only be deleted if
+        # a previous CorbeauSplat run created it (marker file). A pre-existing
+        # homonymous user folder is never touched.
+        staging_path = Path(staging_path)
+        ownership_marker = staging_path.parent / (staging_path.name + ".corbeausplat_owned")
+        if staging_path.exists() or staging_path.is_symlink():
+            if staging_path.is_symlink() or not ownership_marker.is_file():
+                raise RuntimeError(
+                    f"Le dossier {staging_path} existe déjà et n'a pas été créé "
+                    "par CorbeauSplat (aucun marqueur d'appartenance). "
+                    "Renommez-le ou déplacez-le pour ne pas écraser vos fichiers, "
+                    "puis relancez."
+                )
             shutil.rmtree(staging_path)
         staging_path.mkdir(parents=True)
+        ownership_marker.write_text("owned-by-corbeausplat", encoding="utf-8")
 
         for cam_dir in cam_dirs:
             frames = sorted(f for f in cam_dir.iterdir() if f.is_file())
@@ -132,7 +145,11 @@ class FourDGSEngine(BaseEngine):
         sparse_path = root / "sparse"
         sparse_path.mkdir(parents=True, exist_ok=True)
 
-        colmap_images_path = self._build_static_reference_set(images_path, root / "colmap_reference_frames")
+        try:
+            colmap_images_path = self._build_static_reference_set(images_path, root / "colmap_reference_frames")
+        except RuntimeError as e:
+            self.log(str(e))
+            return False
 
         # 1. Feature Extraction
         self.log("--- COLMAP: Feature Extraction ---")
@@ -303,9 +320,13 @@ class FourDGSEngine(BaseEngine):
             # frame of every camera at every timestep — a moving scene, which
             # corrupts the reconstruction. It also expects a flat folder and
             # would not descend into the cam_XX subfolders anyway.
-            ns_images = self._build_static_reference_set(
-                images_root, Path(output_dir) / "colmap_reference_frames"
-            )
+            try:
+                ns_images = self._build_static_reference_set(
+                    images_root, Path(output_dir) / "colmap_reference_frames"
+                )
+            except RuntimeError as e:
+                self.log(str(e))
+                return False
 
             # Use the dedicated venv script
             cmd_ns = [
