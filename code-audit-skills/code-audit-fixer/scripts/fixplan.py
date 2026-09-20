@@ -1,22 +1,28 @@
 #!/usr/bin/env python3
 """Suivi du plan de correction (audit/fix_plan.json) pour le skill code-audit-fixer.
 
-Sous-commandes :
-  next       prochaines tâches à traiter (dépendances satisfaites, ordre du plan)
-  show       une tâche en détail
-  relocate   retrouve l'emplacement actuel du code visé (les lignes bougent après chaque correction)
-  update     change le statut d'une tâche ; 'fixed' EXIGE des preuves (test rouge avant, vert après, suite saine)
-  confirm    marque une commande de vérification comme confirmée par l'utilisateur (ou l'ajoute)
-  summary    comptes par statut et priorité
-  report     écrit audit/FIX_REPORT.md
+Sous-commandes
+next prochaines tâches traiter (dépendances satisfaites, ordre du plan)
+show une tâche en détail
+relocate retrouve l'emplacement actuel du code visé (les lignes bougent après chaque correction)
+update change le statut d'une tâche ; 'fixed' EXIGE des preuves (test rouge avant, vert après, suite saine)
+confirm marque une commande de vérification comme confirmée par l'utilisateur (ou l'ajoute)
+summary comptes statut et priorité
+report écrit audit/FIX_REPORT.md
 
-Garde-fou : marquer une tâche 'fixed' sans avoir vu le test échouer avant le correctif est refusé,
+Garde-fou marquer une tâche 'fixed' sans avoir vu le test échouer avant correctif est refusé,
 car une part importante des validations d'agents ne discrimine pas le bug (le test passait déjà)
-et les correctifs "qui passent les tests" sans supprimer la cause sont un mode d'échec documenté.
+et les correctifs "qui passent tests" sans supprimer la cause sont un mode d'échec documenté.
+
+Sécurité (F-005) : confirm refuse les commandes dont la recette est contrôlée par le dépôt audité
+(make, npm/pnpm/yarn/bun run, cargo, gradle, mvn, dotnet, ...) : confirmer reviendrait à valider
+l'exécution d'un Makefile/package.json du dépôt, c'est-à-dire du code arbitraire hostile possible.
+Le portail de confirmation partage la liste blanche de run_checks.py (ALLOWED / METACHARS).
 Stdlib uniquement, Python 3.8+.
 """
 import argparse
 import difflib
+import importlib.util
 import json
 import os
 import re
@@ -27,6 +33,19 @@ from pathlib import Path
 
 STATUSES = {"todo", "in_progress", "fixed", "blocked", "stale", "skipped", "hold"}
 PRIO = ["P0", "P1", "P2", "P3"]
+
+
+def _run_checks_module():
+    """Charge run_checks.py (même dossier) pour partager sa liste blanche de commandes.
+
+    Le module est chargé par chemin (pas d'import par nom) pour fonctionner quel que soit
+    sys.path : c'est la source unique d'ALLOWED / METACHARS côté confirmation.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    spec = importlib.util.spec_from_file_location("run_checks", os.path.join(here, "run_checks.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def load(path):
@@ -169,6 +188,16 @@ def cmd_update(a):
 
 def cmd_confirm(a):
     plan = load(a.plan)
+    rc = _run_checks_module()
+    if rc.METACHARS.search(a.cmd) or not rc.ALLOWED.match(a.cmd):
+        recipe = bool(rc.RECIPE_RUN.match(a.cmd)) if hasattr(rc, "RECIPE_RUN") else False
+        if recipe:
+            sys.exit("Refusé : %r est un lanceur dont la recette est contrôlée par le dépôt audité "
+                     "(make, npm/pnpm/yarn/bun run, cargo, gradle, mvn, dotnet, ...). La confirmer "
+                     "validerait l'exécution de code du dépôt sans inspection préalable. "
+                     "Pour un dépôt de confiance, exécuter run_checks.py avec --allow-recipe-run." % a.cmd)
+        sys.exit("Refusé : %r ne passe pas la liste blanche de run_checks.py (ALLOWED). "
+                 "Commande non reconnue ou contenant des métacaractères." % a.cmd)
     cmds = plan.setdefault("commands", {}).setdefault(a.kind, [])
     for c in cmds:
         if c["cmd"] == a.cmd:
