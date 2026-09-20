@@ -19,6 +19,15 @@ class SharpEngineDep(PipEngine):
     def is_enabled_in_config(self, config: dict) -> bool:
         return config.get("sharp_params", {}).get("enabled", False) or config.get("sharp_enabled", False)
 
+    def get_remote_version(self) -> str:
+        """Target version: the pinned commit SHA, with no network call.
+
+        Overrides the base implementation, which resolves the moving remote
+        HEAD: recording that here would make every upstream push look like an
+        update for code that has not changed.
+        """
+        return SHARP_PINNED_REF
+
     def install(self):
         self.update_git()
         # Sharp needs 3.11/3.10 ideally

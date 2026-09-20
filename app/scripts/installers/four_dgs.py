@@ -15,6 +15,15 @@ class FourDGSEngineDep(PipEngine):
     def is_enabled_in_config(self, config: dict) -> bool:
         return config.get("four_dgs_params", {}).get("enabled", False) or config.get("four_dgs_enabled", False)
 
+    def get_remote_version(self) -> str:
+        """Target version: the pinned tag, with no network call.
+
+        Overrides the base implementation, which resolves the moving remote
+        HEAD: recording that here would make every upstream push look like an
+        update for code that has not changed.
+        """
+        return NERFSTUDIO_PINNED_TAG
+
     def install(self):
         self.update_git()
         self.create_venv()

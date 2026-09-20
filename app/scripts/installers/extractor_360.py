@@ -16,6 +16,15 @@ class Extractor360EngineDep(PipEngine):
     def is_enabled_in_config(self, config: dict) -> bool:
         return config.get("extractor_360_params", {}).get("enabled", False) or config.get("extractor_360_enabled", False)
 
+    def get_remote_version(self) -> str:
+        """Target version: the pinned tag, with no network call.
+
+        Overrides the base implementation, which resolves the moving remote
+        HEAD: recording that here would make every upstream push look like an
+        update for code that has not changed.
+        """
+        return EXTRACTOR_360_PINNED_TAG
+
     def install(self):
         self.update_git()
         self.create_venv()
