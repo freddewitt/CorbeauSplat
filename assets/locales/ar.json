@@ -320,5 +320,16 @@
   "msg_data_server_started": "تم تشغيل خادم البيانات على {0}",
   "msg_data_server_stopped": "تم إيقاف خادم البيانات",
   "err_data_server_bind": "فشل الربط: {0}",
-  "up_model_not_installed": "النموذج «{0}» غير مثبَّت — اخترهُ لتنزيله."
+  "up_model_not_installed": "النموذج «{0}» غير مثبَّت — اخترهُ لتنزيله.",
+  "video_range_title": "تحديد مقطع الفيديو",
+  "video_range_button": "تحديد مقطع الفيديو…",
+  "video_range_button_set": "المدى: {0} ← {1}",
+  "video_range_set_in": "نقطة البداية",
+  "video_range_set_out": "نقطة النهاية",
+  "video_range_reset": "الفيديو كاملاً",
+  "video_range_validate": "تطبيق",
+  "video_range_summary": "البداية {0} — النهاية {1}  ({2})",
+  "video_range_unreadable": "تعذّرت قراءة مدة الفيديو — التحديد غير متاح.",
+  "video_range_no_frame": "المعاينة غير متاحة",
+  "video_range_folder_hint": "متاح فقط عند تحديد فيديو واحد."
 }

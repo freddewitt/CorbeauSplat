@@ -12,6 +12,7 @@ and the session-wide PySide6 mock means panels cannot be instantiated for real
 anywhere else — hence the subprocess.
 """
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -97,7 +98,7 @@ with patch("app.core.config_io.resolve_project_root", return_value=tmp):
 def report():
     env = {
         "QT_QPA_PLATFORM": "offscreen",
-        "PATH": "/usr/bin:/bin",
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": str(Path.home()),
         "PYTHONPATH": str(PROJECT_ROOT),
     }

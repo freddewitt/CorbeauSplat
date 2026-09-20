@@ -320,5 +320,16 @@
   "msg_data_server_started": "データサーバーを {0} で起動しました",
   "msg_data_server_stopped": "データサーバーを停止しました",
   "err_data_server_bind": "バインドに失敗しました: {0}",
-  "up_model_not_installed": "モデル「{0}」は未インストールです。選択するとダウンロードします。"
+  "up_model_not_installed": "モデル「{0}」は未インストールです。選択するとダウンロードします。",
+  "video_range_title": "動画の範囲選択",
+  "video_range_button": "動画の範囲選択…",
+  "video_range_button_set": "範囲: {0} → {1}",
+  "video_range_set_in": "開始点",
+  "video_range_set_out": "終了点",
+  "video_range_reset": "動画全体",
+  "video_range_validate": "適用",
+  "video_range_summary": "開始 {0} — 終了 {1}  ({2})",
+  "video_range_unreadable": "動画の長さを取得できません。範囲選択は利用できません。",
+  "video_range_no_frame": "プレビューを表示できません",
+  "video_range_folder_hint": "動画を1本だけ選択したときにのみ利用できます。"
 }

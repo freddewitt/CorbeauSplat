@@ -58,6 +58,10 @@ class ColmapParams:
     # ingest so every downstream tool can read them: "png" (lossless, default),
     # "jpeg" (quality 95) or "off" to copy them untouched.
     image_convert_format: str = 'png'
+    # In/out range picked in the Source panel, in seconds. None means the whole
+    # video. Only meaningful for a single-video source.
+    video_trim_start: float | None = None
+    video_trim_end: float | None = None
 
     def to_dict(self):
         return asdict(self)

@@ -320,5 +320,16 @@
   "msg_data_server_started": "数据服务器已在 {0} 启动",
   "msg_data_server_stopped": "数据服务器已停止",
   "err_data_server_bind": "端口绑定失败：{0}",
-  "up_model_not_installed": "模型“{0}”未安装——选择它即可下载。"
+  "up_model_not_installed": "模型“{0}”未安装——选择它即可下载。",
+  "video_range_title": "视频片段选择",
+  "video_range_button": "视频片段选择…",
+  "video_range_button_set": "范围：{0} → {1}",
+  "video_range_set_in": "入点",
+  "video_range_set_out": "出点",
+  "video_range_reset": "整段视频",
+  "video_range_validate": "应用",
+  "video_range_summary": "入点 {0} — 出点 {1}（{2}）",
+  "video_range_unreadable": "无法读取视频时长——无法选择片段。",
+  "video_range_no_frame": "预览不可用",
+  "video_range_folder_hint": "仅在选择单个视频时可用。"
 }

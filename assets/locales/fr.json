@@ -320,5 +320,16 @@
   "msg_data_server_started": "Serveur de données démarré sur {0}",
   "msg_data_server_stopped": "Serveur de données arrêté",
   "err_data_server_bind": "Échec du bind : {0}",
-  "up_model_not_installed": "Modèle « {0} » non installé — sélectionnez-le pour le télécharger."
+  "up_model_not_installed": "Modèle « {0} » non installé — sélectionnez-le pour le télécharger.",
+  "video_range_title": "Sélection vidéo",
+  "video_range_button": "Sélection vidéo…",
+  "video_range_button_set": "Plage : {0} → {1}",
+  "video_range_set_in": "Point d'entrée",
+  "video_range_set_out": "Point de sortie",
+  "video_range_reset": "Toute la vidéo",
+  "video_range_validate": "Valider",
+  "video_range_summary": "Entrée {0} — Sortie {1}  ({2})",
+  "video_range_unreadable": "Durée de la vidéo illisible — sélection impossible.",
+  "video_range_no_frame": "Aperçu indisponible",
+  "video_range_folder_hint": "Disponible uniquement lorsqu'une seule vidéo est sélectionnée."
 }

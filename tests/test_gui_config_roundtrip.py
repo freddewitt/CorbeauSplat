@@ -16,6 +16,7 @@ verbatim, so a key missing from either side is silently lost on reload, with
 no failure anywhere to point at it.
 """
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -79,7 +80,7 @@ def results():
     """Run every scenario once under real Qt, return the parsed outcome."""
     env = {
         "QT_QPA_PLATFORM": "offscreen",
-        "PATH": "/usr/bin:/bin",
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": str(Path.home()),
     }
     proc = subprocess.run(

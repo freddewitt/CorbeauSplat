@@ -112,6 +112,8 @@ def _build_colmap_params(args) -> ColmapParams:
         ignore_watermarks=getattr(args, 'ignore_watermarks', True),
         thermal_throttling=getattr(args, 'thermal_throttling', False),
         image_convert_format=getattr(args, 'convert', 'png'),
+        video_trim_start=getattr(args, 'trim_start', None),
+        video_trim_end=getattr(args, 'trim_end', None),
     )
     if getattr(args, 'robust', False):
         params = _apply_robust(params)

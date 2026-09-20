@@ -10,6 +10,7 @@ Runs against a real Qt in a subprocess: the suite's session-wide PySide6 mock
 is process-global, so a real panel cannot be built anywhere else.
 """
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -65,7 +66,7 @@ def results():
     proc = subprocess.run(
         [sys.executable, "-c", _SCRIPT],
         capture_output=True, text=True, timeout=180, cwd=str(PROJECT_ROOT),
-        env={"QT_QPA_PLATFORM": "offscreen", "PATH": "/usr/bin:/bin",
+        env={"QT_QPA_PLATFORM": "offscreen", "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
              "HOME": str(Path.home()), "PYTHONPATH": str(PROJECT_ROOT)},
     )
     line = next((ln for ln in proc.stdout.splitlines() if ln.startswith("RESULTS=")), None)

@@ -320,5 +320,16 @@
   "msg_data_server_started": "Data server started on {0}",
   "msg_data_server_stopped": "Data server stopped",
   "err_data_server_bind": "Bind failed: {0}",
-  "up_model_not_installed": "Model \"{0}\" is not installed — select it to download."
+  "up_model_not_installed": "Model \"{0}\" is not installed — select it to download.",
+  "video_range_title": "Video selection",
+  "video_range_button": "Video selection…",
+  "video_range_button_set": "Range: {0} → {1}",
+  "video_range_set_in": "In point",
+  "video_range_set_out": "Out point",
+  "video_range_reset": "Whole video",
+  "video_range_validate": "Apply",
+  "video_range_summary": "In {0} — Out {1}  ({2})",
+  "video_range_unreadable": "Video duration unreadable — selection unavailable.",
+  "video_range_no_frame": "Preview unavailable",
+  "video_range_folder_hint": "Available only when a single video is selected."
 }

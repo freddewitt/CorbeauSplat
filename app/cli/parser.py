@@ -98,6 +98,10 @@ def get_parser():
                    help="Images voisines comparées par le matcher séquentiel (défaut: 30)")
     p.add_argument("--guided_matching", action="store_true",
                    help="Matching guidé par la géométrie épipolaire (plus lent, plus robuste)")
+    p.add_argument("--trim_start", type=float, default=None, metavar="SECONDES",
+                   help="Début de la plage vidéo à extraire (défaut: 0)")
+    p.add_argument("--trim_end", type=float, default=None, metavar="SECONDES",
+                   help="Fin de la plage vidéo à extraire (défaut: fin de la vidéo)")
     _add_view_graph_flags(p)
     # Steps 3 and 4, opt-in: without them `pipeline` stops after the training.
     p.add_argument("--clean", nargs="?", const="medium", default=None,
@@ -144,6 +148,10 @@ def get_parser():
                    help="Images voisines comparées par le matcher séquentiel (défaut: 30)")
     p.add_argument("--guided_matching",   action="store_true",
                    help="Matching guidé par la géométrie épipolaire (plus lent, plus robuste)")
+    p.add_argument("--trim_start", type=float, default=None, metavar="SECONDES",
+                   help="Début de la plage vidéo à extraire (défaut: 0)")
+    p.add_argument("--trim_end", type=float, default=None, metavar="SECONDES",
+                   help="Fin de la plage vidéo à extraire (défaut: fin de la vidéo)")
     p.add_argument("--no_refine_focal",   action="store_true",  help="Ne pas affiner la focale")
     p.add_argument("--refine_principal",  action="store_true",  help="Affiner le point principal")
     p.add_argument("--no_refine_extra",   action="store_true",  help="Ne pas affiner les params extra")

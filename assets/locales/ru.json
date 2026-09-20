@@ -320,5 +320,16 @@
   "msg_data_server_started": "Сервер данных запущен на {0}",
   "msg_data_server_stopped": "Сервер данных остановлен",
   "err_data_server_bind": "Не удалось привязать порт: {0}",
-  "up_model_not_installed": "Модель «{0}» не установлена — выберите её, чтобы загрузить."
+  "up_model_not_installed": "Модель «{0}» не установлена — выберите её, чтобы загрузить.",
+  "video_range_title": "Выбор фрагмента видео",
+  "video_range_button": "Выбор фрагмента…",
+  "video_range_button_set": "Диапазон: {0} → {1}",
+  "video_range_set_in": "Точка входа",
+  "video_range_set_out": "Точка выхода",
+  "video_range_reset": "Всё видео",
+  "video_range_validate": "Применить",
+  "video_range_summary": "Начало {0} — Конец {1}  ({2})",
+  "video_range_unreadable": "Длительность видео не читается — выбор недоступен.",
+  "video_range_no_frame": "Предпросмотр недоступен",
+  "video_range_folder_hint": "Доступно только при выборе одного видео."
 }

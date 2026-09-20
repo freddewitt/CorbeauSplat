@@ -126,6 +126,17 @@ def apply_source_settings(params, source_state):
     params.filter_blurry = bool(source_state.get("filter_blur", False))
     params.blur_factor = blur_factor_from_strength(source_state.get("blur_strength") or "medium")
     params.image_convert_format = source_state.get("convert") or "png"
+
+    # In/out range picked in the Source panel. Absent or malformed means the
+    # whole video, so a configuration saved before the feature existed, or one
+    # whose video was swapped, simply extracts everything.
+    trim = source_state.get("video_trim")
+    if isinstance(trim, dict):
+        params.video_trim_start = trim.get("start")
+        params.video_trim_end = trim.get("end")
+    else:
+        params.video_trim_start = None
+        params.video_trim_end = None
     return params
 
 

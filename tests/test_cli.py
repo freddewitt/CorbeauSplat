@@ -532,6 +532,8 @@ COLMAP_FLAG_ALIASES = {
     "use_view_graph_calibration": "view_graph_calibration",
     "image_convert_format": "convert",
     "undistort_images": "undistort",
+    "video_trim_start": "trim_start",
+    "video_trim_end": "trim_end",
 }
 
 

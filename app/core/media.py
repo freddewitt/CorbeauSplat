@@ -11,6 +11,7 @@ image outside ``NATIVE_IMAGE_EXTENSIONS`` is converted once on ingest (cf.
 ``convert_image``), so every downstream step only ever sees JPEG or PNG.
 """
 import logging
+import pathlib
 import shutil
 import subprocess
 
@@ -176,3 +177,80 @@ def _suffix_of(path) -> str:
         dot = text.rfind(".")
         suffix = text[dot:] if dot > text.replace("\\", "/").rfind("/") else ""
     return suffix.lower()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Video probing and preview, for the in/out range selection
+# ─────────────────────────────────────────────────────────────────────────────
+
+def probe_video_duration(path) -> float | None:
+    """Duration of `path` in seconds, or None when it cannot be determined.
+
+    Uses ffprobe rather than a Qt media player: ffmpeg is already a hard
+    dependency and reads every container in VIDEO_EXTENSIONS, while Qt's
+    backend silently fails on several of them (.mts, .insv, .mxf).
+    """
+    ffprobe = shutil.which("ffprobe") or _sibling_of_ffmpeg("ffprobe")
+    if not ffprobe:
+        return None
+    try:
+        result = subprocess.run(  # nosec B603 - fixed argv, no shell
+            [ffprobe, "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (subprocess.SubprocessError, OSError) as e:
+        logger.debug("ffprobe failed on %s: %s", path, e)
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        duration = float(result.stdout.strip())
+    except ValueError:
+        return None
+    return duration if duration > 0 else None
+
+
+def extract_preview_frame(path, timestamp: float, dest, width: int = 640) -> bool:
+    """Write a single JPEG of `path` at `timestamp` seconds into `dest`.
+
+    `-ss` is placed before `-i` so ffmpeg seeks by keyframe instead of decoding
+    from the start: scrubbing a long video stays responsive. The frame can
+    therefore land slightly before the requested timestamp, which is acceptable
+    for a preview — the extraction itself uses the exact value.
+    """
+    ffmpeg = shutil.which("ffmpeg") or _sibling_of_ffmpeg("ffmpeg")
+    if not ffmpeg:
+        return False
+    dest = str(dest)
+    cmd = [ffmpeg, "-y", "-ss", f"{max(0.0, timestamp):.3f}", "-i", str(path),
+           "-frames:v", "1", "-vf", f"scale={width}:-2", "-qscale:v", "3", dest]
+    try:
+        result = subprocess.run(  # nosec B603 - fixed argv, no shell
+            cmd, capture_output=True, timeout=60,
+        )
+    except (subprocess.SubprocessError, OSError) as e:
+        logger.debug("preview extraction failed at %.3fs: %s", timestamp, e)
+        return False
+    return result.returncode == 0 and _exists_nonempty(dest)
+
+
+def _sibling_of_ffmpeg(name: str) -> str | None:
+    """Find `name` next to the resolved ffmpeg, for bundled installs."""
+    from .system import resolve_binary
+
+    ffmpeg = resolve_binary("ffmpeg")
+    if not ffmpeg:
+        return None
+    candidate = pathlib.Path(ffmpeg).parent / name
+    return str(candidate) if candidate.exists() else None
+
+
+def format_timecode(seconds: float) -> str:
+    """Render seconds as MM:SS.s, or H:MM:SS.s past an hour."""
+    seconds = max(0.0, float(seconds))
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    if hours:
+        return f"{int(hours)}:{int(minutes):02d}:{secs:04.1f}"
+    return f"{int(minutes):02d}:{secs:04.1f}"

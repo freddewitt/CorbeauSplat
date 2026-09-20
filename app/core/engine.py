@@ -24,6 +24,7 @@ from .media import (
     IMAGE_EXTENSIONS,
     conversion_suffix,
     convert_image,
+    format_timecode,
     is_video_file,
     needs_image_conversion,
     without_hwaccel,
@@ -650,6 +651,27 @@ class ColmapEngine(BaseEngine):
         self.log(f"✅ {len(to_resize)} images redimensionnées vers {min_w}×{min_h} px")
         return True
 
+    def _trim_window(self):
+        """(start, duration) in seconds for the requested range, or (None, None).
+
+        A pair that does not describe a forward span is ignored rather than
+        passed on: ffmpeg would accept a zero or negative `-t` and produce no
+        frames at all, which reads as a broken extraction rather than a bad
+        setting.
+        """
+        start = getattr(self.params, 'video_trim_start', None)
+        end = getattr(self.params, 'video_trim_end', None)
+        if start is None and end is None:
+            return None, None
+        start = max(0.0, float(start or 0.0))
+        if end is None:
+            return (start or None), None
+        end = float(end)
+        if end <= start:
+            self.log("⚠️ Plage vidéo incohérente (fin ≤ début) — vidéo entière extraite")
+            return None, None
+        return (start or None), end - start
+
     def extract_frames_from_video(self, video_path: str, images_dir: Path, prefix: str | None = None) -> bool | None:
         """Extract the frames of a video through FFmpeg."""
         base_name = Path(video_path).stem
@@ -662,12 +684,29 @@ class ColmapEngine(BaseEngine):
         if self.is_silicon:
             cmd.extend(['-hwaccel', 'videotoolbox'])
 
+        # `-ss` before `-i` seeks by keyframe instead of decoding from zero, so
+        # trimming a long video costs nothing. The range is then expressed as a
+        # duration (`-t`), because after a pre-input seek `-to` would be counted
+        # from the seek point and silently cut the wrong span.
+        start, duration = self._trim_window()
+        if start is not None:
+            cmd.extend(['-ss', f'{start:.3f}'])
+
+        cmd.extend(['-i', video_path])
+        if duration is not None:
+            cmd.extend(['-t', f'{duration:.3f}'])
+
         cmd.extend([
-            '-i', video_path,
             '-vf', f'fps={self.fps}',
             '-qscale:v', '2',
             str(output_pattern)
         ])
+
+        if start is not None or duration is not None:
+            self.log(
+                f"Plage retenue : {format_timecode(start or 0.0)} → "
+                f"{format_timecode((start or 0.0) + (duration or 0.0))}"
+            )
 
         def _ffmpeg_parser(line_str: str):
             if 'frame=' in line_str or 'error' in line_str.lower():

@@ -14,6 +14,8 @@ Reconstruction → Training) is wired in sub-batch 3c, once the 3 panels
 are in place.
 """
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -32,6 +34,7 @@ from PySide6.QtWidgets import (
 
 from app.core.export_engine import ExportEngine
 from app.core.i18n import add_language_observer, tr
+from app.core.media import is_video_file
 from app.gui.panels.reconstruction_logic import detect_source_kind
 from app.gui.run_state_binding import bind_flag_checkbox, bind_text_field
 from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_name
@@ -70,6 +73,8 @@ class SourcePanel:
         self.run_state = run_state
         # Keep the run_state observers alive (avoids GC of the closures).
         self._bindings = []
+        self._video_trim = None
+        self._trim_source = None
         self.center = self._build_center()
         self.right = self._build_right()
         add_language_observer(self.retranslate_ui)
@@ -151,6 +156,11 @@ class SourcePanel:
         self.fps_spin.setValue(2)
         fps_row.addWidget(self.lbl_fps)
         fps_row.addWidget(self.fps_spin)
+        # Only meaningful for one video: a folder holds several, each with its
+        # own timeline, so a single in/out pair could not describe the job.
+        self.btn_video_range = QPushButton()
+        self.btn_video_range.clicked.connect(self._open_video_range)
+        fps_row.addWidget(self.btn_video_range)
         fps_row.addStretch(1)
         layout.addLayout(fps_row)
 
@@ -387,6 +397,60 @@ class SourcePanel:
         self.fps_spin.setVisible(is_video)
         self.lbl_fps.setVisible(is_video)
         self.lbl_err_mixed.setVisible(is_mixed)
+        self._update_video_range_button(is_video)
+
+    def _single_video_path(self):
+        """The source when it is one video file, else None.
+
+        Deliberately stricter than detect_source_kind(), which answers "video"
+        for a folder of videos too.
+        """
+        raw = self.input_path.text().strip()
+        if not raw:
+            return None
+        path = Path(raw)
+        if not path.is_file() or not is_video_file(path):
+            return None
+        return path
+
+    def _update_video_range_button(self, is_video):
+        path = self._single_video_path()
+        self.btn_video_range.setVisible(is_video)
+        self.btn_video_range.setEnabled(path is not None)
+        if path is None:
+            self.btn_video_range.setToolTip(tr(
+                "video_range_folder_hint",
+                "Disponible uniquement lorsqu'une seule vidéo est sélectionnée.",
+            ))
+        else:
+            self.btn_video_range.setToolTip("")
+        # A trim belongs to the video it was measured on.
+        if self._video_trim is not None and str(path) != self._trim_source:
+            self._video_trim = None
+            self._trim_source = None
+        self._sync_video_range_label()
+
+    def _sync_video_range_label(self):
+        if self._video_trim:
+            from app.core.media import format_timecode
+            self.btn_video_range.setText(tr("video_range_button_set").format(
+                format_timecode(self._video_trim["start"]),
+                format_timecode(self._video_trim["end"]),
+            ))
+        else:
+            self.btn_video_range.setText(tr("video_range_button", "Sélection vidéo…"))
+
+    def _open_video_range(self):
+        path = self._single_video_path()
+        if path is None:
+            return
+        from app.gui.widgets.video_range_dialog import VideoRangeDialog
+
+        dialog = VideoRangeDialog(path, parent=self.center, initial=self._video_trim)
+        if dialog.exec():
+            self._video_trim = dialog.selected_range
+            self._trim_source = str(path) if dialog.selected_range else None
+            self._sync_video_range_label()
     def _browse_input_dir(self):
         path = get_existing_directory(self.center, tr("btn_browse", "Parcourir"))
         if path:
@@ -420,6 +484,9 @@ class SourcePanel:
             "filter_blur": self.chk_filter_blur.isChecked(),
             "blur_strength": self.combo_blur.currentData(),
             "convert": self.combo_convert.currentData(),
+            # None when the whole video is used, so a saved configuration
+            # carries no no-op trim.
+            "video_trim": self._video_trim,
             "export_dir": self.export_dir.text(),
             "export_format": self.combo_export_format.currentData(),
         }
@@ -454,6 +521,11 @@ class SourcePanel:
             idx = self.combo_convert.findData(state["convert"])
             if idx >= 0:
                 self.combo_convert.setCurrentIndex(idx)
+        # Restored before _evaluate_source_type() runs, so the button label and
+        # the "trim belongs to this video" check both see the loaded value.
+        trim = state.get("video_trim")
+        self._video_trim = dict(trim) if trim else None
+        self._trim_source = state.get("input_path") if trim else None
         self.export_dir.setText(state.get("export_dir", ""))
         if state.get("export_format"):
             idx = self.combo_export_format.findData(state["export_format"])
