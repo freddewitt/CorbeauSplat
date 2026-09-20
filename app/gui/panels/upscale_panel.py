@@ -82,7 +82,13 @@ class UpscalePanel:
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # \u00e9vite d\u00e9bordement horizontal (libell\u00e9s longs)
 
         self.combo_model = QComboBox()
-        self.combo_model.currentIndexChanged.connect(self._on_model_changed)
+        # `activated`, not `currentIndexChanged`: it fires only when the user
+        # picks an entry. currentIndexChanged also fires on setCurrentIndex(),
+        # which set_state() calls — so reloading a saved configuration naming an
+        # uninstalled model used to start a network download nobody asked for.
+        # refresh_models() repopulating the combo triggered it too.
+        self.combo_model.activated.connect(self._on_model_activated)
+        self.combo_model.currentIndexChanged.connect(self._refresh_model_status)
         self.lbl_model = QLabel()
         form.addRow(self.lbl_model, self.combo_model)
         self.combo_scale = QComboBox()
@@ -287,16 +293,39 @@ class UpscalePanel:
         for card in getattr(self, "_model_cards", {}).values():
             card.refresh()
 
-    def _on_model_changed(self, _index=None):
-        """Trigger the download if the chosen model isn't installed."""
+    def _missing_model(self):
+        """The selected model when it is not installed, else None."""
         from app.upscayl_manager import get_models_dir
         from app.upscayl_models import get_model
 
         model_id = self.combo_model.currentData()
-        if not model_id or self._dl_worker is not None:
-            return
+        if not model_id:
+            return None
         model = get_model(model_id)
         if model is None or model.is_downloaded(get_models_dir()):
+            return None
+        return model
+
+    def _refresh_model_status(self, _index=None):
+        """Report whether the selected model is installed. Never downloads.
+
+        Reached on programmatic selection too — restoring a configuration, or
+        refresh_models() rebuilding the list. Those must not reach the network,
+        but staying silent would let the user discover the missing model only
+        when the run fails.
+        """
+        if self._dl_worker is not None:
+            return
+        model = self._missing_model()
+        if model is not None:
+            self.lbl_status.setText(tr("up_model_not_installed").format(model.label))
+
+    def _on_model_activated(self, _index=None):
+        """Download the chosen model when the *user* selects an uninstalled one."""
+        if self._dl_worker is not None:
+            return
+        model = self._missing_model()
+        if model is None:
             return
 
         from app.gui.widgets.upscale_widgets import ModelDownloadWorker
@@ -305,7 +334,7 @@ class UpscalePanel:
         self.combo_model.setEnabled(False)
         self.btn_run.setEnabled(False)
 
-        self._dl_worker = ModelDownloadWorker(model_id)
+        self._dl_worker = ModelDownloadWorker(model.id)
         self._dl_worker.finished_signal.connect(self._on_model_downloaded)
         self._dl_worker.start()
 

@@ -319,5 +319,6 @@
   "msg_supersplat_stopped": "SuperSplat остановлен",
   "msg_data_server_started": "Сервер данных запущен на {0}",
   "msg_data_server_stopped": "Сервер данных остановлен",
-  "err_data_server_bind": "Не удалось привязать порт: {0}"
+  "err_data_server_bind": "Не удалось привязать порт: {0}",
+  "up_model_not_installed": "Модель «{0}» не установлена — выберите её, чтобы загрузить."
 }

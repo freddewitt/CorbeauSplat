@@ -319,5 +319,6 @@
   "msg_supersplat_stopped": "SuperSplat detenido",
   "msg_data_server_started": "Servidor de datos iniciado en {0}",
   "msg_data_server_stopped": "Servidor de datos detenido",
-  "err_data_server_bind": "Error al enlazar: {0}"
+  "err_data_server_bind": "Error al enlazar: {0}",
+  "up_model_not_installed": "El modelo «{0}» no está instalado: selecciónelo para descargarlo."
 }

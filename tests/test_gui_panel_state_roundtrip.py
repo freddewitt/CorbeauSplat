@@ -50,15 +50,10 @@ with patch("app.core.config_io.resolve_project_root", return_value=tmp):
                 widget.blockSignals(True)
             try:
                 for combo in w.findChildren(QComboBox):
-                    # UpscalePanel.combo_model is skipped on purpose. Selecting a
-                    # model that is not installed starts a download immediately
-                    # (_on_model_changed), and set_state() goes through the same
-                    # path — so reloading a saved configuration can kick off a
-                    # network transfer. Perturbing it here would make this test
-                    # spawn that worker; the behaviour itself is reported in
-                    # manifest.md rather than hidden.
-                    if combo is getattr(panel, "combo_model", None):
-                        continue
+                    # UpscalePanel.combo_model used to be excluded here: it was
+                    # wired to currentIndexChanged and started a download on any
+                    # programmatic selection. It is on `activated` now, so it is
+                    # safe to perturb — and covered by tests/test_upscale_model_download.py.
                     if combo.count() > 1:
                         combo.setCurrentIndex((combo.currentIndex() + 1) % combo.count())
                 for box in w.findChildren(QCheckBox):

@@ -113,13 +113,15 @@ Six enregistrements de `journal.jsonl` étaient structurellement invalides. **Ca
 
 **Garde-fou** : `tests/test_journal_integrity.py` — JSON valide ligne à ligne, absence de clés dupliquées, champs identifiants présents, dates ISO et ordre chronologique. Validé par réintroduction de la corruption d'origine : 3 des 4 tests tombent.
 
-## Effet de bord constaté — charger une configuration peut lancer un téléchargement (2026-09-20)
+## ✅ Effet de bord corrigé — le chargement d'une configuration ne télécharge plus (2026-09-20)
 
-Découvert en écrivant `tests/test_gui_panel_state_roundtrip.py` : `UpscalePanel._on_model_changed()` est branché sur `currentIndexChanged` du combo de modèles et **démarre immédiatement un `ModelDownloadWorker`** si le modèle choisi n'est pas installé. Or `set_state()` passe par le même chemin — donc **recharger une configuration nommée qui référence un modèle absent déclenche un transfert réseau**, sans que l'utilisateur l'ait demandé ni en soit averti autrement qu'un libellé de statut.
+`UpscalePanel._on_model_changed()` était branché sur `currentIndexChanged`, qui se déclenche aussi sur `setCurrentIndex()` — l'appel que fait `set_state()`. Recharger une configuration nommée désignant un modèle absent **lançait donc un transfert réseau** que l'utilisateur n'avait pas demandé ; `refresh_models()`, qui repeuple le combo, pouvait le déclencher aussi.
 
-Non corrigé : c'est peut-être le comportement voulu (récupérer automatiquement ce qui est sélectionné). À trancher — si c'est involontaire, le remède est de ne déclencher le téléchargement que sur une interaction utilisateur, pas depuis `set_state()`.
+Corrigé en passant sur **`activated`**, qui ne se déclenche que sur un choix de l'utilisateur. Le téléchargement reste donc disponible, mais uniquement sur intention explicite.
 
-Le test contourne le combo concerné et documente pourquoi, plutôt que de masquer le constat.
+La restauration ne se contente pas de se taire : `_refresh_model_status()` (branché sur `currentIndexChanged`, sans accès réseau) affiche « Modèle « X » non installé — sélectionnez-le pour le télécharger ». Sans ça, le silence aurait juste déplacé la surprise au moment où le traitement échoue. 1 clé i18n × 9 locales.
+
+`tests/test_upscale_model_download.py` (6 tests, Qt réel en sous-processus) épingle les deux sens : construction du panneau, `set_state()` et `refresh_models()` ne téléchargent rien ; un choix utilisateur sur un modèle absent télécharge ; un choix sur un modèle installé ne télécharge pas. L'exclusion du combo modèle dans `test_gui_panel_state_roundtrip.py` est levée.
 
 ## RESTE À FAIRE (priorisé)
 

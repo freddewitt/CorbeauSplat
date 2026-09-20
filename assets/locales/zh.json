@@ -319,5 +319,6 @@
   "msg_supersplat_stopped": "SuperSplat 已停止",
   "msg_data_server_started": "数据服务器已在 {0} 启动",
   "msg_data_server_stopped": "数据服务器已停止",
-  "err_data_server_bind": "端口绑定失败：{0}"
+  "err_data_server_bind": "端口绑定失败：{0}",
+  "up_model_not_installed": "模型“{0}”未安装——选择它即可下载。"
 }
