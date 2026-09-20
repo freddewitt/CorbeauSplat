@@ -305,5 +305,10 @@
   "chain_360_before": "Source 360°",
   "deps_missing_title": "Dépendances manquantes",
   "deps_missing_body": "Ces outils sont requis et introuvables :",
-  "deps_missing_hint": "Relancez l'installateur de dépendances avant de démarrer un traitement."
+  "deps_missing_hint": "Relancez l'installateur de dépendances avant de démarrer un traitement.",
+  "source_convert_format": "Conversion des images",
+  "source_convert_tooltip": "Les images que la chaîne ne sait pas lire (HEIC, TIFF, BMP, WebP…) sont converties dans ce format à l'ingestion. Les originaux ne sont jamais modifiés. « off » les copie telles quelles — elles seront alors refusées par COLMAP.",
+  "source_convert_png": "PNG",
+  "source_convert_jpeg": "JPEG",
+  "source_convert_off": "Aucune"
 }

@@ -109,18 +109,23 @@ def detect_source_kind(path) -> Literal["images", "video", "mixed", "empty"]:
     return "empty"
 
 
-def apply_source_blur_settings(params, source_state):
-    """Report the blur filter settings from Source onto a ``ColmapParams``.
+def apply_source_settings(params, source_state):
+    """Carry the Source panel's ingest settings onto a ``ColmapParams``.
 
-    The checkbox and the strength combo live in ``SourcePanel`` while the rest of
-    the COLMAP settings live in ``ReconstructionPanel``; without this bridge the
-    two fields never reach the engine (``ColmapEngine._process_input`` requires
-    ``filter_blurry``). Mirrors what the CLI does in ``app/cli/commands.py``.
+    Some COLMAP inputs are chosen in ``SourcePanel`` rather than
+    ``ReconstructionPanel``, because they describe the source rather than the
+    reconstruction: the blur filter and the image conversion format. Without
+    this bridge they never reach the engine, which reads them from params
+    (``ColmapEngine._process_input``). Mirrors what the CLI does in
+    ``app/cli/commands.py``.
+
+    Named for the settings, not just the blur one it originally carried.
 
     Returns *params* so callers can chain.
     """
     params.filter_blurry = bool(source_state.get("filter_blur", False))
     params.blur_factor = blur_factor_from_strength(source_state.get("blur_strength") or "medium")
+    params.image_convert_format = source_state.get("convert") or "png"
     return params
 
 

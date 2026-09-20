@@ -305,5 +305,10 @@
   "chain_360_before": "360° 源",
   "deps_missing_title": "缺少依赖项",
   "deps_missing_body": "未找到以下必需工具：",
-  "deps_missing_hint": "开始处理前请运行依赖项安装程序。"
+  "deps_missing_hint": "开始处理前请运行依赖项安装程序。",
+  "source_convert_format": "图像转换",
+  "source_convert_tooltip": "处理链无法读取的图像（HEIC、TIFF、BMP、WebP 等）会在导入时转换为此格式。原始文件不会被修改。“off”按原样复制，COLMAP 将拒绝这些文件。",
+  "source_convert_png": "PNG",
+  "source_convert_jpeg": "JPEG",
+  "source_convert_off": "不转换"
 }

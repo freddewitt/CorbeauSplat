@@ -305,5 +305,10 @@
   "chain_360_before": "360°-Quelle",
   "deps_missing_title": "Fehlende Abhängigkeiten",
   "deps_missing_body": "Diese erforderlichen Werkzeuge wurden nicht gefunden:",
-  "deps_missing_hint": "Führen Sie das Abhängigkeits-Installationsprogramm aus, bevor Sie eine Verarbeitung starten."
+  "deps_missing_hint": "Führen Sie das Abhängigkeits-Installationsprogramm aus, bevor Sie eine Verarbeitung starten.",
+  "source_convert_format": "Bildkonvertierung",
+  "source_convert_tooltip": "Bilder, die die Verarbeitungskette nicht lesen kann (HEIC, TIFF, BMP, WebP…), werden beim Einlesen in dieses Format konvertiert. Originale bleiben unverändert. „off“ kopiert sie unverändert — COLMAP lehnt sie dann ab.",
+  "source_convert_png": "PNG",
+  "source_convert_jpeg": "JPEG",
+  "source_convert_off": "Keine"
 }

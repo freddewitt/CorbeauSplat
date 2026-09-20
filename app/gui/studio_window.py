@@ -60,7 +60,7 @@ from app.gui.panels.export_panel import ExportPanel
 from app.gui.panels.extractor360_panel import Extractor360Panel
 from app.gui.panels.four_dgs_panel import FourDGSPanel
 from app.gui.panels.reconstruction_logic import (
-    apply_source_blur_settings,
+    apply_source_settings,
     describe_unusable_source,
     detect_source_kind,
 )
@@ -675,7 +675,7 @@ class StudioWindow(QMainWindow):
             self._fail_pipeline_step("reconstruction", tr("err_no_paths", "Chemins manquants."))
             return None
         project_name = source_state["project_name"].strip() or "Untitled"
-        params = apply_source_blur_settings(
+        params = apply_source_settings(
             self.panels["reconstruction"].get_params(), source_state
         )
         if self._pipeline_images_dir:

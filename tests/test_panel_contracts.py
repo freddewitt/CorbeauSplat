@@ -12,7 +12,7 @@ import pathlib
 import pytest
 
 from app.core.params import ColmapParams
-from app.gui.panels.reconstruction_logic import apply_source_blur_settings
+from app.gui.panels.reconstruction_logic import apply_source_settings
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PANELS_DIR = ROOT / "app" / "gui" / "panels"
@@ -116,7 +116,7 @@ def test_source_blur_settings_reach_colmap_params():
     blur_factor, et rien ne reportait les widgets de SourcePanel — le filtre ne
     s'exécutait jamais depuis la GUI (ColmapEngine exige filter_blurry=True).
     """
-    params = apply_source_blur_settings(
+    params = apply_source_settings(
         ColmapParams(), {"filter_blur": True, "blur_strength": "strong"}
     )
     assert params.filter_blurry is True
@@ -124,11 +124,37 @@ def test_source_blur_settings_reach_colmap_params():
 
 
 def test_source_blur_settings_disabled_by_default():
-    params = apply_source_blur_settings(ColmapParams(), {})
+    params = apply_source_settings(ColmapParams(), {})
     assert params.filter_blurry is False
 
 
 def test_source_blur_strength_changes_factor():
-    light = apply_source_blur_settings(ColmapParams(), {"filter_blur": True, "blur_strength": "light"})
-    strong = apply_source_blur_settings(ColmapParams(), {"filter_blur": True, "blur_strength": "strong"})
+    light = apply_source_settings(ColmapParams(), {"filter_blur": True, "blur_strength": "light"})
+    strong = apply_source_settings(ColmapParams(), {"filter_blur": True, "blur_strength": "strong"})
     assert light.blur_factor != strong.blur_factor
+
+
+# ── Image conversion format: Source widget → ColmapParams ────────────────────
+
+def test_convert_format_defaults_to_png():
+    """Configs saved before the setting existed carry no key; png is historical."""
+    assert apply_source_settings(ColmapParams(), {}).image_convert_format == "png"
+
+
+@pytest.mark.parametrize("value", ["png", "jpeg", "off"])
+def test_convert_format_reaches_colmap_params(value):
+    params = apply_source_settings(ColmapParams(), {"convert": value})
+    assert params.image_convert_format == value
+
+
+def test_convert_format_empty_string_falls_back():
+    """An empty combo value must not disable conversion by accident."""
+    assert apply_source_settings(ColmapParams(), {"convert": ""}).image_convert_format == "png"
+
+
+# The two remaining risks — the combo being populated, and its value being read
+# — are already enforced for every panel by the AST contracts above
+# (test_every_combo_is_populated, test_every_input_widget_is_read). Round-trip
+# through get_state/set_state is not tested here because this module is
+# deliberately Qt-free; SourcePanel cannot be instantiated under the mocked
+# PySide6 the suite installs.

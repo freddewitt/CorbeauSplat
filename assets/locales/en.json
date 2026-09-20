@@ -305,5 +305,10 @@
   "chain_360_before": "360° source",
   "deps_missing_title": "Missing dependencies",
   "deps_missing_body": "These required tools were not found:",
-  "deps_missing_hint": "Run the dependency installer before starting any processing."
+  "deps_missing_hint": "Run the dependency installer before starting any processing.",
+  "source_convert_format": "Image conversion",
+  "source_convert_tooltip": "Images the chain cannot read (HEIC, TIFF, BMP, WebP…) are converted to this format on ingest. Originals are never modified. \"off\" copies them as-is — COLMAP will then refuse them.",
+  "source_convert_png": "PNG",
+  "source_convert_jpeg": "JPEG",
+  "source_convert_off": "None"
 }

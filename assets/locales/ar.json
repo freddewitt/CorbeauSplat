@@ -305,5 +305,10 @@
   "chain_360_before": "مصدر 360°",
   "deps_missing_title": "تبعيات مفقودة",
   "deps_missing_body": "لم يتم العثور على الأدوات المطلوبة التالية:",
-  "deps_missing_hint": "شغّل مثبّت التبعيات قبل بدء أي معالجة."
+  "deps_missing_hint": "شغّل مثبّت التبعيات قبل بدء أي معالجة.",
+  "source_convert_format": "تحويل الصور",
+  "source_convert_tooltip": "الصور التي لا يمكن للسلسلة قراءتها (HEIC، TIFF، BMP، WebP…) يتم تحويلها إلى هذا التنسيق عند الاستيراد. لا يتم تعديل الملفات الأصلية أبدًا. «off» ينسخها كما هي — وعندئذ سيرفضها COLMAP.",
+  "source_convert_png": "PNG",
+  "source_convert_jpeg": "JPEG",
+  "source_convert_off": "بدون"
 }

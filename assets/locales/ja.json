@@ -305,5 +305,10 @@
   "chain_360_before": "360°ソース",
   "deps_missing_title": "依存関係が見つかりません",
   "deps_missing_body": "必要な次のツールが見つかりませんでした:",
-  "deps_missing_hint": "処理を開始する前に依存関係インストーラーを実行してください。"
+  "deps_missing_hint": "処理を開始する前に依存関係インストーラーを実行してください。",
+  "source_convert_format": "画像の変換",
+  "source_convert_tooltip": "処理チェーンが読み込めない画像（HEIC、TIFF、BMP、WebP など）は、取り込み時にこの形式へ変換されます。元のファイルは変更されません。「off」はそのままコピーするため、COLMAP が拒否します。",
+  "source_convert_png": "PNG",
+  "source_convert_jpeg": "JPEG",
+  "source_convert_off": "なし"
 }

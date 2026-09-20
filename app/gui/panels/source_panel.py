@@ -39,6 +39,10 @@ from app.gui.widgets.drop_line_edit import DropLineEdit
 from app.gui.widgets.progress_ring import ProgressRing
 
 _BLUR_STRENGTHS = (("light", "Léger"), ("medium", "Moyen"), ("strong", "Fort"))
+# Target for images the chain cannot read natively (HEIC, TIFF, BMP, WebP…).
+# "off" copies them untouched, which every downstream tool then refuses —
+# offered because a user may want the originals passed through deliberately.
+_CONVERT_FORMATS = ("png", "jpeg", "off")
 
 # Pipeline modes dropdown, migrated from the former ``topbar.py`` (internal
 # value, i18n key, French default). Kept verbatim so existing i18n keys and
@@ -260,6 +264,16 @@ class SourcePanel:
         blur_row.addWidget(self.lbl_blur)
         blur_row.addWidget(self.combo_blur)
         ag.addLayout(blur_row)
+
+        convert_row = QHBoxLayout()
+        self.lbl_convert = QLabel()
+        self.combo_convert = QComboBox()
+        for value in _CONVERT_FORMATS:
+            self.combo_convert.addItem(value, value)
+        self.combo_convert.setCurrentIndex(0)  # png
+        convert_row.addWidget(self.lbl_convert)
+        convert_row.addWidget(self.combo_convert)
+        ag.addLayout(convert_row)
         layout.addWidget(self.advanced_group)
 
         # ── Automation (chaining) ─── actual execution order:
@@ -405,6 +419,7 @@ class SourcePanel:
             "fps": self.fps_spin.value(),
             "filter_blur": self.chk_filter_blur.isChecked(),
             "blur_strength": self.combo_blur.currentData(),
+            "convert": self.combo_convert.currentData(),
             "export_dir": self.export_dir.text(),
             "export_format": self.combo_export_format.currentData(),
         }
@@ -433,6 +448,12 @@ class SourcePanel:
             idx = self.combo_blur.findData(state["blur_strength"])
             if idx >= 0:
                 self.combo_blur.setCurrentIndex(idx)
+        # Absent from configs saved before the setting was exposed: the widget
+        # keeps its own default ("png"), which is the historical behaviour.
+        if state.get("convert"):
+            idx = self.combo_convert.findData(state["convert"])
+            if idx >= 0:
+                self.combo_convert.setCurrentIndex(idx)
         self.export_dir.setText(state.get("export_dir", ""))
         if state.get("export_format"):
             idx = self.combo_export_format.findData(state["export_format"])
@@ -484,3 +505,19 @@ class SourcePanel:
         self.chk_undistort.setText(tr("source_undistort", "Générer images non-distordues"))
         self.chk_filter_blur.setText(tr("source_filter_blur", "Supprimer les images floues"))
         self.lbl_blur.setText(tr("source_blur_strength", "Intensité du filtre flou"))
+        self.lbl_convert.setText(tr("source_convert_format", "Conversion des images"))
+        self.combo_convert.setToolTip(tr(
+            "source_convert_tooltip",
+            "Les images que la chaîne ne sait pas lire (HEIC, TIFF, BMP, WebP…) sont "
+            "converties dans ce format à l'ingestion. Les originaux ne sont jamais "
+            "modifiés. « off » les copie telles quelles — elles seront alors refusées "
+            "par COLMAP.",
+        ))
+        # Literal keys, not f-strings: tests/test_locales.py scans tr() call
+        # sites statically, and a computed key would read as an orphan.
+        for i, label in enumerate((
+            tr("source_convert_png", "PNG"),
+            tr("source_convert_jpeg", "JPEG"),
+            tr("source_convert_off", "Aucune"),
+        )):
+            self.combo_convert.setItemText(i, label)
