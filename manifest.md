@@ -81,7 +81,7 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 
 ### ✅ Audit de code complet 2026-09-20 — `audit-fixes/20260920`
 - Audit complet (skill `code-audit-orchestrator`) : **36 findings, 15 vérifiés (14 confirmed + 1 likely), aucun critical/high, 21 en hold**.
-- 15 correctifs (+ F-023, F-027 = 17) fusionnés dans `beta` (HEAD `b8aa759`, main inchangée) ; release `v2.0.0-beta.5` recréée sur ce commit. Tests **854 pass, 5 skip**, ruff/mypy ok.
+- 15 correctifs (+ F-023, F-027 = 17) fusionnés dans `beta`, puis `beta` avancée dans `main` (2026-09-20, rc1 ; 1.5.1 conservée sur la branche `v1`). Release `v2.0.0-rc1` marquée Latest ; CI GitHub (main seulement) non vérifiée après ce push. Tests **854 pass, 5 skip**, ruff/mypy ok.
 - 21 findings en hold vérifiés : 2 corrigés (F-023, F-027), 5 faux positifs (F-017, F-019, F-025, F-034, F-036), 14 réels mais théoriques (config éditée à la main / durcissement). Les plus utiles restants : F-029, F-030, F-032, F-022. Copie des scripts du skill vers `~/.config/opencode/skills/` : abandonnée.
 
 ### Tâches ouvertes
