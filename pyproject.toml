@@ -27,6 +27,7 @@ dev = [
     "deptry>=0.23,<1",
     "pytest>=9.0,<10",
     "pytest-qt>=4.4,<5",
+    "pytest-cov>=7.0,<8",
     "pip-audit>=2.8,<3",
     "pip-tools>=7.4,<8",
 ]
@@ -53,7 +54,7 @@ DEP001 = ["open3d", "spz", "bpy"]
 # couvrir le même ensemble pour que le résultat ne dépende pas de l'état du venv.
 DEP003 = ["open3d", "spz", "bpy"]
 # Outils de dev déclarés dans l'extra [dev], jamais importés par le code.
-DEP002 = ["ruff", "mypy", "deptry", "pytest", "pytest-qt", "pip-audit", "pip-tools"]
+DEP002 = ["ruff", "mypy", "deptry", "pytest", "pytest-qt", "pytest-cov", "pip-audit", "pip-tools"]
 
 [tool.ruff]
 target-version = "py310"
@@ -75,7 +76,9 @@ ignore = ["SIM117"]
 # Mode par défaut : 29 erreurs réelles, corrigées.
 
 [[tool.mypy.overrides]]
-module = ["PySide6.*", "cv2.*", "numpy.*", "plyfile.*", "trimesh.*", "open3d.*", "PIL.*", "send2trash.*", "objc.*"]
+# AppKit/Foundation (pyobjc) and spz ship without stubs or a py.typed marker:
+# mypy reports import-untyped for them. Silencing the import only, not their call sites.
+module = ["PySide6.*", "cv2.*", "numpy.*", "plyfile.*", "trimesh.*", "open3d.*", "PIL.*", "send2trash.*", "objc.*", "AppKit.*", "Foundation.*", "spz.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

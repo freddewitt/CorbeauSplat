@@ -65,3 +65,9 @@ bin/upscayl-bin
 models/upscayl/*.bin
 models/upscayl/*.param
 *.pth
+
+# Coverage artifacts (pytest-cov)
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
