@@ -37,7 +37,7 @@ Détail (fichiers, classes, patterns, moteurs, dépendances, sécurité) → `gr
 
 ## Known Issues & Gaps
 
- 1. **E2E réel = pipeline principal seulement** — `pytest -m e2e` couvre COLMAP → Brush → clean → export SPZ (7 tests, ~21 s). Upscale/Sharp couverts en e2e réel (8 tests, ~145 s) ; 360/4DGS restent mockés. Suite par défaut : 291 pass, 2 skip. Marqueurs e2e : `e2e_sharp`, `e2e_upscale`, `e2e_4dgs`, `e2e_360` en plus de `e2e` umbrella (e2e désélectionné). GLB export tests skip si `trimesh`/`open3d` absents
+ 1. **E2E réel = pipeline principal seulement** — `pytest -m e2e` couvre COLMAP → Brush → clean → export SPZ (7 tests, ~21 s). Upscale/Sharp couverts en e2e réel (8 tests, ~145 s) ; 360/4DGS restent mockés. Suite par défaut : 676 pass, 2 skip (2026-09-20), dont 2 fichiers lançant un PySide6 **réel en sous-processus** (`test_gui_config_roundtrip.py`, `test_gui_panel_state_roundtrip.py`) — le mock PySide6 de `conftest.py` est global à la session et irréversible, donc un vrai panneau ne peut être instancié qu'ainsi. Marqueurs e2e : `e2e_sharp`, `e2e_upscale`, `e2e_4dgs`, `e2e_360` en plus de `e2e` umbrella (e2e désélectionné). GLB export tests skip si `trimesh`/`open3d` absents
  2. **Workers tested headless via mock PySide6** — `conftest.py` patches PySide6 at session scope, but import chain still requires numpy mock for CI
 
 ## Changelog Highlights
@@ -122,6 +122,10 @@ Non corrigé : c'est peut-être le comportement voulu (récupérer automatiqueme
 Le test contourne le combo concerné et documente pourquoi, plutôt que de masquer le constat.
 
 ## RESTE À FAIRE (priorisé)
+
+### ✅ Plan d'audit 2026-09-15 — **terminé le 2026-09-20**
+
+Les 8 lots sont livrés. Lots 0/1/3 le 2026-09-16 (récupérés le 09-20 depuis des commits orphelins), Lot 2 résolu autrement le 09-17, Lots 4/5/6/7 le 09-20. Détail par lot ci-dessous.
 
 ### 🔴 Audit complet 2026-09-15 — `audit-report.md`
 - Score global 6.5/10. Détail complet, corrections et plan d'action en 8 lots dans `audit-report.md` (destiné à un agent d'exécution sans contexte préalable, ex. Fable).
