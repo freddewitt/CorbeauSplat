@@ -1,6 +1,6 @@
 [project]
 name = "corbeausplat"
-version = "2.0.0-beta.5"
+version = "2.0.0-rc1"
 description = "Gaussian Splatting toolkit with GUI"
 # Upper bound mirrors CorbeauSplat.command, which only accepts 3.10-3.13 and
 # rebuilds the venv when it finds a newer one: several wheels (pyobjc) have

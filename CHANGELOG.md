@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [2.0.0-rc1] - 2026-09-20
+
+First release candidate. The feature set of beta.5 is frozen: nothing below
+changes how the application behaves, and the code differs from beta.5 only by
+the version string. What remains before 2.0.0 is validation on real data (see
+`manifest.md`, "RESTE À FAIRE").
+
+### 📝 Documentation
+- **The README documents v2.** "What it does" and "How to Use" had not followed the interface since the 1.x tabs: they described a Configuration tab and a Params tab that no longer exist. Both now follow the rail as it is (Project, TRAINING, OPTIONS, TOOLS) and cover what had never been mentioned: the one-click chain driven by the mode selector, source-type detection, video range selection, the image conversion format, the Upscale model gallery, named configurations, checkpoint destination, the 4DGS options, missing-dependency reporting at startup, and the CLI's `--clean`, `--export`, `--trim_start`, `--trim_end` and `--convert`.
+- **New interface screenshot**, recompressed from 362 KB to 72 KB (1600 px wide, 128 colours).
+- The status table and warning now read "Release Candidate".
+
+### 🔁 Changed
+- `.serena/` and `opencode.multimodel.json` are untracked and gitignored: both are local agent configuration, not source.
+- Version bumped to `2.0.0-rc1` (`app/__init__.py`, `pyproject.toml`).
+
 ## [2.0.0-beta.5] - 2026-09-20
 
 The eight-lot remediation plan from the 2026-09-15 audit is complete, and two
