@@ -331,5 +331,6 @@
   "video_range_summary": "入点 {0} — 出点 {1}（{2}）",
   "video_range_unreadable": "无法读取视频时长——无法选择片段。",
   "video_range_no_frame": "预览不可用",
-  "video_range_folder_hint": "仅在选择单个视频时可用。"
+  "video_range_folder_hint": "仅在选择单个视频时可用。",
+  "video_range_container_hint": "该封装格式不适合精确裁剪，标记位置可能有偏差。如需精确定位，请转换为 MP4 或 MOV。"
 }

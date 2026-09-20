@@ -331,5 +331,6 @@
   "video_range_summary": "البداية {0} — النهاية {1}  ({2})",
   "video_range_unreadable": "تعذّرت قراءة مدة الفيديو — التحديد غير متاح.",
   "video_range_no_frame": "المعاينة غير متاحة",
-  "video_range_folder_hint": "متاح فقط عند تحديد فيديو واحد."
+  "video_range_folder_hint": "متاح فقط عند تحديد فيديو واحد.",
+  "video_range_container_hint": "التنسيق غير مثالي للقص: قد تكون المواضع غير دقيقة. حوّل إلى MP4 أو MOV لتحديد دقيق."
 }

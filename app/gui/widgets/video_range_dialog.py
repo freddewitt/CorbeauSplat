@@ -16,13 +16,20 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSlider,
     QVBoxLayout,
 )
 
 from app.core.i18n import tr
-from app.core.media import extract_preview_frame, format_timecode, probe_video_duration
+from app.core.media import (
+    extract_preview_frame,
+    format_timecode,
+    is_preferred_video,
+    parse_timecode,
+    probe_video_duration,
+)
 
 # Scrubbing fires a frame extraction per position; without a delay a drag would
 # queue one ffmpeg call per pixel travelled.
@@ -74,6 +81,17 @@ class VideoRangeDialog(QDialog):
                 start, end = 0.0, self.duration
         self.start_s, self.end_s = start, end
 
+        if not is_preferred_video(self.video_path):
+            # Every supported container can be trimmed; the broadcast and
+            # action-camera ones just seek less precisely, so a mark can land a
+            # keyframe away from what the preview showed.
+            self.lbl_hint.setText(tr(
+                "video_range_container_hint",
+                "Format non idéal pour la découpe : le positionnement peut manquer "
+                "de précision. Convertissez en MP4 ou MOV pour un repérage exact.",
+            ))
+            self.lbl_hint.setVisible(True)
+
         self._sync_labels()
         self._render_frame()
 
@@ -99,14 +117,32 @@ class VideoRangeDialog(QDialog):
         marks = QHBoxLayout()
         self.btn_in = QPushButton(tr("video_range_set_in", "Point d'entrée"))
         self.btn_in.clicked.connect(self._set_in)
+        # Typed entry next to each button: reading a timecode off another tool
+        # and copying it in is faster and more precise than dragging a slider.
+        self.edit_in = QLineEdit()
+        self.edit_in.setMaximumWidth(110)
+        self.edit_in.setPlaceholderText("00:00.0")
+        self.edit_in.editingFinished.connect(self._apply_typed_in)
+
         self.btn_out = QPushButton(tr("video_range_set_out", "Point de sortie"))
         self.btn_out.clicked.connect(self._set_out)
+        self.edit_out = QLineEdit()
+        self.edit_out.setMaximumWidth(110)
+        self.edit_out.setPlaceholderText("00:00.0")
+        self.edit_out.editingFinished.connect(self._apply_typed_out)
+
         self.btn_reset = QPushButton(tr("video_range_reset", "Toute la vidéo"))
         self.btn_reset.clicked.connect(self._reset)
-        marks.addWidget(self.btn_in)
-        marks.addWidget(self.btn_out)
-        marks.addWidget(self.btn_reset)
+
+        for widget in (self.btn_in, self.edit_in, self.btn_out, self.edit_out, self.btn_reset):
+            marks.addWidget(widget)
         layout.addLayout(marks)
+
+        self.lbl_hint = QLabel()
+        self.lbl_hint.setWordWrap(True)
+        self.lbl_hint.setStyleSheet("color: #c8a45c;")
+        self.lbl_hint.setVisible(False)
+        layout.addWidget(self.lbl_hint)
 
         self.lbl_range = QLabel()
         self.lbl_range.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -172,6 +208,23 @@ class VideoRangeDialog(QDialog):
         self.start_s, self.end_s = 0.0, self.duration
         self._sync_labels()
 
+    def _apply_typed_in(self):
+        """Read the typed in point; on nonsense, put the current value back."""
+        value = parse_timecode(self.edit_in.text())
+        if value is None or self.duration is None or value >= self.end_s:
+            self._sync_labels()
+            return
+        self.start_s = min(max(0.0, value), self.duration)
+        self._sync_labels()
+
+    def _apply_typed_out(self):
+        value = parse_timecode(self.edit_out.text())
+        if value is None or self.duration is None or value <= self.start_s:
+            self._sync_labels()
+            return
+        self.end_s = min(value, self.duration)
+        self._sync_labels()
+
     def _sync_labels(self):
         if self.duration is None:
             return
@@ -182,6 +235,12 @@ class VideoRangeDialog(QDialog):
         self.lbl_range.setText(tr("video_range_summary").format(
             format_timecode(self.start_s), format_timecode(self.end_s), format_timecode(span)
         ))
+        # Refreshed without signals: setText would otherwise re-enter the
+        # editingFinished handler that may have just called us.
+        for field, value in ((self.edit_in, self.start_s), (self.edit_out, self.end_s)):
+            field.blockSignals(True)
+            field.setText(format_timecode(value))
+            field.blockSignals(False)
 
     # ── Result ──────────────────────────────────────────────────────────────
     def _accept(self):

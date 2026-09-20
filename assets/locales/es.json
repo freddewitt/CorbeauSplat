@@ -331,5 +331,6 @@
   "video_range_summary": "Entrada {0} — Salida {1}  ({2})",
   "video_range_unreadable": "Duración del vídeo ilegible: selección no disponible.",
   "video_range_no_frame": "Vista previa no disponible",
-  "video_range_folder_hint": "Disponible solo cuando se selecciona un único vídeo."
+  "video_range_folder_hint": "Disponible solo cuando se selecciona un único vídeo.",
+  "video_range_container_hint": "Contenedor no ideal para recortar: las marcas pueden quedar imprecisas. Convierta a MP4 o MOV para un posicionamiento exacto."
 }

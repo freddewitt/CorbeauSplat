@@ -12,6 +12,7 @@ image outside ``NATIVE_IMAGE_EXTENSIONS`` is converted once on ingest (cf.
 """
 import logging
 import pathlib
+import re
 import shutil
 import subprocess
 
@@ -254,3 +255,43 @@ def format_timecode(seconds: float) -> str:
     if hours:
         return f"{int(hours)}:{int(minutes):02d}:{secs:04.1f}"
     return f"{int(minutes):02d}:{secs:04.1f}"
+
+
+# Recognised, in order: "H:MM:SS.s", "MM:SS.s", "SS.s". A bare number is read
+# as seconds, so "90" and "1:30" both mean the same instant.
+_TIMECODE_RE = re.compile(
+    r"^\s*(?:(?:(?P<h>\d+):)?(?P<m>\d{1,2}):)?(?P<s>\d{1,2}(?:[.,]\d+)?)\s*$"
+)
+
+
+def parse_timecode(text) -> float | None:
+    """Read a typed timecode into seconds, or None when it is not one.
+
+    The inverse of ``format_timecode``, so a value shown in the interface can
+    be copied back in. Returns None rather than raising: callers are editable
+    fields, where a half-typed value is normal and must not be treated as an
+    error.
+    """
+    if text is None:
+        return None
+    match = _TIMECODE_RE.match(str(text))
+    if not match:
+        return None
+    hours = int(match.group("h") or 0)
+    minutes = int(match.group("m") or 0)
+    seconds = float(match.group("s").replace(",", "."))
+    if minutes > 59 or (match.group("m") and seconds >= 60):
+        return None
+    return hours * 3600 + minutes * 60 + seconds
+
+
+# Containers whose seeking and preview are dependable enough not to warn about.
+# Everything else in VIDEO_EXTENSIONS still works, but keyframe layout in the
+# broadcast and action-camera formats (.mts, .insv, .mxf) makes a scrubbed
+# frame land further from the requested instant.
+PREFERRED_VIDEO_EXTENSIONS = frozenset({".mp4", ".mov"})
+
+
+def is_preferred_video(path) -> bool:
+    """True when the container is one seeking handles precisely."""
+    return _suffix_of(path) in PREFERRED_VIDEO_EXTENSIONS

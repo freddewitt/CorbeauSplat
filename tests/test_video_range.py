@@ -67,6 +67,43 @@ class TestMediaHelpers:
         assert format_timecode(seconds) == expected
 
 
+class TestTimecodeParsing:
+    """Typed entry: the inverse of format_timecode, so a shown value pastes back."""
+
+    @pytest.mark.parametrize("text,expected", [
+        ("90", 90.0), ("1:30", 90.0), ("00:06.0", 6.0),
+        ("1:02:05.2", 3725.2), ("3,5", 3.5), ("  7  ", 7.0),
+    ])
+    def test_accepted_forms(self, text, expected):
+        from app.core.media import parse_timecode
+        assert parse_timecode(text) == pytest.approx(expected)
+
+    @pytest.mark.parametrize("text", ["", "abc", "1:70", "99:99:99", None, "1:2:3:4"])
+    def test_rejected_forms_return_none(self, text):
+        """None, not an exception: the caller is an editable field, where a
+        half-typed value is normal."""
+        from app.core.media import parse_timecode
+        assert parse_timecode(text) is None
+
+    @pytest.mark.parametrize("seconds", [0.0, 6.0, 75.4, 3725.2])
+    def test_round_trip_through_formatting(self, seconds):
+        from app.core.media import format_timecode, parse_timecode
+        assert parse_timecode(format_timecode(seconds)) == pytest.approx(seconds, abs=0.05)
+
+
+class TestPreferredContainers:
+    @pytest.mark.parametrize("name", ["clip.mp4", "clip.MOV", "clip.mov"])
+    def test_mp4_and_mov_are_preferred(self, name):
+        from app.core.media import is_preferred_video
+        assert is_preferred_video(name) is True
+
+    @pytest.mark.parametrize("name", ["clip.mts", "clip.insv", "clip.mxf", "clip.avi"])
+    def test_other_containers_are_flagged(self, name):
+        """Still supported — they just seek less precisely, so the dialog warns."""
+        from app.core.media import is_preferred_video
+        assert is_preferred_video(name) is False
+
+
 # ── engine: the range must reach ffmpeg, and reduce the output ───────────────
 
 def _command_for(trim_start, trim_end, clip, out_dir):
@@ -193,6 +230,35 @@ restored = SourcePanel(RunState())
 restored.set_state(panel.get_state())
 results["restored"] = restored.get_state()["video_trim"]
 
+typed = VideoRangeDialog(clip)
+results["fields_start"] = [typed.edit_in.text(), typed.edit_out.text()]
+typed.edit_in.setText("00:03.0"); typed._apply_typed_in()
+typed.edit_out.setText("9"); typed._apply_typed_out()
+typed._accept()
+results["typed_range"] = typed.selected_range
+
+bad = VideoRangeDialog(clip)
+bad.edit_in.setText("pas un timecode"); bad._apply_typed_in()
+results["typed_invalid_start"] = bad.start_s
+results["typed_invalid_field"] = bad.edit_in.text()
+
+order = VideoRangeDialog(clip)
+order.edit_in.setText("11"); order._apply_typed_in()
+order.edit_out.setText("2"); order._apply_typed_out()
+results["typed_out_before_in"] = [order.start_s, order.end_s]
+
+over = VideoRangeDialog(clip)
+over.edit_out.setText("999"); over._apply_typed_out()
+results["typed_beyond_duration"] = over.end_s
+
+mts = clip.parent / "hint.mts"
+if not mts.exists():
+    mts.write_bytes(clip.read_bytes())
+hinted = VideoRangeDialog(mts)
+results["hint_other"] = bool(hinted.lbl_hint.text())
+plain = VideoRangeDialog(clip)
+results["hint_preferred"] = bool(plain.lbl_hint.text())
+
 print("RESULTS=" + json.dumps(results))
 '''
 
@@ -248,3 +314,36 @@ class TestPanelState:
 
     def test_trim_survives_set_state(self, gui):
         assert gui["restored"] == {"start": 3.0, "end": 9.0}
+
+
+class TestTypedEntry:
+    def test_fields_start_on_the_full_span(self, gui):
+        assert gui["fields_start"] == ["00:00.0", "00:12.0"]
+
+    def test_typed_values_become_the_range(self, gui):
+        """Both shown form and bare seconds are accepted."""
+        assert gui["typed_range"] == {"start": 3.0, "end": 9.0}
+
+    def test_unparsable_entry_leaves_the_mark_alone(self, gui):
+        assert gui["typed_invalid_start"] == 0.0
+
+    def test_unparsable_entry_is_rewritten_from_the_mark(self, gui):
+        """The field cannot be left showing something the range does not hold."""
+        assert gui["typed_invalid_field"] == "00:00.0"
+
+    def test_out_typed_before_in_is_refused(self, gui):
+        start, end = gui["typed_out_before_in"]
+        assert start == 11.0
+        assert end > start
+
+    def test_out_beyond_the_duration_is_clamped(self, gui):
+        assert gui["typed_beyond_duration"] == pytest.approx(12.0, abs=0.2)
+
+
+class TestContainerHint:
+    def test_no_hint_for_mp4(self, gui):
+        assert gui["hint_preferred"] is False
+
+    def test_hint_shown_for_other_containers(self, gui):
+        """Trimming still works; the advice is about seek precision."""
+        assert gui["hint_other"] is True

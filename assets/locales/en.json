@@ -331,5 +331,6 @@
   "video_range_summary": "In {0} — Out {1}  ({2})",
   "video_range_unreadable": "Video duration unreadable — selection unavailable.",
   "video_range_no_frame": "Preview unavailable",
-  "video_range_folder_hint": "Available only when a single video is selected."
+  "video_range_folder_hint": "Available only when a single video is selected.",
+  "video_range_container_hint": "Not an ideal container for trimming: marks may land imprecisely. Convert to MP4 or MOV for exact positioning."
 }

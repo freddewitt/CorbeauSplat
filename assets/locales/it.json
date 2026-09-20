@@ -331,5 +331,6 @@
   "video_range_summary": "Inizio {0} — Fine {1}  ({2})",
   "video_range_unreadable": "Durata del video illeggibile: selezione non disponibile.",
   "video_range_no_frame": "Anteprima non disponibile",
-  "video_range_folder_hint": "Disponibile solo quando è selezionato un singolo video."
+  "video_range_folder_hint": "Disponibile solo quando è selezionato un singolo video.",
+  "video_range_container_hint": "Contenitore non ideale per il taglio: i punti possono risultare imprecisi. Converti in MP4 o MOV per un posizionamento esatto."
 }

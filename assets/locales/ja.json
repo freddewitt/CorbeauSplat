@@ -331,5 +331,6 @@
   "video_range_summary": "開始 {0} — 終了 {1}  ({2})",
   "video_range_unreadable": "動画の長さを取得できません。範囲選択は利用できません。",
   "video_range_no_frame": "プレビューを表示できません",
-  "video_range_folder_hint": "動画を1本だけ選択したときにのみ利用できます。"
+  "video_range_folder_hint": "動画を1本だけ選択したときにのみ利用できます。",
+  "video_range_container_hint": "切り出しに適した形式ではありません。位置がずれる場合があります。正確に指定するには MP4 または MOV に変換してください。"
 }
