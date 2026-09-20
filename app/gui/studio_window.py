@@ -59,7 +59,11 @@ from app.gui.panels.entrainement_panel import EntrainementPanel
 from app.gui.panels.export_panel import ExportPanel
 from app.gui.panels.extractor360_panel import Extractor360Panel
 from app.gui.panels.four_dgs_panel import FourDGSPanel
-from app.gui.panels.reconstruction_logic import apply_source_blur_settings, detect_source_kind
+from app.gui.panels.reconstruction_logic import (
+    apply_source_blur_settings,
+    describe_unusable_source,
+    detect_source_kind,
+)
 from app.gui.panels.reconstruction_panel import ReconstructionPanel
 from app.gui.panels.sharp_panel import SharpPanel
 from app.gui.panels.source_panel import SourcePanel
@@ -503,7 +507,16 @@ class StudioWindow(QMainWindow):
             )
             return None
         if input_type == "empty":
-            self._fail_pipeline_step(step, tr("err_no_paths", "Chemins manquants."))
+            # "empty" covers everything detect_source_kind cannot classify, so
+            # reporting "Chemins manquants" was wrong whenever the path existed
+            # and simply held an unreadable format (camera RAW, PSD…).
+            self._fail_pipeline_step(
+                step,
+                describe_unusable_source(
+                    input_path,
+                    convert_format=source_state.get("convert") or "png",
+                ),
+            )
             return None
         return input_type
 

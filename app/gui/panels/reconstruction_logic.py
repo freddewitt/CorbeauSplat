@@ -122,3 +122,51 @@ def apply_source_blur_settings(params, source_state):
     params.filter_blurry = bool(source_state.get("filter_blur", False))
     params.blur_factor = blur_factor_from_strength(source_state.get("blur_strength") or "medium")
     return params
+
+
+def describe_unusable_source(path, convert_format="png") -> str:
+    """Explain why a source yielded no usable media, in the user's terms.
+
+    `detect_source_kind` collapses every failure into "empty", and the launch
+    path then reported "Chemins manquants" — actively misleading when the path
+    is perfectly valid and simply holds a format the chain cannot read (camera
+    RAW, PSD…). This says what was found, what is accepted, and — because the
+    accepted list is wider than JPEG/PNG only thanks to on-ingest conversion —
+    what the conversion setting is currently doing.
+    """
+    if not path or not str(path).strip():
+        return "Aucun chemin source n'est renseigné."
+
+    p = Path(str(path).strip())
+    if not p.exists():
+        return f"Chemin introuvable : {p}"
+
+    accepted = ", ".join(sorted(e.lstrip(".") for e in IMAGE_EXTENSIONS | VIDEO_EXTENSIONS))
+
+    if p.is_file():
+        found = p.suffix.lower().lstrip(".") or "sans extension"
+        detail = f"Le fichier « {p.name} » est au format {found}, non pris en charge."
+    else:
+        suffixes = sorted({f.suffix.lower().lstrip(".") for f in p.iterdir()
+                           if f.is_file() and f.suffix})
+        if not suffixes:
+            detail = f"Le dossier « {p.name} » ne contient aucun fichier exploitable."
+        else:
+            detail = (f"Le dossier « {p.name} » ne contient aucune image ni vidéo reconnue "
+                      f"(formats trouvés : {', '.join(suffixes)}).")
+
+    message = f"{detail}\n\nFormats acceptés : {accepted}."
+
+    if convert_format == "off":
+        message += (
+            "\n\n⚠️ La conversion est désactivée (réglage « convert » = off). "
+            "Les formats autres que JPEG et PNG ne sont alors pas convertis et "
+            "seront refusés par la suite de la chaîne."
+        )
+    else:
+        message += (
+            f"\n\nLes formats hors JPEG/PNG sont convertis automatiquement en "
+            f"{convert_format.upper()} à l'ingestion (réglage « convert » — "
+            f"CLI : --convert png|jpeg|off). Les originaux ne sont pas modifiés."
+        )
+    return message
