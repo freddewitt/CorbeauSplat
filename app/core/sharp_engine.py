@@ -154,6 +154,91 @@ class SharpEngine(BaseEngine):
             if staging is not None:
                 shutil.rmtree(staging, ignore_errors=True)
 
+    def _extract_frames(self, vp, frames_dir, skip, log_callback):
+        """Run ffmpeg over the video, returning its exit code.
+
+        Retries in software when VideoToolbox refuses the stream (ProRes,
+        10-bit HEVC in a .mov) rather than rejecting the container outright.
+        """
+        ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
+
+        ffmpeg_cmd = [ffmpeg_bin]
+        if is_apple_silicon():
+            ffmpeg_cmd.extend(["-hwaccel", "videotoolbox"])
+        ffmpeg_cmd.extend([
+            "-y", "-i", str(vp),
+            "-vf", f"select=not(mod(n\\,{skip}))",
+            "-vsync", "vfr", "-q:v", "1",
+            str(frames_dir / "frame_%04d.png"),
+        ])
+
+        if log_callback:
+            log_callback(f"Running: {' '.join(ffmpeg_cmd)}")
+
+        # Delegation to the runner (Template Method): the extraction stays
+        # cancellable through self.stop() / self.runner.terminate().
+        extraction_log = []
+
+        def _ffmpeg_line(line_str):
+            extraction_log.append(line_str)
+            if log_callback:
+                log_callback(line_str)
+
+        returncode = self._execute_command(ffmpeg_cmd, line_callback=_ffmpeg_line, timeout=3600)
+
+        if returncode != 0 and "-hwaccel" in ffmpeg_cmd and not self.stop_requested:
+            if log_callback:
+                log_callback("Décodage matériel refusé — nouvelle tentative en logiciel")
+            returncode = self._execute_command(
+                without_hwaccel(ffmpeg_cmd), line_callback=_ffmpeg_line, timeout=3600
+            )
+
+        if returncode != 0 and not self.stop_requested and log_callback:
+            log_callback(f"FFmpeg error (code {returncode}): {' | '.join(extraction_log[-5:])}")
+        return returncode
+
+    def _confirm_long_run(self, total_frames, log_callback, confirm_callback):
+        """Ask before a long sequential run. True when processing may start.
+
+        Sharp infers one frame at a time, so a few hundred frames is hours.
+        Without a confirm_callback — every CLI caller — it proceeds.
+        """
+        estimated_seconds = total_frames * SECONDS_PER_FRAME_ESTIMATE
+        if log_callback:
+            log_callback(
+                f"Durée estimée : {_format_duration(estimated_seconds)} "
+                f"({total_frames} images × ~{SECONDS_PER_FRAME_ESTIMATE:.0f} s, inférence séquentielle)."
+            )
+        if confirm_callback and estimated_seconds >= LONG_RUN_CONFIRM_SECONDS:
+            return bool(confirm_callback(total_frames, estimated_seconds))
+        return True
+
+    def _predict_one_frame(self, frame_path, out, params, log_callback):
+        """Run Sharp on one frame and collect its PLY. True when one was saved."""
+        # Only ever write to a path that does not exist yet: frame_out_dir is
+        # deleted after each frame, and a name collision with a folder of the
+        # user's would otherwise have it deleted along with its contents.
+        frame_out_dir = out / frame_path.stem
+        collision = 1
+        while frame_out_dir.exists():
+            frame_out_dir = out / f"{frame_path.stem}_sharp_{collision}"
+            collision += 1
+
+        saved = False
+        try:
+            if self.predict(str(frame_path), str(frame_out_dir), params) == 0:
+                ply_files = list(frame_out_dir.rglob("*.ply"))
+                if ply_files:
+                    dest_ply = out / f"{frame_path.stem}.ply"
+                    shutil.copy2(ply_files[0], dest_ply)
+                    if log_callback:
+                        log_callback(f"Saved: {dest_ply.name}")
+                    saved = True
+        finally:
+            if frame_out_dir.exists():
+                shutil.rmtree(frame_out_dir)
+        return saved
+
     def process_video_frames(self, video_path: str, output_dir: str,
                              params: dict | None = None,
                              log_callback: Callable | None = None,
@@ -161,17 +246,18 @@ class SharpEngine(BaseEngine):
                              progress_callback: Callable | None = None,
                              cancel_check: Callable | None = None,
                              confirm_callback: Callable | None = None) -> int:
-        """Shared video frame extraction + Sharp prediction pipeline.
+        """Extract a video's frames, run Sharp on each, collect the PLYs.
 
-        Extracts frames from a video via ffmpeg, runs Sharp on each frame,
-        collects resulting PLY files, and cleans up temporary data.
+        Orchestration only: extraction, the long-run confirmation and the
+        per-frame inference each live in their own method. Every early exit
+        removes the temporary frames, so an abort leaves nothing behind.
 
         Parameters
         ----------
         video_path: str
             Path to the input video file.
         output_dir: str
-            Directory where output PLY files will be placed.
+            Directory where the output PLY files are placed.
         params: dict, optional
             Sharp parameters (skip_frames, etc.).
         log_callback: callable, optional
@@ -179,14 +265,14 @@ class SharpEngine(BaseEngine):
         status_callback: callable, optional
             Called with status updates.
         progress_callback: callable, optional
-            Called with integer percentage (0-100).
+            Called with an integer percentage (0-100).
         cancel_check: callable, optional
-            Called before each frame; if returns True, processing stops.
-            stop() is honoured at the same points, whether or not it is given.
+            Called before each frame; if True, processing stops. stop() is
+            honoured at the same points, whether or not this is given.
         confirm_callback: callable, optional
             Called as confirm_callback(total_frames, estimated_seconds) once the
             frame count is known, before any inference. Returning False aborts.
-            When omitted the run proceeds — CLI callers are non-interactive.
+            Omitted, it proceeds — CLI callers are non-interactive.
 
         Returns
         -------
@@ -201,83 +287,30 @@ class SharpEngine(BaseEngine):
 
         frames_dir = out / "temp_frames"
         frames_dir.mkdir(parents=True, exist_ok=True)
-
-        # Clean previous frames
         for f in frames_dir.glob("*.png"):
             f.unlink()
 
-        # Extract frames via ffmpeg
-        ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
-        ffmpeg_cmd = [ffmpeg_bin]
-        if is_apple_silicon():
-            ffmpeg_cmd.extend(["-hwaccel", "videotoolbox"])
-        ffmpeg_cmd.extend([
-            "-y", "-i", str(vp),
-            "-vf", f"select=not(mod(n\\,{skip}))",
-            "-vsync", "vfr", "-q:v", "1",
-            str(frames_dir / "frame_%04d.png"),
-        ])
+        def _abort(message=None):
+            if message and log_callback:
+                log_callback(message)
+            shutil.rmtree(frames_dir, ignore_errors=True)
+            return 0
 
-        if log_callback:
-            log_callback(f"Running: {' '.join(ffmpeg_cmd)}")
-
-        # Delegation to the standard runner (Template Method): makes the extraction
-        # cancellable through self.stop() / self.runner.terminate().
-        extraction_log = []
-
-        def _ffmpeg_line(line_str):
-            extraction_log.append(line_str)
-            if log_callback:
-                log_callback(line_str)
-
-        returncode = self._execute_command(ffmpeg_cmd, line_callback=_ffmpeg_line, timeout=3600)
-
-        if returncode != 0 and "-hwaccel" in ffmpeg_cmd and not self.stop_requested:
-            # VideoToolbox refuses some streams (ProRes, 10-bit HEVC in a .mov):
-            # retry in software rather than reject the container.
-            if log_callback:
-                log_callback("Décodage matériel refusé — nouvelle tentative en logiciel")
-            returncode = self._execute_command(
-                without_hwaccel(ffmpeg_cmd), line_callback=_ffmpeg_line, timeout=3600
-            )
-
+        returncode = self._extract_frames(vp, frames_dir, skip, log_callback)
         if self.stop_requested:
-            if log_callback:
-                log_callback("--- Arrêté par l'utilisateur ---")
-            shutil.rmtree(frames_dir, ignore_errors=True)
-            return 0
-
+            return _abort("--- Arrêté par l'utilisateur ---")
         if returncode != 0:
-            if log_callback:
-                log_callback(f"FFmpeg error (code {returncode}): {' | '.join(extraction_log[-5:])}")
-            shutil.rmtree(frames_dir, ignore_errors=True)
-            return 0
+            return _abort()
 
         frames = sorted(frames_dir.glob("*.png"))
         total_frames = len(frames)
-
         if total_frames == 0:
-            if log_callback:
-                log_callback("Aucune frame extraite.")
-            shutil.rmtree(frames_dir, ignore_errors=True)
-            return 0
-
+            return _abort("Aucune frame extraite.")
         if log_callback:
             log_callback(f"Total frames extraites: {total_frames}")
 
-        estimated_seconds = total_frames * SECONDS_PER_FRAME_ESTIMATE
-        if log_callback:
-            log_callback(
-                f"Durée estimée : {_format_duration(estimated_seconds)} "
-                f"({total_frames} images × ~{SECONDS_PER_FRAME_ESTIMATE:.0f} s, inférence séquentielle)."
-            )
-        if confirm_callback and estimated_seconds >= LONG_RUN_CONFIRM_SECONDS and not confirm_callback(
-            total_frames, estimated_seconds
-        ):
-            if log_callback:
-                log_callback("--- Annulé avant le démarrage ---")
-            shutil.rmtree(frames_dir, ignore_errors=True)
-            return 0
+        if not self._confirm_long_run(total_frames, log_callback, confirm_callback):
+            return _abort("--- Annulé avant le démarrage ---")
 
         success_count = 0
         for idx, frame_path in enumerate(frames):
@@ -294,34 +327,14 @@ class SharpEngine(BaseEngine):
             if log_callback:
                 log_callback(f"Processing frame {display_idx}/{total_frames}: {frame_path.name}")
 
-            # Only ever write to a path that does not exist yet: frame_out_dir
-            # is deleted after each frame, and a name collision with a folder of
-            # the user's would otherwise have it deleted along with its contents.
-            frame_out_dir = out / frame_path.stem
-            collision = 1
-            while frame_out_dir.exists():
-                frame_out_dir = out / f"{frame_path.stem}_sharp_{collision}"
-                collision += 1
-
-            returncode = self.predict(str(frame_path), str(frame_out_dir), params)
-
-            if returncode == 0:
-                ply_files = list(frame_out_dir.rglob("*.ply"))
-                if ply_files:
-                    dest_ply = out / f"{frame_path.stem}.ply"
-                    shutil.copy2(ply_files[0], dest_ply)
-                    if log_callback:
-                        log_callback(f"Saved: {dest_ply.name}")
-                    success_count += 1
+            if self._predict_one_frame(frame_path, out, params, log_callback):
+                success_count += 1
 
             if progress_callback:
                 progress_callback(int((display_idx / total_frames) * 100))
 
-            if frame_out_dir.exists():
-                shutil.rmtree(frame_out_dir)
-
-        # Cleanup temp frames
         if frames_dir.exists():
             shutil.rmtree(frames_dir, ignore_errors=True)
 
         return success_count
+

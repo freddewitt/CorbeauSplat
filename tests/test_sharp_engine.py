@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 # Patch missing modules at module level
 for _mod_name in ["cv2", "send2trash"]:
     if _mod_name not in sys.modules:
@@ -409,3 +411,101 @@ class TestSharpAvailability:
         with patch.object(engine, "_get_sharp_cmd", return_value=None):
             assert engine.predict(str(tmp_path / "in.png"), str(tmp_path / "out")) == -1
         assert any("pas installé" in m for m in messages)
+
+
+class TestVideoPipelineSteps:
+    """The steps extracted from process_video_frames (audit M11).
+
+    They were ~170 lines of one method, so the long-run confirmation and the
+    per-frame collision guard could only be reached through a full video run.
+    """
+
+    def _engine(self):
+        from app.core.sharp_engine import SharpEngine
+        engine = SharpEngine()
+        engine.logger_callback = lambda *_a, **_k: None
+        return engine
+
+    # ── long-run confirmation ────────────────────────────────────────────────
+    def test_no_callback_proceeds(self):
+        """CLI callers are non-interactive; absence must not block them."""
+        assert self._engine()._confirm_long_run(10_000, None, None) is True
+
+    def test_short_run_does_not_ask(self):
+        called = []
+        engine = self._engine()
+        assert engine._confirm_long_run(1, None, lambda *_a: called.append(1) or False) is True
+        assert called == []
+
+    def test_long_run_asks_and_honours_refusal(self):
+        from app.core.sharp_engine import LONG_RUN_CONFIRM_SECONDS, SECONDS_PER_FRAME_ESTIMATE
+
+        frames = int(LONG_RUN_CONFIRM_SECONDS / SECONDS_PER_FRAME_ESTIMATE) + 10
+        seen = {}
+
+        def refuse(total, seconds):
+            seen["total"], seen["seconds"] = total, seconds
+            return False
+
+        assert self._engine()._confirm_long_run(frames, None, refuse) is False
+        assert seen["total"] == frames
+        assert seen["seconds"] >= LONG_RUN_CONFIRM_SECONDS
+
+    def test_long_run_accepted_proceeds(self):
+        from app.core.sharp_engine import LONG_RUN_CONFIRM_SECONDS, SECONDS_PER_FRAME_ESTIMATE
+
+        frames = int(LONG_RUN_CONFIRM_SECONDS / SECONDS_PER_FRAME_ESTIMATE) + 10
+        assert self._engine()._confirm_long_run(frames, None, lambda *_a: True) is True
+
+    # ── per-frame inference ──────────────────────────────────────────────────
+    def test_existing_user_folder_is_never_touched(self, tmp_path):
+        """The work folder is deleted after each frame, so a name collision with
+        a folder of the user's would take their content with it."""
+        frame = tmp_path / "scene_0001.png"
+        frame.write_bytes(b"x")
+        mine = tmp_path / "scene_0001"
+        mine.mkdir()
+        (mine / "precieux.txt").write_text("ne pas supprimer")
+
+        engine = self._engine()
+        with patch.object(engine, "predict", return_value=1):
+            engine._predict_one_frame(frame, tmp_path, {}, None)
+
+        assert (mine / "precieux.txt").read_text() == "ne pas supprimer"
+
+    def test_produced_ply_is_collected(self, tmp_path):
+        frame = tmp_path / "f_0001.png"
+        frame.write_bytes(b"x")
+        engine = self._engine()
+
+        def fake_predict(_src, dest, _params):
+            out = Path(dest)
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "result.ply").write_text("ply")
+            return 0
+
+        with patch.object(engine, "predict", side_effect=fake_predict):
+            assert engine._predict_one_frame(frame, tmp_path, {}, None) is True
+        assert (tmp_path / "f_0001.ply").exists()
+
+    def test_work_folder_is_removed_even_on_failure(self, tmp_path):
+        """The cleanup is in a finally: a crashing predict must not leak it."""
+        frame = tmp_path / "f_0002.png"
+        frame.write_bytes(b"x")
+        engine = self._engine()
+
+        def exploding(_src, dest, _params):
+            Path(dest).mkdir(parents=True, exist_ok=True)
+            raise RuntimeError("boom")
+
+        with patch.object(engine, "predict", side_effect=exploding):
+            with pytest.raises(RuntimeError):
+                engine._predict_one_frame(frame, tmp_path, {}, None)
+        assert not (tmp_path / "f_0002").exists()
+
+    def test_no_ply_means_no_success(self, tmp_path):
+        frame = tmp_path / "f_0003.png"
+        frame.write_bytes(b"x")
+        engine = self._engine()
+        with patch.object(engine, "predict", return_value=0):
+            assert engine._predict_one_frame(frame, tmp_path, {}, None) is False

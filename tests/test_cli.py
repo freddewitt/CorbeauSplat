@@ -707,3 +707,32 @@ def test_manifest_documents_every_subcommand():
     section = section.split("##", 1)[0]
     undocumented = [name for name in DISPATCH if f"`{name}`" not in section]
     assert undocumented == [], f"subcommands missing from manifest.md: {undocumented}"
+
+
+def test_every_subcommand_has_its_own_builder():
+    """get_parser() was 302 lines declaring ten subcommands inline (audit M11).
+
+    Each now has an `_add_<name>_parser` function, and get_parser() only calls
+    them. Pinned so the next subcommand is not appended back into the body.
+    """
+    import inspect
+
+    from app.cli import parser as parser_module
+    from app.cli.commands import DISPATCH
+
+    source = inspect.getsource(parser_module.get_parser)
+    assert source.count("add_parser(") == 0, "a subcommand is declared inside get_parser()"
+
+    for name in DISPATCH:
+        builder = f"_add_{name}_parser"
+        assert hasattr(parser_module, builder), f"missing builder: {builder}"
+        assert f"{builder}(subs)" in source, f"{builder} is never called"
+
+
+def test_get_parser_stays_short():
+    """A guard on the shape, not the style: the body is a list of calls."""
+    import inspect
+
+    from app.cli.parser import get_parser
+
+    assert len(inspect.getsource(get_parser).splitlines()) < 60

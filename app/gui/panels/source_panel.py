@@ -82,9 +82,24 @@ class SourcePanel:
 
     # ── Center ────────────────────────────────────────────────────────────────
     def _build_center(self):
+        """Assemble the centre column from its four sections.
+
+        Was one 152-line body (audit M11). Each section still runs in the
+        same order on the same layout, so the widget tree is unchanged.
+        """
         w = QWidget()
         layout = QVBoxLayout(w)
 
+        self._build_project_and_mode(layout)
+        self._build_paths(layout)
+        self._build_actions(layout)
+
+        self._evaluate_source_type()
+        return w
+
+    def _build_project_and_mode(self, layout):
+        """Project name, pipeline mode and source type — the three fields that
+        decide what the rest of the panel means."""
         self.lbl_project = QLabel()
         self.input_project_name = QLineEdit()
         self.input_project_name.setPlaceholderText("MonProjet")
@@ -128,6 +143,9 @@ class SourcePanel:
         source_type_row.addWidget(self.combo_source_type)
         layout.addLayout(source_type_row)
 
+    def _build_paths(self, layout):
+        """Input, FPS, video range, output and checkpoint destination, plus the
+        mixed-content banner that belongs to the input field."""
         # Input (drag-and-drop folder/file/video)
         self.lbl_input = QLabel()
         layout.addWidget(self.lbl_input)
@@ -196,6 +214,9 @@ class SourcePanel:
 
         layout.addStretch(1)
 
+    def _build_actions(self, layout):
+        """Launch/Cancel, the activity ring above it, and the destructive
+        dataset deletion kept visually apart from them."""
         # Main action button, visually separated above the destructive
         # button. Not connected here — StudioWindow connects to it in a
         # later pass (replaces topbar.launchRequested).
@@ -232,8 +253,6 @@ class SourcePanel:
         self.btn_delete_dataset.setStyleSheet("color: #f7768e;")
         layout.addWidget(self.btn_delete_dataset)
 
-        self._evaluate_source_type()
-        return w
 
     # ── Right bar (essential / advanced) ────────────────────────────────────────
     def _build_right(self):

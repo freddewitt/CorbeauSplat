@@ -42,6 +42,20 @@ def get_parser():
     subs = parser.add_subparsers(dest="command", metavar="COMMANDE")
 
     # ── pipeline ──────────────────────────────────────────────────────────────
+    _add_pipeline_parser(subs)
+    _add_colmap_parser(subs)
+    _add_brush_parser(subs)
+    _add_sharp_parser(subs)
+    _add_view_parser(subs)
+    _add_upscale_parser(subs)
+    _add_4dgs_parser(subs)
+    _add_clean_parser(subs)
+    _add_splattransform_parser(subs)
+    _add_extract360_parser(subs)
+    return parser
+
+
+def _add_pipeline_parser(subs):
     p = subs.add_parser(
         "pipeline",
         help="Pipeline complet : COLMAP → Brush en une seule commande",
@@ -113,6 +127,9 @@ def get_parser():
                    help="Dossier de destination de l'export (défaut: à côté du splat)")
 
     # ── colmap ────────────────────────────────────────────────────────────────
+
+
+def _add_colmap_parser(subs):
     p = subs.add_parser("colmap", help="Pipeline COLMAP (vidéo/images → dataset)")
     p.add_argument("--input",  "-i", required=True, help="Vidéo ou dossier d'images source")
     p.add_argument("--output", "-o", required=True, help="Dossier de sortie")
@@ -163,6 +180,9 @@ def get_parser():
     _add_view_graph_flags(p)
 
     # ── brush ─────────────────────────────────────────────────────────────────
+
+
+def _add_brush_parser(subs):
     p = subs.add_parser("brush", help="Entraînement Gaussian Splat (Brush)")
     p.add_argument("--input",  "-i", required=True, help="Dossier dataset COLMAP")
     p.add_argument("--output", "-o", required=True, help="Dossier de sortie")
@@ -189,6 +209,9 @@ def get_parser():
     p.add_argument("--max_resolution",          type=int,   default=None, help="Résolution max entraînement 0=auto (défaut: 0)")
 
     # ── sharp ─────────────────────────────────────────────────────────────────
+
+
+def _add_sharp_parser(subs):
     p = subs.add_parser("sharp", help="Single Image/Vidéo → 3D Splat (ML-Sharp)")
     p.add_argument("--input",  "-i", required=True, help="Image, dossier d'images ou vidéo")
     p.add_argument("--output", "-o", required=True, help="Dossier de sortie")
@@ -204,6 +227,9 @@ def get_parser():
     p.add_argument("--verbose", action="store_true", help="Afficher la sortie détaillée de Sharp")
 
     # ── view ──────────────────────────────────────────────────────────────────
+
+
+def _add_view_parser(subs):
     p = subs.add_parser("view", help="Visualiser un .ply dans SuperSplat")
     p.add_argument("--input",     "-i", required=True, help="Fichier .ply ou dossier")
     p.add_argument("--port",      type=int, default=3000, help="Port SuperSplat (défaut: 3000)")
@@ -213,6 +239,9 @@ def get_parser():
     p.add_argument("--cam_rot",   default=None, metavar="X,Y,Z", help="Rotation initiale caméra (degrés)")
 
     # ── upscale ───────────────────────────────────────────────────────────────
+
+
+def _add_upscale_parser(subs):
     p = subs.add_parser("upscale", help="Upscale d'images via upscayl-bin (NCNN)")
     p.add_argument("--input",  "-i", required=True, help="Image ou dossier d'images")
     p.add_argument("--output", "-o", required=True, help="Dossier de sortie")
@@ -229,6 +258,9 @@ def get_parser():
                    help="Niveau de compression sortie 0-9 (défaut: 0)")
 
     # ── 4dgs ──────────────────────────────────────────────────────────────────
+
+
+def _add_4dgs_parser(subs):
     p = subs.add_parser("4dgs", help="Préparation dataset 4D Gaussian Splatting (Nerfstudio)")
     p.add_argument("--input",  "-i", required=True,
                    help="Dossier contenant les vidéos multi-caméras")
@@ -238,6 +270,9 @@ def get_parser():
                    help="Lancer uniquement COLMAP sur un dataset déjà extrait")
 
     # ── clean ─────────────────────────────────────────────────────────────────
+
+
+def _add_clean_parser(subs):
     p = subs.add_parser("clean", help="Nettoyer un fichier .ply ou un dossier de .ply Gaussian Splat (supprime le bruit, les floaters)")
     p.add_argument("--input",  "-i", required=True,
                    help="Fichier .ply d'entrée OU dossier contenant des .ply")
@@ -260,6 +295,9 @@ def get_parser():
                    help="Dossier de sortie pour l'export (défaut: même dossier que la sortie clean)")
 
     # ── splattransform ────────────────────────────────────────────────────────
+
+
+def _add_splattransform_parser(subs):
     p = subs.add_parser(
         "splattransform",
         help="Convert/filter Gaussian Splat files via PlayCanvas splat-transform",
@@ -299,6 +337,9 @@ def get_parser():
     )
 
     # ── extract360 ────────────────────────────────────────────────────────────
+
+
+def _add_extract360_parser(subs):
     p = subs.add_parser("extract360", help="Extraction vidéo 360° en multi-caméras COLMAP-ready")
     p.add_argument("--input",  "-i", required=True, help="Fichier vidéo 360°")
     p.add_argument("--output", "-o", required=True, help="Dossier de sortie")
@@ -319,5 +360,3 @@ def get_parser():
     p.add_argument("--adaptive",        action="store_true", help="Extraction adaptative au mouvement")
     p.add_argument("--motion_threshold", type=float, default=0.3,
                    help="Seuil de mouvement pour l'extraction adaptative (défaut: 0.3)")
-
-    return parser
