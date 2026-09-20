@@ -190,11 +190,13 @@ def run_upscale_job(input_path, output_dir, params, log_callback, cancel_check):
         else [src]
     )
 
+    staged_names = _staged_names(sources, suffix, fmt)
+
     with _tempfile.TemporaryDirectory(prefix="upscayl_in_") as tmp_in:
         tmp_in_path = Path(tmp_in)
         orig_sizes = {}
         for f in sources:
-            staged_name = f"{f.stem}{suffix}.{fmt}"
+            staged_name = staged_names[f]
             _copy_as_supported_image(f, tmp_in_path / staged_name)
             if x1_mode:
                 from PIL import Image as _PIL
@@ -212,6 +214,23 @@ def run_upscale_job(input_path, output_dir, params, log_callback, cancel_check):
             resize_to_original(output_dir, orig_sizes)
 
     return success[0], (output_dir if success[0] else "Upscale échoué.")
+
+
+def _staged_names(sources, suffix, fmt):
+    """Map each source to its staged file name (``<stem><suffix>.<fmt>``).
+
+    Sources sharing a stem (``a.jpg`` and ``a.png``) would get the same name
+    and silently overwrite each other, so those alone also carry their
+    original extension (``a_png<suffix>.<fmt>``). Other names are unchanged.
+    """
+    counts = {}
+    for f in sources:
+        counts[f.stem.lower()] = counts.get(f.stem.lower(), 0) + 1
+    names = {}
+    for f in sources:
+        tag = f"_{f.suffix.lower().lstrip('.')}" if counts[f.stem.lower()] > 1 else ""
+        names[f] = f"{f.stem}{tag}{suffix}.{fmt}"
+    return names
 
 
 def _copy_as_supported_image(src: Path, dest: Path) -> None:
