@@ -77,7 +77,9 @@ class SuperSplatEngine(BaseEngine):
         # Ensure any previous instance is stopped before starting a new one.
         self.stop_supersplat()
 
-        cmd = ["npx", "serve", "dist", "-p", str(port), "--no-clipboard"]
+        # Bind to loopback only: `-p` listens on every interface, exposing the
+        # viewer to the local network.
+        cmd = ["npx", "serve", "dist", "-l", f"tcp://127.0.0.1:{port}", "--no-clipboard"]
         try:
             self.runner.start(cmd, env=os.environ.copy(), cwd=str(splat_path))
 

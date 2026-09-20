@@ -110,3 +110,17 @@ class TestDataServer:
         origins = [v for k, v in sent if k == "Access-Control-Allow-Origin"]
         assert origins == ["http://localhost:3000"]
         engine.stop_data_server()
+
+
+class TestViewerBinding:
+    def test_viewer_listens_on_loopback_only(self, tmp_path):
+        (tmp_path / "supersplat" / "dist").mkdir(parents=True)
+        engine = _engine(tmp_path)
+        engine.runner = MagicMock()
+        with patch("app.core.superplat_engine.shutil.which", return_value="/usr/bin/npx"), \
+                patch("app.core.superplat_engine.threading.Thread"):
+            ok, _msg = engine.start_supersplat(port=3123)
+        assert ok is True
+        cmd = engine.runner.start.call_args.args[0]
+        assert "-p" not in cmd
+        assert cmd[cmd.index("-l") + 1] == "tcp://127.0.0.1:3123"
