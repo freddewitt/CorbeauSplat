@@ -26,17 +26,26 @@
 ## 🚀 What it does
 
 This application provides a unified Graphical User Interface (GUI) to orchestrate the following steps:
-1.  **Project Management**: Automatically organizes your outputs into structured project folders with images, sparse data, and checkpoints.
-2.  **Sparse Reconstruction**: Automates **COLMAP** feature extraction, matching, and mapping. Supports **Glomap** as a modern alternative mapper.
-3.  **Undistortion**: Automatically undistorts images for optimal training quality.
-4.  **AI Upscaling**: Optionally enhances input images before reconstruction using **upscayl-ncnn** — a fast NCNN-based upscaler with 6 curated models (Real-ESRGAN x4+, 4xLSDIR, 4xNomos8kSC, and more). Installed automatically at first launch.
-5.  **Training**: Integrates **Brush** to train Gaussian Splats directly on your Mac. Optional post-training pipeline: automatically clean (PlyCleaner) and/or export (SPZ / GLB) the resulting `.ply` files without any extra steps.
-6.  **Cleaning**: Standalone **Nettoyage** tab to remove artifacts from any `.ply` file — transparent splats, oversized splats, spatial outliers — in single-file or batch mode. Three presets: Light / Medium / Strong.
-7.  **Format Conversion**: **SplatTransform** tab powered by [PlayCanvas `@playcanvas/splat-transform`](https://github.com/playcanvas/splat-transform) v2.7.1. Converts between PLY, SPZ, GLB, and CSV. Supports SH band reduction, point count decimation, NaN filtering, and Morton spatial reordering.
-8.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files.
-9.  **ML Sharp (Image/Video to 3D)**: Uses **Apple ML Sharp** to generate a 3D model from a single image or a sequence of 3D models directly from a video.
-10. **4DGS Preparation (Experimental)**: A new module to prepare 4D Gaussian Splatting datasets (Multi-camera video -> Nerfstudio format).
-11. **360 Extractor (Experimental)**: Converts equirectangular 360° videos into optimal planar image sets (Cube Map, Ring, etc.) for photogrammetry, with AI operator masking.
+1.  **Project Management**: Automatically organizes your outputs into structured project folders with images, sparse data, and checkpoints. Settings can be saved as **named configurations** (load / save / delete) and reused from one project to the next.
+2.  **Source Preparation**: Point the app at a video or a folder of images — the type is detected automatically (mixed folders are flagged). For a single video, **pick an in/out range** with an ffmpeg-based preview before extraction. Formats COLMAP cannot read (HEIC, TIFF, BMP, WebP…) are converted to PNG or JPEG for you, or left untouched if you prefer.
+3.  **Sparse Reconstruction**: Automates **COLMAP** feature extraction, matching, and mapping. Supports **Glomap** as a modern alternative mapper.
+4.  **Undistortion**: Automatically undistorts images for optimal training quality.
+5.  **AI Upscaling**: Optionally enhances input images before reconstruction using **upscayl-ncnn** — a fast NCNN-based upscaler with 6 curated models (Real-ESRGAN x4+, 4xLSDIR, 4xNomos8kSC, and more), browsable in a **model gallery** where each one can be downloaded or deleted. Downloads are verified against pinned checksums.
+6.  **Training**: Integrates **Brush** to train Gaussian Splats directly on your Mac, with a coarse progress indicator based on the checkpoints written to disk. Choose where checkpoints go, and optionally keep only the latest.
+7.  **Cleaning**: Standalone **Nettoyage** tab to remove artifacts from any `.ply` file — transparent splats, oversized splats, spatial outliers — in single-file or batch mode. Three presets: Light / Medium / Strong.
+8.  **Format Conversion**: **SplatTransform** tab powered by [PlayCanvas `@playcanvas/splat-transform`](https://github.com/playcanvas/splat-transform) v2.7.1. Converts between PLY, SPZ, GLB, and CSV. Supports SH band reduction, point count decimation, NaN filtering, isolated-splat ("floaters") removal, and Morton spatial reordering.
+9.  **Visualization**: Includes a built-in tab running **SuperSplat** for immediate local viewing and editing of your PLY files. The viewer only listens on `127.0.0.1`.
+10. **ML Sharp (Image/Video to 3D)**: Uses **Apple ML Sharp** to generate a 3D model from a single image or a sequence of 3D models directly from a video.
+11. **4DGS Preparation (Experimental)**: Prepares 4D Gaussian Splatting datasets (multi-camera video → Nerfstudio format), with optional pre-COLMAP upscaling and COLMAP tuning (camera model, matcher, sequential overlap). No Apple Silicon 4D trainer exists, so the module stops at dataset preparation.
+12. **360 Extractor (Experimental)**: Converts equirectangular 360° videos into optimal planar image sets (Cube Map, Ring, etc.) for photogrammetry, with AI operator masking.
+
+### 🔗 One-click pipeline
+
+Since v2.0, the steps are no longer separate islands: a single **Launch** button in the Project panel runs the whole chain, driven by the **mode selector** (Gsplat → COLMAP, Sharp → ML Sharp, 4DGS → dataset preparation). Optional steps are ticked in the *Automation* block and each one feeds the next:
+
+**360 extraction → Upscale → Reconstruction → Brush → Cleaning → Export → Viewer**
+
+Every step is reported in the left rail (running / done / error), can be cancelled from the activity bar, and a failed step offers a **"Voir le journal"** button. The same chain is available from the CLI: `pipeline --clean [light|medium|strong] --export FORMAT`, with `--trim_start` / `--trim_end` for video ranges and `--convert png|jpeg|off` for image conversion.
 
 It is designed to be "click-and-run", handling dependency checks, process management, and **session persistence** for you.
 It also includes built-in full localization support for **French, English, German, Italian, Spanish, Arabic, Russian, Chinese, and Japanese**.
@@ -75,47 +84,33 @@ It also includes built-in full localization support for **French, English, Germa
 
 ## 📖 How to Use
 
-1.  **Configuration Tab**: 
-    -   Select your input (Video or Folder of images).
-    -   Define a **Project Name** (your files will be saved in `[Output Folder]/[Project Name]`).
-    -   Click **"Create COLMAP Dataset"**.
-2.  **Params Tab**: (Optional) Tweak advanced COLMAP settings or enable **Glomap**.
-3.  **Upscale Tab**: (Optional)
-    -   Enable **"Enable Upscale"** in the Training tab to apply upscaling during dataset creation.
-    -   `upscayl-bin` is automatically downloaded and installed on first launch — no manual setup required.
-    -   Choose a model (e.g., Real-ESRGAN x4+ for photos, 4xLSDIR for ultra fidelity) and configure scale, format, and tile size.
-    -   Download additional models directly from the tab (4xLSDIR, 4xNomos8kSC, NMKD-Siax).
-4.  **Brush Tab**: 
-    -   **Auto-Refine**: Choose "Refine" mode to resume training from the latest checkpoint.
-    -   **Presets**: Use specific densification strategies (e.g., "Aggressive Densification").
-    -   **Post-training pipeline** (Entraînement tab → Options): check **"Nettoyer après"** and/or **"Exporter ensuite"** to automatically clean and/or convert your `.ply` files right after training — no extra steps needed.
-    -   Click **"Start Brush Training"**.
-5.  **Nettoyage Tab**: Clean any `.ply` file independently from training.
-    -   Single-file or batch-directory mode.
-    -   Three presets: Light (conservative), Medium (standard), Strong (aggressive).
-6.  **SplatTransform Tab**: Convert `.ply` files to SPZ, GLB, or CSV.
-    -   Optional SH reduction, point decimation, NaN filtering, and Morton reordering.
-    -   Powered by PlayCanvas `@playcanvas/splat-transform` v2.7.1 — installed locally via npm.
-7.  **SuperSplat Tab**: 
-    -   Load your trained `.ply` file.
-    -   Click **"Start Servers"** to launch the viewer locally.
-8.  **4DGS Tab (Experimental)**:
-    -   Check **"Activate"** to install the required dependencies (Nerfstudio).
-    -   Select a folder containing your synced camera videos.
-    -   Click **"Start Process"** to generate a dataset ready for 4DGS training.
-7.  **360 Extractor Tab (Experimental)**:
-    -   **Activate**: Install the dedicated environment (PySide6, YOLOv8).
-    -   **Convert**: Extract images from 360° videos with advanced layouts (Ring, Cube Map, Fibonacci).
-    -   **AI Masking**: Automatically mask the operator.
-9. **Apple Sharp Tab (Bonus)**:
-    -   Select a single source image or a **Video**.
-    -   Click **"Predict 3D Model"** or **"Start Conversion"** to generate a mesh sequence using machine learning.
+The left rail has four groups: **Project** (always visible), **TRAINING**, **OPTIONS** and **TOOLS**. Missing dependencies are reported when the app starts: essential ones (ffmpeg, COLMAP) in a dialog, feature-specific ones in the log.
+
+1.  **Project panel**:
+    -   Select your input (video or folder of images) and an output folder, and name the project (files go to `[Output Folder]/[Project Name]`).
+    -   Leave the source type on **Auto**, or force Images / Video. For a video, set the FPS, or use **"Sélection vidéo…"** to choose an in/out range.
+    -   Choose the **conversion format** (PNG, JPEG, or off) for images COLMAP cannot read.
+    -   Pick the **mode** (Gsplat, Sharp, 4DGS), tick the steps to chain in *Automation* (360 extraction, Upscale before reconstruction, Brush, Cleaning, Export, Viewer), then click **Launch**.
+    -   Save your settings as a **named configuration** in *Current settings*.
+2.  **TRAINING group**:
+    -   **Reconstruction**: COLMAP options, LightGlue matchers, **Glomap** as alternative mapper. Has its own Launch button for a standalone run.
+    -   **Training (Brush)**: *Auto-Refine* resumes from the latest checkpoint; presets (built-in or your own — user presets can be deleted); *Nettoyer après* / *Exporter ensuite* post-training options.
+    -   **Visualize**: load a `.ply` and start the local SuperSplat viewer.
+3.  **OPTIONS group**:
+    -   **360° extraction**: install the dedicated environment, then extract images from 360° videos (Ring, Cube Map, Fibonacci) with optional AI operator masking.
+    -   **Upscale**: `upscayl-bin` is installed automatically. Pick a model in the gallery (download or delete from its card), then set scale (x1–x4), format and tile size.
+    -   **Cleaning**: single-file or batch `.ply` cleaning, three presets (Light / Medium / Strong).
+    -   **Export**: PLY → SPZ, GLB, OBJ or XYZ.
+4.  **TOOLS group** (standalone modules, typed paths, independent of the chain):
+    -   **Brush**, **SuperSplat**, **ML Sharp**, **SplatTransform** (PLY ↔ SPZ / GLB / CSV with SH reduction, decimation, NaN and floaters filtering, Morton reordering), **4DGS**.
+    -   **4DGS (Experimental)**: check *Activate* to install Nerfstudio, select a folder of synchronized camera videos, optionally upscale before reconstruction, and launch to get a dataset ready for 4D training.
+    -   **ML Sharp (Bonus)**: select a single image or a video, then predict the 3D model(s).
 
 ### ⌨️ Command Line Interface (CLI)
 
 CorbeauSplat exposes all its features via the command line.
 
-� **[See CLI.md for full command line documentation](CLI.md)**
+📘 **[See CLI.md for full command line documentation](CLI.md)**
 
 ## 👏 Acknowledgments & Credits
 
