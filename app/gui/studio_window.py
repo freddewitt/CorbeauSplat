@@ -1129,11 +1129,37 @@ class StudioWindow(QMainWindow):
             if not self._check_paths(params["video_path"], params["video_output_path"]):
                 return
             worker = SharpVideoWorker(params["video_path"], params["video_output_path"], params)
+            worker.long_run_signal.connect(self._confirm_sharp_long_run)
         else:
             if not self._check_paths(params["input_path"], params["output_path"]):
                 return
             worker = SharpWorker(params["input_path"], params["output_path"], params)
         self._start_tool_worker(worker)
+
+    def _confirm_sharp_long_run(self, worker, total_frames: int, estimated_seconds: float):
+        """Ask before committing the machine to a very long Sharp video run.
+
+        Runs on the GUI thread, woken by SharpVideoWorker.long_run_signal; the
+        worker is blocked meanwhile and resumes on answer_long_run().
+        """
+        hours = estimated_seconds / 3600
+        duration = (
+            tr("sharp_duration_hours", "{h} h").format(h=f"{hours:.1f}")
+            if hours >= 1
+            else tr("sharp_duration_minutes", "{m} min").format(m=int(estimated_seconds // 60))
+        )
+        answer = QMessageBox.question(
+            self,
+            tr("sharp_long_run_title", "Traitement très long"),
+            tr(
+                "sharp_long_run_body",
+                "Sharp va traiter {n} images une par une, soit environ {d} de calcul "
+                "sans interruption. Lancer quand même ?",
+            ).format(n=total_frames, d=duration),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        worker.answer_long_run(answer == QMessageBox.StandardButton.Yes)
 
     def _launch_splat_transform(self):
         panel = self.panels["splattransform"]
