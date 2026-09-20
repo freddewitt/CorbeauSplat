@@ -83,7 +83,11 @@ class BrushEngine(BaseEngine):
             if params.get(param_name) is not None:
                 cmd.extend([flag, str(params[param_name])])
 
-        ckpt_interval = params.get("checkpoint_interval", 7000)
+        # `or 0` rather than a default argument: the key can be present *with*
+        # None from a hand-built dict (CLI, tests), and `None > 0` is a TypeError.
+        # BrushParams.to_engine_params() filters None out, so this only bites
+        # callers that bypass it.
+        ckpt_interval = params.get("checkpoint_interval", 7000) or 0
         if ckpt_interval > 0:
             cmd.extend(["--export-every", str(ckpt_interval)])
 

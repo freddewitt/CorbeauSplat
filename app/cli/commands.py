@@ -271,7 +271,7 @@ def run_supersplat(args):
         data_dir = args.input
         filename = ""
 
-    ok, msg = engine.start_data_server(data_dir, port=args.data_port)
+    ok, msg = engine.start_data_server(data_dir, port=args.data_port, viewer_port=args.port)
     if not ok:
         print(f"{tr('msg_error')}: {msg}")
         sys.exit(1)

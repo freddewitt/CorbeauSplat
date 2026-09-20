@@ -155,7 +155,8 @@ class VisualiserPanel:
             if path.exists():
                 directory = path if path.is_dir() else path.parent
                 success_data, msg_data = self.engine.start_data_server(
-                    str(directory), self.data_port.value()
+                    str(directory), self.data_port.value(),
+                    viewer_port=self.splat_port.value(),
                 )
                 if not success_data:
                     QMessageBox.warning(self.center, tr("msg_warning", "Attention"), msg_data)

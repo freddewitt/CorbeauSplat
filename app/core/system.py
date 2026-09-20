@@ -251,17 +251,63 @@ def adapt_max_splats(max_splats: int, thermal_throttling: bool = True) -> int:
     return max(500_000, adapted)
 
 
-def get_brush_build_mode() -> str:
-    """Detect Brush build mode from engines/brush.version.
+_BRUSH_PROBED_MODE: str | None = None
 
-    Returns "release" for tagged versions (e.g. v0.3.0), "source" for
-    source builds (e.g. 2a8c4f1-source), defaults to "release".
+
+def _probe_brush_build_mode() -> str | None:
+    """Ask the installed binary which step flag it accepts, or None if unknown.
+
+    Release builds take `--total-steps`, source builds `--total-train-iters`.
+    Guessing wrong makes Brush reject the command and the training dies on the
+    spot, so when the version file cannot answer we ask the binary itself.
+    Result is cached: this spawns a process.
+    """
+    global _BRUSH_PROBED_MODE
+    if _BRUSH_PROBED_MODE is not None:
+        return _BRUSH_PROBED_MODE or None
+
+    brush_bin = resolve_binary("brush")
+    if not brush_bin:
+        return None
+    try:
+        result = subprocess.run(
+            [brush_bin, "--help"], capture_output=True, text=True, timeout=10
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
+
+    help_text = (result.stdout or "") + (result.stderr or "")
+    if "--total-train-iters" in help_text:
+        _BRUSH_PROBED_MODE = "source"
+    elif "--total-steps" in help_text:
+        _BRUSH_PROBED_MODE = "release"
+    else:
+        _BRUSH_PROBED_MODE = ""
+        return None
+    return _BRUSH_PROBED_MODE
+
+
+def get_brush_build_mode() -> str:
+    """Detect the Brush build mode, preferring evidence over assumption.
+
+    Order: the version file written at install time, then `brush --help`, then
+    "release" as a last resort. The bare default used to be the *first* answer
+    whenever engines/brush.version was missing or unreadable — and a source
+    build then received `--total-steps`, which it rejects, so the training
+    failed immediately with an unhelpful message.
     """
     version_file = resolve_project_root() / "engines" / "brush.version"
-    if version_file.exists():
-        version = version_file.read_text().strip()
-        if "source" in version:
-            return "source"
+    try:
+        if version_file.exists():
+            version = version_file.read_text().strip()
+            if version:
+                return "source" if "source" in version else "release"
+    except OSError:
+        pass
+
+    probed = _probe_brush_build_mode()
+    if probed:
+        return probed
     return "release"
 
 

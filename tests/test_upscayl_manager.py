@@ -6,6 +6,7 @@ import sys
 import tarfile
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -77,26 +78,34 @@ class TestVerifyDownload:
 class TestDownloadModelFiles:
     """Tests for download_model_files()."""
 
+    @staticmethod
+    def _streaming_response(payload):
+        """A urlopen mock that behaves like a real stream: chunks, then b""."""
+        resp = MagicMock()
+        resp.read.side_effect = [payload, b""]
+        resp.__enter__.return_value = resp
+        return resp
+
+    @patch("app.upscayl_models.get_model")
     @patch("app.upscayl_manager.get_models_dir")
     @patch("app.upscayl_manager.urllib.request.urlopen")
-    def test_download_success(self, mock_urlopen, mock_get_models_dir, tmp_path):
-        """Successful download of the .bin and .param files."""
+    def test_download_success(self, mock_urlopen, mock_get_models_dir, mock_get_model, tmp_path):
+        """Both files land on disk when their checksums match."""
+        import hashlib
+
         models_dir = tmp_path / "models" / "upscayl"
         models_dir.mkdir(parents=True)
-        # We need the models_dir to exist (get_models_dir creates it internally)
-        # Since we mock get_models_dir, we need to create it manually
         mock_get_models_dir.return_value = models_dir
 
-        # Mock HTTP responses with proper context manager support
-        mock_resp_bin = MagicMock()
-        mock_resp_bin.read.return_value = b"x" * 1024  # > 512 bytes
-        mock_resp_bin.__enter__.return_value = mock_resp_bin
-        mock_resp_param = MagicMock()
-        mock_resp_param.read.return_value = b"y" * 1024
-        mock_resp_param.__enter__.return_value = mock_resp_param
-
-        # Return different responses for each URL
-        mock_urlopen.side_effect = [mock_resp_bin, mock_resp_param]
+        bin_payload, param_payload = b"x" * 1024, b"y" * 1024
+        mock_get_model.return_value = SimpleNamespace(
+            sha256_bin=hashlib.sha256(bin_payload).hexdigest(),
+            sha256_param=hashlib.sha256(param_payload).hexdigest(),
+        )
+        mock_urlopen.side_effect = [
+            self._streaming_response(bin_payload),
+            self._streaming_response(param_payload),
+        ]
 
         from app.upscayl_manager import download_model_files
 
@@ -106,10 +115,50 @@ class TestDownloadModelFiles:
             "test-model",
         )
         assert result is True
-        assert (models_dir / "test-model.bin").exists()
-        assert (models_dir / "test-model.param").exists()
-        assert (models_dir / "test-model.bin").read_bytes() == b"x" * 1024
-        assert (models_dir / "test-model.param").read_bytes() == b"y" * 1024
+        assert (models_dir / "test-model.bin").read_bytes() == bin_payload
+        assert (models_dir / "test-model.param").read_bytes() == param_payload
+
+    @patch("app.upscayl_models.get_model")
+    @patch("app.upscayl_manager.get_models_dir")
+    @patch("app.upscayl_manager.urllib.request.urlopen")
+    def test_download_refused_without_declared_checksum(
+        self, mock_urlopen, mock_get_models_dir, mock_get_model, tmp_path
+    ):
+        """Fail closed: no declared hash means no download at all (audit I3).
+
+        This used to log a green tick and install the file unverified, so the
+        integrity check was decorative for any model missing a hash.
+        """
+        models_dir = tmp_path / "models" / "upscayl"
+        models_dir.mkdir(parents=True)
+        mock_get_models_dir.return_value = models_dir
+        mock_get_model.return_value = SimpleNamespace(sha256_bin="", sha256_param="")
+
+        from app.upscayl_manager import download_model_files
+
+        assert download_model_files("https://e/m.bin", "https://e/m.param", "test-model") is False
+        mock_urlopen.assert_not_called()
+        assert list(models_dir.iterdir()) == []
+
+    @patch("app.upscayl_models.get_model")
+    @patch("app.upscayl_manager.get_models_dir")
+    @patch("app.upscayl_manager.urllib.request.urlopen")
+    def test_mismatching_checksum_removes_the_file(
+        self, mock_urlopen, mock_get_models_dir, mock_get_model, tmp_path
+    ):
+        models_dir = tmp_path / "models" / "upscayl"
+        models_dir.mkdir(parents=True)
+        mock_get_models_dir.return_value = models_dir
+        mock_get_model.return_value = SimpleNamespace(sha256_bin="0" * 64, sha256_param="0" * 64)
+        mock_urlopen.side_effect = [
+            self._streaming_response(b"x" * 1024),
+            self._streaming_response(b"y" * 1024),
+        ]
+
+        from app.upscayl_manager import download_model_files
+
+        assert download_model_files("https://e/m.bin", "https://e/m.param", "test-model") is False
+        assert not (models_dir / "test-model.bin").exists()
 
     @patch("app.upscayl_manager.get_models_dir")
     @patch("app.upscayl_manager.urllib.request.urlopen")

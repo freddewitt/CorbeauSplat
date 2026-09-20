@@ -206,8 +206,8 @@ def _extract_archive(archive: Path, bin_dest: Path, models_dest: Path, log):
 
 
 def run_upscayl(input_path, output_path, params,
-                log_callback=None, progress_callback=None, done_callback=None,
-                cancel_check=None):
+                log_callback=None, progress_callback=None,  # noqa: ARG001 - part of the callback quartet
+                done_callback=None, cancel_check=None):
     """
     Runs upscayl-bin as a blocking subprocess (call from a worker thread).
 
@@ -376,34 +376,42 @@ def download_model_files(url_bin: str, url_param: str,
                 continue
         try:
             log(f"Downloading {model_id}{ext}...")
-            req = urllib.request.Request(url, headers={"User-Agent": "CorbeauSplat"})
-            with urllib.request.urlopen(req, timeout=120) as resp:  # nosec B310 - literal https URL of the model catalogue
-                data = resp.read()
+            expected = getattr(model, sha_attr, "") if model else ""
+            if not expected:
+                # Fail closed. This branch used to log a green tick and accept
+                # the file: any model without a declared hash was installed
+                # unverified, which made the check decorative for the entries
+                # that happened to be missing one.
+                log(f"  ❌ {dest.name}: aucune empreinte SHA256 déclarée — téléchargement refusé.")
+                ok = False
+                continue
 
-            if len(data) < 512:
-                log(f"  ❌ {dest.name}: unexpected response ({len(data)} bytes). URL: {url}")
+            req = urllib.request.Request(url, headers={"User-Agent": "CorbeauSplat"})
+            digest = hashlib.sha256()
+            written = 0
+            # Streamed rather than resp.read() then write_bytes(): the larger
+            # models are ~70 MB and were held in memory twice.
+            with urllib.request.urlopen(req, timeout=120) as resp:  # nosec B310 - literal https URL of the model catalogue
+                with open(dest, "wb") as fh:
+                    for chunk in iter(lambda: resp.read(64 * 1024), b""):
+                        digest.update(chunk)
+                        fh.write(chunk)
+                        written += len(chunk)
+
+            if written < 512:
+                log(f"  ❌ {dest.name}: unexpected response ({written} bytes). URL: {url}")
                 dest.unlink(missing_ok=True)
                 ok = False
                 continue
 
-            dest.write_bytes(data)
+            actual = digest.hexdigest()
+            if actual != expected:
+                log(f"  ❌ {dest.name}: SHA256 mismatch (expected {expected[:16]}..., got {actual[:16]}...)")
+                dest.unlink(missing_ok=True)
+                ok = False
+                continue
 
-            # Verify integrity after download
-            if model:
-                expected = getattr(model, sha_attr, "")
-                if expected:
-                    actual = hashlib.sha256(data).hexdigest()
-                    if actual == expected:
-                        log(f"  ✅ {dest.name} ({len(data) // 1024 // 1024} MB, checksum OK)")
-                    else:
-                        log(f"  ❌ {dest.name}: SHA256 mismatch (expected {expected[:16]}..., got {actual[:16]}...)")
-                        dest.unlink(missing_ok=True)
-                        ok = False
-                        continue
-                else:
-                    log(f"  ✅ {dest.name} ({len(data) // 1024 // 1024} MB)")
-            else:
-                log(f"  ✅ {dest.name} ({len(data) // 1024 // 1024} MB)")
+            log(f"  ✅ {dest.name} ({written // 1024 // 1024} MB, checksum OK)")
         except Exception as e:
             log(f"  ❌ {dest.name}: {e}")
             dest.unlink(missing_ok=True)

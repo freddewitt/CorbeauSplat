@@ -5,13 +5,16 @@ from app.scripts.installers.base import PipEngine
 from app.scripts.installers.tools import relax_requirements
 
 SHARP_REPO = "https://github.com/apple/ml-sharp.git"
+# apple/ml-sharp publishes no tags, so the pin is a commit SHA: the only
+# reproducible reference available. Bump it deliberately, after a read.
+SHARP_PINNED_REF = "aed6527499ef91cba3b54c18d49a870f25947190"  # main, 2026-09-20
 
 
 class SharpEngineDep(PipEngine):
     ask_before_update = True
 
     def __init__(self):
-        super().__init__("sharp", SHARP_REPO, ".venv_sharp")
+        super().__init__("sharp", SHARP_REPO, ".venv_sharp", pinned_ref=SHARP_PINNED_REF)
 
     def is_enabled_in_config(self, config: dict) -> bool:
         return config.get("sharp_params", {}).get("enabled", False) or config.get("sharp_enabled", False)

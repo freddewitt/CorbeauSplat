@@ -81,8 +81,9 @@ __all__ = [
 def uninstall_sharp():
     return SharpEngineDep().uninstall()
 
-def install_sharp(engines_dir=None, version_file=None):
-    # Compatibility wrapper
+def install_sharp(engines_dir=None, version_file=None):  # noqa: ARG001 - kept for call-site compatibility
+    # Compatibility wrapper: both arguments are accepted and ignored, the
+    # installer resolves those paths itself.
     dep = SharpEngineDep()
     dep.install()
     return dep.is_installed()

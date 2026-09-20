@@ -1,6 +1,7 @@
 import http.server
 import logging
 import os
+import shutil
 import socketserver
 import threading
 from collections.abc import Callable
@@ -9,6 +10,10 @@ from urllib.parse import urlparse
 
 from .base_engine import BaseEngine
 from .system import resolve_project_root
+
+# Default port of the viewer itself, distinct from the data server's.
+SUPERSPLAT_DEFAULT_PORT = 3000
+DATA_SERVER_DEFAULT_PORT = 8000
 
 
 class SuperSplatEngine(BaseEngine):
@@ -39,7 +44,7 @@ class SuperSplatEngine(BaseEngine):
     # ---------------------------------------------------------------------
     # SuperSplat viewer management
     # ---------------------------------------------------------------------
-    def start_supersplat(self, port: int = 3000) -> tuple[bool, str]:
+    def start_supersplat(self, port: int = SUPERSPLAT_DEFAULT_PORT) -> tuple[bool, str]:
         """Launch the SuperSplat viewer using ``npx serve``.
 
         Parameters
@@ -56,6 +61,14 @@ class SuperSplatEngine(BaseEngine):
         splat_path = self.get_supersplat_path()
         if not splat_path.exists():
             return False, "Moteur SuperSplat non trouvé"
+
+        # Preconditions checked before spawning: `npx serve dist` otherwise fails
+        # with a node-level message that says nothing about what is missing.
+        if not (splat_path / "dist").is_dir():
+            return False, ("SuperSplat n'est pas construit (dossier 'dist' absent) — "
+                           "relancez l'installateur de dépendances.")
+        if shutil.which("npx") is None:
+            return False, "npx introuvable — Node.js est requis pour la visualisation."
 
         # Ensure any previous instance is stopped before starting a new one.
         self.stop_supersplat()
@@ -85,11 +98,14 @@ class SuperSplatEngine(BaseEngine):
     # ---------------------------------------------------------------------
     # Data server (CORS‑enabled) management
     # ---------------------------------------------------------------------
-    def start_data_server(self, directory: str, port: int = 8000) -> tuple[bool, str]:
+    def start_data_server(self, directory: str, port: int = DATA_SERVER_DEFAULT_PORT,
+                          viewer_port: int = SUPERSPLAT_DEFAULT_PORT) -> tuple[bool, str]:
         """Start a lightweight HTTP server that serves files from *directory*.
 
-        The server binds only to ``127.0.0.1`` and adds a permissive CORS header so
-        that the SuperSplat viewer can fetch local assets.
+        Binds only to ``127.0.0.1``. The CORS fallback origin is the *viewer's*
+        port, not this server's: it used to be built from `port`, naming the data
+        server itself as the allowed origin, which is never the origin that
+        actually asks.
         """
         self.stop_data_server()
 
@@ -97,7 +113,7 @@ class SuperSplatEngine(BaseEngine):
         if not dir_path.is_dir():
             return False, "Dossier de données introuvable"
 
-        allowed_origin = f"http://localhost:{port}"
+        allowed_origin = f"http://localhost:{viewer_port}"
 
         class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
             """Simple request handler that injects a safe ``Access-Control-Allow-Origin`` header."""
@@ -117,19 +133,19 @@ class SuperSplatEngine(BaseEngine):
         class _ReuseAddrTCPServer(socketserver.TCPServer):
             allow_reuse_address = True
 
-        bind_ready = threading.Event()
-        bind_error = [None]  # mutable container for exception from thread
+        from functools import partial
+        handler = partial(CORSRequestHandler, directory=str(dir_path))
 
-        def run_server():  # pragma: no cover – runs in a background thread
-            from functools import partial
-            handler = partial(CORSRequestHandler, directory=str(dir_path))
-            try:
-                self.httpd = _ReuseAddrTCPServer(("127.0.0.1", port), handler)
-            except Exception as e:
-                bind_error[0] = e
-                bind_ready.set()
-                return
-            bind_ready.set()
+        # Bound here rather than inside the thread. Assigning self.httpd from the
+        # worker left a window where stop_data_server() read None and returned,
+        # leaving a server running with nothing holding a reference to it.
+        try:
+            self.httpd = _ReuseAddrTCPServer(("127.0.0.1", port), handler)
+        except OSError as e:
+            self.log(f"Erreur bind Data Server: {e}", level=logging.ERROR)
+            return False, f"Échec du bind: {e}"
+
+        def run_server():  # pragma: no cover - runs in a background thread
             try:
                 self.httpd.serve_forever()
             except Exception as e:
@@ -138,12 +154,6 @@ class SuperSplatEngine(BaseEngine):
         self.data_server_thread = threading.Thread(target=run_server, daemon=True)
         self.data_server_thread.start()
 
-        # Wait up to 2s for the bind to complete
-        if not bind_ready.wait(timeout=2.0):
-            return False, "Timeout: le serveur de données n'a pas pu démarrer"
-        if bind_error[0] is not None:
-            self.log(f"Erreur bind Data Server: {bind_error[0]}", level=logging.ERROR)
-            return False, f"Échec du bind: {bind_error[0]}"
         self.log(f"Serveur de données démarré sur http://localhost:{port}")
         return True, f"Serveur de données démarré sur http://localhost:{port}"
 

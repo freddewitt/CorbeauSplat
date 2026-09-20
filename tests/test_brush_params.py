@@ -113,3 +113,31 @@ def test_empty_params_still_emit_default_export_every(engine):
     assert "--export-every" in cmd
     idx = cmd.index("--export-every")
     assert cmd[idx + 1] == "7000"
+
+
+# ── checkpoint_interval robustness (audit I15) ───────────────────────────────
+def test_checkpoint_interval_none_does_not_crash(engine):
+    """A hand-built dict may carry the key with None; `None > 0` is a TypeError.
+
+    BrushParams.to_engine_params() filters None out, so only callers bypassing
+    it — the CLI and tests — could hit this.
+    """
+    cmd = _cmd(engine, {"total_steps": 1000, "checkpoint_interval": None})
+    assert "--export-every" not in cmd
+
+
+def test_checkpoint_interval_zero_disables_export(engine):
+    cmd = _cmd(engine, {"total_steps": 1000, "checkpoint_interval": 0})
+    assert "--export-every" not in cmd
+
+
+def test_checkpoint_interval_value_is_passed(engine):
+    cmd = _cmd(engine, {"total_steps": 1000, "checkpoint_interval": 5000})
+    assert "--export-every" in cmd
+    assert cmd[cmd.index("--export-every") + 1] == "5000"
+
+
+def test_checkpoint_interval_absent_keeps_the_7000_default(engine):
+    """Absent key and key-set-to-None are different cases; only None means off."""
+    cmd = _cmd(engine, {"total_steps": 1000})
+    assert cmd[cmd.index("--export-every") + 1] == "7000"

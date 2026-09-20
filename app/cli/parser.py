@@ -210,7 +210,7 @@ def get_parser():
     p.add_argument("--output", "-o", required=True, help="Dossier de sortie")
     p.add_argument("--model",  default="realesrgan-x4plus",
                    help="ID du modèle upscayl (défaut: realesrgan-x4plus)")
-    p.add_argument("--scale",  type=int, choices=[2, 3, 4], default=4,
+    p.add_argument("--scale",  type=int, choices=[1, 2, 3, 4], default=4,
                    help="Facteur d'upscale (défaut: 4)")
     p.add_argument("--format", choices=["png","jpg","webp"], default="png",
                    help="Format de sortie (défaut: png)")

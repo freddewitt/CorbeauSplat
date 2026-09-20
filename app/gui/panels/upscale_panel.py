@@ -86,9 +86,12 @@ class UpscalePanel:
         self.lbl_model = QLabel()
         form.addRow(self.lbl_model, self.combo_model)
         self.combo_scale = QComboBox()
-        for s in (1, 2, 4):
+        # Same set as the CLI --scale. x1 is kept on purpose: it performs no
+        # upscaling but still runs the format conversion, which is how mixed
+        # HEIC/TIFF folders are normalised.
+        for s in (1, 2, 3, 4):
             self.combo_scale.addItem(f"x{s}", s)
-        self.combo_scale.setCurrentIndex(2)
+        self.combo_scale.setCurrentIndex(3)  # x4
         self.lbl_scale = QLabel()
         form.addRow(self.lbl_scale, self.combo_scale)
         self.combo_format = QComboBox()

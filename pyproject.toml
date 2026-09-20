@@ -2,7 +2,10 @@
 name = "corbeausplat"
 version = "2.0.0-beta.4"
 description = "Gaussian Splatting toolkit with GUI"
-requires-python = ">=3.10"
+# Upper bound mirrors CorbeauSplat.command, which only accepts 3.10-3.13 and
+# rebuilds the venv when it finds a newer one: several wheels (pyobjc) have
+# no build for 3.14 yet. No 3.11+ syntax is used in app/, so 3.10 stands.
+requires-python = ">=3.10,<3.14"
 # Doit rester synchronisé avec requirements.txt (source du lock et de la CI).
 # Sans cette section, deptry ne voit aucune dépendance déclarée et remonte
 # ~40 faux positifs DEP001 sur PySide6/numpy/plyfile/PIL.
@@ -61,11 +64,20 @@ target-version = "py310"
 line-length = 160
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "UP", "B", "SIM"]
-# N (naming) et ARG (unused-arg) désactivées : bruit systématique avec les
-# conventions PySide6 (camelCase des overrides/signaux) et les interfaces
-# uniformes (méthodes d'export partageant une signature commune).
+select = ["E", "F", "I", "W", "UP", "B", "SIM", "ARG001"]
+# N (naming) reste désactivée : bruit systématique avec les conventions PySide6
+# (camelCase des overrides et des signaux).
+# ARG est activée pour ARG001 seulement — les paramètres morts de fonctions
+# libres, exactement le cas qui avait laissé passer `project_root` dans
+# validate_path_standalone (audit I4). ARG002 (méthodes) et ARG005 (lambdas)
+# restent désactivées : les interfaces uniformes (méthodes d'export partageant
+# une signature, overrides Qt, installeurs) imposent des paramètres non lus.
 ignore = ["SIM117"]
+
+[tool.ruff.lint.per-file-ignores]
+# Les décorateurs @patch injectent des arguments que le test n'utilise pas
+# toujours ; les signaler n'apprend rien.
+"tests/**" = ["ARG001"]
 # SIM117 (nested with) : ~40 occurrences, uniquement des blocs mock.patch
 # imbriqués dans les tests — réécriture mécanique risquée pour un gain
 # purement stylistique.

@@ -28,7 +28,9 @@ class UpscaleEngine(BaseEngine):
                    output_format="png", tile=0, tta=False,
                    compression=0) -> dict | None:
         """Returns a params dict used by upscale_image/upscale_folder.
-        Adjusts the model_id to match the requested scale when possible.
+
+        The model_id is passed through unchanged; *scale* reaches upscayl-bin
+        as -s and is what governs the output size.
 
         If *tile* is 0 (auto-detect), the tile size is adapted to available
         system memory to avoid swapping on low-RAM Apple Silicon systems:
@@ -45,14 +47,12 @@ class UpscaleEngine(BaseEngine):
         if not self.is_installed():
             self.log("upscayl-bin not found.")
             return None
-        # If the selected model is a fixed‑scale model (e.g., contains "x4"),
-        # and the user requested a different scale, try to pick a matching model.
-        # This simple heuristic replaces the trailing "x4" with the desired scale.
-        if scale != 4 and "x4" in model_id:
-            candidate = model_id.replace("x4", str(scale))
-            # The actual model may not exist; we keep the original if the candidate
-            # is not found later by upscayl-bin, but we prefer the adjusted one.
-            model_id = candidate
+        # The model name is passed through untouched. There used to be a
+        # substitution here that rewrote "x4" into the requested scale, so
+        # "realesrgan-x4plus" at scale 2 became "realesrgan-2plus" — a model that
+        # does not exist, and upscayl_manager then refused with "Modèle
+        # introuvable". ncnn models have a fixed native scale; the requested
+        # scale goes to upscayl-bin via -s, which resamples on its own.
 
         # --- Adaptive tile size based on available RAM ---
         if tile == 0:

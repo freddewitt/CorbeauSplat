@@ -78,13 +78,59 @@ class TestGetBrushBuildMode:
         from app.core.system import get_brush_build_mode
         assert get_brush_build_mode() == "release"
 
+    @patch("app.core.system.resolve_binary", return_value=None)
     @patch("app.core.system.resolve_project_root")
-    def test_no_version_file(self, mock_root, tmp_path):
-        """No version file → returns 'release' (default)."""
+    def test_no_version_file_and_no_binary(self, mock_root, _mock_bin, tmp_path):
+        """No version file and no binary to ask → last-resort 'release'."""
         mock_root.return_value = tmp_path
 
-        from app.core.system import get_brush_build_mode
-        assert get_brush_build_mode() == "release"
+        import app.core.system as system
+        system._BRUSH_PROBED_MODE = None
+        assert system.get_brush_build_mode() == "release"
+
+    @patch("app.core.system.resolve_binary", return_value="/usr/local/bin/brush")
+    @patch("app.core.system.resolve_project_root")
+    def test_source_build_detected_by_probing_the_binary(self, mock_root, _mock_bin, tmp_path):
+        """Without a version file, the binary is asked instead of guessed.
+
+        Guessing 'release' here handed a source build `--total-steps`, which it
+        rejects, so the training died immediately (audit I15).
+        """
+        mock_root.return_value = tmp_path
+
+        import app.core.system as system
+        system._BRUSH_PROBED_MODE = None
+        completed = subprocess.CompletedProcess([], 0, stdout="--total-train-iters <N>", stderr="")
+        with patch("subprocess.run", return_value=completed):
+            assert system.get_brush_build_mode() == "source"
+
+    @patch("app.core.system.resolve_binary", return_value="/usr/local/bin/brush")
+    @patch("app.core.system.resolve_project_root")
+    def test_probe_result_is_cached(self, mock_root, _mock_bin, tmp_path):
+        """The probe spawns a process, so it must run once per session."""
+        mock_root.return_value = tmp_path
+
+        import app.core.system as system
+        system._BRUSH_PROBED_MODE = None
+        completed = subprocess.CompletedProcess([], 0, stdout="--total-steps <N>", stderr="")
+        with patch("subprocess.run", return_value=completed) as mock_run:
+            system.get_brush_build_mode()
+            system.get_brush_build_mode()
+        assert mock_run.call_count == 1
+
+    @patch("app.core.system.resolve_project_root")
+    def test_version_file_wins_over_probing(self, mock_root, tmp_path):
+        """Evidence written at install time is preferred; no process is spawned."""
+        engines_dir = tmp_path / "engines"
+        engines_dir.mkdir(parents=True)
+        (engines_dir / "brush.version").write_text("abc12345-source")
+        mock_root.return_value = tmp_path
+
+        import app.core.system as system
+        system._BRUSH_PROBED_MODE = None
+        with patch("subprocess.run") as mock_run:
+            assert system.get_brush_build_mode() == "source"
+        mock_run.assert_not_called()
 
     @patch("app.core.system.resolve_project_root")
     def test_empty_version_file(self, mock_root, tmp_path):
@@ -423,3 +469,57 @@ class TestFourDGSEngineDep:
             assert dep.is_enabled_in_config({}) is False
             assert dep.is_enabled_in_config({"four_dgs_enabled": True}) is True
             assert dep.is_enabled_in_config({"four_dgs_params": {"enabled": True}}) is True
+
+
+# ---------------------------------------------------------------------------
+# Third-party repo pinning (audit I16)
+# ---------------------------------------------------------------------------
+
+class TestRepoPinning:
+    """Every repo we clone, compile and then execute must name a version.
+
+    Unpinned, `update_git()` reset to the default branch, so the code running on
+    the user's machine was whatever upstream had pushed that day.
+    """
+
+    def test_every_git_backed_dependency_is_pinned(self):
+        from app.scripts.installers.extractor_360 import Extractor360EngineDep
+        from app.scripts.installers.four_dgs import FourDGSEngineDep
+        from app.scripts.installers.sharp import SharpEngineDep
+
+        for cls in (SharpEngineDep, FourDGSEngineDep, Extractor360EngineDep):
+            dep = cls()
+            assert dep.pinned_ref, f"{cls.__name__} tracks an unpinned branch"
+
+    def test_update_git_checks_out_the_pin(self, tmp_path):
+        from app.scripts.installers.base import EngineDependency
+
+        dep = EngineDependency("demo", "https://example.invalid/repo.git", pinned_ref="v1.2.3")
+        dep.engines_dir = tmp_path
+        dep.target_dir = tmp_path / "demo"
+        dep.target_dir.mkdir(parents=True)
+
+        with patch("subprocess.check_call") as mock_call:
+            dep.update_git()
+
+        commands = [c.args[0] for c in mock_call.call_args_list]
+        assert any("fetch" in cmd for cmd in commands)
+        checkout = [cmd for cmd in commands if "checkout" in cmd]
+        assert checkout and checkout[0][-1] == "v1.2.3"
+        # A pinned dependency must never fall back to pulling the branch tip.
+        assert not any("pull" in cmd for cmd in commands)
+
+    def test_unpinned_dependency_still_pulls(self, tmp_path):
+        """Backwards compatible: a dependency without a pin keeps the old path."""
+        from app.scripts.installers.base import EngineDependency
+
+        dep = EngineDependency("demo", "https://example.invalid/repo.git")
+        dep.engines_dir = tmp_path
+        dep.target_dir = tmp_path / "demo"
+        dep.target_dir.mkdir(parents=True)
+
+        with patch("subprocess.check_call") as mock_call:
+            dep.update_git()
+
+        commands = [c.args[0] for c in mock_call.call_args_list]
+        assert any("pull" in cmd for cmd in commands)

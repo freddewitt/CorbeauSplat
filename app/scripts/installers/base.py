@@ -19,10 +19,15 @@ class EngineDependency:
         """Called at startup when the engine is installed and up to date."""
         pass
 
-    def __init__(self, name, repo_url=None, bin_name=None):
+    def __init__(self, name, repo_url=None, bin_name=None, pinned_ref=None):
         self.name = name
         self.repo_url = repo_url
         self.bin_name = bin_name
+        # Tag or commit SHA this dependency is built from. None means "track the
+        # default branch", which for a repo we compile and then execute means
+        # running whatever upstream pushed since. Subclasses that build code
+        # should always set it.
+        self.pinned_ref = pinned_ref
         self.root = self.resolve_project_root()
         self.engines_dir = self.root / "engines"
         self.version_file = self.engines_dir / f"{name}.version"
@@ -59,16 +64,33 @@ class EngineDependency:
             return ""
 
     def update_git(self):
-        """Clones or pulls the repository"""
+        """Clone or update the repository, checking out `pinned_ref` when set.
+
+        Without a pin this did `clone` then `pull` on the default branch, so the
+        code that gets compiled and executed on the user's machine was whatever
+        upstream had pushed that day. A moved tag is still trusted, but the
+        version is at least declared, reviewable and reproducible.
+        """
         if not self.repo_url:
             return
         self.engines_dir.mkdir(parents=True, exist_ok=True)
+
         if not self.target_dir.exists():
             print(f"Cloning {self.name}...")
             subprocess.check_call(["git", "clone", self.repo_url, str(self.target_dir)])
         else:
             print(f"Updating {self.name}...")
-            subprocess.check_call(["git", "-C", str(self.target_dir), "pull"])
+            subprocess.check_call(["git", "-C", str(self.target_dir), "fetch", "--tags", "--force"])
+
+        if not self.pinned_ref:
+            if self.target_dir.exists():
+                subprocess.check_call(["git", "-C", str(self.target_dir), "pull"])
+            return
+
+        print(f"Checking out {self.name} at {self.pinned_ref}...")
+        subprocess.check_call(
+            ["git", "-C", str(self.target_dir), "checkout", "--force", self.pinned_ref]
+        )
 
     def install(self):
         """Must be overridden"""
@@ -87,8 +109,8 @@ class EngineDependency:
 
 class PipEngine(EngineDependency):
     """Engine installed via pip in a dedicated venv"""
-    def __init__(self, name, repo_url, venv_name):
-        super().__init__(name, repo_url)
+    def __init__(self, name, repo_url, venv_name, pinned_ref=None):
+        super().__init__(name, repo_url, pinned_ref=pinned_ref)
         self.venv_dir = self.root / venv_name
         self.python_bin = self.venv_dir / ("Scripts" if sys.platform == "win32" else "bin") / ("python.exe" if sys.platform == "win32" else "python")
         self.bin_path = self.python_bin # For pip engines, the python bin is the marker

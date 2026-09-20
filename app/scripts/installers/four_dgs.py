@@ -3,13 +3,14 @@
 from app.scripts.installers.base import PipEngine
 
 NERFSTUDIO_REPO = "https://github.com/nerfstudio-project/nerfstudio.git"
+NERFSTUDIO_PINNED_TAG = "v1.1.5"
 
 
 class FourDGSEngineDep(PipEngine):
     ask_before_update = True
 
     def __init__(self):
-        super().__init__("four_dgs", NERFSTUDIO_REPO, ".venv_4dgs")
+        super().__init__("four_dgs", NERFSTUDIO_REPO, ".venv_4dgs", pinned_ref=NERFSTUDIO_PINNED_TAG)
 
     def is_enabled_in_config(self, config: dict) -> bool:
         return config.get("four_dgs_params", {}).get("enabled", False) or config.get("four_dgs_enabled", False)

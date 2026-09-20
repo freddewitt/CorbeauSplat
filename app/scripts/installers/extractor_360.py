@@ -3,13 +3,14 @@
 from app.scripts.installers.base import PipEngine
 
 EXTRACTOR_360_REPO = "https://github.com/nicolasdiolez/360Extractor"
+EXTRACTOR_360_PINNED_TAG = "v4.0.1"
 
 
 class Extractor360EngineDep(PipEngine):
     ask_before_update = True
 
     def __init__(self):
-        super().__init__("extractor_360", EXTRACTOR_360_REPO, ".venv_360")
+        super().__init__("extractor_360", EXTRACTOR_360_REPO, ".venv_360", pinned_ref=EXTRACTOR_360_PINNED_TAG)
         self.script_path = self.target_dir / "src" / "main.py"
 
     def is_enabled_in_config(self, config: dict) -> bool:
