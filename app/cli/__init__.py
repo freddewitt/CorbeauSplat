@@ -47,6 +47,12 @@ def main():
         _launch_gui()
         return
 
+    # --gui combined with a subcommand used to launch the GUI and silently
+    # drop the subcommand and all its arguments (audit L4-09) — fail loudly
+    # instead of pretending the command ran.
+    if args.gui and args.command:
+        parser.error(f"--gui ne peut pas être combiné avec la sous-commande '{args.command}'")
+
     if args.gui:
         _launch_gui()
         return

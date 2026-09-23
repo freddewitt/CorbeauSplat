@@ -168,7 +168,9 @@ class SharpEngine(BaseEngine):
         ffmpeg_cmd.extend([
             "-y", "-i", str(vp),
             "-vf", f"select=not(mod(n\\,{skip}))",
-            "-vsync", "vfr", "-q:v", "1",
+            # ``-fps_mode`` replaced ``-vsync`` in FFmpeg 5.1; FFmpeg 9 removed
+            # the old flag entirely ("Unrecognized option 'vsync'").
+            "-fps_mode", "vfr", "-q:v", "1",
             str(frames_dir / "frame_%04d.png"),
         ])
 

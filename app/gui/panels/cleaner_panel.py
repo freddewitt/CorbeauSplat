@@ -11,8 +11,11 @@ orchestrated dispatch or the local button (engine wiring, Apple Silicon
 phase).
 """
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
@@ -61,6 +64,7 @@ class CleanerPanel:
         self.combo_mode = QComboBox()
         self.combo_mode.addItem("", "single")
         self.combo_mode.addItem("", "batch")
+        self.combo_mode.currentIndexChanged.connect(self._validate_input_mode)
         mode_row.addWidget(self.lbl_mode)
         mode_row.addWidget(self.combo_mode)
         mode_row.addStretch(1)
@@ -70,11 +74,15 @@ class CleanerPanel:
         layout.addWidget(self.lbl_input)
         in_row = QHBoxLayout()
         self.input_path = DropLineEdit()
+        self.input_path.textChanged.connect(self._validate_input_mode)
         in_row.addWidget(self.input_path)
         self.btn_browse_input = QPushButton("📁")
         self.btn_browse_input.clicked.connect(self._browse_input)
         in_row.addWidget(self.btn_browse_input)
         layout.addLayout(in_row)
+
+        self.chk_recursive = QCheckBox()
+        layout.addWidget(self.chk_recursive)
 
         self.lbl_output = QLabel()
         layout.addWidget(self.lbl_output)
@@ -143,7 +151,12 @@ class CleanerPanel:
         return self.combo_mode.currentData() == "batch"
 
     def get_params(self):
-        """Return the resolved cleaning parameters (preset or overrides)."""
+        """Return the resolved cleaning parameters (preset or overrides).
+
+        ``recursive`` is not a ``compute_clean_mask`` keyword: it is folded in
+        here for StudioWindow to pop out before forwarding the rest as
+        ``CleanerWorker``'s ``overrides`` (audit L2-04).
+        """
         strength = self.combo_strength.currentData()
         if self.advanced_group.isChecked():
             overrides = {
@@ -151,8 +164,11 @@ class CleanerPanel:
                 "scale_pct": self.spin_scale.value(),
                 "outlier_pct": self.spin_outlier.value(),
             }
-            return resolve_params(strength, overrides)
-        return resolve_params(strength)
+            params = resolve_params(strength, overrides)
+        else:
+            params = resolve_params(strength)
+        params["recursive"] = self.chk_recursive.isChecked()
+        return params
 
     def get_state(self):
         return {
@@ -162,6 +178,7 @@ class CleanerPanel:
             "opacity_min": self.spin_opacity.value(),
             "scale_pct": self.spin_scale.value(),
             "outlier_pct": self.spin_outlier.value(),
+            "recursive": self.chk_recursive.isChecked(),
         }
 
     def set_state(self, state):
@@ -182,6 +199,7 @@ class CleanerPanel:
             self.spin_scale.setValue(state["scale_pct"])
         if "outlier_pct" in state:
             self.spin_outlier.setValue(state["outlier_pct"])
+        self.chk_recursive.setChecked(bool(state.get("recursive", False)))
 
     def _browse_input(self):
         if self.is_batch():
@@ -190,6 +208,30 @@ class CleanerPanel:
             path, _ = get_open_file_name(self.center, tr("btn_browse", "Parcourir"), "", "PLY (*.ply)")
         if path:
             self.input_path.setText(path)
+
+    def _validate_input_mode(self, *_):
+        """Flag a path/mode mismatch (audit L2-03).
+
+        ``combo_mode`` already drives the "Parcourir" dialog (file vs
+        folder); this covers the paths that bypass it (typed in, or
+        drag-and-dropped via ``DropLineEdit``), so a batch mode pointed at a
+        single file (or vice-versa) is visible before launch instead of
+        failing downstream in ``CleanerWorker``.
+        """
+        path = self.input_path.text().strip()
+        mismatch = False
+        if path:
+            p = Path(path)
+            if p.exists():
+                mismatch = (self.is_batch() and p.is_file()) or (not self.is_batch() and p.is_dir())
+        if mismatch:
+            self.input_path.setToolTip(tr(
+                "cleaner_mode_mismatch",
+                "Le chemin ne correspond pas au mode sélectionné (fichier/dossier)."))
+            self.input_path.setStyleSheet("border: 1px solid #e0af68;")
+        else:
+            self.input_path.setToolTip("")
+            self.input_path.setStyleSheet("")
 
     def _browse_output(self):
         path = get_existing_directory(self.center, tr("btn_browse", "Parcourir"))
@@ -201,6 +243,7 @@ class CleanerPanel:
         self.combo_mode.setItemText(0, tr("cleaner_mode_single", "Fichier unique"))
         self.combo_mode.setItemText(1, tr("cleaner_mode_batch", "Dossier (batch)"))
         self.lbl_input.setText(tr("cleaner_input", "Fichier / dossier PLY"))
+        self.chk_recursive.setText(tr("cleaner_recursive", "Récursif (sous-dossiers inclus)"))
         self.lbl_output.setText(tr("cleaner_output", "Sortie nettoyée"))
         self.lbl_strength.setText(tr("cleaner_strength", "Intensité"))
         self.advanced_group.setTitle(tr("cleaner_advanced", "Réglages avancés"))

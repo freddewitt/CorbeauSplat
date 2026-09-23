@@ -41,6 +41,19 @@ def keeps_only_latest_checkpoint(source_state) -> bool:
     return bool((source_state.get("checkpoint_dest") or "").strip())
 
 
+def is_chain_owned(current_value, last_prefilled) -> bool:
+    """True when a panel field may be overwritten by the chain's pre-fill.
+
+    The chain pre-fills the Nettoyage/Export output fields from the previous
+    step, but a value typed by the user must survive. A field is still the
+    chain's own when it is empty or holds exactly what the chain wrote last
+    time; otherwise the user changed it. Without this, the second project run
+    in one session kept the first project's paths and overwrote its files.
+    """
+    current = (current_value or "").strip()
+    return not current or current == (last_prefilled or "")
+
+
 def resolve_export_dir(source_state, ply_path, current_output) -> str | None:
     """Output folder of the Export step, or None to change nothing.
 

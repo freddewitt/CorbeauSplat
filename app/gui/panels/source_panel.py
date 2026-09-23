@@ -293,6 +293,12 @@ class SourcePanel:
         blur_row.addWidget(self.lbl_blur)
         blur_row.addWidget(self.combo_blur)
         ag.addLayout(blur_row)
+        # D11: the strength only matters while the blur filter is on; the engine
+        # ignores it otherwise, so the combo must not look adjustable.
+        self.chk_filter_blur.toggled.connect(self.combo_blur.setEnabled)
+        self.chk_filter_blur.toggled.connect(self.lbl_blur.setEnabled)
+        self.combo_blur.setEnabled(self.chk_filter_blur.isChecked())
+        self.lbl_blur.setEnabled(self.chk_filter_blur.isChecked())
 
         convert_row = QHBoxLayout()
         self.lbl_convert = QLabel()

@@ -100,23 +100,6 @@ class ReconstructionPanel:
         self.lbl_resume_status.setWordWrap(True)
         layout.addWidget(self.lbl_resume_status)
 
-        # Project name / output folder (if not already known from context)
-        self.lbl_project = QLabel()
-        self.input_project_name = QLineEdit()
-        self.input_project_name.setPlaceholderText("MonProjet")
-        layout.addWidget(self.lbl_project)
-        layout.addWidget(self.input_project_name)
-
-        self.lbl_output = QLabel()
-        out_row = QHBoxLayout()
-        self.output_path = QLineEdit()
-        out_row.addWidget(self.output_path)
-        self.btn_browse_output = QPushButton("📁")
-        self.btn_browse_output.clicked.connect(self._browse_output)
-        out_row.addWidget(self.btn_browse_output)
-        layout.addWidget(self.lbl_output)
-        layout.addLayout(out_row)
-
         # Chaining (same flags as Source, single source of truth)
         self.chk_entrainement = QCheckBox()
         self._bind(self.chk_entrainement, "entrainement_apres")
@@ -272,6 +255,11 @@ class ReconstructionPanel:
         if self.matching_algo_combo.currentText() not in compatible:
             self.matching_algo_combo.setCurrentText(
                 FEATURE_TO_DEFAULT_MATCHING.get(feat_type, 'SIFT_BRUTEFORCE'))
+        # colmap_commands.py only applies estimate_affine_shape/domain_size_pooling
+        # for feature_type == "SIFT"; grey them out otherwise so they don't look
+        # actionable in ALIKED mode, where they're silently ignored (audit D12).
+        self.estimate_affine_check.setEnabled(feat_type == 'SIFT')
+        self.domain_pooling_check.setEnabled(feat_type == 'SIFT')
 
     def _update_sequential_enabled(self, *_):
         self.sequential_overlap_spin.setEnabled(self.matcher_type_combo.currentText() == 'sequential')
@@ -291,11 +279,6 @@ class ReconstructionPanel:
         path = get_existing_directory(self.center, tr("recon_resume", "Reprise de COLMAP"))
         if path:
             self.resume_path.setText(path)
-
-    def _browse_output(self):
-        path = get_existing_directory(self.center, tr("btn_browse", "Parcourir"))
-        if path:
-            self.output_path.setText(path)
 
     # ── Params ────────────────────────────────────────────────────────────────────
     def get_params(self):
@@ -365,8 +348,6 @@ class ReconstructionPanel:
     def retranslate_ui(self):
         self.info_label.setText(tr("info_cpu", get_optimal_threads()))
         self.lbl_resume.setText(tr("recon_resume", "Reprise de COLMAP (dossier projet ou images)"))
-        self.lbl_project.setText(tr("label_project_name", "Nom du projet"))
-        self.lbl_output.setText(tr("source_output", "Dossier de sortie"))
         self.chk_entrainement.setText(tr("chain_train_after", "Lancer Brush"))
         self.chk_visualiser.setText(tr("chain_view_after", "Lancer dans SuperSplat"))
         self.extract_group.setTitle(tr("group_extract", "Extraction de caractéristiques"))

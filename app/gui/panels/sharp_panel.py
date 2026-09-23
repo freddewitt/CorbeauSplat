@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -36,6 +37,7 @@ class SharpPanel:
         self._bindings = []
         self.center = self._build_center()
         self.right = self._build_right()
+        self._on_mode_changed()
         add_language_observer(self.retranslate_ui)
         self.retranslate_ui()
 
@@ -49,6 +51,8 @@ class SharpPanel:
         self.radio_image = QRadioButton()
         self.radio_image.setChecked(True)
         self.radio_video = QRadioButton()
+        self.radio_image.toggled.connect(self._on_mode_changed)
+        self.radio_video.toggled.connect(self._on_mode_changed)
         mode_row.addWidget(self.radio_image)
         mode_row.addWidget(self.radio_video)
         mode_row.addStretch(1)
@@ -108,6 +112,14 @@ class SharpPanel:
         ck_row.addWidget(self.btn_browse_ckpt)
         self.lbl_ckpt = QLabel()
         form.addRow(self.lbl_ckpt, ck_row)
+        # Video only: sharp_engine.py reads params["skip_frames"] (defaults to
+        # 1, i.e. no skipping) — the only practical lever to make a long video
+        # tractable given SECONDS_PER_FRAME_ESTIMATE (audit L3-01).
+        self.spin_skip_frames = QSpinBox()
+        self.spin_skip_frames.setRange(1, 1000)
+        self.spin_skip_frames.setValue(1)
+        self.lbl_skip_frames = QLabel()
+        form.addRow(self.lbl_skip_frames, self.spin_skip_frames)
         layout.addLayout(form)
 
         self.chk_verbose = QCheckBox()
@@ -139,6 +151,14 @@ class SharpPanel:
     def is_video(self):
         return self.radio_video.isChecked()
 
+    def _on_mode_changed(self, *_):
+        # skip_frames only matters for video (SharpEngine reads it to subsample
+        # frames extracted from the clip) — grey it out for the image mode
+        # where it has no effect (audit L3-01).
+        is_video = self.is_video()
+        self.lbl_skip_frames.setEnabled(is_video)
+        self.spin_skip_frames.setEnabled(is_video)
+
     def get_params(self):
         """Return the Sharp parameters as a dict."""
         return {
@@ -151,6 +171,7 @@ class SharpPanel:
             "checkpoint": self.checkpoint_edit.text(),
             "verbose": self.chk_verbose.isChecked(),
             "upscale": self.chk_upscale_before.isChecked(),
+            "skip_frames": self.spin_skip_frames.value(),
         }
 
     def _browse_input(self):
@@ -176,6 +197,7 @@ class SharpPanel:
         self.lbl_output.setText(tr("sharp_output", "Dossier de sortie"))
         self.lbl_device.setText(tr("brush_device", "Device"))
         self.lbl_ckpt.setText(tr("sharp_checkpoint", "Checkpoint (.pt)"))
+        self.lbl_skip_frames.setText(tr("sharp_skip_frames", "Ignorer des frames (vidéo)"))
         self.chk_verbose.setText(tr("sharp_verbose", "Mode Verbose"))
         self.chk_upscale_before.setText(tr("sharp_upscale_before", "Upscaler avant traitement"))
         self.lbl_automation.setText(tr("automation_title", "Automatisation"))

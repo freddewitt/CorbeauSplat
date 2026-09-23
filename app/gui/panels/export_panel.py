@@ -136,6 +136,10 @@ class ExportPanel:
                                         "GLB nécessite trimesh/open3d (ou assimp/blender)."))
         else:
             self.lbl_warning.setText("")
+        # ExportEngine.export()'s scale is only ever read by _export_obj (audit
+        # L2-05): grey out the spinner for every other format instead of
+        # silently ignoring the user's value.
+        self.spin_scale.setEnabled(self.get_format() == "obj")
 
     def _browse_input(self):
         paths, _ = get_open_file_names(self.center, tr("btn_browse", "Parcourir"), "",

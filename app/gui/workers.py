@@ -1,6 +1,4 @@
 import contextlib
-import os
-import re
 import shutil
 import threading
 import time
@@ -10,6 +8,11 @@ from pathlib import Path
 from PySide6.QtCore import QMutex, QMutexLocker, QWaitCondition, Signal
 
 from app.core.brush_engine import BrushEngine
+from app.core.brush_refine import (
+    RefineEnvironmentError,
+    detect_refine_start_iteration,
+    prepare_refine_environment,
+)
 from app.core.engine import ColmapEngine
 from app.core.extractor_360_engine import Extractor360Engine
 from app.core.four_dgs_engine import FourDGSEngine
@@ -75,11 +78,9 @@ class Extractor360Worker(BaseWorker):
 class ColmapWorker(BaseWorker):
     """Thread worker for running COLMAP through the engine"""
 
-    def __init__(self, params, input_path, output_path, input_type, fps, project_name="Untitled", upscale_params=None, extractor_360_params=None, engine=None):
+    def __init__(self, params, input_path, output_path, input_type, fps, project_name="Untitled", upscale_params=None, engine=None):
         super().__init__()
         self.upscale_params = upscale_params
-        self.extractor_360_params = extractor_360_params
-        self.extractor_engine = None
         # DIP: Injection
         self.engine = engine or ColmapEngine(
             params, input_path, output_path, input_type, fps, project_name,
@@ -91,56 +92,12 @@ class ColmapWorker(BaseWorker):
 
 
     def stop(self):
-        if self.extractor_engine:
-            self.extractor_engine.stop()
         self.engine.stop()
         super().stop()
 
     def run(self):
         try:
-            # 1. Check 360 Extractor
-            if self.extractor_360_params and self.extractor_360_params.get("enabled", False):
-                from app.core.extractor_360_engine import Extractor360Engine
-                self.extractor_engine = Extractor360Engine()
-
-                if not self.extractor_engine.is_installed():
-                    self.log_signal.emit(tr("err_360_not_installed_colmap", "ERREUR: 360 Extractor activé mais non installé."))
-                    self.finished_signal.emit(False, tr("err_360_missing", "Dépendances 360 manquantes"))
-                    return
-
-                self.log_signal.emit(tr("status_360_pre", "--- Démarrage 360 Extractor (Pré-traitement) ---"))
-
-                # Output images to project/images
-                images_dir = self.engine.project_path / "images"
-                images_dir.mkdir(parents=True, exist_ok=True)
-
-                # Run extraction
-                success = self.extractor_engine.run_extraction(
-                    self.engine.input_path, # Video path
-                    images_dir, # Output folder
-                    self.extractor_360_params,
-                    progress_callback=self.progress_signal.emit,
-                    log_callback=self.log_signal.emit,
-                    check_cancel_callback=self.isInterruptionRequested
-                )
-
-                if not success:
-                    self.finished_signal.emit(False, tr("err_360_failed", "Echec de l'extraction 360."))
-                    return
-
-                self.log_signal.emit(tr("status_360_colmap", "Extraction 360 terminée. Passage à COLMAP..."))
-
-                self.engine = ColmapEngine(
-                    self.engine.params, images_dir, self.engine.output_path, "images",
-                    self.engine.fps, self.engine.project_name,
-                    logger_callback=self.log_signal.emit,
-                    progress_callback=self.progress_signal.emit,
-                    status_callback=self.status_signal.emit,
-                    check_cancel_callback=self.isInterruptionRequested
-                )
-
-
-            # 2. Check Upscale
+            # Check Upscale
             if self.upscale_params and self.upscale_params.get("active", False):
                 self.engine.upscale_config = self.upscale_params
                 self.log_signal.emit(tr("status_upscale_colmap", "--- Upscale activé pour COLMAP ---"))
@@ -234,78 +191,30 @@ class BrushWorker(BaseWorker):
             return None
         return resolved_input
 
-    def _find_latest_checkpoint(self, checkpoints_dir):
-        """Most recently written .ply under `checkpoints_dir`, or None."""
-        latest_ply = None
-        last_mtime = 0
-        if checkpoints_dir.exists():
-            self.log_signal.emit(f"Recherche de checkpoints dans {checkpoints_dir}...")
-            for ply_path in checkpoints_dir.rglob("*.ply"):
-                mt = ply_path.stat().st_mtime
-                if mt > last_mtime:
-                    last_mtime = mt
-                    latest_ply = ply_path
-        return latest_ply
-
     def _prepare_refine_environment(self, resolved_input):
         """Build the Refine folder and redirect training into it.
 
-        Returns the folder training should run from, or None when a step failed
-        (the failure has already been emitted). With no checkpoint to refine
-        from, returns `resolved_input` unchanged so the run continues normally.
+        Thin Qt wrapper around the pure `app.core.brush_refine` helpers, so
+        the CLI can reproduce the exact same resume semantics (audit L4-04).
+        Returns the folder training should run from, or None when a step
+        failed (the failure has already been emitted). With no checkpoint to
+        refine from, returns `resolved_input` unchanged so the run continues
+        normally.
         """
-        self.log_signal.emit("Mode Raffinement (Refine) activé...")
-        latest_ply = self._find_latest_checkpoint(resolved_input / "checkpoints")
-
-        if not latest_ply:
-            self.log_signal.emit(
-                "AVERTISSEMENT: Mode Refine activé mais aucun checkpoint (.ply) trouvé. "
-                "Lancement mode normal."
-            )
-            return resolved_input
-
-        self.log_signal.emit(f"Checkpoint trouvé: {latest_ply.name}")
-
-        refine_dir = resolved_input / "Refine"
-        self.log_signal.emit(f"Préparation du dossier de raffinement: {refine_dir}")
         try:
-            if refine_dir.exists():
-                shutil.rmtree(refine_dir)
-            refine_dir.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            self.log_signal.emit(f"ERREUR lors de la préparation du dossier Refine: {e}")
-            self.finished_signal.emit(False, f"Erreur dossier Refine: {e}")
+            result = prepare_refine_environment(resolved_input, log=self.log_signal.emit)
+        except RefineEnvironmentError as e:
+            self.finished_signal.emit(False, str(e))
             return None
 
-        dest_init = refine_dir / "init.ply"
-        try:
-            shutil.copy2(latest_ply, dest_init)
-            self.log_signal.emit(f"Copié {latest_ply.name} vers {dest_init}")
-        except Exception as e:
-            self.log_signal.emit(f"ERREUR lors de la copie de init.ply: {e}")
-            self.finished_signal.emit(False, f"Erreur copie init.ply: {e}")
-            return None
+        if isinstance(result, Path):
+            # No checkpoint found: refine mode is a no-op.
+            return result
 
-        try:
-            self.log_signal.emit("Création des liens symboliques pour sparse et images...")
-            for name in ("sparse", "images"):
-                try:
-                    os.symlink(resolved_input / name, refine_dir / name)
-                except OSError as e:
-                    self.log_signal.emit(
-                        f"Symlink {name} échoué ({e}), tentative copie (plus lent)..."
-                    )
-                    shutil.copytree(resolved_input / name, refine_dir / name)
-
-            self.log_signal.emit("Liens symboliques/copies terminés.")
-
-            self.output_path = refine_dir / "checkpoints"
-            self.output_path.mkdir(parents=True, exist_ok=True)
-            self.log_signal.emit(f"Dossier de travail redirigé vers: {refine_dir}")
-        except Exception as e:
-            self.log_signal.emit(f"Erreur fatale lors de la création de l'environnement Refine: {e}")
-            self.finished_signal.emit(False, f"Erreur env Refine: {e}")
-            return None
+        refine_dir, latest_ply = result
+        self.output_path = refine_dir / "checkpoints"
+        self.output_path.mkdir(parents=True, exist_ok=True)
+        self.log_signal.emit(f"Dossier de travail redirigé vers: {refine_dir}")
 
         self._set_refine_start_iteration(latest_ply)
         return refine_dir
@@ -314,10 +223,8 @@ class BrushWorker(BaseWorker):
         """Resume numbering from the checkpoint's own iteration when unset."""
         if self.params.get("start_iter", 0) != 0:
             return
-        detected_iter = self.params.get("total_steps", 30000)
-        match = re.search(r"iteration_(\d+)", latest_ply.name)
-        if match:
-            detected_iter = int(match.group(1))
+        total_steps = self.params.get("total_steps", 30000)
+        detected_iter = detect_refine_start_iteration(latest_ply, total_steps)
         self.params["start_iter"] = detected_iter
         self.log_signal.emit(f"Refine: Start Iteration réglé sur {detected_iter}")
 
@@ -827,13 +734,18 @@ class SplatTransformWorker(BaseWorker):
 
 
 class FourDGSWorker(BaseWorker):
-    def __init__(self, videos_dir, output_dir, fps=5, upscale_params=None, colmap_params=None, engine=None):
+    def __init__(self, videos_dir, output_dir, fps=5, upscale_params=None, colmap_params=None,
+                 video_trim=None, engine=None):
         super().__init__()
         self.videos_dir = videos_dir
         self.output_dir = output_dir
         self.fps = fps
         self.upscale_params = upscale_params
         self.colmap_params = colmap_params or {}
+        # {"start": float, "end": float} | None — same shape as the Source
+        # panel's shared trim field, consumed by ColmapEngine for the COLMAP
+        # path (L5-04: previously never reached the 4DGS extraction).
+        self.video_trim = video_trim
         # DIP: Injection
         self.engine = engine or FourDGSEngine(
             logger_callback=self.log_signal.emit,
@@ -850,6 +762,7 @@ class FourDGSWorker(BaseWorker):
             if self.videos_dir:
                 success = self.engine.process_dataset(
                     self.videos_dir, self.output_dir, self.fps, colmap_params=self.colmap_params,
+                    video_trim=self.video_trim,
                 )
             else:
                 # COLMAP ONLY MODE: the frames already exist (process_dataset, which

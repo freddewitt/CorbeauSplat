@@ -150,7 +150,11 @@ class EntrainementPanel:
         self.lbl_max_splats = QLabel()
         essential.addRow(self.lbl_max_splats, self.spin_max_splats)
         self.device_combo = QComboBox()
-        self.device_combo.addItems(["mps", "cuda", "cpu"])
+        # "auto" first and selected by default: matches the CLI default
+        # (cf. cli/parser.py --device) and lets BrushEngine pick the right
+        # device itself (get_device()) instead of forcing "mps", which would
+        # be wrong on non-Apple-Silicon machines (cf. audit D10).
+        self.device_combo.addItems(["auto", "mps", "cuda", "cpu"])
         self.lbl_device = QLabel()
         essential.addRow(self.lbl_device, self.device_combo)
         layout.addLayout(essential)
@@ -323,12 +327,18 @@ class EntrainementPanel:
         preset = merge_presets(BRUSH_PRESETS).get(name)
         if preset:
             self.set_params(BrushParams.from_dict({**self.get_params().to_dict(), **preset}))
+            # Built-in presets carry no ply_name (training params only); only
+            # apply it when a user preset actually saved one (audit D7).
+            if "ply_name" in preset:
+                self.ply_name_edit.setText(preset.get("ply_name") or "")
 
     def _save_current_as_preset(self):
         name, ok = QInputDialog.getText(self.center, tr("brush_save_preset", "Enregistrer le preset"),
                                         tr("brush_preset_name", "Nom du preset"))
         if ok and name.strip():
-            save_user_preset(name.strip(), self.get_params().to_dict())
+            data = self.get_params().to_dict()
+            data["ply_name"] = self.ply_name_edit.text().strip()
+            save_user_preset(name.strip(), data)
             self._reload_presets()
 
     # ── Handlers ────────────────────────────────────────────────────────────────
@@ -347,6 +357,16 @@ class EntrainementPanel:
 
     # ── Params ────────────────────────────────────────────────────────────────────
     def get_params(self):
+        # Densification/Checkpoints are checkable QGroupBox: Qt only greys out
+        # their children when unchecked, it does not exclude them from
+        # get_params(). Gate explicitly on isChecked() (audit D16/L3-06) so an
+        # unchecked section sends nothing (start_iter/refine_every/... are
+        # Optional and simply omitted by to_engine_params()) or, for
+        # checkpoint_interval (not Optional in BrushParams), the engine's own
+        # default (build_command falls back to 7000 when the key is absent —
+        # cf. brush_engine.py) so both paths agree.
+        densif_on = self.densif_group.isChecked()
+        ckpt_on = self.ckpt_group.isChecked()
         return BrushParams(
             total_steps=self.spin_total_steps.value(),
             sh_degree=self.sh_spin.value(),
@@ -355,13 +375,14 @@ class EntrainementPanel:
             max_resolution=self.max_resolution_spin.value() or None,
             with_viewer=self.check_viewer.isChecked(),
             custom_args=self.custom_args_edit.text(),
-            start_iter=self.spin_start_iter.value() or None,
-            refine_every=self.spin_refine.value(),
-            growth_grad_threshold=self.spin_threshold.value(),
-            growth_select_fraction=self.spin_fraction.value(),
-            growth_stop_iter=self.spin_growth_stop.value() or None,
-            checkpoint_interval=self.spin_checkpoint_interval.value(),
+            start_iter=(self.spin_start_iter.value() or None) if densif_on else None,
+            refine_every=self.spin_refine.value() if densif_on else None,
+            growth_grad_threshold=self.spin_threshold.value() if densif_on else None,
+            growth_select_fraction=self.spin_fraction.value() if densif_on else None,
+            growth_stop_iter=(self.spin_growth_stop.value() or None) if densif_on else None,
+            checkpoint_interval=self.spin_checkpoint_interval.value() if ckpt_on else 7000,
             build_mode=self.combo_build_mode.currentData(),
+            refine_mode=self.combo_mode.currentData() == "refine",
         )
 
     def set_params(self, params: BrushParams):
@@ -393,13 +414,24 @@ class EntrainementPanel:
             idx = self.combo_build_mode.findData(params.build_mode)
             if idx >= 0:
                 self.combo_build_mode.setCurrentIndex(idx)
+        # Restore the New/Refine mode (audit D17): previously never round-tripped.
+        idx = self.combo_mode.findData("refine" if params.refine_mode else "new")
+        if idx >= 0:
+            self.combo_mode.setCurrentIndex(idx)
 
     def get_state(self):
-        return self.get_params().to_dict()
+        # ply_name_edit has no matching BrushParams field (engine-agnostic,
+        # cosmetic-only): carried as an extra dict key alongside the
+        # BrushParams fields. BrushParams.from_dict() ignores unknown keys, so
+        # round-tripping through set_state() stays safe (audit D7).
+        state = self.get_params().to_dict()
+        state["ply_name"] = self.ply_name_edit.text().strip()
+        return state
 
     def set_state(self, state):
         if state:
             self.set_params(BrushParams.from_dict(state))
+            self.ply_name_edit.setText(state.get("ply_name") or "")
 
     # ── i18n ────────────────────────────────────────────────────────────────────
     def retranslate_ui(self):

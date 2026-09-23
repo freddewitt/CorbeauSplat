@@ -2,7 +2,7 @@
 
 CorbeauSplat exposes its features via the command line, making it easy to integrate into automated pipelines or run on headless machines.
 
-Without arguments, the graphical interface launches automatically (`--gui` forces it). Each subcommand has its own `--help`.
+Without arguments, the graphical interface launches automatically (`--gui` forces it). `--gui` cannot be combined with a subcommand — doing so is a parser error, not a silent no-op. Each subcommand has its own `--help`.
 
 ## Quick Usage
 
@@ -54,6 +54,7 @@ python3 main.py pipeline -i video.mp4 -o ~/projects --type video --trim_start 10
 | `--sequential_overlap` | `30` | Neighbouring images compared by the sequential matcher |
 | `--guided_matching` | — | Epipolar-guided matching (slower, more robust) |
 | `--max_image_size` | `3200` | Max image resolution for COLMAP |
+| `--estimate_affine_shape` / `--no-estimate_affine_shape` | on | Estimate affine shape of features |
 | `--robust` | — | Robust mode for large scenes (anti-crash COLMAP) |
 | `--thermal-throttling` | — | Enable thermal throttling |
 | `--view-graph-calibration` / `--no-view-graph-calibration` | on | View-graph calibration (recommended for AI-generated video) |
@@ -116,7 +117,7 @@ python3 main.py colmap -i ~/photos -o ~/projects --undistort
 | `--feature_type` | `SIFT` | `SIFT`, `ALIKED_N16ROT`, `ALIKED_N32` (ALIKED needs ONNX, bundled in the Homebrew COLMAP) |
 | `--max_image_size` | `3200` | Max image resolution |
 | `--max_num_features` | `8192` | Max features per image |
-| `--estimate_affine_shape` | — | Estimate affine shape of features |
+| `--estimate_affine_shape` / `--no-estimate_affine_shape` | on | Estimate affine shape of features |
 | `--no_domain_size_pooling` | — | Disable domain size pooling |
 | `--no_single_camera` | — | Disable single-camera mode |
 
@@ -220,7 +221,13 @@ python3 main.py sharp -i clip.mp4 -o ~/output --mode video --skip_frames 3
 | `--checkpoint`, `-c` | — | Path to a custom `.pt` checkpoint |
 | `--device` | `default` | Device: `default`, `mps`, `cpu`, `cuda` |
 | `--skip_frames` | `1` | `[video]` Process 1 frame every N |
-| `--upscale` | — | Upscale images before prediction (requires upscayl-bin) |
+| `--upscale` | — | `[image mode only]` Upscale the input before prediction (requires upscayl-bin) |
+| `--upscale_model` | *(first installed model)* | Upscayl model ID used by `--upscale` |
+| `--upscale_scale` | `4` | Upscale factor for `--upscale`: `1`, `2`, `3`, or `4` |
+| `--upscale_format` | `png` | Intermediate upscaled image format: `png`, `jpg`, `webp` |
+| `--upscale_tile` | `0` (auto) | Tile size in pixels for `--upscale` |
+| `--upscale_tta` | — | Enable Test-Time Augmentation for `--upscale` |
+| `--upscale_compression` | `0` | Compression level (0–100) for `--upscale` |
 | `--verbose` | — | Show detailed Sharp output |
 
 ---
@@ -271,7 +278,7 @@ python3 main.py upscale -i ~/images -o ~/output --scale 2 --model realesrgan-x4p
 | `--format` | `png` | Output format: `png`, `jpg`, `webp` |
 | `--tile` | `0` (auto) | Tile size in pixels (for low VRAM) |
 | `--tta` | — | Enable Test-Time Augmentation |
-| `--compression` | `0` | Output compression level (0–9) |
+| `--compression` | `0` | Output compression level (0–100) |
 
 ---
 
@@ -289,7 +296,7 @@ python3 main.py 4dgs -i ~/videos -o ~/output --colmap_only
 
 | Flag | Default | Description |
 | :--- | :--- | :--- |
-| `--input`, `-i` | *(required)* | Folder containing multi-camera `.mp4`/`.mov` videos |
+| `--input`, `-i` | *(required unless `--colmap_only`)* | Folder containing multi-camera `.mp4`/`.mov` videos — ignored with `--colmap_only` |
 | `--output`, `-o` | *(required)* | Output folder |
 | `--fps` | `5` | Frame extraction rate |
 | `--colmap_only` | — | Skip extraction, run COLMAP only on the already-extracted dataset |
@@ -369,7 +376,7 @@ python3 main.py extract360 -i 360video.mp4 -o ~/output \
 | `--input`, `-i` | *(required)* | 360° video file |
 | `--output`, `-o` | *(required)* | Output folder |
 | `--interval` | `1.0` | Seconds between extracted frames |
-| `--format` | `jpg` | Output image format |
+| `--format` | `jpg` | Output image format: `jpg`, `png`, `tiff` |
 | `--resolution` | `2048` | Output image resolution (px) |
 | `--camera_count` | `6` | Number of virtual cameras |
 | `--quality` | `95` | JPEG quality (0–100) |

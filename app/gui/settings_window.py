@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
 )
 
 from app import VERSION
+from app.core import notifications
 from app.core.i18n import add_language_observer, get_current_lang, set_language, tr
 from app.core.system import resolve_project_root
 from app.gui.styles import get_saved_theme, save_theme, set_dark_theme
@@ -159,7 +160,10 @@ class SettingsWindow(QDialog):
 
         # end-of-run notifications
         self.chk_notifications = QCheckBox(tr("settings_notifications", "Notifications de fin d'exécution"))
-        self.chk_notifications.toggled.connect(self.notificationsToggled.emit)
+        # L6-01: pre-tick from config.json *before* connecting, so restoring
+        # the saved value does not re-save it or fire the signal.
+        self.chk_notifications.setChecked(notifications.get_saved_enabled())
+        self.chk_notifications.toggled.connect(self._on_notifications)
         form.addRow(self.chk_notifications)
 
         layout.addLayout(form)
@@ -205,6 +209,11 @@ class SettingsWindow(QDialog):
         code = self.combo_lang.itemData(index)
         if code and code != get_current_lang():
             set_language(code)
+
+    def _on_notifications(self, checked):
+        """Persist the toggle (L6-01) then tell the main window."""
+        notifications.save_enabled(checked)
+        self.notificationsToggled.emit(bool(checked))
 
     def _open_changelog(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(resolve_project_root() / "CHANGELOG.md")))

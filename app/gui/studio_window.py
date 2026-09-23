@@ -47,6 +47,7 @@ from app.core.run_state import PIPELINE_STEPS, RunState, StepStatus
 from app.gui.activity_bar import ActivityBar
 from app.gui.appbar import AppBar
 from app.gui.chaining_logic import (
+    is_chain_owned,
     keeps_only_latest_checkpoint,
     resolve_checkpoints_dir,
     resolve_export_dir,
@@ -60,7 +61,10 @@ from app.gui.panels.export_panel import ExportPanel
 from app.gui.panels.extractor360_panel import Extractor360Panel
 from app.gui.panels.four_dgs_panel import FourDGSPanel
 from app.gui.panels.reconstruction_logic import (
+    RESUME_COLMAP_PROJECT,
+    RESUME_EXTERNAL_IMAGES,
     apply_source_settings,
+    classify_resume_folder,
     describe_unusable_source,
     detect_source_kind,
 )
@@ -95,6 +99,13 @@ _PAGE_KEYS = tuple(PIPELINE_STEPS) + tuple(TOOL_KEYS)
 class StudioWindow(QMainWindow):
     """Four-zone shell. Rail selection → swaps the centre + right page."""
 
+    # Class-level defaults of the OUTILS post-step state (L3-05/L5-08), so
+    # the chain helpers behave when nothing set them (no tool launched yet).
+    _tool_post_steps = ()
+    _tool_ply_root = None
+    _tool_producer_label = None
+    _retired_worker = None
+
     def __init__(self):
         super().__init__()
         self.run_state = RunState()
@@ -110,9 +121,24 @@ class StudioWindow(QMainWindow):
         # of a previous run.
         self._pipeline_images_dir = None
         self._pending_upscale_params = None
-        self._notifications_enabled = False
+        # Output fields the chain filled in itself (Nettoyage, Export), so a
+        # later run may replace them while a value typed by the user is kept.
+        self._chain_prefilled = {}
+        # L6-01: the toggle lives in config.json; it used to reset to off on
+        # every launch while the Settings checkbox never showed it either.
+        self._notifications_enabled = notifications.get_saved_enabled()
         self._settings_window = None
         self._active_worker = None
+        # Worker whose finished signal was just handled: kept referenced
+        # until the next one finishes, so its QThread is never garbage
+        # collected while the OS thread is still unwinding (SIGABRT).
+        self._retired_worker = None
+        # L3-05/L5-08: post-steps (Nettoyage/Export/Visualiser…) requested by
+        # the OUTILS "Lancer" button that started the active tool worker, and
+        # where that tool wrote its PLY (None → the chain's usual lookup).
+        self._tool_post_steps = []
+        self._tool_ply_root = None
+        self._tool_producer_label = None
         self.init_ui()
         set_dark_theme(QApplication.instance())
         add_language_observer(self.retranslate_ui)
@@ -220,6 +246,10 @@ class StudioWindow(QMainWindow):
         self.panels["source"].btn_settings_save.clicked.connect(self.save_config_dialog)
         self.panels["source"].btn_settings_delete.clicked.connect(self.delete_config_dialog)
         self.panels["source"].btn_settings_reset.clicked.connect(self._on_reset_clicked)
+        # D4/L5-09: ReconstructionPanel (and the post-step checkboxes that
+        # have no effect in some modes) react to the pipeline mode selector.
+        self.panels["source"].combo_mode.currentIndexChanged.connect(self._on_source_mode_changed)
+        self._on_source_mode_changed()
         # Stop button under every panel's Run button. A single worker runs at a
         # time (``_active_worker``), so they all interrupt the same thing —
         # whichever page the user happens to be on.
@@ -266,12 +296,26 @@ class StudioWindow(QMainWindow):
         """Trigger a save (1.5s debounce, cf. SessionManager) on the fields
         identifying the project — a safety net on crash/kill, on top of the
         immediate save on close (cf. closeEvent).
+
+        L5-05: the chaining flags (``run_state``) used to be saved only on
+        close, never on this crash-safety path — a kill between two toggles
+        and the next text edit silently lost them. ``RunState._notify`` fires
+        for flags, ``project_name`` (already covered above) and every rail
+        step status alike, so ``_on_run_state_changed_for_autosave`` filters
+        down to actual flags.
         """
         source = self.panels.get("source")
         if source is None:
             return
         for field in (source.input_project_name, source.input_path, source.output_path):
             field.textChanged.connect(lambda _text=None: self.session_manager.save())
+        self.run_state.add_observer(self._on_run_state_changed_for_autosave)
+
+    def _on_run_state_changed_for_autosave(self, key):
+        """Debounced autosave on an actual chaining-flag change (L5-05) — see
+        ``_wire_session_autosave`` for why the filter is needed."""
+        if key in self.run_state.to_dict():
+            self.session_manager.save()
 
     def _build_bottom_bar(self):
         """Always-visible bottom bar: lifecycle actions (Restart/Quit), moved
@@ -368,8 +412,63 @@ class StudioWindow(QMainWindow):
             if button is not None:
                 button.setEnabled(bool(enabled))
 
+    def _set_tool_launch_buttons_enabled(self, enabled: bool):
+        """Grey out every panel's local "Lancer" button while a worker is
+        active (L3-12), Source's own Launch/Cancel excluded (toggled
+        separately by ``set_running``). A click on an OUTILS Lancer button
+        while a worker already ran was silently absorbed by
+        ``_start_tool_worker``'s guard, with no visual sign it did nothing.
+        """
+        for key, panel in self.panels.items():
+            if key == "source":
+                continue
+            button = getattr(panel, "btn_run", None)
+            if button is not None:
+                button.setEnabled(bool(enabled))
+
     def current_page_key(self):
         return self.nav.current
+
+    def _on_source_mode_changed(self, _index=None):
+        """React to SourcePanel's pipeline mode selector (D4/L5-09).
+
+        ``combo_mode`` used to drive nothing outside ``launch()``:
+        ReconstructionPanel (COLMAP settings, Resume) stayed active and
+        editable in Sharp/4DGS, where it is entirely ignored
+        (``_build_reconstruction_worker`` never reads it there) — greyed out
+        here instead, with an explanatory tooltip (D4).
+
+        The post-step checkboxes are greyed the same way when their flag has
+        no effect for the current mode, per ``plan_pipeline``: Entraînement
+        only runs for "gsplat"; Nettoyage/Export/Visualiser run for "gsplat"
+        and "sharp" but never for "4dgs" (the plan is truncated right after
+        Reconstruction there, cf. L5-09).
+        """
+        mode = self.panels["source"].current_mode()
+        recon_panel = self.panels["reconstruction"]
+        is_gsplat = mode == "gsplat"
+        recon_panel.center.setEnabled(is_gsplat)
+        recon_tooltip = (
+            "" if is_gsplat else
+            "Réglages ignorés hors mode Gsplat — la Reconstruction utilise "
+            "Sharp ou la préparation de dataset 4DGS à la place de COLMAP."
+        )
+        recon_panel.center.setToolTip(recon_tooltip)
+
+        source = self.panels["source"]
+        is_4dgs = mode == "4dgs"
+        no_effect_tooltip = (
+            "Sans effet en mode 4DGS : la chaîne s'arrête après la "
+            "Reconstruction (pas d'entraîneur Apple Silicon)."
+        )
+        source.chk_entrainement.setEnabled(is_gsplat)
+        source.chk_entrainement.setToolTip(
+            "" if is_gsplat else
+            "Sans effet hors mode Gsplat : seul ce mode entraîne avec Brush."
+        )
+        for checkbox in (source.chk_nettoyer, source.chk_exporter, source.chk_visualiser):
+            checkbox.setEnabled(not is_4dgs)
+            checkbox.setToolTip("" if not is_4dgs else no_effect_tooltip)
 
     # ── Launch (orchestrated dispatch) ──────────────────────────────────────────
     def launch(self):
@@ -386,6 +485,8 @@ class StudioWindow(QMainWindow):
         self.current_pipeline_mode = mode
         self._pipeline_images_dir = None
         self._pending_upscale_params = None
+        self._tool_ply_root = None
+        self._tool_producer_label = None
         self.run_state.reset_status()
         self.update_breadcrumb(plan)
         self.logs_window.append_log(tr("run_plan", "Plan : ") + " → ".join(plan))
@@ -461,7 +562,7 @@ class StudioWindow(QMainWindow):
             if worker is not None:
                 self._start_pipeline_worker("nettoyage", worker)
             else:
-                self._fail_pipeline_step("nettoyage", tr("err_no_paths", "Chemins manquants."))
+                self._fail_pipeline_step("nettoyage", self._missing_producer_message())
             return
 
         if step == "export":
@@ -470,7 +571,7 @@ class StudioWindow(QMainWindow):
             if worker is not None:
                 self._start_pipeline_worker("export", worker)
             else:
-                self._fail_pipeline_step("export", tr("err_no_paths", "Chemins manquants."))
+                self._fail_pipeline_step("export", self._missing_producer_message())
             return
 
         if step == "visualiser":
@@ -494,6 +595,20 @@ class StudioWindow(QMainWindow):
         """
         forced_type = (source_state.get("source_type") or "auto").strip()
         if forced_type in ("images", "video"):
+            # L5-03: the forced choice was never checked against the actual
+            # folder content — forcing "images" on a video-only source (or
+            # the reverse) silently fed the wrong kind of file into the next
+            # step. A "mixed" folder is exactly what the override exists
+            # for, so it is still accepted either way.
+            actual_kind = detect_source_kind(input_path)
+            if actual_kind not in (forced_type, "mixed"):
+                self._fail_pipeline_step(
+                    step,
+                    f"Type de source forcé sur « {forced_type} » mais le contenu "
+                    f"détecté est « {actual_kind} » — vérifiez le champ Source ou "
+                    "le sélecteur de type.",
+                )
+                return None
             return forced_type
         input_type = detect_source_kind(input_path)
         if input_type == "mixed":
@@ -623,24 +738,53 @@ class StudioWindow(QMainWindow):
         Sharp's own settings (device, checkpoint, verbose) still come from the
         OUTILS Sharp panel; only the paths are taken from Source, so that the
         chained run and the standalone button stay consistent. Video inputs are
-        rejected here: the pipeline's Source step feeds image folders, and
-        Sharp's video mode has its own worker in the OUTILS panel."""
+        rejected here (L3-03): the pipeline's Source step feeds image folders,
+        and Sharp's video mode has its own worker in the OUTILS panel — this
+        docstring used to claim the rejection without the code doing it.
+
+        Output nested under ``<output>/<project>`` (L5-01), same as gsplat
+        (``_build_colmap_worker``) and 4DGS (``_build_fourdgs_pipeline_worker``):
+        before this, every Sharp pipeline run of every project landed straight
+        in the shared output folder, overwriting the previous one.
+        """
         source_state = self.panels["source"].get_state()
         input_path = self._pipeline_images_dir or source_state["input_path"].strip()
         output_path = source_state["output_path"].strip()
         if not input_path or not output_path:
             self._fail_pipeline_step("reconstruction", tr("err_no_paths", "Chemins manquants."))
             return None
+        if not self._pipeline_images_dir:
+            input_type = self._resolve_source_type("reconstruction", input_path, source_state)
+            if input_type is None:
+                return None
+            if input_type == "video":
+                self._fail_pipeline_step(
+                    "reconstruction",
+                    "Le mode Sharp de la chaîne attend un dossier d'images — "
+                    "utilisez le module Sharp (OUTILS) pour traiter une vidéo "
+                    "directement.",
+                )
+                return None
+        project_name = source_state["project_name"].strip() or "Untitled"
+        project_output = str(Path(output_path) / project_name)
         params = self.panels["sharp"].get_params()
-        params.update({"mode": "image", "input_path": input_path, "output_path": output_path})
-        return SharpWorker(input_path, output_path, params)
+        params.update({"mode": "image", "input_path": input_path, "output_path": project_output})
+        return SharpWorker(input_path, project_output, params)
 
     def _build_fourdgs_pipeline_worker(self):
         """``FourDGSWorker`` for the 4DGS mode, fed by the Source paths.
 
         Source points at the multi-camera video folder; the 4DGS panel keeps
-        supplying FPS and the COLMAP settings. Upscale is already handled by the
-        pipeline's own Upscale step, hence no ``upscale_params`` here."""
+        supplying FPS and the COLMAP settings.
+
+        ``upscale_params`` (L3-04) and ``video_trim`` (L5-04) are forwarded
+        just like ``_build_colmap_worker`` does: when the source is a video,
+        the pipeline's own Upscale step (``_build_upscale_worker``) cannot
+        enlarge frames that do not exist yet and defers to
+        ``_pending_upscale_params`` instead — before this fix, 4DGS silently
+        dropped that deferred upscale and the Source panel's video trim
+        alike, unlike the gsplat path.
+        """
         source_state = self.panels["source"].get_state()
         videos_dir = source_state["input_path"].strip()
         output_path = source_state["output_path"].strip()
@@ -658,7 +802,48 @@ class StudioWindow(QMainWindow):
             videos_dir, str(Path(output_path) / project_name),
             source_state["fps"] or panel_params["fps"],
             colmap_params=colmap_params,
+            upscale_params=self._pending_upscale_params,
+            video_trim=source_state.get("video_trim"),
         )
+
+    def _resolve_colmap_resume(self, output_path, project_name):
+        """Classify ReconstructionPanel's "Resume COLMAP" field (D1 — it was
+        read nowhere in this module, so the feature announced in the panel
+        had no effect regardless of what was typed there).
+
+        - empty field: no resume requested, returns ``None``;
+        - existing CorbeauSplat project (``images/``, ``database.db`` or
+          ``sparse/`` already there): the engine must work *in place* on that
+          folder with ``resume_colmap=True`` (skips re-processing the source,
+          reuses ``<project>/images``) — so ``output_path``/``project_name``
+          are overridden to be exactly the resumed folder;
+        - external image folder (images directly inside, no CorbeauSplat
+          structure): used as a plain image input for a fresh project under
+          the *current* Source output/project — same as typing it into
+          Source's Input field, no ``resume_colmap``;
+        - anything else (missing/invalid folder): fails the step and returns
+          ``False``.
+
+        Returns ``(input_path, input_type, output_path, project_name,
+        resume_colmap)`` on a resume request, ``None`` when the field is
+        empty, or ``False`` after already failing the step.
+        """
+        raw = self.panels["reconstruction"].resume_path.text().strip()
+        if not raw:
+            return None
+        kind = classify_resume_folder(raw)
+        resume_dir = Path(raw)
+        if kind == RESUME_COLMAP_PROJECT:
+            return str(resume_dir), "images", str(resume_dir.parent), resume_dir.name, True
+        if kind == RESUME_EXTERNAL_IMAGES:
+            return str(resume_dir), "images", output_path, project_name, False
+        self._fail_pipeline_step(
+            "reconstruction",
+            "Chemin de reprise COLMAP invalide — attendu un projet CorbeauSplat "
+            "existant (images/, database.db ou sparse/) ou un dossier contenant "
+            "directement des images.",
+        )
+        return False
 
     def _build_colmap_worker(self):
         """Build the ``ColmapWorker`` of the Reconstruction step from the Source
@@ -666,7 +851,9 @@ class StudioWindow(QMainWindow):
         (ReconstructionPanel.get_params → ColmapParams).
 
         If the Upscale step ran just before, the input becomes the enlarged
-        image folder it produced (cf. ``_build_upscale_worker``).
+        image folder it produced (cf. ``_build_upscale_worker``). A "Resume
+        COLMAP" folder (D1), when filled in, overrides the source/output
+        entirely — cf. ``_resolve_colmap_resume``.
         """
         source_state = self.panels["source"].get_state()
         input_path = source_state["input_path"].strip()
@@ -678,17 +865,26 @@ class StudioWindow(QMainWindow):
         params = apply_source_settings(
             self.panels["reconstruction"].get_params(), source_state
         )
-        if self._pipeline_images_dir:
+        resume = self._resolve_colmap_resume(output_path, project_name)
+        if resume is False:
+            return None
+        resume_colmap = False
+        if resume is not None:
+            input_path, input_type, output_path, project_name, resume_colmap = resume
+        elif self._pipeline_images_dir:
             input_path, input_type = self._pipeline_images_dir, "images"
         else:
             input_type = self._resolve_source_type("reconstruction", input_path, source_state)
             if input_type is None:
                 return None
-        return ColmapWorker(
+        worker = ColmapWorker(
             params, input_path, output_path, input_type, source_state["fps"],
             project_name=project_name,
             upscale_params=self._pending_upscale_params,
         )
+        if resume_colmap:
+            worker.engine.resume_colmap = True
+        return worker
 
     def _build_brush_worker(self):
         """Build the ``BrushWorker`` of the Entraînement step: dataset = the
@@ -760,29 +956,88 @@ class StudioWindow(QMainWindow):
             return None
         return self._find_latest_ply(checkpoints_dir)
 
+    def _latest_sharp_ply(self):
+        """PLY produced by the last Sharp reconstruction step (L5-02): Sharp
+        is not a trainer, it writes its splat directly under
+        ``<output>/<project>`` (cf. ``_build_sharp_pipeline_worker``, L5-01),
+        with no separate "checkpoints" folder like Brush.
+        """
+        source_state = self.panels["source"].get_state()
+        output_path = source_state["output_path"].strip()
+        if not output_path:
+            return None
+        project_name = source_state["project_name"].strip() or "Untitled"
+        return self._find_latest_ply(Path(output_path) / project_name)
+
+    def _latest_reconstruction_ply(self):
+        """PLY produced by whichever reconstruction step actually ran, for
+        the current pipeline mode (L5-02): before this, Nettoyage/Export/
+        Visualiser only ever looked for Brush's output, so a plan without
+        Brush (Sharp mode, or gsplat with "Lancer Brush" unticked) always
+        found nothing and failed with a generic "Chemins manquants" that
+        named no culprit.
+
+        ``_latest_brush_ply`` is kept as its own method (not folded in here):
+        it is patched directly by tests/test_gui_config_roundtrip.py.
+
+        When an OUTILS tool started the chain (L3-05/L5-08), its own output
+        location wins over the Source-panel lookup: the tool pages have their
+        own path fields, unrelated to the Projet panel.
+        """
+        if self._tool_ply_root is not None:
+            root = Path(self._tool_ply_root)
+            if root.is_file():
+                return root if root.suffix.lower() == ".ply" else None
+            return self._find_latest_ply(root)
+        if self.current_pipeline_mode == "sharp":
+            return self._latest_sharp_ply()
+        return self._latest_brush_ply()
+
+    def _missing_producer_message(self):
+        """Clear message for a Nettoyage/Export step with no PLY to work on
+        (L5-02), naming the step that should have produced it instead of the
+        generic "Chemins manquants" — which gave no clue when Brush was
+        skipped (mode without Entraînement) or Sharp had written nothing.
+        """
+        if self._tool_producer_label:
+            producer = self._tool_producer_label
+        elif self.current_pipeline_mode == "sharp":
+            producer = "Sharp"
+        elif self.current_pipeline_mode == "gsplat" and self.run_state.entrainement_apres:
+            producer = "Entraînement (Brush)"
+        else:
+            return tr("err_no_paths", "Chemins manquants.")
+        return (
+            f"Aucun fichier .ply trouvé — l'étape « {producer} » n'a pas encore "
+            "produit de résultat (ou n'est pas dans la chaîne actuelle)."
+        )
+
     def _resolve_ply_output(self):
         """Most relevant PLY path to hand to the next step: the Nettoyage
         output when that step is on (``nettoyer_apres``), otherwise the PLY
-        produced by Entraînement.
+        produced by the reconstruction step (cf. ``_latest_reconstruction_ply``).
         """
         if self.run_state.nettoyer_apres:
             cleaned = self.panels["nettoyage"].output_path.text().strip()
             if cleaned:
                 return cleaned
-        latest_ply = self._latest_brush_ply()
+        latest_ply = self._latest_reconstruction_ply()
         return str(latest_ply) if latest_ply is not None else ""
 
     def _prefill_cleaner_from_brush(self):
-        """Pre-fill the Nettoyage panel with the PLY produced by Entraînement,
-        before the worker is built (cf. ``_build_cleaner_worker``).
+        """Pre-fill the Nettoyage panel with the PLY produced by the previous
+        reconstruction step, before the worker is built (cf.
+        ``_build_cleaner_worker``).
         """
-        latest_ply = self._latest_brush_ply()
+        latest_ply = self._latest_reconstruction_ply()
         if latest_ply is None:
             return
         panel = self.panels["nettoyage"]
         panel.input_path.setText(str(latest_ply))
-        if not panel.output_path.text().strip():
-            panel.output_path.setText(str(latest_ply.with_name(f"clean_{latest_ply.name}")))
+        if is_chain_owned(panel.output_path.text(), self._chain_prefilled.get("nettoyage")):
+            cleaned = str(latest_ply.with_name(f"clean_{latest_ply.name}"))
+            panel.output_path.setText(cleaned)
+            self._chain_prefilled["nettoyage"] = cleaned
 
     def _prefill_export_from_previous(self):
         """Pre-fill the Export panel from the previous step's output (Nettoyage
@@ -801,11 +1056,13 @@ class StudioWindow(QMainWindow):
         panel = self.panels["export"]
         panel.input_path.setText(source_path)
 
-        export_dir = resolve_export_dir(
-            source_state, source_path, panel.output_path.text()
-        )
+        current_output = panel.output_path.text()
+        if is_chain_owned(current_output, self._chain_prefilled.get("export")):
+            current_output = ""
+        export_dir = resolve_export_dir(source_state, source_path, current_output)
         if export_dir is not None:
             panel.output_path.setText(export_dir)
+            self._chain_prefilled["export"] = export_dir
 
         export_format = resolve_export_format(source_state)
         if export_format:
@@ -857,6 +1114,7 @@ class StudioWindow(QMainWindow):
         worker.finished_signal.connect(self._on_pipeline_step_finished)
         self.panels["source"].set_running(True)
         self._set_cancel_enabled(True)
+        self._set_tool_launch_buttons_enabled(False)
         self.panels["source"].progress_ring.start()
         # The log no longer opens by itself at start-up: the bar header now
         # shows the activity even when collapsed (cf.
@@ -891,6 +1149,7 @@ class StudioWindow(QMainWindow):
         step = self._active_pipeline_step
         worker = self._active_worker
         self._active_worker = None
+        self._retired_worker = worker
         self.logs_window.append_log(message)
         if success:
             self.run_state.set_status(step, StepStatus.DONE)
@@ -902,6 +1161,7 @@ class StudioWindow(QMainWindow):
         self.rail.set_step_status(step, StepStatus.ERROR)
         self.panels["source"].set_running(False)
         self._set_cancel_enabled(False)
+        self._set_tool_launch_buttons_enabled(True)
         self.activity_bar.reset_activity()
         self.panels["source"].progress_ring.stop()
         if not stopped_by_user:
@@ -917,6 +1177,7 @@ class StudioWindow(QMainWindow):
         self.logs_window.append_log(message)
         self.panels["source"].set_running(False)
         self._set_cancel_enabled(False)
+        self._set_tool_launch_buttons_enabled(True)
         self.activity_bar.reset_activity()
         self.panels["source"].progress_ring.stop()
         self._active_worker = None
@@ -946,6 +1207,7 @@ class StudioWindow(QMainWindow):
         self._active_worker = None
         self.panels["source"].set_running(False)
         self._set_cancel_enabled(False)
+        self._set_tool_launch_buttons_enabled(True)
         self.activity_bar.reset_activity()
         self.panels["source"].progress_ring.stop()
         self.logs_window.append_log(message)
@@ -973,9 +1235,31 @@ class StudioWindow(QMainWindow):
                 worker.requestInterruption()
 
     # ── Launching the OUTILS modules (local button, outside the pipeline chain) ──
-    def _start_tool_worker(self, worker, finished_signal=None):
+    def _post_steps_from_flags(self, *candidates):
+        """Ordered post-steps among ``candidates`` whose ``run_state`` flag is
+        on — the same toggles ``plan_pipeline`` reads, restricted to the
+        checkboxes the calling OUTILS page actually shows (L3-05/L5-08).
+        """
+        flags = {
+            "entrainement": self.run_state.entrainement_apres,
+            "nettoyage": self.run_state.nettoyer_apres,
+            "export": self.run_state.exporter_apres,
+            "visualiser": self.run_state.visualiser_apres,
+        }
+        return [step for step in candidates if flags.get(step, False)]
+
+    def _start_tool_worker(self, worker, finished_signal=None, post_steps=(),
+                           ply_root=None, producer_label=None):
         """Start an OUTILS worker in the background: logs relayed to the log
         bar, SourcePanel switched to Cancel, result shown at the end.
+
+        ``post_steps`` (L3-05/L5-08) are the chain steps to run once the tool
+        succeeds — the "Nettoyage/Exporter/SuperSplat après" checkboxes shown
+        on the tool's own page. They go through ``_run_pipeline_step`` like
+        the main chain, from ``_on_tool_finished``: a single slot on the
+        worker's finished signal, never a second chained ``connect`` (which
+        would let the two slots race for ``self._active_worker``).
+        ``ply_root`` tells the post-steps where the tool wrote its PLY.
 
         A second click on Launch while a worker is already running would
         overwrite ``self._active_worker`` without keeping a Python reference to
@@ -990,6 +1274,9 @@ class StudioWindow(QMainWindow):
             )
             return
         self._active_worker = worker
+        self._tool_post_steps = list(post_steps)
+        self._tool_ply_root = ply_root
+        self._tool_producer_label = producer_label
         # An OUTILS worker has no pipeline step: we name the page it was
         # started from, which is the one the user is looking at.
         self.activity_bar.set_step(item_label(self.nav.current))
@@ -998,14 +1285,24 @@ class StudioWindow(QMainWindow):
         signal.connect(self._on_tool_finished)
         self.panels["source"].set_running(True)
         self._set_cancel_enabled(True)
+        self._set_tool_launch_buttons_enabled(False)
         self.panels["source"].progress_ring.start()
         worker.start()
 
     def _on_tool_finished(self, success, message):
         worker = self._active_worker
         self._active_worker = None
+        self._retired_worker = worker
+        post_steps, self._tool_post_steps = list(self._tool_post_steps), []
+        if success and post_steps:
+            # L3-05/L5-08: hand over to the chain mechanism, which resets the
+            # Launch/Cancel state itself when it ends (or fails).
+            self.logs_window.append_log(message)
+            self._run_tool_post_steps(post_steps)
+            return
         self.panels["source"].set_running(False)
         self._set_cancel_enabled(False)
+        self._set_tool_launch_buttons_enabled(True)
         self.activity_bar.reset_activity()
         self.panels["source"].progress_ring.stop()
         self.logs_window.append_log(message)
@@ -1015,6 +1312,19 @@ class StudioWindow(QMainWindow):
         elif not stopped_by_user:
             self.notify(tr("msg_error", "Erreur"), message)
             QMessageBox.warning(self, tr("msg_error", "Erreur"), message)
+
+    def _run_tool_post_steps(self, steps):
+        """Run ``steps`` as a mini plan after a successful OUTILS launch
+        (L3-05/L5-08). Same code path as the main chain: pre-fill from the
+        tool's output (``_tool_ply_root``), rail statuses, error dialog.
+        """
+        self.current_plan = list(steps)
+        for step in self.current_plan:
+            self.run_state.set_status(step, StepStatus.IDLE)
+            self.rail.set_step_status(step, StepStatus.IDLE)
+        self.update_breadcrumb(self.current_plan)
+        self.logs_window.append_log(tr("run_plan", "Plan : ") + " → ".join(self.current_plan))
+        self._run_pipeline_step(0)
 
     def _check_paths(self, *paths) -> bool:
         if all(p and str(p).strip() for p in paths):
@@ -1034,7 +1344,12 @@ class StudioWindow(QMainWindow):
         output_path = panel.output_path.text().strip()
         if not input_path or not output_path:
             return None
-        return CleanerWorker(input_path, output_path, panel.get_params())
+        params = panel.get_params()
+        # L2-04: the "recursive" checkbox was added to the panel but never
+        # reached CleanerWorker, which defaults to a flat (non-recursive) scan.
+        return CleanerWorker(
+            input_path, output_path, params, recursive=params.get("recursive", False)
+        )
 
     def _launch_cleaner(self):
         panel = self.panels["nettoyage"]
@@ -1071,22 +1386,18 @@ class StudioWindow(QMainWindow):
         a build failure (missing paths, mixed source…), it already fails the
         step cleanly through ``_fail_pipeline_step``.
 
-        The "Lancer Brush" checkbox (``run_state.entrainement_apres``) is
-        visible in this panel: without the hook below it did nothing for this
-        button (only the global Source chain read it), which made it
-        misleading. So we chain on to Brush manually when it is ticked.
+        The "Lancer Brush" and "SuperSplat après" checkboxes are visible in
+        this panel (L5-08): they are honoured as post-steps of this button,
+        through the same chain mechanism as the global Launch. (An earlier
+        fix connected a second slot on ``finished_signal`` to relaunch Brush;
+        both slots then raced for ``_active_worker`` — cf. ``_start_tool_worker``.)
         """
         worker = self._build_colmap_worker()
         if worker is not None:
-            worker.finished_signal.connect(self._on_reconstruction_standalone_finished)
-            self._start_tool_worker(worker)
-
-    def _on_reconstruction_standalone_finished(self, success, message):
-        """Chain on to Brush after a successful standalone reconstruction, when
-        "Lancer Brush" is ticked — cf. ``_launch_reconstruction``.
-        """
-        if success and self.run_state.entrainement_apres:
-            self._launch_entrainement()
+            self.current_pipeline_mode = "gsplat"
+            self._start_tool_worker(
+                worker, post_steps=self._post_steps_from_flags("entrainement", "visualiser")
+            )
 
     def _launch_entrainement(self):
         """Standalone run (outside the chain) of the Entraînement tab (PIPELINE),
@@ -1099,7 +1410,10 @@ class StudioWindow(QMainWindow):
         """
         worker = self._build_brush_worker()
         if worker is not None:
-            self._start_tool_worker(worker)
+            self.current_pipeline_mode = "gsplat"
+            self._start_tool_worker(
+                worker, post_steps=self._post_steps_from_flags("visualiser")
+            )
 
     def _fourdgs_upscale_params(self, params):
         """Merges the shared Upscale panel's settings (model, scale, tile...) with
@@ -1142,11 +1456,20 @@ class StudioWindow(QMainWindow):
                 return
             worker = SharpVideoWorker(params["video_path"], params["video_output_path"], params)
             worker.long_run_signal.connect(self._confirm_sharp_long_run)
+            ply_root = Path(params["video_output_path"])
         else:
             if not self._check_paths(params["input_path"], params["output_path"]):
                 return
             worker = SharpWorker(params["input_path"], params["output_path"], params)
-        self._start_tool_worker(worker)
+            ply_root = Path(params["output_path"])
+        # L3-05: the page's "Nettoyage/Exporter/SuperSplat après" checkboxes
+        # apply to this button too, on the PLY Sharp writes in its output folder.
+        self._start_tool_worker(
+            worker,
+            post_steps=self._post_steps_from_flags("nettoyage", "export", "visualiser"),
+            ply_root=ply_root,
+            producer_label="Sharp",
+        )
 
     def _confirm_sharp_long_run(self, worker, total_frames: int, estimated_seconds: float):
         """Ask before committing the machine to a very long Sharp video run.
@@ -1200,7 +1523,15 @@ class StudioWindow(QMainWindow):
                 return
             st_params["--decimate"] = f"{src_params['decimate']:.0f}%"
         worker = SplatTransformWorker(input_path, output_path, st_params)
-        self._start_tool_worker(worker)
+        # L3-05: post-steps run on the converted file itself; Nettoyage/Export
+        # need a .ply, so a non-PLY output fails those steps with a clear
+        # message naming SplatTransform (cf. ``_missing_producer_message``).
+        self._start_tool_worker(
+            worker,
+            post_steps=self._post_steps_from_flags("nettoyage", "export", "visualiser"),
+            ply_root=Path(output_path),
+            producer_label="SplatTransform",
+        )
 
     def _launch_upscale(self):
         panel = self.panels["upscale"]
@@ -1227,7 +1558,14 @@ class StudioWindow(QMainWindow):
         if ply_name:
             params["ply_name"] = ply_name
         worker = BrushWorker(input_path, output_path, params, project_name=Path(input_path).name)
-        self._start_tool_worker(worker)
+        # L3-05: this page only shows "SuperSplat après"; the PLY lands in
+        # the tool's own output folder, not the Projet panel's checkpoints.
+        self._start_tool_worker(
+            worker,
+            post_steps=self._post_steps_from_flags("visualiser"),
+            ply_root=Path(output_path),
+            producer_label="Brush",
+        )
 
     def _delete_dataset(self):
         """Destructive button in the Source panel (``btn_delete_dataset``):
@@ -1393,8 +1731,16 @@ class StudioWindow(QMainWindow):
         # wait (bounded) so the QThread is not destroyed while alive (SIGABRT,
         # cf. _start_tool_worker) and the run is not left mid-write.
         worker = self._active_worker
-        if worker is not None:
-            worker.wait(5000)
+        if worker is not None and worker.wait(5000) is False:
+            # L5-06: the first wait() timed out — a running QThread must never
+            # be destroyed. Ask again, then force it before the window is
+            # allowed to close under it.
+            self.logs_window.append_log(
+                "Un traitement ne s'est pas arrêté après 5 s — arrêt forcé avant fermeture."
+            )
+            worker.requestInterruption()
+            worker.terminate()
+            worker.wait()
         for key in ("visualiser", "supersplat"):
             engine = getattr(self.panels.get(key), "engine", None)
             if engine is not None:

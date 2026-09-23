@@ -29,6 +29,7 @@ from .media import (
     needs_image_conversion,
     without_hwaccel,
 )
+from .sparse_models import promote_largest_model
 from .system import get_optimal_threads, is_apple_silicon, resolve_binary
 
 # Single shared list (app/core/media.py). Anything not natively readable by
@@ -453,11 +454,38 @@ class ColmapEngine(BaseEngine):
         if self.input_path.is_file():
             return [self.input_path] if _keep(self.input_path) else []
         if self.input_path.is_dir():
+            source_dir: Path | None = self.input_path
             if self.input_path.resolve() == images_dir.resolve():
-                self.log("Les images sont déjà dans le dossier de destination. Copie ignorée.")
+                source_dir = self._move_project_images_aside(images_dir)
+            if source_dir is None:
                 return None
-            return [f for f in self.input_path.rglob('*') if _keep(f)]
+            return [f for f in source_dir.rglob('*') if _keep(f)]
         return []
+
+    def _move_project_images_aside(self, images_dir: Path) -> Path | None:
+        """Source pointed at the project's own ``images/``: keep the originals.
+
+        Conversion and resizing both write into ``images/``, so with the source
+        *being* that folder they would overwrite the only copy. Same protocol as
+        the upscale step: the originals move to ``images_src/`` and ``images/``
+        is rebuilt from them. Returns the folder to read from, or None when
+        ``images_src/`` already exists — the originals were preserved by an
+        earlier run and ``images/`` already holds working copies.
+        """
+        images_src = images_dir.parent / "images_src"
+        if images_src.exists():
+            self.log(
+                "Les images sont déjà dans le dossier du projet et 'images_src' "
+                "existe — originaux déjà conservés, copie ignorée."
+            )
+            return None
+        self.log(
+            "Les images sont déjà dans le dossier du projet : originaux déplacés "
+            f"vers {images_src}, copies de travail dans {images_dir}"
+        )
+        shutil.move(str(images_dir), str(images_src))
+        images_dir.mkdir(parents=True, exist_ok=True)
+        return images_src
 
     @staticmethod
     def _unique_target_path(images_dir: Path, file_path: Path) -> Path:
@@ -554,13 +582,29 @@ class ColmapEngine(BaseEngine):
                 self.log("'images_src' already exists — upscale already done.")
                 return True
 
+            # Where upscayl reads from and writes to. Normally the originals
+            # move to images_src and the output lands straight in images/.
+            upscale_input = images_sources_dir
+            upscale_output = images_dir
             if not images_sources_dir.exists():
                 self.log(f"Moving originals to {images_sources_dir}...")
                 shutil.move(str(images_dir), str(images_sources_dir))
                 images_dir.mkdir(parents=True, exist_ok=True)
+            elif any(_is_valid_image_path(p) for p in images_dir.iterdir()):
+                # images_src already holds the originals — moved there by the
+                # copy step when the source was the project's own images/, or
+                # left by an upscale that never completed (F-003). Either way
+                # images/ now carries the converted, pipeline-ready copies, so
+                # those are what gets enlarged (the raw originals may be HEIC
+                # or TIFF, which upscayl cannot read). Output goes through a
+                # staging folder because input and output cannot be the same.
+                self.log("'images_src' already exists — upscaling the working copies in images/...")
+                upscale_input = images_dir
+                upscale_output = project_dir / "images_upscaling"
+                if upscale_output.exists():
+                    shutil.rmtree(upscale_output)
+                upscale_output.mkdir(parents=True)
             else:
-                # F-003: images_src exists but the previous upscale never
-                # completed (no sentinel) — relaunch instead of silently skipping.
                 self.log("'images_src' exists but upscale never completed — relaunching...")
 
             upscale_conf = getattr(self, 'upscale_config', {}) or {}
@@ -573,8 +617,8 @@ class ColmapEngine(BaseEngine):
 
             self.log(f"Upscaling x{scale} with model '{model_id}'...")
             success, msg = upscaler.upscale_folder(
-                input_dir=str(images_sources_dir),
-                output_dir=str(images_dir),
+                input_dir=str(upscale_input),
+                output_dir=str(upscale_output),
                 model_id=model_id,
                 scale=scale,
                 output_format=out_format,
@@ -585,7 +629,14 @@ class ColmapEngine(BaseEngine):
             )
             if not success:
                 self.log(f"Upscale failed: {msg}")
+                if upscale_output != images_dir:
+                    shutil.rmtree(upscale_output, ignore_errors=True)
                 return False
+            if upscale_output != images_dir:
+                # The working copies are derived from images_src, so dropping
+                # them loses nothing; the enlarged set takes their place.
+                shutil.rmtree(images_dir)
+                shutil.move(str(upscale_output), str(images_dir))
             done_marker.write_text("ok", encoding="utf-8")
             self.log("Upscale complete.")
 
@@ -950,9 +1001,12 @@ class ColmapEngine(BaseEngine):
 
     def _has_valid_sparse_model(self, sparse_dir: Path) -> bool:
         """Check that at least one sparse sub-model (folder 0/) holds a complete
-        reconstruction (cameras + images + points3D, .bin or .txt format)."""
-        model_dir = Path(sparse_dir) / "0"
-        if not model_dir.is_dir():
+        reconstruction (cameras + images + points3D, .bin or .txt format).
+
+        The mapper can leave a stub in 0/ and the real model in 1/; the largest
+        one is promoted to 0/ first, since undistortion and Brush read 0/ only."""
+        model_dir = promote_largest_model(Path(sparse_dir), log=self.log)
+        if model_dir is None or not model_dir.is_dir():
             return False
         return all(
             (model_dir / f"{stem}.bin").exists() or (model_dir / f"{stem}.txt").exists()

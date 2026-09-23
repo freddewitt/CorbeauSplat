@@ -2,6 +2,53 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-23
+
+First stable release of v2. Between rc1 and this version, the whole
+application went through a structured "stable version" audit
+(`docs/AUDIT_STABLE.md`, one report per lot in `docs/audit-stable/`): every
+GUI panel option, every CLI argument and every automation scenario was
+checked for being wired and functional, then exercised on real data (28 e2e
+runs with the real COLMAP, Brush, Sharp, upscayl and SuperSplat). 78 defects
+were found, 54 fixed with regression tests. The default suite now holds
+1023 tests.
+
+### 🐛 Fixed — blocking
+- **COLMAP resume never wired.** The "Resume" folder of the Reconstruction panel was displayed but never reached the engine; it now switches the worker to resume mode after validating the folder.
+- **COLMAP sub-models.** The mapper sometimes left a draft in `sparse/0` and the real model in `sparse/1`; Brush then trained on the draft. The largest model is now promoted to `sparse/0` (new `app/core/sparse_models.py`, main pipeline and 4DGS).
+- **Sharp output not isolated per project.** The pipeline's Sharp step wrote next to the source; it now writes under `<output>/<project>` like COLMAP.
+- **PLY not found without a Brush step.** Nettoyage/Export/Visualiser only ever looked for Brush's output; in Sharp mode or with Brush unticked they failed with "Chemins manquants". They now follow whichever step actually produced the PLY, and name the missing producer.
+- **FFmpeg 9** refused `-vsync`; `-fps_mode` is used.
+- **4DGS single camera** was impossible; the camera options now reach COLMAP.
+- **Upscale `jpeg` format** and **`extract360 --layout` default** were refused by the CLI.
+
+### 🐛 Fixed — GUI
+- **Notifications setting persisted.** "Notifications de fin d'exécution" is stored in `config.json` and pre-ticked on the next launch (it used to reset to off every time).
+- **Post-step checkboxes on the TOOLS pages.** "Nettoyage/Exporter/SuperSplat après" on the Sharp and SplatTransform pages, "SuperSplat après" on Brush/Training and "Lancer Brush" on Reconstruction now apply to those pages' own "Lancer" button, through the same chain mechanism as the main Launch. The earlier standalone Reconstruction hook, which added a second slot on the worker's finished signal, is gone.
+- Reconstruction, post-step and Brush checkboxes are greyed out in modes where they have no effect (Sharp, 4DGS); blur strength, OBJ scale, ALIKED-only options and video-only fields are greyed out when they do not apply.
+- Source type forced by the user is validated against the folder's real content; a video source is rejected in Sharp mode with a clear message.
+- Cleaner: mode/path mismatch flagged; new "Récursif" option reaches the worker.
+- Sharp: new `skip_frames` spinner (video mode); upscale settings of the Upscale panel are forwarded.
+- Brush: device `auto` by default; densification/checkpoint groups only send their values when ticked; New/Refine mode and `ply_name` round-trip through saved configurations.
+- 4DGS: upscale settings and the video trim window are forwarded to the worker.
+- Tool "Lancer" buttons are greyed out while a run is active; closing the window force-stops a worker that does not exit within 5 s.
+- Chaining flags (Brush/Nettoyage/Export/SuperSplat "après") are restored with the last project.
+- Logs window bounded in size; missing i18n keys added in the 9 locales, dead keys removed.
+
+### 🐛 Fixed — CLI
+- `--gui` combined with a subcommand is rejected instead of silently ignoring one of them.
+- `export` scans sub-folders; the PLY rename is applied after the post-steps; `--format` restricted to jpg/png/tiff; `4dgs --input` optional in "COLMAP only" mode.
+- Boolean flags accept `--no-<flag>` where a default of true made them impossible to turn off.
+
+### ✨ Added
+- `sharp --upscale` really upscales the images before inference (shared `run_upscayl`).
+- `brush --refine_mode` really resumes from the latest checkpoint (new `app/core/brush_refine.py`, shared by GUI and CLI).
+- Video trim window for 4DGS in the GUI.
+- SuperSplat launch reuses an instance already listening on the port and reports a bind failure instead of trusting the spawn.
+
+### 📝 Documentation
+- `docs/AUDIT_STABLE.md` and `docs/audit-stable/lot-1.md … lot-6.md` document the audit, defect by defect, with the decision taken for each.
+
 ## [2.0.0-rc1] - 2026-09-20
 
 First release candidate. The feature set of beta.5 is frozen: nothing below

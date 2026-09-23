@@ -24,6 +24,11 @@ class SessionManager:
     """
 
     CONFIG_KEY = "last_project"
+    # L5-05: the chaining flags (RunState) used to be dropped entirely by
+    # autosave/load — a sibling top-level key, not nested inside CONFIG_KEY,
+    # so ``config["last_project"]`` keeps holding exactly ``get_state()``
+    # (existing tests compare it verbatim).
+    FLAGS_KEY = "last_project_flags"
 
     def __init__(self, main_window):
         self.mw = main_window
@@ -49,11 +54,27 @@ class SessionManager:
         panel = self._source_panel()
         if panel is None or not hasattr(panel, "get_state"):
             return
-        self._write_merged(panel.get_state())
+        self._write_merged(panel.get_state(), self._collect_flags())
 
-    def _write_merged(self, project_state):
-        """Read the existing ``config.json``, update only ``CONFIG_KEY``, rewrite
-        — same merge principle as ``LanguageManager.save_config``."""
+    def _collect_flags(self):
+        """``RunState.to_dict()`` when available (L5-05), or ``None``.
+
+        Guarded with an ``isinstance`` check rather than a bare ``hasattr``:
+        under the mocked-``main_window`` test fixtures ``run_state`` is a
+        ``MagicMock`` too, and ``to_dict()`` on it returns another
+        ``MagicMock`` — not JSON-serialisable — which would otherwise crash
+        ``json.dump`` in tests that never set up a real ``run_state``.
+        """
+        run_state = getattr(self.mw, "run_state", None)
+        if run_state is None or not hasattr(run_state, "to_dict"):
+            return None
+        flags = run_state.to_dict()
+        return flags if isinstance(flags, dict) else None
+
+    def _write_merged(self, project_state, flags=None):
+        """Read the existing ``config.json``, update ``CONFIG_KEY`` (and
+        ``FLAGS_KEY`` when ``flags`` is given), rewrite — same merge principle
+        as ``LanguageManager.save_config``."""
         session_file = self.get_session_file()
         config = {}
         if session_file.exists():
@@ -66,6 +87,8 @@ class SessionManager:
                 logger.warning("Session: config.json illisible, fusion prudente: %s", e)
 
         config[self.CONFIG_KEY] = project_state
+        if flags is not None:
+            config[self.FLAGS_KEY] = flags
         try:
             with open(session_file, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
@@ -87,12 +110,17 @@ class SessionManager:
         if not isinstance(config, dict):
             return
         project_state = config.get(self.CONFIG_KEY)
-        if not project_state:
-            return
+        if project_state:
+            panel = self._source_panel()
+            if panel is not None and hasattr(panel, "set_state"):
+                panel.set_state(project_state)
 
-        panel = self._source_panel()
-        if panel is not None and hasattr(panel, "set_state"):
-            panel.set_state(project_state)
+        # L5-05: restore the chaining flags saved alongside the project.
+        flags = config.get(self.FLAGS_KEY)
+        if flags:
+            run_state = getattr(self.mw, "run_state", None)
+            if run_state is not None and hasattr(run_state, "load_dict"):
+                run_state.load_dict(flags)
 
 
 class AppLifecycle:

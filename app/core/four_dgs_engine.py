@@ -3,7 +3,8 @@ import sys
 from pathlib import Path
 
 from .base_engine import BaseEngine
-from .media import is_video_file, without_hwaccel
+from .media import format_timecode, is_video_file, without_hwaccel
+from .sparse_models import promote_largest_model
 from .system import get_optimal_threads, is_apple_silicon, resolve_binary, resolve_project_root
 
 # Path to the dedicated nerfstudio venv
@@ -22,6 +23,30 @@ def _get_ns_process_data_path():
     if sys.platform == "win32":
         return _VENV_4DGS / "Scripts" / "ns-process-data.exe"
     return _VENV_4DGS / "bin" / "ns-process-data"
+
+
+def _trim_window(video_trim):
+    """(start, duration) in seconds from a ``{"start": .., "end": ..}`` dict.
+
+    Mirrors ``ColmapEngine._trim_window`` so the Source panel's shared trim
+    field means the same thing on both extraction paths. A pair that does not
+    describe a forward span is ignored (start/duration -> None, None) rather
+    than handed to ffmpeg, which would accept a zero/negative ``-t`` and
+    produce no frames at all.
+    """
+    if not video_trim:
+        return None, None
+    start = video_trim.get("start")
+    end = video_trim.get("end")
+    if start is None and end is None:
+        return None, None
+    start = max(0.0, float(start or 0.0))
+    if end is None:
+        return (start or None), None
+    end = float(end)
+    if end <= start:
+        return None, None
+    return (start or None), end - start
 
 
 class FourDGSEngine(BaseEngine):
@@ -46,8 +71,10 @@ class FourDGSEngine(BaseEngine):
         ns_path = _get_ns_process_data_path()
         return ns_path.exists()
 
-    def extract_frames(self, video_path, output_dir, fps=5):
-        """Extract the frames of a video with ffmpeg"""
+    def extract_frames(self, video_path, output_dir, fps=5, video_trim=None):
+        """Extract the frames of a video with ffmpeg, optionally trimmed to a
+        ``{"start": .., "end": ..}`` window (see ``_trim_window``, mirrors
+        ``ColmapEngine.extract_frames_from_video``)."""
         if self.stop_requested:
             return False
 
@@ -59,12 +86,28 @@ class FourDGSEngine(BaseEngine):
         if is_apple_silicon():
             cmd.extend(["-hwaccel", "videotoolbox"])
 
+        # `-ss` before `-i` seeks by keyframe instead of decoding from zero;
+        # the range is then expressed as a duration (`-t`), since after a
+        # pre-input seek `-to` would be counted from the seek point.
+        start, duration = _trim_window(video_trim)
+        if start is not None:
+            cmd.extend(["-ss", f"{start:.3f}"])
+
+        cmd.extend(["-i", str(video_path)])
+        if duration is not None:
+            cmd.extend(["-t", f"{duration:.3f}"])
+
         cmd.extend([
-            "-i", str(video_path),
             "-vf", f"fps={fps}",
             "-q:v", "2", # High jpeg quality
             str(out_p / "%05d.jpg")
         ])
+
+        if start is not None or duration is not None:
+            self.log(
+                f"Plage retenue : {format_timecode(start or 0.0)} → "
+                f"{format_timecode((start or 0.0) + (duration or 0.0))}"
+            )
 
         # Template Method: delegation to the centralised _execute_command
         # Big videos / slow external drives: same ceiling as Brush (4h).
@@ -86,7 +129,10 @@ class FourDGSEngine(BaseEngine):
         run SfM on exactly one synchronized frame per camera and reuse those
         poses for every timestep, since the camera rig itself does not move.
         Falls back to ``images_path`` unchanged if it holds no per-camera
-        subfolders (flat single-camera dataset).
+        subfolders (flat single-camera dataset). A single ``cam_XX`` folder is
+        a monocular capture (one moving camera, no rig): one reference frame
+        would give COLMAP a single view and SfM could never succeed, so all its
+        frames are used instead.
         """
         cam_dirs = sorted(
             d for d in images_path.iterdir()
@@ -94,6 +140,9 @@ class FourDGSEngine(BaseEngine):
         ) if images_path.is_dir() else []
         if not cam_dirs:
             return images_path
+        if len(cam_dirs) == 1:
+            self.log(f"Single camera ({cam_dirs[0].name}): monocular capture, SfM on all its frames.")
+            return cam_dirs[0]
 
         # Ownership signature (F-011): the staging folder may only be deleted if
         # a previous CorbeauSplat run created it (marker file). A pre-existing
@@ -139,7 +188,12 @@ class FourDGSEngine(BaseEngine):
         if self.stop_requested:
             return False
 
-        root = Path(dataset_root)
+        safe_root = self.validate_path(dataset_root)
+        if safe_root is None:
+            self.log(f"SECURITY: Invalid dataset directory: {dataset_root}")
+            return False
+
+        root = safe_root
         db_path = root / "database.db"
         images_path = root / "images"
         sparse_path = root / "sparse"
@@ -195,7 +249,14 @@ class FourDGSEngine(BaseEngine):
         threads = str(get_optimal_threads())
         cmd_mapper.append(f"--Mapper.num_threads={threads}")
 
-        return self._execute_command(cmd_mapper, timeout=14400) == 0
+        if self._execute_command(cmd_mapper, timeout=14400) != 0:
+            return False
+        # The mapper may leave a stub model in 0/ and the real one in 1/;
+        # downstream reads 0/ only.
+        if promote_largest_model(sparse_path, log=self.log) is None:
+            self.log("COLMAP mapper produced no sparse model (sparse/0 missing).")
+            return False
+        return True
 
     def upscale_dataset_images(self, output_dir) -> bool:
         """Upscale extracted camera frames in-place via the shared Upscale engine.
@@ -269,7 +330,7 @@ class FourDGSEngine(BaseEngine):
         self.log("Upscale complete.")
         return True
 
-    def process_dataset(self, videos_dir, output_dir, fps=5, colmap_params=None):
+    def process_dataset(self, videos_dir, output_dir, fps=5, colmap_params=None, video_trim=None):
         safe_in = self.validate_path(videos_dir)
         safe_out = self.validate_path(output_dir) or self.validate_path(str(Path(output_dir).parent))
         if safe_in is None:
@@ -303,7 +364,7 @@ class FourDGSEngine(BaseEngine):
 
             self.log(f"Extraction {vid_path.name} -> {cam_name} ({fps} fps)...")
             self.status(f"Extraction des frames ({vid_path.name})...")
-            if not self.extract_frames(vid_path, cam_dir, fps):
+            if not self.extract_frames(vid_path, cam_dir, fps, video_trim=video_trim):
                 return False
 
         self.log("Extraction terminée.")

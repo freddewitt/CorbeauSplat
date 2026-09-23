@@ -1,7 +1,6 @@
-# Valid PEP 440 spelling: normalized to "2.0.0b1" by packaging/setuptools,
-# so identical to pyproject.toml's version, but more readable in the
-# bottom bar (AppBar displays f"v{VERSION}").
-VERSION = "2.0.0-rc1"
+# Kept identical to pyproject.toml's version; the bottom bar shows
+# f"v{VERSION}" (AppBar).
+VERSION = "2.0.0"
 
 # Pillow's decompression-bomb guard is meant for untrusted uploads on a server.
 # This is a local desktop tool processing the user's own photogrammetry/drone

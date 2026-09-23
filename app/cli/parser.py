@@ -90,6 +90,10 @@ def _add_pipeline_parser(subs):
                    help="Stratégie de matching (défaut: exhaustive)")
     p.add_argument("--max_image_size", type=int, default=3200,
                    help="Résolution max des images pour COLMAP (défaut: 3200)")
+    # BooleanOptionalAction, not store_true: kept in sync with the `colmap`
+    # subcommand and ColmapParams/GUI, which both default to True (L4-10).
+    p.add_argument("--estimate_affine_shape", action=argparse.BooleanOptionalAction, default=True,
+                   help="Estimer la forme affine des features (défaut: activé)")
     # Brush
     p.add_argument("--preset", choices=["default","fast","std","dense"], default="default",
                    help="Preset d'entraînement Brush (défaut: default)")
@@ -151,7 +155,11 @@ def _add_colmap_parser(subs):
                    help="Algorithme de matching (défaut: auto selon --feature-type)")
     p.add_argument("--max_image_size",    type=int,   default=3200, help="Résolution max des images (défaut: 3200)")
     p.add_argument("--max_num_features",  type=int,   default=8192, help="Nb max de features par image (défaut: 8192)")
-    p.add_argument("--estimate_affine_shape", action="store_true", help="Estimer la forme affine des features")
+    # BooleanOptionalAction, not store_true: without it, omitting the flag
+    # silently meant False even though ColmapParams/the GUI default to True
+    # (audit L4-10) — same rationale as _add_view_graph_flags() above.
+    p.add_argument("--estimate_affine_shape", action=argparse.BooleanOptionalAction, default=True,
+                   help="Estimer la forme affine des features (défaut: activé)")
     p.add_argument("--no_domain_size_pooling", action="store_true", help="Désactiver le domain size pooling")
     # Feature matching
     p.add_argument("--matcher_type", choices=["exhaustive","sequential","vocab_tree"], default="exhaustive",
@@ -224,6 +232,20 @@ def _add_sharp_parser(subs):
                    help="[mode vidéo] Traiter 1 frame sur N (défaut: 1)")
     p.add_argument("--upscale", action="store_true",
                    help="Upscaler les images avant prédiction (requiert upscayl-bin)")
+    # Same defaults as the GUI's Upscale panel (app/gui/panels/upscale_panel.py)
+    # merged into the Sharp worker's params — see workers.py::SharpWorker.run().
+    p.add_argument("--upscale_model", default=None,
+                   help="ID du modèle upscayl pour le pré-upscale (défaut: premier modèle installé)")
+    p.add_argument("--upscale_scale", type=int, choices=[1, 2, 3, 4], default=4,
+                   help="Facteur du pré-upscale (défaut: 4)")
+    p.add_argument("--upscale_format", choices=["png", "jpg", "webp"], default="png",
+                   help="Format de l'image upscalée intermédiaire (défaut: png)")
+    p.add_argument("--upscale_tile", type=int, default=0,
+                   help="Taille des tuiles VRAM en px pour le pré-upscale, 0=auto (défaut: 0)")
+    p.add_argument("--upscale_tta", action="store_true",
+                   help="Activer le Test-Time Augmentation pour le pré-upscale")
+    p.add_argument("--upscale_compression", type=int, default=0,
+                   help="Niveau de compression du pré-upscale 0-100 (défaut: 0)")
     p.add_argument("--verbose", action="store_true", help="Afficher la sortie détaillée de Sharp")
 
     # ── view ──────────────────────────────────────────────────────────────────
@@ -262,8 +284,10 @@ def _add_upscale_parser(subs):
 
 def _add_4dgs_parser(subs):
     p = subs.add_parser("4dgs", help="Préparation dataset 4D Gaussian Splatting (Nerfstudio)")
-    p.add_argument("--input",  "-i", required=True,
-                   help="Dossier contenant les vidéos multi-caméras")
+    # Not required: --input is ignored in --colmap_only mode (commands.py
+    # rejects its absence itself, only when actually needed — audit L4-09b).
+    p.add_argument("--input",  "-i", default=None,
+                   help="Dossier contenant les vidéos multi-caméras (ignoré avec --colmap_only)")
     p.add_argument("--output", "-o", required=True, help="Dossier de sortie")
     p.add_argument("--fps",    type=int, default=5,  help="FPS d'extraction vidéo (défaut: 5)")
     p.add_argument("--colmap_only", action="store_true",
@@ -345,16 +369,21 @@ def _add_extract360_parser(subs):
     p.add_argument("--output", "-o", required=True, help="Dossier de sortie")
     p.add_argument("--interval",        type=float, default=1.0,
                    help="Intervalle entre frames en secondes (défaut: 1.0)")
-    p.add_argument("--format",          default="jpg",
+    # Values imposed by engines/extractor_360/src/extractor360/main.py
+    # (--format choices) — a wider set than Extractor360Panel's combo (jpg/png
+    # only), which the underlying tool and engine both accept unrestricted.
+    p.add_argument("--format",          default="jpg", choices=["jpg", "png", "tiff"],
                    help="Format image de sortie (défaut: jpg)")
-    p.add_argument("--resolution",      type=int,   default=2048,
-                   help="Résolution des images extraites (défaut: 2048)")
-    p.add_argument("--camera_count",    type=int,   default=6,
-                   help="Nombre de caméras virtuelles (défaut: 6)")
-    p.add_argument("--quality",         type=int,   default=95,
-                   help="Qualité JPEG 0-100 (défaut: 95)")
-    p.add_argument("--layout",          default="equirectangular",
-                   help="Layout de projection (défaut: equirectangular)")
+    # Defaults mirror Extractor360Panel so GUI and CLI produce the same output.
+    p.add_argument("--resolution",      type=int,   default=1920,
+                   help="Résolution des images extraites (défaut: 1920)")
+    p.add_argument("--camera_count",    type=int,   default=4,
+                   help="Nombre de caméras virtuelles (défaut: 4)")
+    p.add_argument("--quality",         type=int,   default=90,
+                   help="Qualité JPEG 0-100 (défaut: 90)")
+    # Values imposed by engines/extractor_360/src/main.py (--layout choices).
+    p.add_argument("--layout",          default="ring", choices=["ring", "cube", "fibonacci"],
+                   help="Disposition des caméras virtuelles (défaut: ring)")
     p.add_argument("--ai_mask",         action="store_true", help="Activer le masquage IA")
     p.add_argument("--ai_skip",         action="store_true", help="Activer le saut IA")
     p.add_argument("--adaptive",        action="store_true", help="Extraction adaptative au mouvement")

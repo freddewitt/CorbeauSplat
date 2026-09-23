@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.i18n import add_language_observer, tr
+from app.core.media import image_file_filter
 from app.gui.widgets.cancel_button import CancelButton
 from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_name
 from app.gui.widgets.drop_line_edit import DropLineEdit
@@ -101,7 +102,10 @@ class UpscalePanel:
         self.lbl_scale = QLabel()
         form.addRow(self.lbl_scale, self.combo_scale)
         self.combo_format = QComboBox()
-        self.combo_format.addItems(["PNG", "JPEG", "WebP"])
+        # Item data is the value upscayl-bin's ``-f`` accepts (png/jpg/webp);
+        # the label is only what the user sees ("jpeg" is not a valid value).
+        for label, value in (("PNG", "png"), ("JPEG", "jpg"), ("WebP", "webp")):
+            self.combo_format.addItem(label, value)
         self.lbl_format = QLabel()
         form.addRow(self.lbl_format, self.combo_format)
         self.spin_tile = QSpinBox()
@@ -239,7 +243,7 @@ class UpscalePanel:
         if clicked is btn_file:
             path, _ = get_open_file_name(
                 self.center, tr("btn_browse", "Parcourir"), "",
-                "Images (*.png *.jpg *.jpeg *.webp *.tif *.tiff)",
+                image_file_filter(),
             )
         elif clicked is btn_dir:
             path = get_existing_directory(self.center, tr("btn_browse", "Parcourir"))
@@ -351,7 +355,7 @@ class UpscalePanel:
         return {
             "model_id": self.combo_model.currentData() or "",
             "scale": self.combo_scale.currentData(),
-            "format": self.combo_format.currentText().lower(),
+            "format": self.combo_format.currentData(),
             "tile": self.spin_tile.value(),
             "tta": self.chk_tta.isChecked(),
             "compression": self.spin_compression.value(),
@@ -368,7 +372,7 @@ class UpscalePanel:
             "output_path": self.output_path.text(),
             "model_id": self.combo_model.currentData() or "",
             "scale": self.combo_scale.currentData(),
-            "format": self.combo_format.currentText(),
+            "format": self.combo_format.currentData(),
             "tile": self.spin_tile.value(),
             "tta": self.chk_tta.isChecked(),
             "compression": self.spin_compression.value(),
@@ -388,7 +392,11 @@ class UpscalePanel:
             if idx >= 0:
                 self.combo_scale.setCurrentIndex(idx)
         if state.get("format"):
-            idx = self.combo_format.findText(state["format"])
+            # Older configurations stored the label ("JPEG"): map it to the value.
+            value = {"png": "png", "jpeg": "jpg", "jpg": "jpg", "webp": "webp"}.get(
+                str(state["format"]).lower(), state["format"]
+            )
+            idx = self.combo_format.findData(value)
             if idx >= 0:
                 self.combo_format.setCurrentIndex(idx)
         if "tile" in state:

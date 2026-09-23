@@ -105,7 +105,10 @@ class Extractor360Panel:
         self.lbl_quality = QLabel()
         form.addRow(self.lbl_quality, self.spin_quality)
         self.combo_format = QComboBox()
-        self.combo_format.addItems(["JPEG", "PNG"])
+        # Item data is the value 360Extractor's ``--format`` accepts (jpg/png),
+        # the label is only what the user sees: "jpeg" is rejected by the CLI.
+        self.combo_format.addItem("JPEG", "jpg")
+        self.combo_format.addItem("PNG", "png")
         self.lbl_format = QLabel()
         form.addRow(self.lbl_format, self.combo_format)
         layout.addLayout(form)
@@ -124,6 +127,7 @@ class Extractor360Panel:
         self.spin_motion = QDoubleSpinBox()
         self.spin_motion.setRange(0.0, 1.0)
         self.spin_motion.setSingleStep(0.01)
+        self.spin_motion.setValue(0.3)  # same default as the CLI (--motion_threshold)
         self.lbl_motion = QLabel()
         ag.addRow(self.lbl_motion, self.spin_motion)
         layout.addWidget(self.ai_group)
@@ -155,16 +159,19 @@ class Extractor360Panel:
     def get_params(self):
         """Return the 360 extraction parameters as a dict (keys aligned on
         ``Extractor360Engine.run_extraction``)."""
+        ai_enabled = self.ai_group.isChecked()
         return {
             "interval": self.spin_interval.value(),
             "resolution": self.spin_res.value(),
             "layout": self.combo_layout.currentData(),
             "camera_count": self.spin_cameras.value(),
             "quality": self.spin_quality.value(),
-            "format": self.combo_format.currentText().lower(),
-            "ai_mask": self.chk_mask_operator.isChecked(),
-            "ai_skip": self.chk_skip_operator.isChecked(),
-            "adaptive": self.chk_adaptive.isChecked(),
+            "format": self.combo_format.currentData(),
+            # The AI group is checkable: when it is unchecked its inner widgets
+            # keep their values but must not reach the engine.
+            "ai_mask": ai_enabled and self.chk_mask_operator.isChecked(),
+            "ai_skip": ai_enabled and self.chk_skip_operator.isChecked(),
+            "adaptive": ai_enabled and self.chk_adaptive.isChecked(),
             "motion_threshold": self.spin_motion.value(),
         }
 
@@ -175,6 +182,11 @@ class Extractor360Panel:
             "output_path": self.output_path.text(),
             "ai_enabled": self.ai_group.isChecked(),
             **self.get_params(),
+            # Raw widget values, so an unchecked AI group still keeps what the
+            # user ticked inside it (get_params gates them on ai_enabled).
+            "ai_mask": self.chk_mask_operator.isChecked(),
+            "ai_skip": self.chk_skip_operator.isChecked(),
+            "adaptive": self.chk_adaptive.isChecked(),
         }
 
     def set_state(self, state):
@@ -195,7 +207,9 @@ class Extractor360Panel:
         if "quality" in state:
             self.spin_quality.setValue(state["quality"])
         if state.get("format"):
-            idx = self.combo_format.findText(state["format"].upper())
+            # Configurations saved before the fix stored "jpeg".
+            fmt = str(state["format"]).lower()
+            idx = self.combo_format.findData("jpg" if fmt == "jpeg" else fmt)
             if idx >= 0:
                 self.combo_format.setCurrentIndex(idx)
         self.ai_group.setChecked(state.get("ai_enabled", False))

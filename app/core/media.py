@@ -90,6 +90,12 @@ def is_image_file(path) -> bool:
     return _suffix_of(path) in IMAGE_EXTENSIONS
 
 
+def image_file_filter() -> str:
+    """Qt file-dialog filter listing every accepted image extension."""
+    patterns = " ".join(f"*{ext}" for ext in sorted(IMAGE_EXTENSIONS))
+    return f"Images ({patterns})"
+
+
 def needs_image_conversion(path) -> bool:
     """True when ``path`` must be converted before the pipeline can use it."""
     suffix = _suffix_of(path)

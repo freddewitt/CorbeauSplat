@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """CLI command handlers for CorbeauSplat."""
 import os
+import shutil
 import sys
 import time
 from pathlib import Path as _Path
 
 from app.core.brush_engine import BrushEngine
+from app.core.brush_refine import (
+    RefineEnvironmentError,
+    detect_refine_start_iteration,
+    prepare_refine_environment,
+)
 from app.core.engine import ColmapEngine
 from app.core.i18n import tr
 from app.core.params import FEATURE_TO_DEFAULT_MATCHING, ColmapParams, blur_factor_from_strength
@@ -16,7 +22,7 @@ from app.core.system import get_brush_build_mode
 
 # Pure logic despite living under app/gui: no Qt import, so the CLI can share
 # the exact checkpoint semantics the interface uses instead of a second copy.
-from app.gui.chaining_logic import find_checkpoint_plys, resolve_checkpoints_dir
+from app.gui.chaining_logic import find_checkpoint_plys, is_checkpoint_ply, resolve_checkpoints_dir
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Brush defaults and presets
@@ -142,6 +148,111 @@ def run_colmap(args):
         sys.exit(1)
 
 
+def _handle_ply_rename(output_path, params, log=print):
+    """Rename the trained checkpoint PLY to ``params["ply_name"]``, if set.
+
+    Qt-free port of ``app/gui/workers.py::BrushWorker.handle_ply_rename()``:
+    locate the most recently modified checkpoint under ``output_path`` and
+    move it to ``<output_path>/<ply_name>``. Without this, ``--ply_name`` was
+    stored but never consumed (audit L4-03).
+    """
+    ply_name = params.get("ply_name")
+    if not ply_name:
+        return
+
+    # Sanitisation: strictly a filename, no path components.
+    ply_name = _Path(ply_name).name
+    if not ply_name.endswith(".ply"):
+        ply_name += ".ply"
+
+    output_path = _Path(output_path)
+    last_iter = params.get("total_steps", 30000)
+    search_dirs = [
+        output_path,
+        output_path / "point_cloud" / f"iteration_{last_iter}",
+        output_path / "point_cloud" / f"iteration_{last_iter // 2}",
+    ]
+
+    found_ply = None
+    last_mtime = 0.0
+
+    def check_dir(directory):
+        nonlocal found_ply, last_mtime
+        if not directory.exists():
+            return
+        for file_path in directory.iterdir():
+            if not (file_path.is_file() and file_path.name != ply_name):
+                continue
+            if not is_checkpoint_ply(file_path, output_path):
+                continue
+            mt = file_path.stat().st_mtime
+            if mt > last_mtime:
+                last_mtime = mt
+                found_ply = file_path
+
+    for directory in search_dirs:
+        check_dir(directory)
+
+    if not found_ply:
+        for ply_file_path in find_checkpoint_plys(output_path):
+            if ply_file_path.name != ply_name:
+                mt = ply_file_path.stat().st_mtime
+                if mt > last_mtime:
+                    last_mtime = mt
+                    found_ply = ply_file_path
+
+    if found_ply:
+        dest_path = output_path / ply_name
+        try:
+            shutil.move(str(found_ply), str(dest_path))
+            log(f"Fichier PLY renommé en : {ply_name}")
+        except OSError as e:
+            log(f"Erreur renommage PLY: {e}")
+    else:
+        log("Attention: Aucun fichier PLY trouvé à renommer.")
+
+
+def _apply_refine_mode(dataset_root, output_path, params, log=print):
+    """Redirect Brush training into a Refine folder when resuming a run.
+
+    Qt-free port of ``app/gui/workers.py::BrushWorker._prepare_refine_environment``
+    (shared via ``app.core.brush_refine``): look for the latest checkpoint under
+    ``dataset_root/checkpoints`` and, when one exists, build
+    ``dataset_root/Refine`` (init.ply + symlinked sparse/images) and point
+    ``start_iter`` at the checkpoint's own iteration. Without this,
+    ``--refine_mode`` was stored but never consumed (audit L4-04).
+
+    Returns
+    -------
+    (training_input, training_output): unchanged when no checkpoint exists yet
+    (refine mode is then a no-op, exactly like the GUI), or redirected to the
+    freshly built Refine folder when one was found.
+    """
+    dataset_root = _Path(dataset_root)
+    try:
+        result = prepare_refine_environment(dataset_root, log=log)
+    except RefineEnvironmentError as e:
+        print(f"Erreur : {e}")
+        sys.exit(1)
+
+    if isinstance(result, _Path):
+        # No checkpoint found: refine mode is a no-op, train normally.
+        return str(dataset_root), str(output_path)
+
+    refine_dir, latest_ply = result
+    refine_output = refine_dir / "checkpoints"
+    refine_output.mkdir(parents=True, exist_ok=True)
+    log(f"Dossier de travail redirigé vers: {refine_dir}")
+
+    if params.get("start_iter", 0) == 0:
+        total_steps = params.get("total_steps", 30000)
+        detected_iter = detect_refine_start_iteration(latest_ply, total_steps)
+        params["start_iter"] = detected_iter
+        log(f"Refine: Start Iteration réglé sur {detected_iter}")
+
+    return str(refine_dir), str(refine_output)
+
+
 def run_brush(args):
     params = dict(BRUSH_DEFAULTS)
 
@@ -191,9 +302,14 @@ def run_brush(args):
     # Detect build mode from installed binary to use correct flags
     params["build_mode"] = get_brush_build_mode()
 
+    train_input, train_output = args.input, args.output
+    if params["refine_mode"]:
+        train_input, train_output = _apply_refine_mode(args.input, args.output, params, log=print)
+
     try:
-        returncode = engine.train(args.input, args.output, params=params)
+        returncode = engine.train(train_input, train_output, params=params)
         if returncode == 0:
+            _handle_ply_rename(train_output, params, log=print)
             print(tr("msg_success"))
         else:
             print(tr("msg_error"))
@@ -201,6 +317,67 @@ def run_brush(args):
     except KeyboardInterrupt:
         print(tr("cli_stopping"))
         engine.stop()
+
+
+def _apply_sharp_upscale(args) -> str:
+    """Pre-upscale a Sharp image input via upscayl-bin, before prediction.
+
+    Mirrors ``app/gui/workers.py::SharpWorker.run()`` (the GUI's "upscale
+    before" checkbox): the input is copied to a temp folder under the output
+    directory, upscaled with upscayl-bin, and the upscaled copy is handed to
+    Sharp instead of the original. Falls back to the original path — logging
+    why — on any failure, same as the GUI (audit L4-02 / L3-02).
+    """
+    if not getattr(args, "upscale", False):
+        return args.input
+
+    from app.upscayl_manager import find_binary, get_models_dir, run_upscayl
+    from app.upscayl_models import get_downloaded_models
+
+    if not find_binary():
+        print(tr("err_upscale_missing", "Error: Upscale requested but upscayl-bin not found."))
+        return args.input
+
+    input_path = _Path(args.input)
+    if not input_path.is_file():
+        print(tr("err_upscale_folder", "Folder upscale not supported in Sharp mode."))
+        return args.input
+
+    model_id = args.upscale_model or ""
+    if not model_id:
+        downloaded = get_downloaded_models(get_models_dir())
+        model_id = downloaded[0].id if downloaded else ""
+    if not model_id:
+        print("⚠ Upscale activé mais aucun modèle disponible — ignoré.")
+        return args.input
+
+    temp_dir = _Path(args.output) / "temp_upscale"
+    tmp_in = temp_dir / "_in"
+    tmp_in.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(input_path, tmp_in / input_path.name)
+
+    upscale_params = {
+        "model_id": model_id,
+        "scale": args.upscale_scale,
+        "format": args.upscale_format,
+        "tile": args.upscale_tile,
+        "tta": args.upscale_tta,
+        "compression": args.upscale_compression,
+    }
+    print(tr("status_upscaling", "--- Upscale Image ---"))
+    result = {"ok": False}
+    run_upscayl(
+        str(tmp_in), str(temp_dir), upscale_params,
+        log_callback=print,
+        done_callback=lambda ok: result.__setitem__("ok", ok),
+    )
+    upscaled_path = temp_dir / (input_path.stem + "." + args.upscale_format)
+    if result["ok"] and upscaled_path.exists():
+        print(tr("status_upscale_done", "Upscale done. Launching Sharp..."))
+        return str(upscaled_path)
+
+    print(tr("err_upscale_failed", "Upscale failed. Using original image."))
+    return args.input
 
 
 def run_sharp(args):
@@ -217,8 +394,10 @@ def run_sharp(args):
         print(tr("cli_input", args.input))
         print(tr("cli_output", args.output))
 
+        sharp_input = _apply_sharp_upscale(args)
+
         try:
-            returncode = engine.predict(args.input, args.output, params=params)
+            returncode = engine.predict(sharp_input, args.output, params=params)
             if returncode == 0:
                 print(tr("msg_success"))
             else:
@@ -229,6 +408,10 @@ def run_sharp(args):
             engine.stop()
 
     else:  # video mode
+        # Mirrors the GUI: SharpVideoWorker never reads "upscale" either — the
+        # pre-upscale step only exists for the single-image path.
+        if getattr(args, "upscale", False):
+            print("⚠ --upscale n'est pas pris en charge en mode vidéo — ignoré.")
         _run_sharp_video(args, engine, params)
 
 
@@ -363,9 +546,16 @@ def run_4dgs(args):
 
     engine = FourDGSEngine(logger_callback=print)
 
-    if not args.colmap_only and not _Path(args.input).exists():
-        print(f"Erreur : dossier source introuvable : {args.input}")
-        sys.exit(1)
+    # --input is not required by the parser (it is ignored in --colmap_only
+    # mode), so it must be validated here instead once we know which mode
+    # actually needs it (audit L4-09b).
+    if not args.colmap_only:
+        if not args.input:
+            print("Erreur : --input est requis (sauf en mode --colmap_only).")
+            sys.exit(1)
+        if not _Path(args.input).exists():
+            print(f"Erreur : dossier source introuvable : {args.input}")
+            sys.exit(1)
 
     print("Préparation dataset 4DGS")
     print(f"  Input  : {args.input}")
@@ -454,7 +644,12 @@ def run_clean(args):
 
         # Determine the files to export
         if input_path.is_dir():
-            export_sources = sorted(_Path(args.output).glob("*.ply"))
+            # clean_ply_batch() mirrors the input tree into the output folder
+            # when --recursive is set (ply_cleaner.py), so cleaned files can
+            # live in sub-folders. A non-recursive glob here silently dropped
+            # them from the export (audit L4-05).
+            glob_pattern = "**/*.ply" if args.recursive else "*.ply"
+            export_sources = sorted(_Path(args.output).glob(glob_pattern))
             export_root = _Path(export_output) if export_output else _Path(args.output)
             msg_sources = f"{len(export_sources)} fichiers dans {args.output}"
         else:
@@ -639,6 +834,10 @@ def run_pipeline(args):
         brush_params["max_resolution"] = args.max_resolution
     brush_params["device"] = args.device
     brush_params["with_viewer"] = args.with_viewer
+    # `pipeline` has no --refine_mode flag of its own today (only `brush`
+    # does), but the wiring stays generic — same fallback the GUI/CLI share
+    # elsewhere for optional args — so it activates as soon as one is added.
+    brush_params["refine_mode"] = getattr(args, "refine_mode", False)
     if args.ply_name:
         brush_params["ply_name"] = args.ply_name
 
@@ -666,8 +865,13 @@ def run_pipeline(args):
     # Detect build mode from installed binary to use correct flags
     brush_params["build_mode"] = get_brush_build_mode()
 
+    train_input, train_output = str(dataset_path), str(checkpoints_dir)
+    if brush_params["refine_mode"]:
+        train_input, train_output = _apply_refine_mode(dataset_path, checkpoints_dir, brush_params, log=print)
+    checkpoints_dir = _Path(train_output)
+
     try:
-        returncode = brush_engine.train(str(dataset_path), str(checkpoints_dir), params=brush_params)
+        returncode = brush_engine.train(train_input, train_output, params=brush_params)
     except KeyboardInterrupt:
         print(tr("cli_stopping"))
         brush_engine.stop()
@@ -683,7 +887,13 @@ def run_pipeline(args):
     # `pipeline` used to stop here, so it did not reproduce the GUI chain
     # (Reconstruction → Training → Cleaning → Export) its name promises.
     # Both steps are opt-in: --clean and --export.
+    #
+    # The ply_name rename happens after, not before: _run_pipeline_post_steps
+    # locates its source checkpoint with the same is_checkpoint_ply() pattern
+    # match _handle_ply_rename uses to *produce* the renamed file, so renaming
+    # first would make the checkpoint invisible to Clean/Export (audit L4-03).
     _run_pipeline_post_steps(args, checkpoints_dir, total_steps)
+    _handle_ply_rename(checkpoints_dir, brush_params, log=print)
 
 
 def _latest_checkpoint_ply(checkpoints_dir):

@@ -2,8 +2,10 @@ import http.server
 import logging
 import os
 import shutil
+import socket
 import socketserver
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlparse
@@ -15,6 +17,13 @@ from .system import resolve_project_root
 # Default port of the viewer itself, distinct from the data server's.
 SUPERSPLAT_DEFAULT_PORT = 3000
 DATA_SERVER_DEFAULT_PORT = 8000
+
+# How long start_supersplat() waits for `npx serve` to actually bind its port
+# before reporting failure, rather than trusting the spawn blindly (audit
+# L3-07: `npx serve` can exit quietly on a busy port, or take a moment to
+# come up, without raising in this process).
+_PORT_PROBE_ATTEMPTS = 20
+_PORT_PROBE_DELAY = 0.2  # seconds — ~4s worst case
 
 
 class SuperSplatEngine(BaseEngine):
@@ -41,6 +50,13 @@ class SuperSplatEngine(BaseEngine):
     def get_supersplat_path(self) -> Path:
         """Return the absolute path to the bundled SuperSplat distribution."""
         return resolve_project_root() / "engines" / "supersplat"
+
+    @staticmethod
+    def _port_is_open(host: str, port: int, timeout: float = 0.2) -> bool:
+        """True when something is already accepting TCP connections on host:port."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(timeout)
+            return sock.connect_ex((host, port)) == 0
 
     # ---------------------------------------------------------------------
     # SuperSplat viewer management
@@ -74,6 +90,17 @@ class SuperSplatEngine(BaseEngine):
         if shutil.which("npx") is None:
             return False, tr("err_npx_missing", "npx introuvable — Node.js est requis pour la visualisation.")
 
+        # Someone is already answering on this port — an earlier call, the
+        # other SuperSplat screen (pipeline "visualiser" vs tool "supersplat"
+        # share the same default ports), or a leftover process. Starting a
+        # second `npx serve` here would itself fail to bind, silently.
+        if self._port_is_open("127.0.0.1", port):
+            # Same convention as msg_supersplat_started: the URL is the {0}
+            # placeholder of the translated message.
+            reused = tr("msg_supersplat_reused", f"http://localhost:{port}")
+            self.log(reused)
+            return True, reused
+
         # Ensure any previous instance is stopped before starting a new one.
         self.stop_supersplat()
 
@@ -90,9 +117,25 @@ class SuperSplatEngine(BaseEngine):
                         self.log(stripped)
 
             threading.Thread(target=_consume_stdout, daemon=True).start()
-            started = tr("msg_supersplat_started", f"http://localhost:{port}")
-            self.log(started)
-            return True, started
+
+            # `runner.start()` only confirms the process was spawned, not that
+            # it actually bound the port. Probe it instead of returning True
+            # unconditionally (audit L3-07).
+            for _ in range(_PORT_PROBE_ATTEMPTS):
+                if self._port_is_open("127.0.0.1", port):
+                    started = tr("msg_supersplat_started", f"http://localhost:{port}")
+                    self.log(started)
+                    return True, started
+                returncode = self.runner.poll()
+                if isinstance(returncode, int):
+                    # The process already exited — no point waiting out the
+                    # rest of the probe window.
+                    break
+                time.sleep(_PORT_PROBE_DELAY)
+
+            self.log(f"SuperSplat n'a pas confirmé le bind sur le port {port}.", level=logging.ERROR)
+            self.stop_supersplat()
+            return False, tr("err_supersplat_bind_failed", str(port))
         except Exception as e:
             self.log(f"Erreur lors du démarrage de SuperSplat : {e}", level=logging.ERROR)
             return False, str(e)

@@ -184,13 +184,16 @@ def run_upscale_job(input_path, output_dir, params, log_callback, cancel_check):
     # and so never silently overwrite — an existing file, including the
     # original itself when input and output folders happen to be the same.
     suffix = f"_{model_id}_x{req_scale}"
+    # Recursive on purpose: the chain's previous step may nest its images
+    # (360Extractor writes <images_360>/equi_processed/), and Reconstruction
+    # itself collects the source folder recursively.
     sources = (
-        [f for f in src.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS]
+        sorted(f for f in src.rglob("*") if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS)
         if src.is_dir()
         else [src]
     )
 
-    staged_names = _staged_names(sources, suffix, fmt)
+    staged_names = _staged_names(sources, suffix, fmt, root=src if src.is_dir() else None)
 
     with _tempfile.TemporaryDirectory(prefix="upscayl_in_") as tmp_in:
         tmp_in_path = Path(tmp_in)
@@ -216,19 +219,30 @@ def run_upscale_job(input_path, output_dir, params, log_callback, cancel_check):
     return success[0], (output_dir if success[0] else "Upscale échoué.")
 
 
-def _staged_names(sources, suffix, fmt):
+def _staged_names(sources, suffix, fmt, root=None):
     """Map each source to its staged file name (``<stem><suffix>.<fmt>``).
 
-    Sources sharing a stem (``a.jpg`` and ``a.png``) would get the same name
+    Sources sharing a stem (``a.jpg`` and ``a.png``, or ``x/a.jpg`` and
+    ``y/a.jpg`` when *root* is scanned recursively) would get the same name
     and silently overwrite each other, so those alone also carry their
-    original extension (``a_png<suffix>.<fmt>``). Other names are unchanged.
+    sub-folder (relative to *root*) and original extension
+    (``a_y_jpg<suffix>.<fmt>``). Other names are unchanged.
     """
     counts = {}
     for f in sources:
         counts[f.stem.lower()] = counts.get(f.stem.lower(), 0) + 1
     names = {}
     for f in sources:
-        tag = f"_{f.suffix.lower().lstrip('.')}" if counts[f.stem.lower()] > 1 else ""
+        tag = ""
+        if counts[f.stem.lower()] > 1:
+            parts = []
+            if root is not None:
+                try:
+                    parts = list(f.parent.relative_to(root).parts)
+                except ValueError:
+                    parts = []
+            parts.append(f.suffix.lower().lstrip("."))
+            tag = "_" + "_".join(parts)
         names[f] = f"{f.stem}{tag}{suffix}.{fmt}"
     return names
 

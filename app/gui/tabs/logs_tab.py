@@ -17,6 +17,8 @@ from app.gui.widgets.dialog_utils import get_save_file_name
 class LogsTab(QWidget):
     """Logs tab"""
 
+    MAX_LOG_LINES = 50_000
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._auto_scroll = True
@@ -50,6 +52,9 @@ class LogsTab(QWidget):
 
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
+        # Bound the in-memory log: a multi-hour Brush run emits hundreds of
+        # thousands of lines; the oldest blocks are dropped past this count.
+        self.log_text.document().setMaximumBlockCount(self.MAX_LOG_LINES)
         self.log_text.setFont(QFont("Monaco", 10))
         layout.addWidget(self.log_text)
 
