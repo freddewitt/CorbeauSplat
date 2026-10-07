@@ -1,6 +1,6 @@
 # Kept identical to pyproject.toml's version; the bottom bar shows
 # f"v{VERSION}" (AppBar).
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 
 # Pillow's decompression-bomb guard is meant for untrusted uploads on a server.
 # This is a local desktop tool processing the user's own photogrammetry/drone

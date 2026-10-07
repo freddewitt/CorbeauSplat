@@ -1,6 +1,6 @@
 # CorbeauSplat — Project Manifest
 
-> Version 2.0.0 — macOS Apple Silicon Gaussian Splatting Pipeline
+> Version 2.0.1 — macOS Apple Silicon Gaussian Splatting Pipeline
 
 ## Identity
 

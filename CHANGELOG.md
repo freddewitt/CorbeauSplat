@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-07
+
+Maintenance release: closes the minor backlog left by the 2.0.0 audit and
+settles the four product decisions it had put aside.
+
+### 🔄 Changed
+- **Video FPS default is now 5 in the interface** (D3), matching the CLI and 4DGS (it was 2).
+- **The startup launcher no longer installs engines on its own** (L6-02). A disabled engine is skipped; for the others it asks before installing, and no answer means no.
+- **"Run Brush" default now lives in `RunState`** (D9) instead of being forced by the Source panel at construction time.
+
+### 🐛 Fixed
+- **Saved configurations are cleaner** (D8, D13). The `colmap` section no longer carries fields owned by Source (undistortion, blur filter, image conversion, video range), which were written with misleading defaults. Loading keeps the current undistortion setting.
+
+### 📝 Documented
+- Named configurations cover the seven chain panels only; Viewer, Sharp, 4DGS and SplatTransform settings are not saved (L6-04).
+- Known limit kept: cancelling a run can freeze the interface for up to ~7 s (L5-07).
+- Code comments clarify D5, L3-08, L3-11 and L5-10 (no behaviour change).
+
 ## [2.0.0] - 2026-09-23
 
 First stable release of v2. Between rc1 and this version, the whole
