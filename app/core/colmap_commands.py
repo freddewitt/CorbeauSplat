@@ -9,6 +9,21 @@ in ColmapEngine.
 from pathlib import Path
 from typing import Any
 
+from .system import is_apple_silicon
+
+
+def _onnx_gpu_flag(option: str) -> list:
+    """Keep COLMAP's ONNX models (ALIKED, LightGlue) off CoreML on macOS.
+
+    COLMAP 4.2 runs them through ONNX Runtime's CoreML provider when use_gpu
+    is on. CoreML cannot compile their variable keypoint counts: ALIKED fails
+    to compile and silently falls back to the CPU after the wasted attempt,
+    and LightGlue matching ran ~6x slower than on the CPU (same matches).
+    """
+    if is_apple_silicon():
+        return [f'--{option}.use_gpu', '0']
+    return []
+
 
 def build_feature_extraction_command(
     colmap_bin: str,
@@ -39,6 +54,7 @@ def build_feature_extraction_command(
     else:
         cmd.extend([
             '--AlikedExtraction.max_num_features', str(params.max_num_features),
+            *_onnx_gpu_flag('FeatureExtraction'),
         ])
     if image_list_path:
         cmd.extend(['--image_list_path', str(image_list_path)])
@@ -108,6 +124,9 @@ def build_feature_matching_command(
             '--AlikedMatching.min_cossim', '0.85',
         ])
     # LightGlue types carry their own matching — no extra flags needed
+
+    if feat_type.startswith('ALIKED') or 'LIGHTGLUE' in match_type:
+        cmd.extend(_onnx_gpu_flag('FeatureMatching'))
 
     return cmd, description
 

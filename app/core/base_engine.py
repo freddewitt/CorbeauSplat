@@ -54,22 +54,13 @@ class SubprocessRunner(IProcessRunner):
         }
         base_kwargs.update(kwargs)
 
-        # Securing the process group + nice value for compute tasks
-        # os.nice(10) on macOS gives the subprocess a "background" priority:
-        #   - The scheduler prefers E-cores over P-cores
-        #   - Thermal throttling is more aggressive
-        #   - The UI stays responsive even during COLMAP/Brush/Sharp
+        # New session group so terminate() can kill the whole process tree.
+        # No os.nice(): on Apple Silicon a lowered priority steers COLMAP,
+        # Brush and Sharp toward the E-cores and slows them down, while the
+        # GUI is a separate process the macOS scheduler keeps responsive
+        # on its own.
         if sys.platform != "win32":
-            def _preexec_with_nice():
-                """Setup child process: new session group + background priority."""
-                try:
-                    os.setsid()
-                    # nice=10 → background priority (E-core preference on AS)
-                    os.nice(10)
-                except OSError:
-                    pass  # non-critical, continue
-
-            base_kwargs['preexec_fn'] = _preexec_with_nice
+            base_kwargs['start_new_session'] = True
 
         self._process = subprocess.Popen(cmd, env=env, **base_kwargs)
         return self._process

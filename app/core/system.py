@@ -45,8 +45,13 @@ def is_running_under_rosetta() -> bool:
     return False
 
 
+@functools.cache
 def get_optimal_threads():
-    """Return the optimal thread count for Apple Silicon (P-cores) or other platforms"""
+    """Return the optimal thread count for Apple Silicon (P-cores) or other platforms
+
+    Cached: the core count never changes while the app runs, and each lookup
+    spawns up to four `sysctl` subprocesses.
+    """
     if is_apple_silicon():
         # Apple Silicon has heterogeneous P-cores (performance) + E-cores (efficiency).
         # For compute-heavy tasks (COLMAP, ffmpeg), we prefer P-cores only.
@@ -110,6 +115,48 @@ def get_device() -> str:
         return "cuda"
     return "cpu"
 
+def available_devices() -> list[str]:
+    """Compute devices that can actually exist on this machine.
+
+    CUDA is never available on a Mac: offering it there only leads to a
+    failed run (Brush would even switch WGPU to Vulkan, which macOS lacks).
+    """
+    if is_apple_silicon():
+        return ["mps", "cpu"]
+    if shutil.which("nvidia-smi") is not None:
+        return ["cuda", "cpu"]
+    return ["cpu"]
+
+def compute_env(base: dict | None = None) -> dict:
+    """Environment for compute subprocesses, with thread pools sized to the P-cores.
+
+    OpenMP, Accelerate (vecLib) and OpenBLAS otherwise spawn one thread per
+    logical core, E-cores included, which slows the whole pool down to the
+    pace of the efficiency cores on Apple Silicon.
+    """
+    env = dict(os.environ if base is None else base)
+    if is_apple_silicon():
+        threads = str(get_optimal_threads())
+        env['OMP_NUM_THREADS'] = threads
+        env['VECLIB_MAXIMUM_THREADS'] = threads
+        env['OPENBLAS_NUM_THREADS'] = threads
+    return env
+
+def _total_memory() -> int:
+    """Physical memory in bytes, without spawning `sysctl hw.memsize`."""
+    try:
+        return os.sysconf('SC_PHYS_PAGES') * os.sysconf('SC_PAGE_SIZE')
+    except (ValueError, OSError, AttributeError):
+        pass
+    try:
+        result = subprocess.run(
+            ["sysctl", "-n", "hw.memsize"],
+            capture_output=True, text=True, timeout=2
+        )
+        return int(result.stdout.strip()) if result.returncode == 0 else 0
+    except (ValueError, subprocess.SubprocessError, OSError):
+        return 0
+
 def get_memory_info() -> dict:
     """Returns memory info for UMA/caching strategies via sysctl + vm_stat.
 
@@ -120,15 +167,7 @@ def get_memory_info() -> dict:
     available = 0
     percent = 0.0
 
-    # Total physical memory
-    try:
-        result = subprocess.run(
-            ["sysctl", "-n", "hw.memsize"],
-            capture_output=True, text=True, timeout=2
-        )
-        total = int(result.stdout.strip()) if result.returncode == 0 else 0
-    except (ValueError, subprocess.SubprocessError, OSError):
-        pass
+    total = _total_memory()
 
     # Available memory: use vm_stat to get free + inactive + speculative pages.
     # On Apple Silicon UMA, compressed/inactive pages are effectively "available"
@@ -355,26 +394,47 @@ def check_ffmpeg_videotoolbox() -> bool:
         print("⚠️  FFmpeg introuvable — vérification VideoToolbox impossible.")
         return False
 
+    supported = ffmpeg_has_videotoolbox(ffmpeg_bin)
+    if supported is True:
+        if is_apple_silicon():
+            print("🎬 FFmpeg: VideoToolbox disponible (accélération HW) ✓")
+        return True
+    if supported is False:
+        print(
+            "⚠️  FFmpeg installé SANS VideoToolbox. "
+            "Réinstallez avec : brew reinstall ffmpeg"
+        )
+    return False
+
+
+@functools.cache
+def ffmpeg_has_videotoolbox(ffmpeg_bin: str) -> bool | None:
+    """Whether `ffmpeg_bin` lists VideoToolbox among its hwaccels (cached).
+
+    Returns None when the probe itself failed (binary missing, timeout), so
+    callers can tell "known unsupported" apart from "could not check".
+    """
     try:
         result = subprocess.run(
             [ffmpeg_bin, "-hide_banner", "-hwaccels"],
             capture_output=True, text=True, timeout=5
         )
-        if result.returncode == 0:
-            hwaccels = result.stdout.lower()
-            if "videotoolbox" in hwaccels:
-                if is_apple_silicon():
-                    print("🎬 FFmpeg: VideoToolbox disponible (accélération HW) ✓")
-                return True
-            else:
-                print(
-                    "⚠️  FFmpeg installé SANS VideoToolbox. "
-                    "Réinstallez avec : brew reinstall ffmpeg"
-                )
-                return False
     except (subprocess.SubprocessError, OSError):
-        pass
-    return False
+        return None
+    if result.returncode != 0:
+        return None
+    return "videotoolbox" in result.stdout.lower()
+
+
+def use_videotoolbox(ffmpeg_bin: str) -> bool:
+    """Whether frame extraction should request VideoToolbox decoding.
+
+    Only on Apple Silicon, and not when this ffmpeg is known to lack it:
+    asking anyway makes the first attempt fail and costs a full software
+    re-run. An inconclusive probe keeps the hardware attempt, since the
+    callers retry in software on failure.
+    """
+    return is_apple_silicon() and ffmpeg_has_videotoolbox(ffmpeg_bin) is not False
 
 
 def rosetta_warning() -> str | None:

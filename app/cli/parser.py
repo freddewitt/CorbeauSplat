@@ -2,6 +2,8 @@
 """CLI argument parser for CorbeauSplat."""
 import argparse
 
+from app.core.system import available_devices
+
 
 def _add_view_graph_flags(p):
     """Declare the two COLMAP flags that default to on.
@@ -102,7 +104,7 @@ def _add_pipeline_parser(subs):
     p.add_argument("--sh_degree",  type=int,   default=None, choices=range(1,5),
                    help="Degré Spherical Harmonics 1-4 (défaut: 3)")
     p.add_argument("--device", default="auto",
-                   choices=["auto","mps","cuda","cpu"], help="Device Brush (défaut: auto)")
+                   choices=["auto", *available_devices()], help="Device Brush (défaut: auto)")
     p.add_argument("--with_viewer", action="store_true", help="Ouvrir le viewer interactif après entraînement")
     p.add_argument("--max_resolution", type=int, default=None,
                    help="Résolution max entraînement 0=auto (défaut: 0)")
@@ -201,7 +203,7 @@ def _add_brush_parser(subs):
     p.add_argument("--sh_degree",  type=int,   default=None, choices=range(1,5),
                    help="Degré Spherical Harmonics 1-4 (défaut: 3)")
     p.add_argument("--device",     default="auto",
-                   choices=["auto","mps","cuda","cpu"], help="Device (défaut: auto)")
+                   choices=["auto", *available_devices()], help="Device (défaut: auto)")
     p.add_argument("--refine_mode", action="store_true", help="Mode Refine (reprend depuis dernier checkpoint)")
     p.add_argument("--with_viewer", action="store_true", help="Ouvrir le viewer interactif")
     p.add_argument("--ply_name",   default=None,      help="Nom du fichier PLY de sortie")
@@ -227,7 +229,7 @@ def _add_sharp_parser(subs):
                    help="Mode : image unique ou vidéo (défaut: image)")
     p.add_argument("--checkpoint", "-c", default=None, help="Chemin vers un checkpoint .pt")
     p.add_argument("--device", default="default",
-                   choices=["default","mps","cpu","cuda"], help="Device (défaut: default)")
+                   choices=["default", *available_devices()], help="Device (défaut: default)")
     p.add_argument("--skip_frames", type=int, default=1,
                    help="[mode vidéo] Traiter 1 frame sur N (défaut: 1)")
     p.add_argument("--upscale", action="store_true",

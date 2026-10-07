@@ -1,5 +1,7 @@
+import functools
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
@@ -7,7 +9,30 @@ from pathlib import Path
 
 from .base_engine import BaseEngine
 from .media import conversion_suffix, convert_image, needs_image_conversion, without_hwaccel
-from .system import is_apple_silicon, resolve_project_root
+from .system import compute_env, resolve_binary, resolve_project_root, use_videotoolbox
+
+
+@functools.cache
+def _venv_supports_mps(python: str) -> bool | None:
+    """Ask the Sharp venv's PyTorch whether the Metal (MPS) backend works.
+
+    Cached per interpreter: importing torch takes a few seconds. Returns
+    None when the probe could not run, so the caller keeps the requested
+    device rather than downgrading on a mere probe failure.
+    """
+    try:
+        result = subprocess.run(
+            [python, "-c",
+             "import sys, torch; sys.exit(0 if torch.backends.mps.is_available() else 3)"],
+            capture_output=True, text=True, timeout=60,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
+    if result.returncode == 0:
+        return True
+    if result.returncode == 3:
+        return False
+    return None
 
 # Sharp runs inference one image at a time, and slowly: the reference figure
 # comes from tests/integration/test_e2e_sharp.py on Apple Silicon. Used only to
@@ -67,6 +92,13 @@ class SharpEngine(BaseEngine):
             return [found]
 
         return None
+
+    def _mps_usable(self) -> bool:
+        """False only when the Sharp venv's PyTorch positively lacks MPS."""
+        python = resolve_project_root() / ".venv_sharp" / "bin" / "python3"
+        if not (python.exists() and os.access(python, os.X_OK)):
+            return True  # nothing to probe; let Sharp report its own error
+        return _venv_supports_mps(str(python)) is not False
 
     def is_installed(self):
         """Report whether Sharp can actually be launched.
@@ -133,14 +165,22 @@ class SharpEngine(BaseEngine):
                 self.log(f"SECURITY: Invalid checkpoint path: {checkpoint}")
 
         device = params.get("device", self.device)
+        if device == "mps" and not self._mps_usable():
+            self.log(
+                "⚠️ Le GPU Apple (MPS) n'est pas utilisable par le PyTorch de "
+                ".venv_sharp — calcul sur processeur (cpu), plus lent."
+            )
+            device = "cpu"
         if device and device != "default":
             cmd.extend(["--device", device])
 
         if params.get("verbose"):
             cmd.append("--verbose")
 
-        # Environnement
-        env = os.environ.copy()
+        env = compute_env()
+        # Operations PyTorch has not ported to Metal yet run on the CPU
+        # instead of aborting the whole prediction.
+        env["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
         # Ensure all args are strings for Popen
         cmd = [str(arg) for arg in cmd]
@@ -160,10 +200,10 @@ class SharpEngine(BaseEngine):
         Retries in software when VideoToolbox refuses the stream (ProRes,
         10-bit HEVC in a .mov) rather than rejecting the container outright.
         """
-        ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
+        ffmpeg_bin = resolve_binary("ffmpeg") or "ffmpeg"
 
         ffmpeg_cmd = [ffmpeg_bin]
-        if is_apple_silicon():
+        if use_videotoolbox(ffmpeg_bin):
             ffmpeg_cmd.extend(["-hwaccel", "videotoolbox"])
         ffmpeg_cmd.extend([
             "-y", "-i", str(vp),

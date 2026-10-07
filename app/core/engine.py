@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import platform
 import shutil
 import sqlite3
@@ -30,7 +29,7 @@ from .media import (
     without_hwaccel,
 )
 from .sparse_models import promote_largest_model
-from .system import get_optimal_threads, is_apple_silicon, resolve_binary
+from .system import compute_env, get_optimal_threads, is_apple_silicon, resolve_binary, use_videotoolbox
 
 # Single shared list (app/core/media.py). Anything not natively readable by
 # every downstream tool is converted on ingest, cf. _prepare_images_from_files.
@@ -740,7 +739,7 @@ class ColmapEngine(BaseEngine):
         output_pattern = images_dir / (f'{prefix}_%04d.jpg' if prefix else 'frame_%04d.jpg')
 
         cmd = [self.ffmpeg_bin]
-        if self.is_silicon:
+        if self.is_silicon and use_videotoolbox(self.ffmpeg_bin):
             cmd.extend(['-hwaccel', 'videotoolbox'])
 
         # `-ss` before `-i` seeks by keyframe instead of decoding from zero, so
@@ -808,11 +807,7 @@ class ColmapEngine(BaseEngine):
         """Run a system command with logging and a status callback."""
         self.log(f"\n{'='*60}\n{description}\n{'='*60}")
 
-        env = os.environ.copy()
-        if self.is_silicon:
-            env['OMP_NUM_THREADS'] = str(self.num_threads)
-            env['VECLIB_MAXIMUM_THREADS'] = str(self.num_threads)
-            env['OPENBLAS_NUM_THREADS'] = str(self.num_threads)
+        env = compute_env()
 
         def _colmap_parser(line_str: str):
             self.log(line_str)

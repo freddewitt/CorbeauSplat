@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+Apple Silicon tuning pass.
+
+### ⚡ Performance
+- **ALIKED and LightGlue run on the CPU on macOS.** COLMAP 4.2 sends them to CoreML, which cannot compile their variable keypoint counts: ALIKED fails and falls back after a wasted attempt, and LightGlue matching was ~6× slower than on the CPU (identical matches).
+- **Engines are no longer started at lowered priority.** `nice` pushed COLMAP, Brush and Sharp onto the efficiency cores.
+- **Thread pools are sized to the performance cores** (OpenMP, Accelerate, OpenBLAS) for COLMAP, 4DGS, Sharp and in-app PLY cleaning.
+- **VideoToolbox hardware decoding is used only when FFmpeg supports it** (probed once, cached); the core-count and memory lookups no longer spawn repeated subprocesses.
+
+### 🔄 Changed
+- **Device choices list only what the machine has**: `mps`/`cpu` on a Mac (no more `cuda`), in the interface and the CLI.
+- **Sharp falls back to the CPU when its PyTorch has no MPS support**, and enables PyTorch's MPS fallback for unsupported operations.
+- Application icon and interface screenshot updated.
+
 ## [2.0.1] - 2026-10-07
 
 Maintenance release: closes the minor backlog left by the 2.0.0 audit and

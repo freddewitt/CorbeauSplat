@@ -2,6 +2,17 @@
 # f"v{VERSION}" (AppBar).
 VERSION = "2.0.1"
 
+# Size the in-process NumPy/Accelerate thread pools (PLY cleaning) to the
+# P-cores. These variables are only read when NumPy first loads, so they must
+# be set here, before any submodule imports it. Values already exported by the
+# user are kept.
+import os as _os  # noqa: E402
+
+from .core.system import compute_env as _compute_env  # noqa: E402
+
+for _key, _value in _compute_env({}).items():
+    _os.environ.setdefault(_key, _value)
+
 # Pillow's decompression-bomb guard is meant for untrusted uploads on a server.
 # This is a local desktop tool processing the user's own photogrammetry/drone
 # images, which routinely exceed the default 89-megapixel heuristic — so keep

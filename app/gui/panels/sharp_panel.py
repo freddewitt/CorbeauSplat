@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.i18n import add_language_observer, tr
+from app.core.system import available_devices
 from app.gui.run_state_binding import bind_flag_checkbox
 from app.gui.widgets.cancel_button import CancelButton
 from app.gui.widgets.dialog_utils import get_existing_directory, get_open_file_name
@@ -101,7 +102,7 @@ class SharpPanel:
         form = QFormLayout()
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.device_combo = QComboBox()
-        self.device_combo.addItems(["mps", "cuda", "cpu"])
+        self.device_combo.addItems(available_devices())
         self.lbl_device = QLabel()
         form.addRow(self.lbl_device, self.device_combo)
         ck_row = QHBoxLayout()

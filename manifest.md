@@ -78,11 +78,9 @@ Each has `--help`. No subcommand = GUI mode. Full reference: `CLI.md`
 
 ## RESTE À FAIRE (priorisé)
 
-### 🔄 Audit « version stable » 2026-09-23 — `docs/AUDIT_STABLE.md`
-- Lots 0-9 ✅ (54 correctifs + tests, re-base 1023 pass, ruff/mypy propres, e2e réels 28/28 dont pipeline COLMAP+Brush). **Version 2.0.0 stable** (CHANGELOG, pyproject, `app/__init__.py`). Non commité.
-- L6-01 ✅ (accord utilisateur pour `config.json`), L3-05/L5-08 ✅ câblés (`_start_tool_worker(post_steps=, ply_root=)` → `_run_tool_post_steps`).
-- **À trancher par l'utilisateur** : L5-07 (annulation bloquante jusqu'à ~7 s, à mesurer en réel) ; D3 (FPS vidéo 2 GUI vs 5 CLI) ; L6-02/L6-04 (voir tableau).
-- Backlog mineur (10) : D5, D8, D9, D13, D14, D18, L3-08, L3-11, L5-10, M11.
+### ✅ Audit « version stable » — clos en 2.0.1 (2026-10-07) — `docs/AUDIT_STABLE.md`
+- Backlog mineur traité (D5, D8, D9, D13, L3-08, L3-11, L5-10) ; décisions prises : L5-07 laissé tel quel (gel d'annulation ≤ ~7 s, limite connue), D3 FPS vidéo = 5 partout, L6-02 lanceur : moteurs désactivés ignorés + confirmation avant installation, L6-04 documenté (README). Commits `75f3ed9`, `7feb53a`, tag `v2.0.1` poussés.
+- Restent (observations, sans urgence) : D14, M11. Test `test_journal_integrity` en échec (journal.jsonl ligne 62 sans champ `lot`) — à réparer.
 
 ### Tâches ouvertes
 - **M8 non traité** : `linux_brush` vide dans `checksums.json`, en attente d'accord explicite (sans effet réel, projet macOS).

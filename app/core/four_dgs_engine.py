@@ -5,7 +5,13 @@ from pathlib import Path
 from .base_engine import BaseEngine
 from .media import format_timecode, is_video_file, without_hwaccel
 from .sparse_models import promote_largest_model
-from .system import get_optimal_threads, is_apple_silicon, resolve_binary, resolve_project_root
+from .system import (
+    compute_env,
+    get_optimal_threads,
+    resolve_binary,
+    resolve_project_root,
+    use_videotoolbox,
+)
 
 # Path to the dedicated nerfstudio venv
 _VENV_4DGS = resolve_project_root() / ".venv_4dgs"
@@ -83,7 +89,7 @@ class FourDGSEngine(BaseEngine):
         out_p.mkdir(parents=True, exist_ok=True)
 
         cmd = [self.ffmpeg]
-        if is_apple_silicon():
+        if use_videotoolbox(self.ffmpeg):
             cmd.extend(["-hwaccel", "videotoolbox"])
 
         # `-ss` before `-i` seeks by keyframe instead of decoding from zero;
@@ -216,7 +222,7 @@ class FourDGSEngine(BaseEngine):
             "--ImageReader.single_camera", "1" if single_camera else "0"
         ]
 
-        if self._execute_command(cmd_extract, timeout=14400) != 0:
+        if self._execute_command(cmd_extract, env=compute_env(), timeout=14400) != 0:
             return False
 
         self.log("--- COLMAP: Feature Matching ---")
@@ -233,7 +239,7 @@ class FourDGSEngine(BaseEngine):
                 "--database_path", str(db_path),
             ]
 
-        if self._execute_command(cmd_match, timeout=14400) != 0:
+        if self._execute_command(cmd_match, env=compute_env(), timeout=14400) != 0:
             return False
 
         # 3. Mapper
@@ -249,7 +255,7 @@ class FourDGSEngine(BaseEngine):
         threads = str(get_optimal_threads())
         cmd_mapper.append(f"--Mapper.num_threads={threads}")
 
-        if self._execute_command(cmd_mapper, timeout=14400) != 0:
+        if self._execute_command(cmd_mapper, env=compute_env(), timeout=14400) != 0:
             return False
         # The mapper may leave a stub model in 0/ and the real one in 1/;
         # downstream reads 0/ only.
@@ -397,7 +403,7 @@ class FourDGSEngine(BaseEngine):
                 "--verbose"
             ]
 
-            if self._execute_command(cmd_ns) != 0:
+            if self._execute_command(cmd_ns, env=compute_env()) != 0:
                 self.log("Echec ns-process-data.")
                 return False
 

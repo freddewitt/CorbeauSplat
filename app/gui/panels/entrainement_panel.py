@@ -44,7 +44,7 @@ from app.core.brush_presets import (
     save_user_preset,
 )
 from app.core.i18n import add_language_observer, tr
-from app.core.system import get_brush_build_mode
+from app.core.system import available_devices, get_brush_build_mode
 from app.gui.run_state_binding import bind_flag_checkbox
 from app.gui.widgets.cancel_button import CancelButton
 from app.gui.widgets.dialog_utils import get_existing_directory
@@ -153,8 +153,9 @@ class EntrainementPanel:
         # "auto" first and selected by default: matches the CLI default
         # (cf. cli/parser.py --device) and lets BrushEngine pick the right
         # device itself (get_device()) instead of forcing "mps", which would
-        # be wrong on non-Apple-Silicon machines (cf. audit D10).
-        self.device_combo.addItems(["auto", "mps", "cuda", "cpu"])
+        # be wrong on non-Apple-Silicon machines (cf. audit D10). Only devices
+        # this machine can have are listed (no CUDA on a Mac).
+        self.device_combo.addItems(["auto", *available_devices()])
         self.lbl_device = QLabel()
         essential.addRow(self.lbl_device, self.device_combo)
         layout.addLayout(essential)
