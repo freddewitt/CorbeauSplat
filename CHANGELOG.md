@@ -2,7 +2,11 @@
 
 ## [Unreleased]
 
-Apple Silicon tuning pass.
+## [2.0.1] - 2026-10-07
+
+Maintenance release: closes the minor backlog left by the 2.0.0 audit and
+settles the four product decisions it had put aside. Also includes an Apple
+Silicon tuning pass.
 
 ### ⚡ Performance
 - **ALIKED and LightGlue run on the CPU on macOS.** COLMAP 4.2 sends them to CoreML, which cannot compile their variable keypoint counts: ALIKED fails and falls back after a wasted attempt, and LightGlue matching was ~6× slower than on the CPU (identical matches).
@@ -11,19 +15,12 @@ Apple Silicon tuning pass.
 - **VideoToolbox hardware decoding is used only when FFmpeg supports it** (probed once, cached); the core-count and memory lookups no longer spawn repeated subprocesses.
 
 ### 🔄 Changed
-- **Device choices list only what the machine has**: `mps`/`cpu` on a Mac (no more `cuda`), in the interface and the CLI.
-- **Sharp falls back to the CPU when its PyTorch has no MPS support**, and enables PyTorch's MPS fallback for unsupported operations.
-- Application icon and interface screenshot updated.
-
-## [2.0.1] - 2026-10-07
-
-Maintenance release: closes the minor backlog left by the 2.0.0 audit and
-settles the four product decisions it had put aside.
-
-### 🔄 Changed
 - **Video FPS default is now 5 in the interface** (D3), matching the CLI and 4DGS (it was 2).
 - **The startup launcher no longer installs engines on its own** (L6-02). A disabled engine is skipped; for the others it asks before installing, and no answer means no.
 - **"Run Brush" default now lives in `RunState`** (D9) instead of being forced by the Source panel at construction time.
+- **Device choices list only what the machine has**: `mps`/`cpu` on a Mac (no more `cuda`), in the interface and the CLI.
+- **Sharp falls back to the CPU when its PyTorch has no MPS support**, and enables PyTorch's MPS fallback for unsupported operations.
+- Application icon and interface screenshot updated.
 
 ### 🐛 Fixed
 - **Saved configurations are cleaner** (D8, D13). The `colmap` section no longer carries fields owned by Source (undistortion, blur filter, image conversion, video range), which were written with misleading defaults. Loading keeps the current undistortion setting.
