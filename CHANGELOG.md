@@ -22,6 +22,8 @@ Silicon tuning pass.
 - **Sharp falls back to the CPU when its PyTorch has no MPS support**, and enables PyTorch's MPS fallback for unsupported operations.
 - Application icon and interface screenshot updated.
 
+- **SplatTransform engine updated to 3.10.0** (from 2.7.1). The SOG format is now available in the interface and the CLI (`--format sog`), both as output and as input in the file browser.
+
 ### 🐛 Fixed
 - **Saved configurations are cleaner** (D8, D13). The `colmap` section no longer carries fields owned by Source (undistortion, blur filter, image conversion, video range), which were written with misleading defaults. Loading keeps the current undistortion setting.
 

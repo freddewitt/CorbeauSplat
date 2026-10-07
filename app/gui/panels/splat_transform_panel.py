@@ -81,7 +81,7 @@ class SplatTransformPanel:
         form = QFormLayout()
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)  # avoid horizontal overflow (long labels)
         self.combo_format = QComboBox()
-        self.combo_format.addItems(["ply", "spz", "splat"])
+        self.combo_format.addItems(["ply", "spz", "sog", "splat"])
         self.combo_format.currentTextChanged.connect(self._on_format_changed)
         self.lbl_format = QLabel()
         form.addRow(self.lbl_format, self.combo_format)
@@ -139,7 +139,7 @@ class SplatTransformPanel:
 
     def _browse_input(self):
         path, _ = get_open_file_name(self.center, tr("btn_browse", "Parcourir"), "",
-                                     "Splats (*.ply *.spz *.splat);;Tous (*.*)")
+                                     "Splats (*.ply *.spz *.sog *.splat);;Tous (*.*)")
         if path:
             self.input_path.setText(path)
 

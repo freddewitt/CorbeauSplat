@@ -341,7 +341,7 @@ def _add_splattransform_parser(subs):
     p.add_argument("--output", "-o", required=True, help="Output folder")
     p.add_argument(
         "--format", "-f",
-        choices=["ply", "spz", "glb", "csv"],
+        choices=["ply", "spz", "sog", "glb", "csv"],
         default="ply",
         help="Output format — extension determines conversion (default: ply)",
     )

@@ -14,7 +14,7 @@ from app.scripts.installers.base import EngineDependency
 from app.scripts.installers.tools import install_node_js
 
 SPLAT_TRANSFORM_PACKAGE = "@playcanvas/splat-transform"
-SPLAT_TRANSFORM_VERSION = "2.7.1"
+SPLAT_TRANSFORM_VERSION = "3.10.0"
 
 
 class SplatTransformEngineDep(EngineDependency):
