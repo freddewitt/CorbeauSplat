@@ -78,7 +78,7 @@ The left rail has four groups: **Project** (always visible), **TRAINING**, **OPT
     -   Leave the source type on **Auto**, or force Images / Video. For a video, set the FPS, or use **"Sélection vidéo…"** to choose an in/out range.
     -   Choose the **conversion format** (PNG, JPEG, or off) for images COLMAP cannot read.
     -   Pick the **mode** (Gsplat, Sharp, 4DGS), tick the steps to chain in *Automation* (360 extraction, Upscale before reconstruction, Brush, Cleaning, Export, Viewer), then click **Launch**.
-    -   Save your settings as a **named configuration** in *Current settings*.
+    -   Save your settings as a **named configuration** in *Current settings*. A configuration covers the seven chain panels only; Viewer, Sharp, 4DGS and SplatTransform settings are not saved in it.
 2.  **TRAINING group**:
     -   **Reconstruction**: COLMAP options, LightGlue matchers, **Glomap** as alternative mapper. Has its own Launch button for a standalone run.
     -   **Training (Brush)**: *Auto-Refine* resumes from the latest checkpoint; presets (built-in or your own — user presets can be deleted); *Nettoyer après* / *Exporter ensuite* post-training options.

@@ -171,7 +171,7 @@ class SourcePanel:
         self.lbl_fps = QLabel()
         self.fps_spin = QSpinBox()
         self.fps_spin.setRange(1, 60)
-        self.fps_spin.setValue(2)
+        self.fps_spin.setValue(5)
         fps_row.addWidget(self.lbl_fps)
         fps_row.addWidget(self.fps_spin)
         # Only meaningful for one video: a folder holds several, each with its
@@ -325,10 +325,8 @@ class SourcePanel:
 
         self.chk_entrainement = QCheckBox()
         self._bind(self.chk_entrainement, "entrainement_apres")
-        # Brush checked by default — bind_flag_checkbox() just imposed the
-        # run_state value ("entrainement_apres" defaults to False); we correct
-        # it afterward (emits toggled -> syncs run_state).
-        self.chk_entrainement.setChecked(True)
+        # Brush is checked by default: the default lives in
+        # RunState._FLAG_DEFAULTS, the binding above just reflects it.
         layout.addWidget(self.chk_entrainement)
 
         # Clean (opens nothing more here — settings live in the Clean step)

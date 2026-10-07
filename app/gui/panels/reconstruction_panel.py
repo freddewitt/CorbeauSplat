@@ -337,11 +337,25 @@ class ReconstructionPanel:
         self.run_state.undistort_images = getattr(params, 'undistort_images', False)
         self._update_sequential_enabled()
 
+    # Fields owned by other panels (Source / run_state): they have no widget
+    # here, so saving them would only write misleading defaults (D8, D13).
+    _FOREIGN_STATE_KEYS = (
+        "undistort_images", "filter_blurry", "blur_factor",
+        "image_convert_format", "video_trim_start", "video_trim_end",
+    )
+
     def get_state(self):
-        return self.get_params().to_dict()
+        state = self.get_params().to_dict()
+        for key in self._FOREIGN_STATE_KEYS:
+            state.pop(key, None)
+        return state
 
     def set_state(self, state):
         if state:
+            state = dict(state)
+            # Keep the run_state value: set_params() would otherwise reset it
+            # to the ColmapParams default when the key is absent.
+            state["undistort_images"] = self.run_state.undistort_images
             self.set_params(ColmapParams.from_dict(state))
 
     # ── i18n ────────────────────────────────────────────────────────────────────

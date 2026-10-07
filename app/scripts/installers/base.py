@@ -173,6 +173,16 @@ class DependencyManager:
                 pass
         return {}
 
+    @staticmethod
+    def _confirm_install(name: str) -> bool:
+        """Asks before installing a missing engine at startup (L6-02).
+        No answer (closed stdin) means no."""
+        try:
+            answer = input(f"\n>>> {name.capitalize()} is missing. Install now? (y/n): ").strip().lower()
+        except EOFError:
+            return False
+        return answer in ("o", "y", "oui", "yes")
+
     def main_install(self, check_only=False, startup=False):
         from app.scripts.installers.tools import install_system_dependencies
 
@@ -198,8 +208,15 @@ class DependencyManager:
             if not engine.is_installed():
                 if check_only:
                     pass # Just report status later
+                elif startup and not enabled:
+                    # L6-02: a disabled engine is audited but never installed.
+                    print(f"  ⏭️  {name.capitalize()}: disabled, not installed.")
+                    continue
+                elif startup and not self._confirm_install(name):
+                    print(f"  ⏭️  {name.capitalize()}: installation skipped.")
+                    continue
                 elif startup:
-                    print(f">>> Auto-installing {name.capitalize()} on startup...")
+                    print(f">>> Installing {name.capitalize()} on startup...")
                     try:
                         engine.install()
                         # install() reports its failures through a return value, not

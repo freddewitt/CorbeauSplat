@@ -213,7 +213,8 @@ class StudioWindow(QMainWindow):
             "export": ExportPanel(self.run_state),
             "visualiser": VisualiserPanel(self.run_state),
             # OUTILS modules. Brush ≈ Entraînement (manual mode) and SuperSplat ≈
-            # Visualiser share the same underlying screen (cf. spec §2.3).
+            # Visualiser reuse the same panel classes, but each page is its own
+            # instance: only run_state flags and Brush presets are shared (L3-08).
             "brush": EntrainementPanel(self.run_state, standalone=True),
             "sharp": SharpPanel(self.run_state),
             "supersplat": VisualiserPanel(self.run_state),
@@ -1085,6 +1086,9 @@ class StudioWindow(QMainWindow):
         marked DONE as soon as the server starts successfully (without waiting
         for a run to end); if the start fails, ERROR.
         """
+        # L5-10: this step never sets ``_active_worker`` — Cancel is a no-op
+        # here by design. toggle_server() only spawns the servers and returns
+        # (no blocking wait), so the step ends synchronously.
         panel = self.panels["visualiser"]
         self.run_state.set_status("visualiser", StepStatus.RUNNING)
         self.rail.set_step_status("visualiser", StepStatus.RUNNING)
@@ -1394,6 +1398,9 @@ class StudioWindow(QMainWindow):
         """
         worker = self._build_colmap_worker()
         if worker is not None:
+            # D5: this button always builds a COLMAP worker, so the mode is
+            # forced to "gsplat" — the same rule as plan_pipeline(), which only
+            # chains Brush in that mode. Sharp/4DGS never reach this path.
             self.current_pipeline_mode = "gsplat"
             self._start_tool_worker(
                 worker, post_steps=self._post_steps_from_flags("entrainement", "visualiser")
@@ -1514,6 +1521,8 @@ class StudioWindow(QMainWindow):
         if src_params["harmonics"]:
             st_params["--filter-harmonics"] = "0"
         if src_params["decimate"] < 100:
+            # Safety net: the panel resets decimate to 100 when the format is
+            # not ply, but a loaded config could still set both (L3-11).
             if src_params["format"] != "ply":
                 QMessageBox.critical(
                     self, tr("msg_error", "Erreur"),

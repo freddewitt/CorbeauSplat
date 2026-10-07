@@ -46,7 +46,7 @@ PIPELINE_STEPS = (
 _FLAG_DEFAULTS = {
     "source_360": False,
     "upscaler_avant": False,
-    "entrainement_apres": False,
+    "entrainement_apres": True,
     "nettoyer_apres": False,
     "exporter_apres": False,
     "visualiser_apres": False,
