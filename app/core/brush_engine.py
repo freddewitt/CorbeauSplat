@@ -1,9 +1,15 @@
 import os
+import sys
 from collections.abc import Callable
 from typing import Any
 
-from .base_engine import BaseEngine
+from .base_engine import BaseEngine, IProcessRunner, PtyProcessRunner
+from .live_progress import RateLimiter, parse_brush_bar
 from .system import adapt_max_splats, get_thermal_state, resolve_binary
+
+# Seconds between two training-bar lines copied into the log: the bar redraws
+# several times a second, the log only needs a heartbeat.
+_BAR_LOG_INTERVAL = 15.0
 
 
 class BrushEngine(BaseEngine):
@@ -60,7 +66,9 @@ class BrushEngine(BaseEngine):
         extra = cls.RELEASE_ONLY_FLAGS if build_mode == "release" else cls.SOURCE_ONLY_FLAGS
         return cls.COMMON_FLAGS | extra
 
-    def __init__(self, logger_callback: Callable | None = None, thermal_throttling: bool = False) -> None:
+    def __init__(self, logger_callback: Callable | None = None, thermal_throttling: bool = False,
+                 progress_callback: Callable[[float, float | None], None] | None = None,
+                 process_runner: IProcessRunner | None = None) -> None:
         """Initialize the Brush engine.
 
         Parameters
@@ -69,9 +77,23 @@ class BrushEngine(BaseEngine):
             Callback to forward log messages to the UI.
         thermal_throttling: bool
             Whether to enable thermal throttling.
+        progress_callback: Optional[Callable]
+            Called with ``(percent, eta_seconds)`` as the training bar moves;
+            ``eta_seconds`` is None until Brush reports a rate.
+        process_runner: Optional[IProcessRunner]
+            Defaults to a pseudo-terminal, the only way Brush draws its bar.
         """
-        super().__init__("Brush", logger_callback, thermal_throttling=thermal_throttling)
+        if process_runner is None and sys.platform != "win32" \
+                and not os.environ.get("CORBEAUSPLAT_NO_PTY"):
+            process_runner = PtyProcessRunner()
+        super().__init__("Brush", logger_callback, process_runner=process_runner,
+                         thermal_throttling=thermal_throttling)
         self.brush_bin = resolve_binary("brush")
+        self.progress_callback = progress_callback
+        # Set once a training bar has been parsed; the worker's checkpoint
+        # poller stands down from then on.
+        self.live_progress_seen = False
+        self._bar_log_limiter = RateLimiter(_BAR_LOG_INTERVAL)
 
     def build_command(self, input_path: str, output_path: str,
                       params: dict[str, Any] | None = None) -> tuple[list[str], dict[str, str]]:
@@ -220,11 +242,28 @@ class BrushEngine(BaseEngine):
         # Brush training can exceed 1h on large scenes — use extended wall-clock timeout.
         # Inactivity detection disabled: Brush has legitimately long silent phases
         # (viewer init, checkpoint I/O, heavy computation) that trigger false positives.
+        self.live_progress_seen = False
+        self._bar_log_limiter = RateLimiter(_BAR_LOG_INTERVAL)
         return self._execute_command(
             cmd, env=env,
+            line_callback=self._on_output_line,
             timeout=14400,      # 4h wall-clock safety net
             inactivity_timeout=0,   # disabled — noisy stdout behavior
         )
+
+    def _on_output_line(self, line: str) -> None:
+        """Training-bar redraws feed the progress; everything else is logged."""
+        bar = parse_brush_bar(line)
+        if bar is None:
+            self.log(line)
+            return
+        step, total, rate = bar
+        self.live_progress_seen = True
+        eta = (total - step) / rate if rate > 0 else None
+        if self.progress_callback:
+            self.progress_callback(100.0 * step / total, eta)
+        if self._bar_log_limiter.ready() or step == total:
+            self.log(f"Brush : step {step}/{total}" + (f" · {rate:.1f} it/s" if rate > 0 else ""))
 
     @staticmethod
     def _mem_pressure() -> float:

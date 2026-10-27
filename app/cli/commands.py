@@ -16,6 +16,7 @@ from app.core.brush_refine import (
 )
 from app.core.engine import ColmapEngine
 from app.core.i18n import tr
+from app.core.live_progress import integer_steps
 from app.core.params import FEATURE_TO_DEFAULT_MATCHING, ColmapParams, blur_factor_from_strength
 from app.core.ply_cleaner import clean_ply, clean_ply_batch
 from app.core.sharp_engine import SharpEngine
@@ -116,7 +117,7 @@ def run_colmap(args):
         params, args.input, args.output, args.type, args.fps,
         project_name=args.project_name,
         logger_callback=print,
-        progress_callback=lambda x: print(tr("cli_progression", x)),
+        progress_callback=integer_steps(lambda x: print(tr("cli_progression", x))),
     )
 
     success, msg = engine.run()
@@ -762,7 +763,7 @@ def run_extract360(args):
         success = engine.run_extraction(
             args.input, args.output, params,
             log_callback=print,
-            progress_callback=lambda x: print("  " + tr("cli_progression", x)),
+            progress_callback=integer_steps(lambda x: print("  " + tr("cli_progression", x))),
         )
     except KeyboardInterrupt:
         print(tr("cli_stopping"))
@@ -801,7 +802,7 @@ def _pipeline_colmap_step(args, total_steps):
         colmap_params, args.input, args.output, args.type, args.fps,
         project_name=args.project_name,
         logger_callback=print,
-        progress_callback=lambda x: print("  " + tr("cli_progression", x)),
+        progress_callback=integer_steps(lambda x: print("  " + tr("cli_progression", x))),
     )
 
     try:

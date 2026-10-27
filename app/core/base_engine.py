@@ -110,6 +110,114 @@ class SubprocessRunner(IProcessRunner):
         return -1
 
 
+class PtyProcessRunner(SubprocessRunner):
+    """Runs the process on a pseudo-terminal instead of a pipe.
+
+    Some tools only draw their progress when they believe a person is
+    watching: Brush's indicatif bar checks ``isatty(stderr)`` and stays hidden
+    on a pipe, which is why training used to report nothing. On a pty the bar
+    is drawn, and redrawn in place with ``\\r``, so output is split on both
+    ``\\r`` and ``\\n`` — each redraw becomes one "line" for the engine.
+
+    The terminal is made wide so indicatif does not truncate the bar's text.
+    """
+
+    _COLUMNS = 240
+    _READ_SIZE = 4096
+
+    def __init__(self):
+        super().__init__()
+        self._master_fd: int | None = None
+        self._pending: list[str] = []
+        self._partial = ""
+        self._decoder = None
+        self._eof = False
+
+    def start(self, cmd: list, env: dict | None = None, **kwargs):
+        import codecs
+        import fcntl
+        import pty
+        import struct
+        import termios
+
+        master_fd, slave_fd = pty.openpty()
+        with contextlib.suppress(OSError):
+            fcntl.ioctl(slave_fd, termios.TIOCSWINSZ,
+                        struct.pack("HHHH", 50, self._COLUMNS, 0, 0))
+        try:
+            self._process = subprocess.Popen(
+                cmd, env=env, stdin=subprocess.DEVNULL,
+                stdout=slave_fd, stderr=slave_fd,
+                start_new_session=True, **kwargs,
+            )
+        finally:
+            # The child holds its own copy; keeping ours would stop EOF from
+            # ever reaching the master once the child exits.
+            os.close(slave_fd)
+        self._master_fd = master_fd
+        self._pending, self._partial, self._eof = [], "", False
+        # Incremental: a multi-byte bar glyph (█) can straddle two reads.
+        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        return self._process
+
+    def stdout_iter(self) -> Iterator[str]:
+        while True:
+            line = self.readline()
+            if not line:
+                return
+            yield line
+
+    def readline(self, timeout: float | None = None) -> str | None:
+        """Next ``\\r``/``\\n``-delimited segment, None on timeout, "" on EOF."""
+        while not self._pending:
+            if self._eof or self._master_fd is None:
+                return self._flush_partial()
+            if timeout is not None:
+                ready, _, _ = _select.select([self._master_fd], [], [], timeout)
+                if not ready:
+                    return None
+            try:
+                chunk = os.read(self._master_fd, self._READ_SIZE)
+            except OSError:
+                # macOS raises EIO on the master once the child side is gone.
+                chunk = b""
+            if not chunk:
+                self._eof = True
+                self._close_master()
+                continue
+            self._split(self._decoder.decode(chunk))
+        return self._pending.pop(0)
+
+    def _split(self, text: str) -> None:
+        from .live_progress import strip_ansi
+
+        text = self._partial + text
+        parts = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        self._partial = parts.pop()
+        # Terminal codes (colors, "erase line" before a redraw) would otherwise
+        # land in the log as garbage. Empty segments (a bare "\r" before a
+        # redraw) are dropped too, since "" is the EOF marker for the caller.
+        parts = (strip_ansi(p) for p in parts)
+        self._pending.extend(p + "\n" for p in parts if p.strip())
+
+    def _flush_partial(self) -> str:
+        rest, self._partial = self._partial, ""
+        return rest + "\n" if rest.strip() else ""
+
+    def _close_master(self) -> None:
+        if self._master_fd is not None:
+            with contextlib.suppress(OSError):
+                os.close(self._master_fd)
+            self._master_fd = None
+
+    def wait(self, timeout=None):
+        try:
+            return super().wait(timeout)
+        finally:
+            if self._process and self._process.poll() is not None:
+                self._close_master()
+
+
 class BaseEngine:
     """
     Base class for all engines to consolidate common logic.

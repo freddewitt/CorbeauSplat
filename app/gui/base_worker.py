@@ -6,7 +6,10 @@ from PySide6.QtCore import QThread, Signal
 class BaseWorker(QThread):
     """Base class for the workers, with standardised signals"""
     log_signal = Signal(str)
-    progress_signal = Signal(int)
+    # float: COLMAP and Brush now report sub-percent steps (int emits still work)
+    progress_signal = Signal(float)
+    # Seconds left in the current step, or -1 when unknown. Only Brush emits it.
+    eta_signal = Signal(float)
     status_signal = Signal(str)
     finished_signal = Signal(bool, str)
 

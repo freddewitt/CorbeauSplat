@@ -21,6 +21,12 @@ from .colmap_commands import (
     build_incremental_mapper_command,
 )
 from .i18n import tr
+from .live_progress import (
+    PhaseProgress,
+    exhaustive_block_fraction,
+    parse_colmap_counter,
+    parse_registered_count,
+)
 from .media import (
     IMAGE_EXTENSIONS,
     conversion_suffix,
@@ -186,6 +192,9 @@ class ColmapEngine(BaseEngine):
         self.status = status_callback if status_callback else lambda x: None
         self.check_cancel = check_cancel_callback if check_cancel_callback else lambda: False
         self.logger = logging.getLogger(__name__)
+        # Live slice of the bar for the COLMAP step running now (see _enter_phase)
+        self._phase: PhaseProgress | None = None
+        self._expected_images = 0
 
         # Resolve binaries
         self.ffmpeg_bin = resolve_binary('ffmpeg') or 'ffmpeg'
@@ -374,7 +383,7 @@ class ColmapEngine(BaseEngine):
         """Run the COLMAP reconstruction steps."""
         database_path, sparse_dir = self._reset_reconstruction_outputs(project_dir)
 
-        self.progress(25)
+        self._enter_phase(25, 50)
 
         if self.is_cancelled():
             return False, tr("USER_CANCELLED")
@@ -384,7 +393,11 @@ class ColmapEngine(BaseEngine):
         if self.params.matcher_type == 'sequential':
             self._sort_colmap_database_images(database_path)
 
-        self.progress(50)
+        # Sequential matching with SIFT runs loop detection after the main
+        # pass, with its own counter (see colmap_commands).
+        loop_pass = (self.params.matcher_type == 'sequential'
+                     and getattr(self.params, 'feature_type', 'SIFT') == 'SIFT')
+        self._enter_phase(50, 75, passes=(0.65, 0.35) if loop_pass else (1.0,))
 
         if self.is_cancelled():
             return False, tr("USER_CANCELLED")
@@ -392,7 +405,7 @@ class ColmapEngine(BaseEngine):
         if not self.feature_matching(str(database_path)):
             return False, tr("err_colmap_matching", "Échec du matching")
 
-        self.progress(75)
+        self._enter_phase(75, 90, expected_images=self._count_images(images_dir))
 
         # View graph calibration (recommended before global_mapper, especially for AI-generated content)
         if self.params.use_view_graph_calibration:
@@ -416,7 +429,7 @@ class ColmapEngine(BaseEngine):
         if not self.mapper(str(database_path), str(images_dir), sparse_dir):
             return False, tr("err_colmap_reconstruction", "Échec de la reconstruction")
 
-        self.progress(90)
+        self._enter_phase(90, 95)
 
         if self.params.undistort_images:
             if self.is_cancelled():
@@ -427,11 +440,12 @@ class ColmapEngine(BaseEngine):
             if not self.image_undistorter(str(images_dir), str(sparse_dir), str(dense_dir)):
                 return False, tr("err_colmap_undistort", "Échec de la correction optique")
 
-        self.progress(95)
+        self._enter_phase(95, 100)
 
         if not self.is_cancelled():
             self.status(tr("status_ready", "Traitement terminé !"))
             self.create_brush_config(project_dir, images_dir, sparse_dir)
+            self._phase = None
             self.progress(100)
             return True, f"Dataset cree: {project_dir}"
 
@@ -862,6 +876,43 @@ class ColmapEngine(BaseEngine):
             self.log(f"Erreur: {str(e)}")
             return False
 
+    def _enter_phase(self, lo: float, hi: float, passes: tuple[float, ...] = (1.0,),
+                     expected_images: int = 0) -> None:
+        """Start a COLMAP phase owning the lo-hi slice of the bar.
+
+        The phase's own counters (see ``_track_progress``) then move the bar
+        inside that slice, instead of it sitting on ``lo`` until the next
+        phase. ``expected_images`` is the mapper's denominator: its log counts
+        registered images but never says out of how many.
+        """
+        self._expected_images = expected_images
+        self._phase = PhaseProgress(self.progress, lo, hi, passes=passes)
+
+    @staticmethod
+    def _count_images(images_dir: Path) -> int:
+        try:
+            return sum(1 for p in Path(images_dir).iterdir()
+                       if p.is_file() and not p.name.startswith("."))
+        except OSError:
+            return 0
+
+    def _track_progress(self, line: str) -> None:
+        """Feed a COLMAP log line to the current phase, if it carries a count."""
+        phase = self._phase
+        if phase is None:
+            return
+        counter = parse_colmap_counter(line)
+        if counter is not None:
+            phase.counter(*counter)
+            return
+        frac = exhaustive_block_fraction(line)
+        if frac is not None:
+            phase.fraction(frac)
+            return
+        registered = parse_registered_count(line)
+        if registered is not None and self._expected_images:
+            phase.fraction(registered / self._expected_images)
+
     def run_command(self, cmd: list, description: str, status_prefix: str | None = None) -> bool:
         """Run a system command with logging and a status callback."""
         self.log(f"\n{'='*60}\n{description}\n{'='*60}")
@@ -870,11 +921,17 @@ class ColmapEngine(BaseEngine):
 
         def _colmap_parser(line_str: str):
             self.log(line_str)
+            self._track_progress(line_str)
             if status_prefix:
                 if "Processed file" in line_str:
                     parts = line_str.split("Processed file")
                     if len(parts) > 1:
                         self.status(f"{status_prefix} : image {parts[1].strip()}")
+                elif "Processing image [" in line_str or "Processing block [" in line_str:
+                    # COLMAP 3.12+ matchers (see live_progress for the formats)
+                    what = "image" if "Processing image" in line_str else "bloc"
+                    counter = line_str.rsplit("[", 1)[-1].rstrip("]")
+                    self.status(f"{status_prefix} : {what} {counter}")
                 elif "Matching block" in line_str:
                     parts = line_str.split("Matching block")
                     if len(parts) > 1:

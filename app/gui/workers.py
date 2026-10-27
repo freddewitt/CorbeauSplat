@@ -144,7 +144,10 @@ class BrushWorker(BaseWorker):
     def __init__(self, input_path, output_path, params, engine=None, project_name="", keep_only_latest=False):
         super().__init__()
         # DIP: Injection
-        self.engine = engine or BrushEngine(logger_callback=self.log_signal.emit)
+        self.engine = engine or BrushEngine(
+            logger_callback=self.log_signal.emit,
+            progress_callback=self._on_live_progress,
+        )
 
         self.input_path = input_path
         self.output_path = output_path
@@ -308,12 +311,20 @@ class BrushWorker(BaseWorker):
             self._prune_to_latest_checkpoint()
         self.finished_signal.emit(True, tr("worker_brush_done", "Brush training finished successfully."))
 
-    def _start_checkpoint_progress(self, poll_interval=3.0):
-        """Approximate training progress from the checkpoints Brush drops on disk.
+    def _on_live_progress(self, percent, eta_seconds):
+        """Brush's own training bar, parsed by the engine (see live_progress)."""
+        self.progress_signal.emit(min(99.9, percent))
+        self.eta_signal.emit(-1.0 if eta_seconds is None else float(eta_seconds))
 
-        Brush reports no progress of its own, so this counts exported ``.ply``
-        files instead. Coarse by nature: one tick per ``--export-every``
-        interval, and nothing at all before the first export.
+    def _start_checkpoint_progress(self, poll_interval=3.0):
+        """Fallback estimate from the checkpoints Brush drops on disk.
+
+        Brush only draws its progress bar on a terminal; the engine now runs
+        it on a pseudo-terminal and parses the bar, which is far finer. This
+        poller stays as a safety net for when no bar is seen (Windows, a Brush
+        build with another bar format): it stands down as soon as the engine
+        reports live progress. Coarse by nature: one tick per
+        ``--export-every`` interval, and nothing at all before the first export.
 
         The output directory can only be read here, once refine-mode
         redirection and checkpoint archiving have settled ``self.output_path``.
@@ -335,6 +346,8 @@ class BrushWorker(BaseWorker):
 
         def poll():
             while not stop.wait(poll_interval):
+                if getattr(self.engine, "live_progress_seen", False):
+                    return
                 if not out.exists():
                     continue
                 with contextlib.suppress(OSError):

@@ -3,12 +3,10 @@
 Two modes, because not every worker reports a percentage:
 
 - **determinate** — an arc fills clockwise to the reported value, with the
-  percentage in the middle. Used by COLMAP, 360, Sharp video and Export, the
-  four workers that emit ``progress_signal``.
+  percentage in the middle. The arc glides between updates (``SmoothValue``).
 - **indeterminate** — a sweeping arc rotates, YouTube-style, with no number.
-  This is what training shows: ``BrushWorker`` reports no percentage at all
-  (its engine only gets a ``logger_callback``), and a ring frozen at 0% would
-  read as a hung run rather than a working one.
+  Shown from launch until the first value arrives, since a ring frozen at 0%
+  would read as a hung run rather than a working one.
 
 The widget hides itself when idle, so the panel looks unchanged outside a run.
 """
@@ -18,6 +16,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from app.gui.styles import DEFAULT_THEME, THEMES, get_saved_theme
+from app.gui.widgets.smooth_value import SmoothValue
 
 _SIZE = 52          # outer square, in px
 _THICKNESS = 5      # ring stroke width
@@ -40,6 +39,7 @@ class ProgressRing(QWidget):
         self._timer = QTimer(self)
         self._timer.setInterval(_INTERVAL)
         self._timer.timeout.connect(self._advance)
+        self._smooth = SmoothValue(lambda _v: self.update(), self)
 
     def _load_theme(self):
         """Resolve the ring colors from the saved theme (per instance, on start)."""
@@ -58,17 +58,18 @@ class ProgressRing(QWidget):
         """
         self._value = None
         self._angle = 0
+        self._smooth.snap(0)
         self._load_theme()
         self.setVisible(True)
         self._timer.start()
 
     def set_value(self, value):
         """Switch to determinate mode and display *value* (0-100)."""
-        self._value = max(0, min(100, int(value)))
+        self._value = max(0.0, min(100.0, float(value)))
         self.setVisible(True)
         # The sweep animation would fight the arc for the same pixels.
         self._timer.stop()
-        self.update()
+        self._smooth.set_target(self._value)
 
     def stop(self):
         self._timer.stop()
@@ -101,12 +102,13 @@ class ProgressRing(QWidget):
         if self._value is None:
             painter.drawArc(rect, (90 - self._angle) * 16, -_SWEEP * 16)
         else:
-            painter.drawArc(rect, 90 * 16, -int(360 * 16 * self._value / 100))
+            shown = self._smooth.value
+            painter.drawArc(rect, 90 * 16, -int(360 * 16 * shown / 100))
             font = QFont(self.font())
             font.setPointSizeF(max(9.0, _SIZE * 0.24))
             font.setBold(True)
             painter.setFont(font)
             painter.setPen(QColor(self._text))
             painter.drawText(
-                self.rect(), Qt.AlignmentFlag.AlignCenter, f"{self._value}%"
+                self.rect(), Qt.AlignmentFlag.AlignCenter, f"{int(shown)}%"
             )

@@ -687,6 +687,8 @@ class StudioWindow(QMainWindow):
         if hasattr(worker, "progress_signal"):
             worker.progress_signal.connect(self.activity_bar.set_progress)
             worker.progress_signal.connect(self.panels["source"].progress_ring.set_value)
+        if hasattr(worker, "eta_signal"):
+            worker.eta_signal.connect(self.activity_bar.set_eta)
 
     def _on_pipeline_step_finished(self, success, message):
         """End of a pipeline step: DONE + next step on success; ERROR + chain
